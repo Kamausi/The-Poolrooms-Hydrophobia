@@ -15,7 +15,7 @@ At dry-docks or broken pipe junctions you can eject from the raft. The game swit
 ### The Safe Room
 Heavily reinforced, brightly lit chambers that act as hard checkpoints between pool sectors. Entering one:
 - seals the bulkhead doors behind you
-- fully restores your sanity meter
+- fully resets your Drift (the sanity meter; see the story bible)
 - lets you craft ammo and upgrades
 - lets you pick your next waterslide route
 
@@ -49,12 +49,22 @@ Heavily reinforced, brightly lit chambers that act as hard checkpoints between p
 ## Current build vs. target
 
 The playable prototype (`index.html`, "Combat Build 02") is a single self-contained file: Three.js and the game code are bundled inline, with no WASM core and no external glTF assets yet. Geometry is built in code. Implemented so far:
-- on-rails raft movement through a tiled channel ("Sector 01 · The Yellow Channel")
+- three sectors in order: **The Yellow Channel** (12 m), **The Blue Reservoir** (28 m), **The Last Drain** (46 m)
+- each sector loops raft ride → maintenance dock → on-foot exploration (WASD + mouse look) → find the power cell → enter the green saferoom
 - Arc Blaster Mk.II: hold-to-fire, 24-round charge, `R` to recharge
 - red entities to destroy and green signals that restore health; score, vitals and speed HUD
-- dodge (`A`/`D`), boost (`Shift`), exit raft (`E`), pause, sound toggle and touch controls
+- safe room checkpoint saved to local storage; ending screen after the third sector
+- dodge (`A`/`D`), boost (`Shift`), exit raft / interact (`E`), pause, sound toggle and touch controls
 
-Not yet built: the free-roam disembark section, Safe Rooms and crafting, the sanity meter, track branching from target hits, procedural chunk streaming, the WASM core and the glTF pipeline.
+Not yet built: the entity roster and Drift system from the story bible, crafting and route choice in Safe Rooms, track branching from target hits, co-op, procedural chunk streaming, the WASM core and the glTF pipeline.
+
+## Story
+
+See [STORY_AND_LORE.md](STORY_AND_LORE.md) for the setting, the Drainer crew, the entities, Safe Rooms and the campaign.
+
+## Inspirations
+- **Left 4 Dead:** the on-foot exploration and Safe Room structure (four-person crew, special entities with counters, pacing director, sealed safe rooms).
+- **Six Flags' Boo Blasters on Boo Hill:** the rail-shooter feel (a ride vehicle, targets built into the set, a running score).
 
 ## References
 - Boo Blasters on Boo Hill (dark-ride shooter): https://www.sixflags.com/canadaswonderland/attractions/boo-blasters-on-boo-hill

@@ -20,4 +20,5 @@ python3 -m http.server 8000   # then open http://localhost:8000
 Touch controls appear on mobile.
 
 ## Design
-See [docs/GAME_DESIGN.md](docs/GAME_DESIGN.md) for the full concept, mechanics, target architecture and what's built so far.
+- [docs/GAME_DESIGN.md](docs/GAME_DESIGN.md): concept, mechanics, target architecture and what's built so far
+- [docs/STORY_AND_LORE.md](docs/STORY_AND_LORE.md): setting, characters, entities and campaign
