@@ -176,6 +176,9 @@ function showSafeRoom() {
   save();
 
   const body = document.createElement('div');
+  const guests = document.createElement('p');
+  guests.className = 'mono';
+  guests.textContent = `TERMINAL · CHECKPOINT CONFIRMED · GUESTS CHECKED IN: ${state.sectorIndex + 1}`;
   body.innerHTML = `<p>The bulkhead seals behind you. The pumps are loud enough to drown out the voices, and the lights are too bright for anything that lives in the water. Vitals and Drift restored.</p>`;
   const wall = document.createElement('div');
   wall.className = 'graffiti';
@@ -185,7 +188,7 @@ function showSafeRoom() {
     p.style.transform = `rotate(${(Math.random() - 0.5) * 5}deg)`;
     wall.append(p);
   }
-  body.append(wall);
+  body.append(guests, wall);
 
   const craft = document.createElement('div');
   craft.className = 'choices';

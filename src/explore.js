@@ -26,7 +26,11 @@ export function createExplore(canvas, state, sector, events) {
   const isWall = (cx, cz) => at(cx, cz) === '#';
   const cellOf = (x, z) => [Math.floor(x / CELL), Math.floor(z / CELL)];
   const center = (cx, cz) => [cx * CELL + CELL / 2, 0, cz * CELL + CELL / 2];
-  const isWaterCell = (ch) => ch === '~' || ch === 'L' || ch === 'u';
+  // 'd' cells are drainable: water unless the drain valve was shot from the raft.
+  const drained = !!state.drained?.[sector.index];
+  const isWaterCell = (ch) => ch === '~' || ch === 'L' || ch === 'u' || (ch === 'd' && !drained);
+  const isPoolCell = (ch) => isWaterCell(ch) || ch === 'd';
+  const inPool = (x, z) => isPoolCell(at(...cellOf(x, z)));
   const inWater = (x, z) => isWaterCell(at(...cellOf(x, z)));
   const find = (ch) => {
     const out = [];
@@ -54,7 +58,11 @@ export function createExplore(canvas, state, sector, events) {
         continue;
       }
       const water = isWaterCell(at(x, z));
-      const top = water ? POOL : 0;
+      const top = isPoolCell(at(x, z)) ? POOL : 0;
+      if (at(x, z) === 'd' && drained) {
+        // Exposed maintenance paint on the drained floor.
+        writeYaw(part(`Marking ${x},${z}`, slab, { color: [0.9, 0.75, 0.15], metallic: 0, roughness: 0.6, emission: 0.3, emissiveColor: [1, 0.8, 0.2] }).matrix, [c[0], POOL + 0.01, c[2]], 0, 0.35, 0.02, CELL * 0.8);
+      }
       writeYaw(part(`Floor ${x},${z}`, slab, tileMat).matrix, [c[0], top - 0.25, c[2]], 0, CELL, 0.5, CELL);
       if (water) writeYaw(part(`Water ${x},${z}`, slab, { tag: 'water', color: linear(sector.water), metallic: 0.55, roughness: 0.08 }).matrix, [c[0], SURFACE - 0.01, c[2]], 0, CELL, 0.02, CELL);
       if ((x + z) % 2 === 0) {
@@ -68,10 +76,10 @@ export function createExplore(canvas, state, sector, events) {
 
   // Pool ledges: a lip of tile where dry floor meets water, so the step down reads.
   for (let z = 0; z < H; z++) for (let x = 0; x < W; x++) {
-    if (!isWaterCell(at(x, z))) continue;
+    if (!isPoolCell(at(x, z))) continue;
     for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
       const n = at(x + dx, z + dz);
-      if (n === '#' || isWaterCell(n)) continue;
+      if (n === '#' || isPoolCell(n)) continue;
       const c = center(x, z);
       const p = [c[0] + dx * (CELL / 2 - 0.12), POOL / 2, c[2] + dz * (CELL / 2 - 0.12)];
       writeYaw(part(`Ledge ${x},${z},${dx},${dz}`, slab, tileMat).matrix, p, 0, dx ? 0.24 : CELL, -POOL, dz ? 0.24 : CELL);
@@ -172,6 +180,7 @@ export function createExplore(canvas, state, sector, events) {
   let bob = 0;
   let wasWater = false;
   hud.objective('Find the power cell. Reach the Safe Room door.');
+  if (find('d').length) hud.say('DEZ', drained ? `Valve worked. ${sector.valve[0].toUpperCase()}${sector.valve.slice(1)} is drained. Walk it dry.` : `You missed the valve, so ${sector.valve} is still flooded. Watch the water.`, 'crew');
   if (import.meta.env.DEV) window.__explore = { player, cellPos, doorPos, undertow, lifeguard, center };
 
   const spawnBloom = (pos) => {
@@ -208,8 +217,8 @@ export function createExplore(canvas, state, sector, events) {
     for (let t = 0.2; t < 50; t += 0.15) {
       const p = add(eye, scale(dir, t));
       if (p[1] > HEIGHT || isWall(...cellOf(p[0], p[2]))) return t;
-      const w = inWater(p[0], p[2]);
-      if (p[1] < (w ? SURFACE : 0)) return t;
+      const floor = inWater(p[0], p[2]) ? SURFACE : inPool(p[0], p[2]) ? POOL : 0;
+      if (p[1] < floor) return t;
     }
     return 50;
   }
@@ -302,7 +311,7 @@ export function createExplore(canvas, state, sector, events) {
     if (len > 0.1) bob += dt * (water ? 5 : 8);
     if (water && !wasWater) { sound.splash(); ripple = [...player.pos]; rippleTime = time; }
     wasWater = water;
-    player.floor = damp(player.floor, water ? POOL : 0, 10, dt);
+    player.floor = damp(player.floor, inPool(player.pos[0], player.pos[2]) ? POOL : 0, 10, dt);
 
     const bobY = Math.sin(bob) * 0.045;
     const eye = [player.pos[0], player.floor + EYE + bobY, player.pos[2]];

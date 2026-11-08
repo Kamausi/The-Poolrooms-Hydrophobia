@@ -31,6 +31,14 @@ function trackRight(s, seed) {
   const yaw = trackYaw(s, seed);
   return [-Math.cos(yaw), 0, Math.sin(yaw)];
 }
+/** Yaw for a wall-mounted target at s on the given side, angled 45 degrees toward the oncoming raft. */
+function facingYaw(s, seed, side) {
+  const yaw = trackYaw(s, seed);
+  const back = [-Math.sin(yaw), 0, -Math.cos(yaw)];
+  const r = trackRight(s, seed);
+  const n = [back[0] - side * r[0], 0, back[2] - side * r[2]];
+  return Math.atan2(n[0], n[2]);
+}
 const lateral = (s, seed, offset, y) => {
   const p = trackPoint(s, seed);
   const r = trackRight(s, seed);
@@ -83,6 +91,13 @@ export function createRide(canvas, state, sector, events) {
     ring: add2({ name: `Signal ${i}`, geometry: ring, matrix: new Float32Array(16), material: { color: [0.5, 1, 0.55], metallic: 0, roughness: 0.4, emission: 3.2, emissiveColor: [0.55, 1, 0.5] } }),
     active: false, pos: [0, 0, 0], yaw: 0, used: 0,
   }));
+  // The drain valve: a blue wheel on the wall. Shooting it drains part of the dock level.
+  const valve = {
+    wheel: add2({ name: 'Drain valve', geometry: torus(0.12, 40, 12), matrix: new Float32Array(16), material: { color: [0.2, 0.55, 1], metallic: 0.3, roughness: 0.3, emission: 2.5, emissiveColor: [0.3, 0.65, 1] } }),
+    bar: add2({ name: 'Drain valve spoke', geometry: slab, matrix: new Float32Array(16), material: { color: [0.2, 0.55, 1], metallic: 0.3, roughness: 0.3, emission: 2.5, emissiveColor: [0.3, 0.65, 1] } }),
+    plate: add2({ name: 'Drain valve plate', geometry: slab, matrix: new Float32Array(16), material: { color: [0.06, 0.08, 0.1], metallic: 0.7, roughness: 0.4 } }),
+    active: false, pos: [0, 0, 0], yaw: 0, turned: 0, hits: 0,
+  };
   const ropes = Array.from({ length: 2 }, (_, i) => ({
     line: add2({ name: `Lane rope ${i}`, geometry: slab, matrix: new Float32Array(16), material: { color: [0.85, 0.85, 0.8], metallic: 0, roughness: 0.6 } }),
     floats: Array.from({ length: 5 }, (_, j) => ({ part: add2({ name: `Rope float ${i}.${j}`, geometry: ball, matrix: new Float32Array(16), material: { color: j % 2 ? [0.9, 0.9, 0.85] : [0.9, 0.25, 0.08], metallic: 0, roughness: 0.4, emission: 0.6, emissiveColor: [1, 0.4, 0.1] } }), alive: true, pos: [0, 0, 0] })),
@@ -146,6 +161,7 @@ export function createRide(canvas, state, sector, events) {
     else if (roll < 0.8 * (T.ropes > 0 ? 1 : 0) + 0.7) encounters.push({ at, kind: 'rope' });
     else if (T.undertows) encounters.push({ at, kind: 'undertow' });
   }
+  encounters.push({ at: end * 0.3, kind: 'valve' });
   if (T.lifeguards) for (let k = 0; k < T.lifeguards; k++) encounters.push({ at: end * (0.45 + k * 0.25), kind: 'lifeguard' });
   encounters.sort((a, b) => a.at - b.at);
   let nextEncounter = 0;
@@ -172,7 +188,7 @@ export function createRide(canvas, state, sector, events) {
       g.active = true;
       g.used = 0;
       g.pos = lateral(ahead, seed, side * (HALF - 0.25), 2 + random() * 1.6);
-      g.yaw = trackYaw(ahead, seed) + Math.PI / 2;
+      g.yaw = facingYaw(ahead, seed, side);
     } else if (e.kind === 'rope') {
       const r = ropes.find((x) => !x.active);
       if (!r) return;
@@ -191,6 +207,13 @@ export function createRide(canvas, state, sector, events) {
       u.offset = (random() - 0.5) * 2.4;
       u.hp = 4 + sector.index;
       u.grabbed = false;
+    } else if (e.kind === 'valve') {
+      const side = random() < 0.5 ? -1 : 1;
+      valve.active = true;
+      valve.side = side;
+      valve.pos = lateral(ahead, seed, side * (HALF - 0.2), 2.4);
+      valve.yaw = facingYaw(ahead, seed, side);
+      hud.say('DEZ', `Blue valve on the ${side < 0 ? 'left' : 'right'} wall. Three hits drains ${sector.valve}.`, 'crew');
     } else if (e.kind === 'lifeguard') {
       const l = lifeguards[0];
       l.active = true;
@@ -233,6 +256,17 @@ export function createRide(canvas, state, sector, events) {
       events.heal(18);
       events.score(50, 'SIGNAL · VITALS RESTORED');
       state.drift = Math.max(0, state.drift - 20);
+    });
+    if (valve.active && !valve.turned) test(valve.pos, 0.75, () => {
+      valve.hits += 1;
+      hud.hitmarker();
+      sound.hit();
+      if (valve.hits >= 3) {
+        valve.turned = 0.001;
+        (state.drained ||= {})[sector.index] = true;
+        sound.gurgle();
+        events.score(150, 'VALVE OPENED · PASSAGE DRAINING');
+      }
     });
     for (const r of ropes) if (r.active) for (const f of r.floats) if (f.alive) test(f.pos, 0.45, () => {
       f.alive = false;
@@ -404,6 +438,25 @@ export function createRide(canvas, state, sector, events) {
       }
       writeYaw(g.ring.matrix, g.pos, g.yaw, 0.55, 0.55, 0.55);
       if (trackPointBehind(g.pos)) { g.active = false; hide(g.ring); }
+    }
+
+    if (valve.active) {
+      if (valve.turned) valve.turned += dt;
+      const spin = valve.turned ? valve.turned * 6 : 0;
+      const n = [Math.sin(valve.yaw), 0, Math.cos(valve.yaw)];
+      const tx = [Math.cos(valve.yaw), 0, -Math.sin(valve.yaw)];
+      const axisX = add(scale(tx, Math.cos(spin)), [0, Math.sin(spin), 0]);
+      const axisY = add(scale(tx, -Math.sin(spin)), [0, Math.cos(spin), 0]);
+      writeBasis(valve.wheel.matrix, valve.pos, axisX, axisY, n, 0.5, 0.5, 0.5);
+      writeBasis(valve.bar.matrix, valve.pos, axisX, axisY, n, 0.95, 0.07, 0.07);
+      writeYaw(valve.plate.matrix, add(valve.pos, scale(n, -0.1)), valve.yaw, 1.3, 1.3, 0.06);
+      const glow = valve.turned ? 0.4 : 2 + Math.sin(time * 5) * 0.8 + valve.hits;
+      valve.wheel.material.emission = valve.bar.material.emission = glow;
+      if (trackPointBehind(valve.pos)) {
+        if (!valve.turned) hud.say('DEZ', 'Missed the valve. That passage stays flooded.', 'crew');
+        valve.active = false;
+        hide(valve.wheel); hide(valve.bar); hide(valve.plate);
+      }
     }
 
     for (const r of ropes) {

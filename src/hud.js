@@ -6,6 +6,7 @@ const queue = [];
 let speaking = 0;
 
 export function initHud() {
+  el.fading = document.querySelectorAll('.hud-tl, .hud-tr, #hint');
   for (const id of ['hud', 'sector-name', 'objective', 'score', 'cleared', 'depth', 'vitals', 'vitals-bar', 'drift', 'drift-bar', 'charge', 'charge-max', 'charge-state', 'mode', 'crosshair', 'subtitle', 'toast', 'prompt', 'damage', 'driftfx', 'scrap', 'hint']) el[id] = $(id);
 }
 
@@ -34,7 +35,8 @@ export const hud = {
     el.scrap.textContent = `${state.scrap} PARTS`;
     // Drift fades the HUD and washes the screen, as described in the story bible.
     const d = state.drift / 100;
-    el.hud.style.opacity = String(1 - d * 0.55);
+    // Decoration fades with Drift; vitals, charge and prompts stay readable.
+    for (const c of el.fading) c.style.opacity = String(1 - d * 0.6);
     el.driftfx.style.opacity = String(Math.max(0, d - 0.25) * 1.1);
   },
   depth(text) {

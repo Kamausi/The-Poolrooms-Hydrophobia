@@ -60,6 +60,7 @@ The game runs on 67js (`index.html` + `src/`). The old Three.js prototype is kep
 - **Lane Ropes** cross the channel: pop all five floats or take damage
 - **Undertow** patches of still water: shoot them before you pass, or the raft is held and Blooms swarm
 - **the Lifeguard** (sectors 2 and 3): shoot the lamp on its chair before you pass, or it whistles and calls Blooms
+- a blue **drain valve** on the wall: three hits drain a key stretch of the level you'll walk at the dock; miss it and that stretch stays flooded
 
 **On foot**
 - a hand-built grid level per sector with dry walkways and knee-deep pools (slower, more Drift)
@@ -70,12 +71,16 @@ The game runs on 67js (`index.html` + `src/`). The old Three.js prototype is kep
 - chlorine fumes start after two minutes and slowly hurt you
 
 **Systems**
-- **Drift** rises in warm water and from Marco's calls; it fades the HUD, washes out the picture and makes the Attendant talk to you. At 100 you sit down in the water and take damage until you snap out of it (Space or fire).
-- **Safe Rooms:** full heal and Drift reset, graffiti from earlier crews, a workbench (three blaster upgrades paid for with scrap), a dispatch board (Lazy River or Rapids for the next sector) and a saved checkpoint
+- **Drift** rises in warm water and from Marco's calls; it fades the decorative HUD (vitals, charge and prompts stay readable), washes out the picture and makes the Attendant talk to you. At 100 you sit down in the water and take damage until you snap out of it (Space or fire).
+- **Safe Rooms:** full heal and Drift reset, graffiti from earlier crews, a workbench (three blaster upgrades paid for with scrap), a dispatch board (Lazy River or Rapids for the next sector), a saved checkpoint, and a terminal whose guest count keeps rising
 - the Attendant's PA, crew radio (Dez, Tubs, June, Mars) and Marco as subtitles; all sound is synthesized
 - the ending is "The Loop" from the story bible
 
 **Not built yet:** AI crewmates and online co-op, Marco/Grout/Floater as physical entities, Lost & Found items, track branching from target hits, Campaigns 2 to 4 and the other two endings, Drift showing on the player's hands, GLB models.
+
+## Systems
+
+See [SYSTEMS_DESIGN.md](SYSTEMS_DESIGN.md): the park as one machine, raft features, blaster functions, target language, optional docks, water puzzles, sector themes, entity rules and the roadmap.
 
 ## Story
 
