@@ -14,6 +14,7 @@ import { quality } from './quality.js';
 import { settings } from './settings.js';
 import { AMBIENT } from './sectors.js';
 import { Track, EXIT_OFFSET, section } from './track.js';
+import { createDirector, AFTERMATH } from './director.js';
 
 const SEG = 6;
 const SEGMENTS = 28;
@@ -62,6 +63,17 @@ export function createRide(canvas, state, sector, events, opts = {}) {
       winL: P(`Window L${i}`, slab, glow([0.5, 0.42, 0.25], 1.4)), winR: P(`Window R${i}`, slab, glow([0.5, 0.42, 0.25], 1.4)),
       figure: P(`Window figure ${i}`, slab, dark()),
       debris: P(`Debris ${i}`, slab, { color: [0.4, 0.38, 0.33], metallic: 0, roughness: 0.9 }),
+      // Pool hall dressing: decks, plastic chairs, a high window, a slide that goes into the wall.
+      deckL: P(`Deck L${i}`, slab, tileMat), deckR: P(`Deck R${i}`, slab, tileMat),
+      chairL: P(`Chair L${i}`, box(0.08, 2), { color: [0.93, 0.93, 0.9], metallic: 0, roughness: 0.4 }), chairR: P(`Chair R${i}`, box(0.08, 2), { color: [0.93, 0.93, 0.9], metallic: 0, roughness: 0.4 }),
+      backL: P(`Chair back L${i}`, box(0.08, 2), { color: [0.93, 0.93, 0.9], metallic: 0, roughness: 0.4 }), backR: P(`Chair back R${i}`, box(0.08, 2), { color: [0.93, 0.93, 0.9], metallic: 0, roughness: 0.4 }),
+      upperWin: P(`Upper window ${i}`, slab, glow([0.55, 0.62, 0.66], 0.9)),
+      stairs: [0, 1, 2, 3].map((k) => P(`Stair ${i}.${k}`, slab, dark([0.05, 0.06, 0.07]))),
+      slide: P(`Slide ${i}`, torus(0.12, 40, 12, Math.PI * 0.7), { color: [0.95, 0.5, 0.18], metallic: 0, roughness: 0.25 }),
+      bigWin: P(`Pool window ${i}`, slab, glow([0.5, 0.75, 0.85], 1.1)),
+      farRaft: P(`Far raft ${i}`, slab, dark([0.08, 0.05, 0.04])),
+      marker: P(`Depth marker ${i}`, plane, { ...signMaterial('1.2 M', 'depth', 0.3, 256, 128), doubleSided: true }),
+      rules: P(`Pool rules ${i}`, plane, { ...signMaterial('POOL RULES\nNO RUNNING · NO DIVING\nNO GUESTS AFTER CLOSING', 'rule', 0.5, 512, 220), doubleSided: true }),
     });
   }
 
@@ -247,6 +259,78 @@ export function createRide(canvas, state, sector, events, opts = {}) {
   let scanTarget = null;
   let raftSeat = null;
   const fx = { eye: [0, 0, 0], look: [0, 0, 0], fwd: [0, 0, -1] };
+  let sink = 0;
+  let dressing = 0;
+  const director = createDirector(random, { relax: [26, 42], level: sector.index });
+  let lastHealth = state.health;
+  const setpiece = { active: false, t: 0, step: 0 };
+
+  function runDirector(dt, sec, curRoom) {
+    const hurt = Math.max(0, lastHealth - state.health);
+    lastHealth = state.health;
+    const live = blooms.filter((b) => b.active && !b.dying && !b.retreat);
+    const nearby = live.filter((b) => distance(b.pos, fx.eye) < 12).length;
+    for (const a of director.update(dt, { hurt, enemies: live.length, nearby })) {
+      if (a.type === 'unease' || a.type === 'warn') {
+        hud.caption(a.caption);
+        if (a.type === 'warn') sound.pump(0);
+        else if (random() < 0.5) sound.splash();
+      } else if (a.type === 'spawn' && !curRoom && sec.type !== 'lift') {
+        // Groups arrive from more than one direction: ahead, from the wall grates, and behind the raft.
+        for (let k = 0; k < a.count; k++) {
+          const from = a.flank ? k % 3 : 0;
+          if (from === 2) spawnBloom(s - 14 - random() * 8, (random() - 0.5) * sec.half, 0.8 + random() * 1.6);
+          else if (from === 1) spawnBloom(s + 18 + random() * 14, (random() < 0.5 ? -1 : 1) * (Math.min(sec.half, 6) - 0.3), 0.3 + random() * 0.4);
+          else spawnBloom(s + 35 + random() * 25, (random() - 0.5) * Math.min(sec.half, 6) * 1.4, 0.8 + random() * 2);
+        }
+        if (a.flank) hud.caption('[movement in the overflow grates — both walls]');
+      } else if (a.type === 'recover') {
+        // The swarm disperses; something useful drifts into reach; the crew breathes.
+        for (const b of live) b.retreat = true;
+        const c = caches.find((x) => !x.active);
+        if (c && !curRoom) Object.assign(c, { active: true, pos: track.lateral(s + 30, (random() < 0.5 ? -1 : 1) * (Math.min(sec.half, 6) - 0.4), 2.4), falling: 0, item: ['cell', 'filter', 'parts'][Math.floor(random() * 3)] });
+        const [who, line] = AFTERMATH[Math.floor(random() * AFTERMATH.length)];
+        hud.say(who, line, 'crew');
+      }
+    }
+    updateSetpiece(dt);
+  }
+
+  /** The pool hall scene: an impossible stairway, then a rope, the grates, and the Undertow. */
+  function updateSetpiece(dt) {
+    if (!setpiece.active) return;
+    setpiece.t += dt;
+    const sec = track.sectionAt(s).sec;
+    const half = Math.min(sec.half, 6);
+    if (setpiece.step === 0) {
+      setpiece.step = 1;
+      (state.sawStairway ||= {})[state.sectorKey] = true;
+      hud.say('JUNE', 'Look up. That stairway behind the window. On my map it\'s below us. It\'s supposed to be below us.', 'crew');
+    } else if (setpiece.step === 1 && setpiece.t > 9) {
+      setpiece.step = 2;
+      const r = ropes.find((x) => !x.active);
+      if (r) {
+        r.active = true;
+        r.s = s + 28;
+        r.floats.forEach((f, j) => Object.assign(f, { alive: true, pos: track.lateral(r.s, (j - 2) * 1.2, 1.25) }));
+      }
+      sound.thump();
+      hud.caption('[a lane rope snaps taut across the channel — ahead]');
+      hud.say('TUBS', 'Rope! Rope across the channel, pop the floats!', 'crew');
+    } else if (setpiece.step === 2 && setpiece.t > 11) {
+      setpiece.step = 3;
+      for (let k = 0; k < 6; k++) spawnBloom(s + 12 + k * 3, (k % 2 ? -1 : 1) * (half - 0.3), 0.3);
+      for (let k = 0; k < 2; k++) spawnBloom(s - 12 - k * 4, (random() - 0.5) * 3, 1.2);
+      director.crescendo();
+      hud.caption('[overflow grates bursting — both walls, and behind]');
+      hud.say('DEZ', 'They\'re coming out of the grates! Both walls! Mars, far bank!', 'crew');
+    } else if (setpiece.step === 3 && setpiece.t > 15) {
+      setpiece.step = 4;
+      const u = patches.find((x) => !x.active);
+      if (u) Object.assign(u, { active: true, s: s + 9, offset, hp: 5, grabbed: false, warned: true });
+      hud.say('MARS', 'Undertow, right under us! It\'s got the edge of the raft!', 'crew');
+    } else if (setpiece.step === 4) setpiece.active = false;
+  }
   const pick = (list) => list[Math.floor(random() * list.length)];
   const powered = () => !!(state.power || {})[state.sectorKey];
 
@@ -261,7 +345,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
   function spawnBloom(atS, off, y) {
     const b = blooms.find((x) => !x.active);
     if (!b) return;
-    Object.assign(b, { active: true, hp: 2 + (sector.index > 3 ? 1 : 0), dying: 0, phase: random() * 6, pos: track.lateral(atS, off, y), drift: [(random() - 0.5) * 0.8, 0, 0] });
+    Object.assign(b, { active: true, hp: 2 + (sector.index > 3 ? 1 : 0), dying: 0, phase: random() * 6, pos: track.lateral(atS, off, y), drift: [(random() - 0.5) * 0.8, 0, 0], rear: atS < s, stagger: 0, flash: 0, retreat: false });
   }
 
   /** Yaw for a wall-mounted target, angled 45 degrees toward the oncoming raft. */
@@ -360,6 +444,8 @@ export function createRide(canvas, state, sector, events, opts = {}) {
       if (!f) return;
       Object.assign(f, { active: true, s: at, offset: (random() < 0.5 ? -1 : 1) * half * 0.45, survivor: e.survivor, state: 'floating', hp: 2 });
       hud.say('JUNE', 'Someone in the water ahead. Steer to them, or don\'t. I can\'t tell if they\'re breathing.', 'crew');
+    } else if (e.kind === 'setpiece') {
+      Object.assign(setpiece, { active: true, t: 0, step: 0 });
     } else if (e.kind === 'lockerRoom') {
       Object.assign(locker, { active: true, sec, s: at + 30 });
       sec.pass = sec.pass || 1;
@@ -383,6 +469,10 @@ export function createRide(canvas, state, sector, events, opts = {}) {
       b.hp -= state.damage;
       sound.hit();
       hud.hitmarker();
+      // Every hit reads: a flash, a stagger, a shove backwards.
+      b.flash = 0.12;
+      b.stagger = 0.3;
+      b.pos = add(b.pos, scale(normalize(sub(b.pos, fx.eye)), 0.6));
       if (b.hp <= 0) {
         b.dying = 0.001;
         sound.burst();
@@ -651,20 +741,25 @@ export function createRide(canvas, state, sector, events, opts = {}) {
     } else {
       viewYaw = damp(viewYaw, 0, 3, dt);
       const list = state.passenger.stage >= 5 ? 0.6 : 0;
-      offset = damp(offset, clamp(steer, -1, 1) * sec.half * 0.5 + list, 6, dt);
+      offset = damp(offset, clamp(steer, -1, 1) * Math.min(sec.half * 0.5, 3) + list, 6, dt);
     }
 
     // Drift: warm water, calm channels, isolation.
-    const driftRate = (0.45 + sector.index * 0.12) * (sec.calm ? 1.3 : 1) * (sec.sky ? 0.5 : 1);
+    // Beautiful, calm spaces are where people stop wanting to leave.
+    const driftRate = (0.3 + sector.index * 0.1) * (sec.hall ? 2 : sec.calm ? 1.3 : 1) * (sec.sky ? 0.5 : 1);
     state.drift = Math.min(100, state.drift + dt * driftRate);
     if (boosting) state.drift = Math.max(0, state.drift - dt * 2);
 
     // Filters: hazardous channels use them up.
     if (sec.filter || sec.type === 'drop') useFilter(dt);
 
-    // Encounters ahead
+    // The director: quiet, warning, build-up, peak, fade, recovery.
+    runDirector(dt, sec, curRoom);
+
+    // Encounters ahead. During the director's rest, scheduled swarms stay away: quiet is part of the ride.
     for (const enc of track.encounters) {
       if (enc.e.done) continue;
+      if (enc.e.kind === 'blooms' && director.phase === 'relax' && enc.s <= s + 70) { enc.e.done = true; continue; }
       const lead = enc.e.kind === 'wake' || enc.e.kind === 'distantRaft' ? 0 : 70;
       if (enc.s <= s + lead) spawn(enc);
       else break;
@@ -675,9 +770,13 @@ export function createRide(canvas, state, sector, events, opts = {}) {
     const bob = (Math.sin(time * 2.1) * 0.05 + Math.sin(time * 1.3) * 0.03) * swayOn;
     shake = Math.max(0, shake - dt);
     const jitter = shake > 0 ? [(Math.random() - 0.5) * shake * 0.3, (Math.random() - 0.5) * shake * 0.3, 0] : [0, 0, 0];
-    const eye = add(track.lateral(s, offset, 1.35 + bob), jitter);
-    const ahead = track.lateral(s + 10, offset * 0.6, 1.2 + bob * 0.5);
+    // Sitting down in the water: the camera sinks toward the surface.
+    sink = damp(sink, state.sitting ? 0.7 : 0, 1.5, dt);
+    const eye = add(track.lateral(s, offset, 1.35 + bob - sink), jitter);
+    const ahead = track.lateral(s + 10, offset * 0.6, 1.2 + bob * 0.5 - sink * 1.6);
     let look = ahead;
+    // Hold X to look back over the raft at whatever is chasing it.
+    if (isDown('x')) look = add(eye, sub(eye, ahead));
     if (Math.abs(viewYaw) > 0.001) {
       const d = sub(ahead, eye);
       const c = Math.cos(viewYaw), sn = Math.sin(viewYaw);
@@ -776,6 +875,8 @@ export function createRide(canvas, state, sector, events, opts = {}) {
       return;
     }
     if (state.filters === 0 && state.filter <= 0 && (sec.filter || sec.type === 'drop')) prompt ||= 'NO FILTER · the chlorine is getting in';
+    const rearCount = blooms.filter((b) => b.active && !b.dying && b.rear && distance(b.pos, eye) < 20).length;
+    if (rearCount && !isDown('x')) prompt ||= `BEHIND THE RAFT · ${rearCount} · hold X to turn and shoot`;
 
     // Inspection beam
     let scanText = '';
@@ -797,6 +898,8 @@ export function createRide(canvas, state, sector, events, opts = {}) {
       blaster.showBeam(blaster.muzzle(eye, look, aimDir), to);
     }
     if (wasPressed('f')) burst(eye, aimDir);
+    if (wasPressed('h') && state.dressings > 0 && state.health < 100 && !dressing) { dressing = 2.5; state.dressings -= 1; hud.toast('APPLYING A FIELD DRESSING'); }
+    if (dressing > 0) { dressing -= dt; events.heal(dt * 16); }
     blaster.place(eye, look, aimDir, bob * 0.3);
 
     voices(dt, sec, curRoom);
@@ -828,11 +931,11 @@ export function createRide(canvas, state, sector, events, opts = {}) {
     renderer.render({
       eye, target: look, up, fov: FOV, time,
       waterRipple: ripple, rippleTime: time - rippleTime,
-      environment: { pointLights: gatherLights(eye) },
+      environment: { pointLights: gatherLights(eye), ambientIntensity: sec.hall ? 0.55 : sec.sky ? 0.7 : 0.28 },
       exposure: (sec.sky ? 0.95 : 1.05) - state.drift * 0.002,
       effects: {
         bloom: { strength: quality.bloom, threshold: 1, radius: 1.3 },
-        vignette: settings.distortion ? 0.32 + state.drift * 0.004 : 0.25,
+        vignette: settings.distortion ? Math.min(1, 0.32 + state.drift * 0.004) : 0.25,
         grain: settings.grain ? 0.035 : 0,
         saturation: 1 - state.drift * 0.006,
         temperature: sector.index === 0 ? 0.08 : -0.04,
@@ -858,7 +961,9 @@ export function createRide(canvas, state, sector, events, opts = {}) {
   function voices(dt, sec, curRoom) {
     nextLine -= dt;
     if (nextLine <= 0) {
-      nextLine = 11 + random() * 9;
+      nextLine = 16 + random() * 14;
+      // Leave silence: a third of the time, nobody says anything.
+      if (random() < 0.33 && crewLine >= sector.crew.length) return;
       if (crewLine < sector.crew.length) {
         const [who, line] = sector.crew[crewLine++];
         state.crewLine = crewLine;
@@ -1017,7 +1122,8 @@ export function createRide(canvas, state, sector, events, opts = {}) {
     return { a, z, xL, y, right: [-xL[0], 0, -xL[2]] };
   }
 
-  const SEG_KEYS = ['left', 'right', 'ceiling', 'floor', 'water', 'belt', 'lamp', 'rib', 'winL', 'winR', 'figure', 'debris'];
+  const HALL_KEYS = ['deckL', 'deckR', 'chairL', 'chairR', 'backL', 'backR', 'upperWin', 'slide', 'bigWin', 'farRaft', 'marker', 'rules'];
+  const SEG_KEYS = ['left', 'right', 'ceiling', 'floor', 'water', 'belt', 'lamp', 'rib', 'winL', 'winR', 'figure', 'debris', ...HALL_KEYS];
   function placeSegments() {
     for (const seg of segments) {
       while (seg.s + SEG < s - SEG) seg.s += SEGMENTS * SEG;
@@ -1027,6 +1133,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
       seg.flickerDark = false;
       if (mid > track.length + 2 || (r && r.sec.type !== 'drop')) {
         for (const k of SEG_KEYS) hide(seg[k]);
+        seg.stairs.forEach(hide);
         continue;
       }
       const sec = track.sectionAt(mid).sec;
@@ -1061,7 +1168,17 @@ export function createRide(canvas, state, sector, events, opts = {}) {
       }
       if (sec.ribs) writeBasis(seg.rib.matrix, add(B.a.p, scale(B.y, H / 2 - 0.4)), B.xL, B.y, B.z, half + 0.15, H / 2 + 0.55, 1);
       else hide(seg.rib);
-      if (sec.windows && n % 2 === 0) {
+      if (sec.lockers) {
+        // Locker banks that go on further than the building should allow.
+        for (const [part, side] of [[seg.winL, -1], [seg.winR, 1]]) {
+          part.material.color = [0.16, 0.26, 0.36];
+          part.material.emissiveColor = [0.3, 0.45, 0.6];
+          part.material.emission = 0.08;
+          put(part, side * (half - 0.25), 1.2, 0.5, 2.4, SEG - 0.1);
+        }
+        hide(seg.figure);
+      } else if (sec.windows && n % 2 === 0) {
+        for (const part of [seg.winL, seg.winR]) { part.material.color = [0.5, 0.42, 0.25]; part.material.emissiveColor = [0.5, 0.42, 0.25]; part.material.emission = 1.4; }
         put(seg.winL, -(half - 0.02), 1.9, 0.05, 1.5, 2.4);
         put(seg.winR, half - 0.02, 1.9, 0.05, 1.5, 2.4);
         // Someone is standing in most of them.
@@ -1072,6 +1189,8 @@ export function createRide(canvas, state, sector, events, opts = {}) {
       }
       if (sec.debris && hash(n + 0.7) < 0.5) put(seg.debris, (hash(n + 0.9) - 0.5) * half * 1.4, -0.2, 0.8 + hash(n) * 0.8, 0.5, 1.2);
       else hide(seg.debris);
+      if (sec.hall) placeHall(seg, sec, B, put, n, half, H);
+      else { for (const k of HALL_KEYS) hide(seg[k]); seg.stairs.forEach(hide); }
     }
     // The spillway drop ends in nothing.
     const last = track.ranges[track.ranges.length - 1];
@@ -1079,6 +1198,37 @@ export function createRide(canvas, state, sector, events, opts = {}) {
       const B = segBasis(track.length - 1);
       writeBasis(voidWall.matrix, add(B.a.p, scale(B.y, 1.5)), B.xL, B.y, B.z, last.sec.half * 2 + 1, 5, 0.3);
     } else hide(voidWall);
+  }
+
+  /** A vast, clean, empty pool hall: decks, rows of plastic chairs, depth markings, rules, high windows. */
+  function placeHall(seg, sec, B, put, n, half, H) {
+    const at = (along, right, up) => add(add(add(B.a.p, scale(B.z, along)), scale(B.right, right)), scale(B.y, up));
+    put(seg.deckL, -(half - 1.5), 0.2, 3, 0.5, SEG + 0.9);
+    put(seg.deckR, half - 1.5, 0.2, 3, 0.5, SEG + 0.9);
+    // One chair per side per segment, facing the water. Nobody in any of them.
+    put(seg.chairL, -(half - 1.6), 0.7, 0.55, 0.12, 0.55);
+    put(seg.backL, -(half - 1.3), 1.0, 0.08, 0.55, 0.55);
+    put(seg.chairR, half - 1.6, 0.7, 0.55, 0.12, 0.55);
+    put(seg.backR, half - 1.3, 1.0, 0.08, 0.55, 0.55);
+    // Depth marking on the deck edge, readable from the water.
+    writeBasis(seg.marker.matrix, at(0, -(half - 3.02), 0.25), scale(B.z, -1), B.y, B.right, 0.7, 0.32, 1);
+    if (n % 4 === 1) writeBasis(seg.rules.matrix, at(0, half - 0.04, 3.2), B.z, B.y, scale(B.right, -1), 2.6, 1.1, 1);
+    else hide(seg.rules);
+    // High observation windows. In a stairway hall, some show stairs at an impossible height.
+    if (n % 3 === 0) {
+      put(seg.upperWin, half - 0.02, H - 3.2, 0.05, 2.2, 3.4);
+      if (sec.stairway) seg.stairs.forEach((st, k) => writeBasis(st.matrix, at((k - 1.5) * 0.75, half - 0.06, H - 4 + k * 0.45), B.xL, B.y, B.z, 0.03, 0.16, 0.7));
+      else seg.stairs.forEach(hide);
+    } else { hide(seg.upperWin); seg.stairs.forEach(hide); }
+    // A slide that disappears into the wall with no room behind it.
+    if (n % 4 === 2) writeBasis(seg.slide.matrix, at(0, half + 2.2, H - 2.5), B.z, B.xL, B.y, 3.2, 3.2, 3.2);
+    else hide(seg.slide);
+    // Through a big window: another pool, enormous, with another raft crossing it.
+    if (n % 7 === 3) {
+      put(seg.bigWin, -(half - 0.02), 4, 0.05, 4.5, SEG - 0.4);
+      const slideX = Math.sin(time * 0.15 + n) * (SEG / 2 - 0.8);
+      writeBasis(seg.farRaft.matrix, at(slideX, -(half - 0.05), 2.6), B.xL, B.y, B.z, 0.02, 0.18, 0.7);
+    } else { hide(seg.bigWin); hide(seg.farRaft); }
   }
 
   const roomParts = () => [room.floor, room.water, room.ceiling, room.wallL, room.wallR, room.back1, room.back2, room.front1, room.front2, room.front3, ...room.lamps, ...room.gates, ...room.arrows.flatMap((a) => [a.shaft, a.headA, a.headB]), ...room.stub.flatMap((x) => [x.left, x.right, x.ceiling, x.water]), room.platform, room.tether, room.beacon, room.lampPost, room.figure, room.door, room.doorFrame];
@@ -1172,7 +1322,10 @@ export function createRide(canvas, state, sector, events, opts = {}) {
 
   function gatherLights(eye) {
     const lights = [];
-    for (const seg of segments) if (seg.lampPos) lights.push({ position: seg.lampPos, color: lampColor, intensity: 7 * (seg.lamp.material.emission / 9), radius: 0.4, range: 16, d: distance(seg.lampPos, eye) });
+    for (const seg of segments) if (seg.lampPos) {
+      const tall = seg.lampPos[1] - track.at(seg.s).p[1] > 7;
+      lights.push({ position: seg.lampPos, color: lampColor, intensity: (tall ? 16 : 7) * (seg.lamp.material.emission / 9), radius: 0.4, range: tall ? 26 : 16, d: distance(seg.lampPos, eye) });
+    }
     const r = track.nextRoom(s - 2);
     if (r && r.sec.type !== 'drop' && !r.sec.sky && s > r.s0 - 60) {
       const F = roomFrame(r);
@@ -1211,18 +1364,28 @@ export function createRide(canvas, state, sector, events, opts = {}) {
       }
       const toCam = sub(eye, b.pos);
       const d = Math.hypot(...toCam);
-      const closing = d < 22 ? (2.2 + sector.index * 0.3) * closeRate : 0;
-      b.pos = add(b.pos, add(scale(normalize(toCam), closing * dt), scale(b.drift, dt)));
+      b.stagger = Math.max(0, b.stagger - dt);
+      b.flash = Math.max(0, b.flash - dt);
+      // Rear swarms chase the raft, so they have to be faster than it.
+      let closing = d < 22 ? (2.2 + sector.index * 0.3) * closeRate : 0;
+      if (b.rear) closing = speed + 2.4;
+      if (b.stagger > 0) closing = 0;
+      if (b.retreat) {
+        b.pos = add(b.pos, [0, -dt * 1.5, 0]);
+        if (b.pos[1] < track.at(s).p[1] - 1) b.active = false;
+      } else b.pos = add(b.pos, add(scale(normalize(toCam), closing * dt), scale(b.drift, dt)));
       b.phase += dt * 3;
       const pulse = 0.45 + Math.sin(b.phase) * 0.05;
-      writeYaw(b.core.matrix, [b.pos[0], b.pos[1] + Math.sin(b.phase * 0.7) * 0.15, b.pos[2]], b.phase * 0.4, pulse, pulse * 0.92, pulse);
+      const squash = b.stagger > 0 ? 0.75 : 1;
+      writeYaw(b.core.matrix, [b.pos[0], b.pos[1] + Math.sin(b.phase * 0.7) * 0.15, b.pos[2]], b.phase * 0.4, pulse / squash, pulse * 0.92 * squash, pulse);
       writeYaw(b.spikes.matrix, b.pos, b.phase, pulse * 2.3, 0.07, 0.07);
-      b.core.material.emission = 1.6 + Math.sin(b.phase * 2) * 0.8;
+      b.core.material.emission = b.flash > 0 ? 9 : 1.6 + Math.sin(b.phase * 2) * 0.8;
       if (d < 1.1) {
         b.active = false;
         sound.burst();
-        damage(12, 'A Bloom burst against you.', 3);
-      } else if (behind(b.pos)) b.active = false;
+        damage(12, b.rear ? 'A Bloom caught the raft from behind.' : 'A Bloom burst against you.', 3);
+      } else if (behind(b.pos) && !b.rear) b.active = false;
+      else if (b.rear && d > 45) b.active = false;
     }
     for (const g of signals) {
       if (!g.active) { hide(g.ring); continue; }

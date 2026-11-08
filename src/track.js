@@ -12,7 +12,8 @@ export const PRESETS = {
   lift: { length: 64, speed: 2.4, half: 2.7, height: 4.6, wiggle: 0, climb: 18, lamps: 'sparse', belt: true, windows: true, label: 'RAFT LIFT' },
   tube: { length: 72, speed: 9, half: 1.9, height: 3, wiggle: 0.5, cycles: 1.2, lamps: 'dark', brake: true, filter: true, ribs: true, muffle: true, label: 'PRESSURE TUBE' },
   overflow: { length: 85, speed: 7.5, half: 3.4, height: 4.2, wiggle: 0.55, cycles: 1, lamps: 'flicker', shallow: true, filter: true, debris: true, label: 'OVERFLOW' },
-  loop: { length: 60, speed: 6, half: 3.4, height: 5, wiggle: 0, lamps: 'normal', label: 'LOCKER ROOM PASSAGE' },
+  loop: { length: 60, speed: 6, half: 3.4, height: 5, wiggle: 0, lamps: 'normal', label: 'LOCKER ROOM PASSAGE', lockers: true },
+  hall: { length: 130, speed: 4.5, half: 9, height: 11, wiggle: 0.12, cycles: 0.5, lamps: 'bright', label: 'POOL HALL', calm: true, hall: true },
 };
 
 let nextId = 1;

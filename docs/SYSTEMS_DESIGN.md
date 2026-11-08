@@ -310,3 +310,58 @@ Riding the raft is always permitted. On foot, breaking the posted rule **while e
 
 ### Rescues and headcounts feed the endings (implemented)
 Survivors pulled out on the raft or on foot are counted. Names read back at roll call are counted. Leaving nobody uncounted, reading back at least two names and rescuing at least two people opens **Count Heads** at the Main Drain.
+
+---
+
+## 15. The core: Left 4 Dead in the Backrooms
+
+**The moment-to-moment game is cooperative survival:** explore strange places, fight through sudden danger, protect the crew, reach the next Safe Room. The raft is UNDERFLOW's signature; Drift is the threat that belongs to this setting. Names, lore, body horror and endings reinforce that experience; they don't replace it.
+
+### Pacing director (implemented, `src/director.js`)
+After Valve's Left 4 Dead director: build intensity, sustain a peak, let it subside, then rest.
+
+| Phase | What happens |
+|---|---|
+| **Relax** (26–46 s, shorter deeper in) | Nothing spawns. Unease only: distant splashes, machinery you can't reach, a drain gurgling, a chair scraping somewhere above. Scheduled swarms on the raft are skipped. |
+| **Warning** (4 s) | A readable cue: a pump changes pitch, movement under the grates, the water level twitches. |
+| **Build-up** | Groups arrive every 3–5 s, growing, often from several directions. |
+| **Peak** | A few seconds of sustained pressure once intensity tops out (from damage taken and enemies close by). |
+| **Fade** | No new arrivals; finish the fight. |
+| **Recovery** | Survivors sink back into the grates, supplies drift into reach, the crew reacts (practical, scared, sometimes funny). |
+
+A **crescendo** (L4D's term for a loud action the players choose) forces a build-up: restoring the service circuit is now a 5-second hold (E) that the swarm answers, and getting hit sets it back. Cover yourself, or clear the room first.
+
+### Combat that makes the crew matter (implemented)
+- **Blooms swarm:** they arrive in groups from ahead, from the overflow grates on both walls, and from behind the raft; on foot they come from different quarters and spread around you instead of queueing. Every hit reads: a white flash, a squash, a shove backwards, a stagger. Rear swarms chase the raft faster than it moves; hold **X** to turn and fight them.
+- **Healing decisions:** field dressings are carried (crafted at the workbench), applied with **H** over a few seconds during which you can't fire.
+- **Cooperative function of each entity:**
+
+| Entity | Function in a fight |
+|---|---|
+| Blooms | Swarm pressure: advance, surround, force repositioning |
+| Undertow | Rescue emergency: restrains or drags someone away from support |
+| Lane Rope | Separation and obstruction |
+| Marco (the Caller) | Misdirection: pulls someone out of a defensible position |
+| Grout | Route pressure after a readable warning |
+| Floater | A rescue decision that needs observation and protection |
+| Lifeguard | Rare escalation from manageable to major |
+
+### The raft is a shared fighting position
+Jobs during an encounter: shoot the switch before the junction, clear the rope, protect the rear, break the Undertow's grip, decide on the dock. In co-op, **any player can take any job**, so the team still works when someone is hurt or busy. Solo, they are all yours.
+
+### Backrooms architecture (implemented)
+- **Pool halls** (`hall` sections): vast, clean, empty, bright; decks with rows of plastic chairs facing the water, depth markings, pool rules, high observation windows, slides that disappear into walls with no room behind them, and a big window onto another enormous pool where a different raft is crossing. They are beautiful enough to understand staying: Drift rises twice as fast in them.
+- **Changing rooms** (`loop` sections): locker banks that run on longer than the building should allow.
+- **On foot:** rooms with something in them and nothing to take: three chairs facing a wall; wet sandals at a pool edge; warm folded towels; an open locker numbered 0417 with a folded vest; a radio reading the weather for a town that doesn't exist; a drain that goes quiet as if it noticed you.
+
+### The pool-hall scene (implemented in the Welcome Pools)
+The raft drifts through a bright hall of empty chairs and still water. June: the stairway in the upper window should be *below* them. Nothing attacks for a while. Then a lane rope snaps taut, Blooms burst from the grates on both walls and behind, the director goes to a crescendo, and the Undertow takes the edge of the raft. After the dock and the pump room, June unfolds her map: the stairway is drawn where they saw it, in handwriting none of them recognise.
+
+### Drift (rebalanced)
+Builds mainly from **prolonged immersion** (the longer you stay in, the faster), **stillness** (six seconds without moving), **separation** (far from the raft), **the dark**, **beautiful spaces**, and entity encounters. A dry baseline is close to zero, so scouting a side room or examining an object stays cheap. When you sit down, the camera lowers until your eyes are nearly at the surface.
+
+### Safe Room payoff (implemented)
+The Safe Room is rendered behind its panel: hard white tile, two loud vibrating pumps (with a pump-room drone you learn to welcome), harsh light, a reinforced, barred window onto an enormous empty pool. Pursuit ends; recovery, crafting and route choice are there. And it stays slightly wrong: the maintenance clock advances irregularly, sometimes backwards; an announcement continues through the door; earlier crews argue with each other in layers of graffiti; a map marks a room nobody remembers passing.
+
+### Lore larger than the crew
+The Attendant, the Lifeguard, the water system and the architecture behave on their own schedules (the director, the clouds, the repairs, the other raft through the window). The Mars reveal explains what happened to Mars, not what the Backrooms is.

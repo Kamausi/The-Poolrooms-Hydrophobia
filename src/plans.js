@@ -39,6 +39,7 @@ export function populate(sec, random, threat, features = [], theme = {}) {
     tube: () => { blooms(Math.round(len / 45 * threat)); E.push({ at: spot(0.4, 0.8), kind: 'undertow' }); },
     overflow: () => { blooms(Math.round(len / 30 * threat)); E.push({ at: spot(0.5, 0.9), kind: 'undertow' }); if (random() < 0.5) E.push({ at: spot(), kind: 'floater', survivor: random() < 0.45 }); },
     lift: () => {},
+    hall: () => { E.push({ at: spot(0.6, 0.9), kind: 'signal' }); },
     loop: () => { E.push({ at: len * 0.5, kind: 'lockerRoom' }); },
   }[sec.type];
   base?.();
@@ -56,6 +57,8 @@ export function populate(sec, random, threat, features = [], theme = {}) {
     else if (f === 'clouds') sec.clouds = true;
     else if (f === 'uv') sec.uv = true;
     else if (f === 'blooms') blooms(3);
+    else if (f === 'stairway') sec.stairway = true;
+    else if (f === 'setpiece') E.push({ at: len * 0.3, kind: 'setpiece' });
   }
   return sec;
 }

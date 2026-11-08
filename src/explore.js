@@ -13,6 +13,7 @@ import { quality } from './quality.js';
 import { settings } from './settings.js';
 import { AMBIENT } from './sectors.js';
 import { documentFor } from './documents.js';
+import { createDirector, AFTERMATH } from './director.js';
 
 const CELL = 4;
 const FOV = 74;
@@ -238,6 +239,31 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
   const towers = rules.openSky ? Array.from({ length: 7 }, (_, i) => P(`Tower ${i}`, slab, tileMat)) : [];
   const clouds = rules.openSky ? Array.from({ length: 12 }, (_, i) => ({ part: P(`Cloud ${i}`, box(0.4, 3), { tag: 'unlit', color: [0.97, 0.98, 1], metallic: 0, roughness: 1 }), base: [(W * CELL) / 2 + (hash(i, 1) - 0.5) * 500, 60 + hash(i, 2) * 30, (H * CELL) / 2 - 100 - hash(i, 3) * 300] })) : [];
 
+  // ---------- Vignettes: ordinary pool details with one thing wrong. No loot, no enemy. ----------
+  const VIGNETTES = [
+    { cap: '[three plastic chairs, arranged to face the wall]', build: (c, wd) => [0, 1, 2].map((k) => chair(add(c, [(k - 1) * 0.8 * (wd[1] ? 1 : 0), 0, (k - 1) * 0.8 * (wd[0] ? 1 : 0)]), Math.atan2(wd[0], wd[1]))) },
+    { cap: '[a pair of sandals at the edge, still wet. Nobody else\'s footprints]', build: (c) => [P('Sandal A', box(0.1, 2), { color: [0.85, 0.3, 0.25], metallic: 0, roughness: 0.6 }), P('Sandal B', box(0.1, 2), { color: [0.85, 0.3, 0.25], metallic: 0, roughness: 0.6 })].map((p, k) => (writeYaw(p.matrix, add(c, [k * 0.28 - 0.14, 0.04, 0]), 0.1 * k, 0.12, 0.04, 0.3), p)) },
+    { cap: '[towels folded on a bench. Still warm]', build: (c) => { const b = P('Bench', slab, { color: [0.55, 0.42, 0.3], metallic: 0, roughness: 0.7 }); writeYaw(b.matrix, add(c, [0, 0.35, 0]), 0, 1.8, 0.1, 0.45); const t = P('Towels', box(0.2, 2), { color: [0.95, 0.95, 0.93], metallic: 0, roughness: 0.9 }); writeYaw(t.matrix, add(c, [0.3, 0.5, 0]), 0, 0.4, 0.2, 0.35); return [b, t]; } },
+    { cap: '[a locker standing open. Number 0417. Empty, except for a folded vest]', build: (c, wd) => { const l = P('Open locker', box(0.05, 2), { color: [0.18, 0.28, 0.38], metallic: 0.6, roughness: 0.4 }); writeYaw(l.matrix, add(c, [wd[0] * 1.5, 1, wd[1] * 1.5]), 0, 0.7, 2, 0.6); const v = P('Locker vest', box(0.2, 2), { color: [1, 0.45, 0.1], metallic: 0, roughness: 0.6 }); writeYaw(v.matrix, add(c, [wd[0] * 1.4, 0.6, wd[1] * 1.4]), 0, 0.4, 0.12, 0.3); return [l, v]; } },
+    { cap: '[a radio on the floor, tuned to a station that reads the weather for a town that does not exist]', build: (c) => { const r = P('Radio', box(0.15, 2), glow([0.4, 1, 0.5], 0.4, { color: [0.2, 0.2, 0.2], metallic: 0.4 })); writeYaw(r.matrix, add(c, [0, 0.15, 0]), 0.4, 0.45, 0.28, 0.18); return [r]; } },
+    { cap: '[a shower drain gurgles under your feet, then goes quiet as if it noticed you]', build: (c) => { const d = P('Drain', cylinder(24, 0, 1), { color: [0.25, 0.27, 0.27], metallic: 0.9, roughness: 0.3 }); writeYaw(d.matrix, add(c, [0, 0.01, 0]), 0, 0.3, 0.02, 0.3); return [d]; } },
+  ];
+  function chair(pos, yaw) {
+    const seat = P('Plastic chair', box(0.08, 2), { color: [0.93, 0.93, 0.9], metallic: 0, roughness: 0.4 });
+    writeYaw(seat.matrix, add(pos, [0, 0.45, 0]), yaw, 0.5, 0.06, 0.5);
+    const back = P('Plastic chair back', box(0.08, 2), { color: [0.93, 0.93, 0.9], metallic: 0, roughness: 0.4 });
+    writeYaw(back.matrix, add(pos, [-Math.sin(yaw) * 0.22, 0.75, -Math.cos(yaw) * 0.22]), yaw, 0.5, 0.55, 0.06);
+    return seat;
+  }
+  const vignettes = [];
+  for (let z = 1; z < H - 1; z++) for (let x = 1; x < W - 1; x++) {
+    if (at(x, z) !== '.' || hash(x + 0.3, z + 0.7) > 0.16 || Math.abs(x - find('D')[0][0]) + Math.abs(z - find('D')[0][1]) < 2) continue;
+    const wd = DIRS.find(([dx, dz]) => isWall(x + dx, z + dz)) || [0, 1];
+    const v = VIGNETTES[Math.floor(hash(z, x + 5) * VIGNETTES.length)];
+    v.build(center(x, z), wd);
+    vignettes.push({ pos: center(x, z), cap: v.cap, seen: false });
+  }
+
   // ---------- Entities ----------
   const blooms = Array.from({ length: 16 }, (_, i) => ({
     core: P(`Bloom ${i}`, ball, glow([1, 0.22, 0.08], 2, { color: [0.35, 0.03, 0.03], roughness: 0.55 })),
@@ -312,6 +338,12 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
   let footstepCooldown = 0;
   let lastLoop = null;
   let scanTarget = null;
+  let operating = 0;
+  let lastPanelHealth = state.health;
+  let waterT = 0;
+  let stillT = 0;
+  let sink = 0;
+  let healing = 0;
   const pick = (list) => list[Math.floor(random() * list.length)];
   const forwardVec = () => [-Math.sin(player.yaw), 0, -Math.cos(player.yaw)];
   hud.objective(hasCell ? (powered() ? 'Power restored. Return to the raft.' : 'Bring the power cell to the service panel.') : 'Find the power cell. Restore the service gate. Return to the raft.');
@@ -323,14 +355,56 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
 
   const spawnBloom = (pos) => {
     const b = blooms.find((x) => !x.active);
-    if (b) Object.assign(b, { active: true, pos: [...pos], hp: 2 + (sector.index > 3 ? 1 : 0), phase: random() * 6, dying: 0 });
+    if (b) Object.assign(b, { active: true, pos: [...pos], hp: 2 + (sector.index > 3 ? 1 : 0), phase: random() * 6, dying: 0, stagger: 0, flash: 0, retreat: false });
   };
   for (const [x, z] of find('b')) spawnBloom(add(center(x, z), [0, 1.4, 0]));
   /** A wave spawns out of sight: an open cell at least 14 m away. */
-  function wave(count) {
+  function wave(count, flank = false) {
     const options = [];
-    for (let z = 0; z < H; z++) for (let x = 0; x < W; x++) if (!blocked(x, z) && distance(center(x, z), player.pos) > 14) options.push(center(x, z));
-    for (let k = 0; k < count && options.length; k++) spawnBloom(add(options[Math.floor(random() * options.length)], [0, 1.2 + random(), 0]));
+    for (let z = 0; z < H; z++) for (let x = 0; x < W; x++) if (!blocked(x, z) && distance(center(x, z), player.pos) > (flank ? 9 : 14)) options.push(center(x, z));
+    if (!options.length) return;
+    if (!flank) {
+      for (let k = 0; k < count; k++) spawnBloom(add(options[Math.floor(random() * options.length)], [0, 1.2 + random(), 0]));
+      return;
+    }
+    // Flanking: spread the group around you by direction, so it comes from more than one side.
+    const byQuarter = [[], [], [], []];
+    for (const o of options) {
+      const a = Math.atan2(o[0] - player.pos[0], o[2] - player.pos[2]);
+      byQuarter[Math.floor(((a + Math.PI) / (Math.PI * 2)) * 4) % 4].push(o);
+    }
+    const quarters = byQuarter.filter((q) => q.length);
+    for (let k = 0; k < count; k++) {
+      const q = quarters[k % quarters.length];
+      spawnBloom(add(q[Math.floor(random() * q.length)], [0, 1.2 + random(), 0]));
+    }
+  }
+
+  const director = createDirector(random, { relax: [30, 46], level: sector.index });
+  let lastHealth = state.health;
+  function runDirector(dt, eye) {
+    const hurt = Math.max(0, lastHealth - state.health);
+    lastHealth = state.health;
+    const live = blooms.filter((b) => b.active && !b.dying && !b.retreat);
+    const nearby = live.filter((b) => distance(b.pos, eye) < 10).length;
+    for (const a of director.update(dt, { hurt, enemies: live.length, nearby })) {
+      if (a.type === 'unease') {
+        hud.caption(a.caption);
+        if (random() < 0.4) sound.splash();
+      } else if (a.type === 'warn') {
+        hud.caption(a.caption);
+        sound.pump();
+        if (random() < 0.5) hud.say('THE ATTENDANT', 'Attention guests: rush hour.', 'attendant');
+      } else if (a.type === 'spawn') wave(a.count, a.flank);
+      else if (a.type === 'recover') {
+        for (const b of live) b.retreat = true;
+        const [who, line] = AFTERMATH[Math.floor(random() * AFTERMATH.length)];
+        hud.say(who, line, 'crew');
+        // Something useful within reach after a fight.
+        const sc = scrap.find((x) => x.taken);
+        if (sc) { sc.taken = false; sc.pos = add(player.pos, [(random() - 0.5) * 4, 0.25 + floorTop(...cellOf(player.pos[0], player.pos[2])), (random() - 0.5) * 4]); collide(sc.pos); }
+      }
+    }
   }
 
   function collide(pos) {
@@ -380,6 +454,11 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
       b.hp -= state.damage;
       hud.hitmarker();
       sound.hit();
+      b.flash = 0.12;
+      b.stagger = 0.35;
+      const away = normalize(sub(b.pos, eye));
+      const pushed = add(b.pos, scale([away[0], 0, away[2]], 0.8));
+      if (!isWall(...cellOf(pushed[0], pushed[2]))) b.pos = pushed;
       if (b.hp <= 0) { b.dying = 0.001; sound.burst(); events.score(100, 'ENTITY DISPERSED'); events.cleared(); }
     });
     for (const g of signals) if (!g.used) test(g.pos, 0.8, () => {
@@ -612,7 +691,17 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     const swayY = settings.sway ? Math.sin(bob) * 0.045 : 0;
     // Cold water makes you shiver. The shivering stops as the water starts to feel warm, which is worse.
     const shiver = water && state.drift < 35 && settings.sway ? (35 - state.drift) / 35 * 0.008 : 0;
-    const eye = [player.pos[0] + (Math.random() - 0.5) * shiver, player.floor + EYE + swayY + (Math.random() - 0.5) * shiver, player.pos[2]];
+    // Sitting down in the water: you lower yourself until your eyes are almost at the surface.
+    sink = damp(sink, state.sitting ? EYE - 0.35 : 0, 1.2, dt);
+    if (state.sitting) player.pitch = damp(player.pitch, -0.25, 1, dt);
+    const eye = [player.pos[0] + (Math.random() - 0.5) * shiver, player.floor + EYE - sink + swayY + (Math.random() - 0.5) * shiver, player.pos[2]];
+    // Field dressing: H. Takes a moment, and you cannot fire while you do it.
+    if (wasPressed('h') && !healing && state.dressings > 0 && state.health < 100) { healing = 2.5; state.dressings -= 1; hud.toast('APPLYING A FIELD DRESSING'); }
+    if (healing > 0) {
+      healing -= dt;
+      events.heal(dt * 16);
+      ask(3, 'DRESSING THE WOUND…');
+    }
     const dir = [-Math.sin(player.yaw) * Math.cos(player.pitch), Math.sin(player.pitch), -Math.cos(player.yaw) * Math.cos(player.pitch)];
     const target = add(eye, dir);
     state.cameraUp = UP;
@@ -620,7 +709,13 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
 
     // Composure: warm water, the dark, being alone.
     const litHere = rules.openSky || lamps.some((l) => Math.abs(l.x - pcx) <= 1 && Math.abs(l.z - pcz) <= 1 && l.on);
-    state.drift = clamp(state.drift + dt * ((water ? 2 : 0.3) + (litHere ? 0 : 0.6)) * (1 + sector.index * 0.12), 0, 100);
+    // Drift builds from prolonged immersion, stillness, being far from the raft, and the dark.
+    // A short scouting trip is cheap; staying still in warm water is not.
+    waterT = water ? waterT + dt : Math.max(0, waterT - dt * 2);
+    stillT = moving ? 0 : stillT + dt;
+    const fromRaft = Math.hypot(raftPos[0] - player.pos[0], raftPos[2] - player.pos[2]);
+    const driftRate = (water ? 0.6 + Math.min(2.4, waterT * 0.12) : 0.08) + (stillT > 6 ? 0.8 : 0) + (fromRaft > 34 ? 0.35 : 0) + (litHere ? 0 : 0.5);
+    state.drift = clamp(state.drift + dt * driftRate * (1 + sector.index * 0.1), 0, 100);
     if (water && sector.index >= 2) {
       // Chlorine is heavier deeper in the park: filters.
       state.filter -= dt * 1.2;
@@ -641,6 +736,12 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
       sound.footstep(-0.4, water);
       setTimeout(() => sound.footstep(-0.3, water), 380);
       hud.caption('[footsteps behind you]');
+    }
+
+    for (const v of vignettes) if (!v.seen && Math.hypot(v.pos[0] - eye[0], v.pos[2] - eye[2]) < 3) {
+      v.seen = true;
+      hud.caption(v.cap);
+      state.drift = Math.min(100, state.drift + 2);
     }
 
     // ---------- Interactions ----------
@@ -664,8 +765,17 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     if (Math.hypot(panelPos[0] - eye[0], panelPos[2] - eye[2]) < 2.6 && !powered()) {
       if (!hasCell) ask(1, 'SERVICE PANEL · needs a power cell');
       else {
-        ask(2, 'E · Restore the service circuit');
-        if (wasPressed('e')) restorePower();
+        // Operating the panel takes time and noise: hold E while the swarm comes. Getting hit sets you back.
+        if (isDown('e')) {
+          if (!operating) { operating = 0.001; director.crescendo(); hud.caption('[the circuit groans awake — and something answers, everywhere]'); hud.say('DEZ', 'That panel\'s loud. Hold it. Whatever comes, hold it.', 'crew'); }
+          operating += dt;
+          if (state.health < lastPanelHealth - 0.5) operating = Math.max(0.001, operating - 1.2);
+          ask(4, `HOLD E · restoring the circuit ${Math.min(100, Math.round((operating / 5) * 100))}%`);
+          if (operating >= 5) { operating = 0; restorePower(); }
+        } else {
+          ask(2, operating ? `HOLD E · restoring the circuit ${Math.round((operating / 5) * 100)}% (paused)` : 'HOLD E · Restore the service circuit (it takes time, and it is loud)');
+        }
+        lastPanelHealth = state.health;
       }
     }
     if (Math.hypot(raftPos[0] - eye[0], raftPos[2] - eye[2]) < 2.8) {
@@ -840,13 +950,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     if (lifeguard && lifeguard.state === 'pursuit') ask(4, 'THE LIFEGUARD IS COMING · break its line of sight');
     if (lifeguard && lifeguard.warn > 0 && lifeguard.state === 'watching') ask(4, `THE LIFEGUARD HAS SEEN YOU · ${lifeguard.rule === 'swim' ? 'get out of the water' : 'stop running'} or get out of its sight · ${Math.max(0, 2.5 - lifeguard.warn).toFixed(1)} s`);
 
-    // Rush hour: the Attendant is the pacing.
-    waveTimer -= dt;
-    if (waveTimer <= 0) {
-      waveTimer = 30 - sector.index * 2 + random() * 10;
-      hud.say('THE ATTENDANT', 'Attention guests: rush hour.', 'attendant');
-      wave(2 + Math.floor(sector.index / 2));
-    }
+    runDirector(dt, eye);
     voices(dt);
 
     let scanText = '';
@@ -863,7 +967,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
 
     if (wasPressed('r')) blaster.recharge();
     if (!input.locked && !input.touch && (input.firing || input.scanning)) requestLock();
-    if (blaster.trigger(dt, input.firing && (input.locked || input.touch), false)) {
+    if (blaster.trigger(dt, input.firing && (input.locked || input.touch) && healing <= 0, false)) {
       const to = shoot(eye, dir);
       blaster.showBeam(blaster.muzzle(eye, target, dir), to);
     }
@@ -893,7 +997,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
       exposure: (rules.openSky ? 0.95 : 1.05) - state.drift * 0.002,
       effects: {
         bloom: { strength: quality.bloom, threshold: 1, radius: 1.3 },
-        vignette: settings.distortion ? 0.35 + state.drift * 0.004 + (held ? 0.3 : 0) : 0.28,
+        vignette: settings.distortion ? Math.min(1, 0.35 + state.drift * 0.004 + (held ? 0.3 : 0)) : 0.28,
         grain: settings.grain ? 0.04 : 0,
         saturation: 1 - state.drift * 0.006,
         temperature: sector.index === 0 ? 0.08 : -0.04,
@@ -1079,14 +1183,26 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
       }
       const to = sub(add(eye, [0, -0.3, 0]), b.pos);
       const d = Math.hypot(...to);
-      const v = (d < 18 ? 1.5 + sector.index * 0.2 : 0.4) * (state.visible ? 1.3 : 1);
-      const next = add(b.pos, scale(normalize(to), v * dt));
-      if (!isWall(...cellOf(next[0], next[2]))) b.pos = next;
+      b.stagger = Math.max(0, (b.stagger || 0) - dt);
+      b.flash = Math.max(0, (b.flash || 0) - dt);
+      if (b.retreat) {
+        // After the peak, survivors sink back into the grates.
+        b.pos = add(b.pos, [0, -dt * 1.2, 0]);
+        if (b.pos[1] < -0.5) b.active = false;
+      } else if (!b.stagger) {
+        // Swarm movement: close in, but spread around you instead of queueing in one line.
+        const v = (d < 18 ? 1.5 + sector.index * 0.2 : 0.4) * (state.visible ? 1.3 : 1);
+        const side = cross(normalize(to), UP);
+        const orbit = d > 3 ? Math.sin(b.phase * 0.4 + b.hp) * 0.6 : 0;
+        const next = add(b.pos, add(scale(normalize(to), v * dt), scale(side, orbit * dt)));
+        if (!isWall(...cellOf(next[0], next[2]))) b.pos = next;
+      }
       b.phase += dt * 3;
       const pulse = 0.45 + Math.sin(b.phase) * 0.05;
-      writeYaw(b.core.matrix, [b.pos[0], b.pos[1] + Math.sin(b.phase * 0.7) * 0.12, b.pos[2]], b.phase * 0.4, pulse, pulse * 0.92, pulse);
+      const squash = b.stagger > 0 ? 0.75 : 1;
+      writeYaw(b.core.matrix, [b.pos[0], b.pos[1] + Math.sin(b.phase * 0.7) * 0.12, b.pos[2]], b.phase * 0.4, pulse / squash, pulse * 0.92 * squash, pulse);
       writeYaw(b.spikes.matrix, b.pos, b.phase, pulse * 2.3, 0.07, 0.07);
-      b.core.material.emission = 1.6 + Math.sin(b.phase * 2) * 0.8;
+      b.core.material.emission = b.flash > 0 ? 9 : 1.6 + Math.sin(b.phase * 2) * 0.8;
       if (d < 1) {
         b.active = false;
         sound.burst();

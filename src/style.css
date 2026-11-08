@@ -147,3 +147,11 @@ body[data-mode='ride'] #touch-use { display: none; }
 .seed-row input { background: #ffffff10; border: 1px solid var(--line); color: var(--ink); padding: 10px 12px; font: 12px 'IBM Plex Mono', monospace; width: 160px; }
 @media (max-width: 640px) { .route { display: none; } }
 .actions button:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* The Safe Room is rendered behind its panel: keep it visible. */
+#modal.safe { background: #05080655; backdrop-filter: none; align-items: start; justify-items: end; }
+#modal.safe .panel { margin: 70px 2vw 0 0; max-height: calc(100vh - 90px); width: min(460px, 94vw); background: #0c120fee; }
+.safe-live { display: flex; gap: 18px; flex-wrap: wrap; }
+.safe-live p { margin: 4px 0; }
+.graffiti .reply { padding-left: 18px; font-size: 17px; color: #4b5a52 !important; }
+@media (max-width: 640px) { #modal.safe { justify-items: center; } #modal.safe .panel { margin: 60px 0 0; } }

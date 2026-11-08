@@ -20,7 +20,8 @@ The game needs a browser with WebGL2. On a machine without a GPU it switches to 
 | Inspection beam | Hold right click, or Q |
 | Disruption burst | F (uses a charge cell) |
 | Recharge | R |
-| Raft | A / D dodge · S brake (flumes and tubes) · Shift boost |
+| Raft | A / D dodge · S brake (flumes and tubes) · Shift boost · hold X to look back |
+| Heal | H applies a carried field dressing |
 | Holding pools | Shoot an arrow to switch gates · Space depart · E moor at a dock · A / D look around |
 | On foot | WASD move · mouse look (click to capture) · E use · Shift run · V valve tool |
 | Drift, Undertow, ropes | Hold Space to stand up from full Drift · tap Space to kick free |
@@ -45,6 +46,8 @@ Touch: left half of the screen moves, right half aims or looks, with buttons for
 | `src/sectors.js` | The eight attractions: palettes, rides, maps, rules, voices, graffiti |
 | `src/documents.js` | Found documents for the logbook |
 | `src/crew.js` | The four Drainers, the roll call, and what survives a loop |
+| `src/director.js` | Pacing: relax, warning, build-up, peak, fade, recovery |
+| `src/saferoom.js` | The Safe Room scene behind its panel |
 | `src/ui.js` | Safe Room, workbench, route terminal, logbook, keypad, settings |
 | `src/hud.js`, `src/style.css` | The overlay |
 | `src/audio.js` | Synthesized, stereo-panned sound |

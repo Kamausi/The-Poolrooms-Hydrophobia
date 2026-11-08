@@ -8,6 +8,7 @@ import { SECTORS } from './sectors.js';
 import { buildPlan, buildEndlessPlan } from './plans.js';
 import { createRide } from './ride.js';
 import { createExplore } from './explore.js';
+import { createSafeRoom } from './saferoom.js';
 import { initInput, input, endFrame, releaseLock, wasPressed } from './input.js';
 import { initHud, hud } from './hud.js';
 import { sound } from './audio.js';
@@ -28,7 +29,7 @@ const freshState = (extra = {}) => ({
   raft: 100, patches: 0, upgrades: [], logbook: [], power: {}, drained: {}, attempt: 0, guests: 1,
   band: String(1000 + Math.floor(Math.random() * 8999)).padStart(4, '0'), name: 'Mars', crewLine: 0,
   passenger: { stage: 0, t: 0 }, ride: null, sectorKey: 's0', endless: false, seed: 0, sitting: false,
-  character: 'mars', rescued: 0, recognized: 0, forgotten: [], overrides: 0, sectorScore: 0, pressure: 1, sitT: 0, resolve: 0, memory: null,
+  dressings: 1, character: 'mars', rescued: 0, recognized: 0, forgotten: [], overrides: 0, sectorScore: 0, pressure: 1, sitT: 0, resolve: 0, memory: null,
   ...extra,
 });
 
@@ -223,10 +224,10 @@ function startExplore(opts = {}) {
 function enterSafeRoom() {
   mode = 'safe';
   releaseLock();
-  scene?.dispose();
-  scene = null;
   clearResume();
   const sector = sectorAt(state.sectorIndex);
+  // The room itself is rendered behind the overlay: hard light, loud pumps, a window onto an empty pool.
+  swap(() => createSafeRoom(canvas, sector));
   // Composure fully recovers; equipment gets a minimum recharge; the raft is cleansed.
   state.arrivalDrift = state.drift;
   state.drift = 0;
@@ -479,7 +480,8 @@ function frame(now) {
   const dt = Math.min(0.05, (now - last) / 1000);
   last = now;
   if ($('modal').hidden && (wasPressed('escape') || wasPressed('p')) && now - pausedAt > 250) setPaused(!paused);
-  if (scene && !paused && !manual && (mode === 'ride' || mode === 'explore')) scene.update(dt);
+  if (scene && !paused && !manual && (mode === 'ride' || mode === 'explore' || mode === 'safe')) scene.update(dt);
+  $('modal').classList.toggle('safe', mode === 'safe');
   endFrame();
   requestAnimationFrame(frame);
 }

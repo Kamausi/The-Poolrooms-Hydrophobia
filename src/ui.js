@@ -47,7 +47,7 @@ export const RECIPES = [
   { id: 'cell', name: 'Charge cell', text: 'For the disruption burst.', cost: 2, can: (s) => s.cells < 3, apply: (s) => (s.cells += 1) },
   { id: 'filter', name: 'Filter', text: 'Chlorine protection.', cost: 1, can: (s) => s.filters < 3, apply: (s) => { s.filters += 1; if (s.filter <= 0) s.filter = 100; } },
   { id: 'patch', name: 'Raft patch', text: '+35% raft hull. You will see the patch.', cost: 2, can: (s) => s.raft < 100, apply: (s) => { s.raft = Math.min(100, s.raft + 35); s.patches = Math.min(3, (s.patches || 0) + 1); } },
-  { id: 'medkit', name: 'Field dressing', text: '+40 vitals.', cost: 2, can: (s) => s.health < 100, apply: (s) => (s.health = Math.min(100, s.health + 40)) },
+  { id: 'medkit', name: 'Field dressing', text: 'Carried. Press H to apply (+40 vitals over a few seconds, no firing while you do).', cost: 2, can: (s) => (s.dressings || 0) < 3, apply: (s) => (s.dressings = (s.dressings || 0) + 1) },
 ];
 
 /**
@@ -121,12 +121,39 @@ export function showSafeRoom(state, sector, nextSector, nextPlan, onLeave, onSav
     body.append(vance);
   }
 
+  // Live details: the room is safe, and still wrong.
+  const live = el('div', 'safe-live mono small');
+  const clock = el('p');
+  const outside = el('p');
+  live.append(clock, outside);
+  body.append(live);
+  let mins = 3 * 60 + 14;
+  let attached = false;
+  const ANNOUNCE = ['"…remain seated until…"', '"…the park will close when…"', '"…guest, your party is waiting…"', '"…lost property may be collected…"', '"…occupancy is currently…"'];
+  const tick = () => {
+    if (!body.isConnected) { if (attached) clearInterval(timer); return; }
+    attached = true;
+    // The maintenance clock advances irregularly. Sometimes backwards.
+    mins += [1, 0, 1, 2, -17, 1, 27][Math.floor(Math.random() * 7)];
+    clock.textContent = `MAINTENANCE CLOCK ${String(Math.floor(((mins % 1440) + 1440) % 1440 / 60)).padStart(2, '0')}:${String(((mins % 60) + 60) % 60).padStart(2, '0')}`;
+    if (Math.random() < 0.35) outside.textContent = `THROUGH THE DOOR: ${ANNOUNCE[Math.floor(Math.random() * ANNOUNCE.length)]}`;
+  };
+  const timer = setInterval(tick, 2200);
+  setTimeout(tick, 0);
+  if (state.sawStairway?.[state.sectorKey]) body.append(el('p', null, 'June unfolds her map. The stairway from the pool hall is drawn on it now, where you saw it, above you. The handwriting is not hers. It isn\'t anyone\'s you know.'));
+  else body.append(el('p', null, 'The map on the wall marks a room called "Pool 14". None of you remember passing it. The pencil line from it leads here.'));
+
   const wall = el('div', 'graffiti');
-  for (const line of sector.graffiti || []) {
+  const REPLIES = ['why not. it\'s warm', 'BECAUSE I SAID SO. — M.', 'who is M', 'it\'s me, you idiot. it\'s always me', 'stop writing on the walls — maintenance', 'maintenance isn\'t real', 'then who keeps painting over this'];
+  (sector.graffiti || []).forEach((line, i) => {
     const p = el('p', null, line);
     p.style.transform = `rotate(${(Math.random() - 0.5) * 5}deg)`;
     wall.append(p);
-  }
+    // Earlier crews argue with each other, in layers.
+    const reply = el('p', 'reply', `↳ ${REPLIES[(i + sector.index * 2) % REPLIES.length]}`);
+    reply.style.transform = `rotate(${(Math.random() - 0.5) * 7}deg)`;
+    wall.append(reply);
+  });
   if (sector.graffiti?.length) body.append(wall);
 
   // Workbench
@@ -210,6 +237,8 @@ export function showSafeRoom(state, sector, nextSector, nextPlan, onLeave, onSav
   refresh();
   showModal('A moment above water.', body, [[nextSector ? 'COUNT OFF AND LAUNCH ↗' : 'OPEN THE LAST DOOR ↗', onLeave, true]], 'SAFE ROOM · AUTHENTICATED');
   const launch = document.querySelector('#modal-actions button');
+  document.querySelector('#modal .panel').scrollTop = 0;
+  launch.blur();
   if (!resolved) {
     launch.setAttribute('disabled', '');
     launch.title = 'Finish the roll call first';

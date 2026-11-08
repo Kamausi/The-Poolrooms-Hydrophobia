@@ -3,6 +3,7 @@
 let ctx = null;
 let master = null;
 let hum = null;
+let pumpLoop = null;
 let enabled = true;
 let muffle = null;
 let bus = null; // everything except the hum goes through here, so tubes can muffle it
@@ -130,6 +131,33 @@ export const sound = {
   whistle(pan = 0) {
     tone({ type: 'sine', from: 2900, to: 3100, time: 0.5, gain: 0.12, pan });
     tone({ type: 'sine', from: 3100, to: 2700, time: 0.7, gain: 0.12, delay: 0.55, pan });
+  },
+  /** The pump room: a loud, steady, low machine drone. Safety sounds like this. */
+  pumpRoom(on) {
+    if (!ensure()) return;
+    if (on && !pumpLoop) {
+      const src = ctx.createBufferSource();
+      src.buffer = noiseBuffer(2);
+      src.loop = true;
+      const f = ctx.createBiquadFilter();
+      f.type = 'lowpass';
+      f.frequency.value = 140;
+      const osc = ctx.createOscillator();
+      osc.type = 'sawtooth';
+      osc.frequency.value = 47;
+      const g = ctx.createGain();
+      g.gain.value = 0.16;
+      src.connect(f).connect(g);
+      osc.connect(f);
+      g.connect(master);
+      src.start();
+      osc.start();
+      pumpLoop = { src, osc, g };
+    } else if (!on && pumpLoop) {
+      pumpLoop.src.stop();
+      pumpLoop.osc.stop();
+      pumpLoop = null;
+    }
   },
   burstBig() {
     noise({ time: 0.8, gain: 0.5, freq: 300, q: 0.4 });

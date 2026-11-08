@@ -53,7 +53,7 @@ export const hud = {
     el['heat-bar'].style.width = `${Math.min(100, state.heat)}%`;
     el['heat-bar'].classList.toggle('low', state.heat > 75);
     el.scrap.textContent = `${state.scrap} PARTS`;
-    el.cells.textContent = '▮'.repeat(state.cells) + '▯'.repeat(Math.max(0, 3 - state.cells));
+    el.cells.textContent = '▮'.repeat(state.cells) + '▯'.repeat(Math.max(0, 3 - state.cells)) + ` · DRESSINGS ${state.dressings || 0}`;
     el.raft.textContent = `${Math.ceil(state.raft)}%`;
     el.raft.classList.toggle('warn', state.raft < 40);
     el.filter.textContent = `${Math.ceil(state.filter)}%`;

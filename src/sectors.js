@@ -21,7 +21,7 @@ export const SECTORS = [
   {
     id: 'welcome-pools', name: 'THE WELCOME POOLS', depth: 8,
     tile: '#e3d9a6', grout: '#98905a', stain: '#7a6a2e', water: '#2d4a3a', fog: '#1d2414', lamp: '#fff1c4',
-    ride: ['channel:unloading', 'lazy:valve', 'junction:public|maintenance', 'channel', 'dock'],
+    ride: ['channel:unloading', 'lazy:valve', 'junction:public|maintenance', 'hall:stairway,setpiece', 'dock'],
     explore: { lifeguard: null, dark: 0.2 },
     valve: 'the flooded passage across the middle of the changing rooms',
     map: [
@@ -85,7 +85,7 @@ export const SECTORS = [
   {
     id: 'wave-hall', name: 'THE WAVE HALL', depth: 19,
     tile: '#e8eef0', grout: '#9ab3bd', stain: '#6f8f99', water: '#1f5a6e', fog: '#0f1c22', lamp: '#eaf6ff',
-    ride: ['channel', 'lazy:valve', 'junction:maintenance|overflow', 'flume', 'dock'],
+    ride: ['hall:stairway', 'lazy:valve', 'junction:maintenance|overflow', 'flume', 'dock'],
     explore: { lifeguard: 'run', waves: true, dark: 0.25 },
     valve: 'nothing you can see. The hall floods on its own schedule',
     map: [
