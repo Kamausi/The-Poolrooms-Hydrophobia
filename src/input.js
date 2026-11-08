@@ -4,9 +4,20 @@ export const input = {
   keys: new Set(),
   pressed: new Set(), // keys pressed since the last frame
   firing: false,
-  scanHeld: false, // right mouse or touch SCAN; Q also scans
+  context: 'ride', // the scene sets this; right mouse locks on the raft and scans on foot
+  rightHeld: false,
+  scanHeld: false, // touch SCAN or controller Y
+  lockHeld: false, // touch LOCK or controller left trigger
+  braceHeld: false, // touch BRACE or controller B
+  pad: false,
   get scanning() {
-    return this.scanHeld || this.keys.has('q');
+    return this.scanHeld || this.keys.has('q') || (this.rightHeld && this.context !== 'ride');
+  },
+  get locking() {
+    return this.lockHeld || (this.rightHeld && this.context === 'ride');
+  },
+  get bracing() {
+    return this.braceHeld || this.keys.has('control') || this.keys.has('c');
   },
   aim: [0, 0], // cursor in normalised device coordinates (ride mode)
   look: [0, 0], // accumulated mouse movement since last frame (explore mode)
@@ -23,23 +34,26 @@ export function initInput(target) {
     const k = e.key.toLowerCase();
     if (!input.keys.has(k)) input.pressed.add(k);
     input.keys.add(k);
-    if ([' ', 'arrowup', 'arrowdown'].includes(k)) e.preventDefault();
+    if ([' ', 'arrowup', 'arrowdown', 'control'].includes(k)) e.preventDefault();
   });
   addEventListener('keyup', (e) => input.keys.delete(e.key.toLowerCase()));
   addEventListener('blur', () => {
     input.keys.clear();
     input.firing = false;
     input.scanHeld = false;
+    input.rightHeld = false;
+    input.lockHeld = false;
+    input.braceHeld = false;
   });
 
   canvas.addEventListener('mousedown', (e) => {
     if (e.button === 0) input.firing = true;
-    if (e.button === 2) input.scanHeld = true;
+    if (e.button === 2) input.rightHeld = true;
   });
   canvas.addEventListener('contextmenu', (e) => e.preventDefault());
   addEventListener('mouseup', (e) => {
     if (e.button === 0) input.firing = false;
-    if (e.button === 2) input.scanHeld = false;
+    if (e.button === 2) input.rightHeld = false;
   });
   addEventListener('mousemove', (e) => {
     const rect = canvas.getBoundingClientRect();
@@ -135,4 +149,39 @@ function setupTouch() {
   hold('touch-boost', () => input.keys.add('shift'), () => input.keys.delete('shift'));
   hold('touch-scan', () => (input.scanHeld = true), () => (input.scanHeld = false));
   hold('touch-burst', () => input.pressed.add('f'), () => {});
+  hold('touch-jump', () => { input.pressed.add(' '); input.keys.add(' '); }, () => input.keys.delete(' '));
+  hold('touch-brace', () => (input.braceHeld = true), () => (input.braceHeld = false));
+  hold('touch-lock', () => (input.lockHeld = true), () => (input.lockHeld = false));
+}
+
+// Controller (Gamepad API). Left stick steers or moves; right stick aims (raft) or looks (on foot).
+// RT fire · LT lock · A hop · B brace · X use · Y scan · LB burst · RB boost · R3 look back · D-pad up recharge · Start pause
+const prev = [];
+const EDGE = { 0: ' ', 2: 'e', 4: 'f', 9: 'escape', 12: 'r', 8: 'h' };
+const HOLD = { 5: 'shift', 11: 'x', 0: ' ' };
+export function pollGamepad(dt) {
+  const pad = navigator.getGamepads?.().find((g) => g && g.connected);
+  if (!pad) return;
+  const b = (i) => !!pad.buttons[i]?.pressed;
+  const any = pad.buttons.some((x) => x.pressed) || pad.axes.some((a) => Math.abs(a) > 0.3);
+  if (any) input.pad = true;
+  if (!input.pad) return;
+  const dz = (v) => (Math.abs(v) < 0.15 ? 0 : v);
+  input.move[0] = dz(pad.axes[0] || 0);
+  input.move[1] = -dz(pad.axes[1] || 0);
+  const rx = dz(pad.axes[2] || 0), ry = dz(pad.axes[3] || 0);
+  if (input.context === 'ride') {
+    input.aim[0] = Math.max(-0.95, Math.min(0.95, input.aim[0] + rx * dt * 1.8));
+    input.aim[1] = Math.max(-0.9, Math.min(0.9, input.aim[1] - ry * dt * 1.8));
+  } else {
+    input.look[0] += rx * dt * 700;
+    input.look[1] += ry * dt * 500;
+  }
+  input.firing = b(7) || (pad.buttons[7]?.value || 0) > 0.4;
+  input.lockHeld = b(6) || (pad.buttons[6]?.value || 0) > 0.4;
+  input.braceHeld = b(1);
+  input.scanHeld = b(3);
+  for (const [i, k] of Object.entries(EDGE)) if (b(+i) && !prev[i]) input.pressed.add(k);
+  for (const [i, k] of Object.entries(HOLD)) b(+i) ? input.keys.add(k) : prev[i] && input.keys.delete(k);
+  pad.buttons.forEach((x, i) => (prev[i] = x.pressed));
 }

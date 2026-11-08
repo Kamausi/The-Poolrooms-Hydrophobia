@@ -365,3 +365,57 @@ The Safe Room is rendered behind its panel: hard white tile, two loud vibrating 
 
 ### Lore larger than the crew
 The Attendant, the Lifeguard, the water system and the architecture behave on their own schedules (the director, the clouds, the repairs, the other raft through the window). The Mars reveal explains what happened to Mars, not what the Backrooms is.
+
+---
+
+## 16. The raft as a movement game
+
+Each influence has one job:
+- **Backrooms:** the environment, uncertainty, isolation, psychological horror.
+- **Left 4 Dead:** crew relationships, hordes, specials, rescues, Safe Room progression.
+- **River-rafting party games:** raft movement, obstacles, hops, alternate paths, cooperative navigation.
+- **Arcade rail shooters:** aiming, defensive actions, target locking, branching, audiovisual feedback.
+
+UNDERFLOW adapts mechanics, not content: no names, characters, art or music from any of them.
+
+| Mechanic | Where it comes from | UNDERFLOW version (implemented) |
+|---|---|---|
+| Side-to-side raft steering, jumps, airborne pickups, marker gates, elevated routes | River-rafting party games | Weighted lateral steering (A/D, left stick) with currents you can read from foam streaks; **Space hops** over low ropes, floating debris and still water; **ramps** (water piled against a lip, foam, chevrons) launch the raft onto **service aqueducts** above the building; Crew Seven ID tags and salvage hang in the air above them; orange **gate markers** reward a clean line |
+| Actions change the route | Branching space shooters, light-gun games with rescue routes | **Forks** decided by what you did: shoot the **sluice** control (bypass), protect a **stranded Drainer** (they open a gate further on), beat a **closing bulkhead** (boost), take the **ramp** (upper route); each decision tells you why in plain words |
+| Steer and aim independently, evade signalled attacks, return projectiles | Run-and-gun rail shooters | Aim never steers; **Spitter Blooms** telegraph (purple flash, tick) and throw globs: shoot them, steer away, **brace** to block, or brace *as it arrives* to send it back into the Spitter |
+| Multi-target lock-on | Rail shooters with homing volleys | **Hold right mouse** and sweep: each lock costs one charge (max 6); release for a linked volley that hits each target twice |
+| Cover and recharge | Cover-based light-gun games | **Brace (Ctrl or C)**: duck behind the hull, recharge fast in the cradle, take almost nothing from the front; Undertow, rear attacks and collisions still need other answers |
+| Actions become music | Synaesthetic rail shooters | A **pump pulse** on a 100 bpm grid follows the director (quiet in rest, driving at a peak); hits, gates, rope snaps, valves, landings and parries queue tonal accents on the next eighth note, while the shot itself is always instant; as Drift rises the whole mix softens and a consonant pad fades in |
+| Forms with different strengths | Rail shooters with transformations | **Raft fits** chosen at the workbench: Light hull (handling, higher hops), Shielded hull (bracing blocks almost everything), Cradle hull (+8 charge, faster braced recharge) |
+| Ride photos | Theme-park log flumes | The park photographs you at the top of each launch and in the pool hall; the Safe Room shows the photo, and someone is sitting in your empty seat |
+
+### Pilot and passengers
+Solo, you are the pilot. **T hands the raft to Ride Control:** the park steers well, threads gates, avoids debris, lines up ramps and calls the jumps ("Please brace for the splash"), but Drift rises slowly while you let it. In co-op one player pilots; passengers lean, brace, assist the jump and protect the pilot. A coordinated jump is one shared manoeuvre, never four separate impulses, and required routes stay playable with AI crew.
+
+### The twin channel
+In a **twin channel**, the crew's raft rides beside yours behind a glass partition with gaps. Blooms gather behind them; cover them through the gaps. If they come through mostly unhurt, Dez patches you an override.
+
+### The Lazy River overflow run (implemented)
+A broad hall; water piling against the outer wall. Take the launch and you land on an aqueduct running across the top of the building, with an ID tag hanging over it and a stranded Drainer on a ledge below, working a service door while Blooms go for them. Protect them and they release a gate further on. Then the water slows into a completely silent changing room, lockers in every direction, and one locker holds the supply crate you already picked up upstairs.
+
+### Controls
+
+| Action | Keyboard and mouse | Controller | Touch |
+|---|---|---|---|
+| Steer / move | A / D (WASD on foot) | Left stick | Left half of the screen |
+| Aim / look | Mouse | Right stick | Drag on the right half |
+| Fire | Left mouse | Right trigger | FIRE |
+| Lock (raft) / scan (foot) | Hold right mouse | Left trigger / Y scans | LOCK / SCAN |
+| Scan anywhere | Q | Y | SCAN |
+| Hop | Space | A | HOP |
+| Brace | Ctrl or C | B | BRACE |
+| Use, rescue | E | X | USE |
+| Burst | F | LB | BURST |
+| Boost | Shift | RB | BOOST |
+| Look back | Hold X | R3 | — |
+| Recharge | R | D-pad up | R |
+| Dressing | H | Select | — |
+| Ride Control | T | — | — |
+
+### Boundaries kept
+Quiet channels stay; manoeuvres are announced (piled water, chevrons, Ride Control's call) and not stacked on a precise shot and a rescue at the same instant; camera motion is restrained (most of the rocking is in the raft and water); a missed launch gives a playable lower route (louder, darker), not a death.

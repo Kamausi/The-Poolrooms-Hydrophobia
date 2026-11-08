@@ -9,7 +9,7 @@ import { buildPlan, buildEndlessPlan } from './plans.js';
 import { createRide } from './ride.js';
 import { createExplore } from './explore.js';
 import { createSafeRoom } from './saferoom.js';
-import { initInput, input, endFrame, releaseLock, wasPressed } from './input.js';
+import { initInput, input, endFrame, releaseLock, wasPressed, pollGamepad } from './input.js';
 import { initHud, hud } from './hud.js';
 import { sound } from './audio.js';
 import { quality } from './quality.js';
@@ -29,7 +29,7 @@ const freshState = (extra = {}) => ({
   raft: 100, patches: 0, upgrades: [], logbook: [], power: {}, drained: {}, attempt: 0, guests: 1,
   band: String(1000 + Math.floor(Math.random() * 8999)).padStart(4, '0'), name: 'Mars', crewLine: 0,
   passenger: { stage: 0, t: 0 }, ride: null, sectorKey: 's0', endless: false, seed: 0, sitting: false,
-  dressings: 1, character: 'mars', rescued: 0, recognized: 0, forgotten: [], overrides: 0, sectorScore: 0, pressure: 1, sitT: 0, resolve: 0, memory: null,
+  dressings: 1, fit: 'standard', autopilot: false, tags: [], photos: [], strandedSaved: {}, character: 'mars', rescued: 0, recognized: 0, forgotten: [], overrides: 0, sectorScore: 0, pressure: 1, sitT: 0, resolve: 0, memory: null,
   ...extra,
 });
 
@@ -59,7 +59,8 @@ const keyFor = (index) => `${state.endless ? 'e' : 's'}${index}`;
 
 // ---------- Saving ----------
 function snapshot() {
-  return JSON.parse(JSON.stringify({ ...state, cameraUp: undefined }));
+  // Photos are large; they stay in memory for this session only.
+  return JSON.parse(JSON.stringify({ ...state, cameraUp: undefined, photos: undefined }));
 }
 function saveCheckpoint() {
   if (state.endless) return;
@@ -198,7 +199,7 @@ function startRide(opts = {}) {
   hud.show(true);
   hud.sector(sector, opts.resumeS ? 'Choose your gate. Depart with SPACE.' : 'Shoot what moves. Scan what hides. Watch the route.');
   hud.mode('● ON THE RAFT');
-  hud.hint('CLICK fire · RIGHT-CLICK scan · F burst · R recharge · A/D dodge · S brake · SHIFT boost');
+  hud.hint('A/D steer · SPACE hop · CLICK fire · HOLD RIGHT-CLICK lock, release volley · CTRL/C brace · Q scan · F burst · SHIFT boost · S brake · X look back · T ride control');
   document.body.dataset.mode = 'ride';
   releaseLock();
   swap(() => createRide(canvas, state, sector, events, opts));
@@ -216,7 +217,7 @@ function startExplore(opts = {}) {
   hud.show(true);
   hud.sector(sector, 'Find the power cell. Restore the service gate. Return to the raft.');
   hud.mode('● ON FOOT');
-  hud.hint('WASD move · MOUSE look · CLICK fire · RIGHT-CLICK scan · F burst · E use · SHIFT run');
+  hud.hint('WASD move · MOUSE look · CLICK fire · RIGHT-CLICK or Q scan · F burst · E use · H dressing · SHIFT run');
   document.body.dataset.mode = 'explore';
   swap(() => createExplore(canvas, state, sector, events, opts));
 }
@@ -479,8 +480,11 @@ function setPaused(on) {
 function frame(now) {
   const dt = Math.min(0.05, (now - last) / 1000);
   last = now;
+  pollGamepad(dt);
+  input.context = mode === 'explore' ? 'explore' : 'ride';
   if ($('modal').hidden && (wasPressed('escape') || wasPressed('p')) && now - pausedAt > 250) setPaused(!paused);
   if (scene && !paused && !manual && (mode === 'ride' || mode === 'explore' || mode === 'safe')) scene.update(dt);
+  if (!paused && (mode === 'ride' || mode === 'explore')) sound.music(state.directorPhase || 'relax', state.drift);
   $('modal').classList.toggle('safe', mode === 'safe');
   endFrame();
   requestAnimationFrame(frame);

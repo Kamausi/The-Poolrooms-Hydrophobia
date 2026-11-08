@@ -1,5 +1,5 @@
 // Builds a sector's ride plan (see track.js) from its tokens, and fills each section with encounters.
-import { section, pool, bay, drop } from './track.js';
+import { section, pool, bay, drop, fork } from './track.js';
 
 /** The three route identities a junction can offer. */
 export const ROUTES = {
@@ -43,6 +43,17 @@ export function populate(sec, random, threat, features = [], theme = {}) {
     loop: () => { E.push({ at: len * 0.5, kind: 'lockerRoom' }); },
   }[sec.type];
   base?.();
+  // Movement content: currents to read, gate markers to thread, debris to hop or steer around.
+  if (['channel', 'lazy', 'flume', 'overflow', 'hall'].includes(sec.type)) {
+    sec.current = (random() < 0.5 ? -1 : 1) * (sec.type === 'flume' ? 1.3 : sec.type === 'lazy' ? 0.5 : 0.8) * random();
+    if (random() < 0.5) E.push({ at: spot(0.2, 0.7), kind: 'gates', lanes: [0, 1, 2].map(() => (random() - 0.5) * 1.4) });
+    if (random() < (sec.type === 'overflow' ? 0.8 : 0.45)) E.push({ at: spot(0.3, 0.9), kind: 'debris', lane: (random() - 0.5) * 1.6 });
+  }
+  if (sec.type === 'aqueduct') {
+    for (let k = 0; k < 3; k++) E.push({ at: len * (0.2 + k * 0.25), kind: 'airPickup', lane: (random() - 0.5) * 1.2, item: k === 1 ? 'tag' : random() < 0.5 ? 'parts' : 'cell' });
+    E.push({ at: len * 0.5, kind: 'gates', lanes: [0, 1, 2].map(() => (random() - 0.5) * 0.9) });
+  }
+  if (sec.type === 'parallel') E.push({ at: 4, kind: 'crewRaft' });
   for (const f of features) {
     if (f === 'valve') E.push({ at: spot(0.35, 0.6), kind: 'valve', covered: theme.grout && random() < 0.5 });
     else if (f === 'signals') E.push({ at: spot(), kind: 'signal' }, { at: spot(), kind: 'signal' });
@@ -58,6 +69,9 @@ export function populate(sec, random, threat, features = [], theme = {}) {
     else if (f === 'uv') sec.uv = true;
     else if (f === 'blooms') blooms(3);
     else if (f === 'stairway') sec.stairway = true;
+    else if (f === 'silent') { sec.silent = true; sec.solved = true; sec.lamps = 'bright'; E.length = 0; E.push({ at: len * 0.5, kind: 'lockerRoom', sameBox: true }); }
+    else if (f === 'stranded') E.push({ at: len * 0.35, kind: 'stranded' });
+    else if (f === 'crate') E.push({ at: len * 0.2, kind: 'cache', item: 'parts', marked: true });
     else if (f === 'setpiece') E.push({ at: len * 0.3, kind: 'setpiece' });
   }
   return sec;
@@ -91,6 +105,26 @@ export function buildPlan(sector, random, threat = 1) {
   sector.ride.forEach((token, i) => {
     const [type, rest = ''] = token.split(':');
     const features = rest ? rest.split(',') : [];
+    if (type === 'ramp' || type === 'fork') {
+      // A fork decided by an action. The section before it carries the encounter that decides it.
+      const kind = type === 'ramp' ? 'ramp' : rest;
+      const exits = {
+        ramp: [
+          [populate(section('overflow', { length: 80 }), random, threat * 1.3, ['wake'], theme)],
+          [section('launch'), populate(section('aqueduct'), random, threat * 0.7, features.includes('stranded') ? [] : [], theme), section('descent')],
+        ],
+        sluice: [[populate(section('overflow', { length: 85 }), random, threat * 1.2, [], theme)], [populate(section('flume', { length: 55, label: 'MAINTENANCE BYPASS' }), random, threat * 0.5, ['cache'], theme)]],
+        rescue: [[populate(section('overflow', { length: 85 }), random, threat * 1.2, [], theme)], [populate(section('channel', { length: 60, label: 'SERVICE GATE (OPENED)' }), random, threat * 0.6, ['cache', 'signals'], theme)]],
+        bulkhead: [[populate(section('lazy', { length: 150, label: 'DETOUR' }), random, threat, [], theme)], [populate(section('channel', { length: 50, label: 'BULKHEAD SHORTCUT' }), random, threat * 0.6, ['cache'], theme)]],
+      }[kind] || [[section('channel')], [section('channel')]];
+      const f = fork(exits.map((secs, i) => ({ label: i ? 'SUCCESS' : 'FALLBACK', sections: secs })), { kind });
+      const lead = populate(section(type === 'ramp' && features.includes('hall') ? 'hall' : 'channel', { length: 90 }), random, threat * 0.8, features.filter((x) => x !== 'hall'), theme);
+      lead.encounters.push({ at: kind === 'ramp' ? lead.length - 6 : kind === 'bulkhead' ? 10 : lead.length * 0.3, kind: kind === 'ramp' ? 'ramp' : kind, fork: f.id, side: random() < 0.5 ? -1 : 1 });
+      // The upper route of a ramp can carry a stranded Drainer to protect.
+      if (kind === 'ramp' && features.includes('stranded')) exits[1][1].encounters.push({ at: 30, kind: 'stranded' });
+      items.push(lead, f);
+      return;
+    }
     if (type === 'junction') {
       const [a, b] = rest.split('|');
       items.push(pool([

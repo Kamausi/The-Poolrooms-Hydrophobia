@@ -13,6 +13,10 @@ export const PRESETS = {
   tube: { length: 72, speed: 9, half: 1.9, height: 3, wiggle: 0.5, cycles: 1.2, lamps: 'dark', brake: true, filter: true, ribs: true, muffle: true, label: 'PRESSURE TUBE' },
   overflow: { length: 85, speed: 7.5, half: 3.4, height: 4.2, wiggle: 0.55, cycles: 1, lamps: 'flicker', shallow: true, filter: true, debris: true, label: 'OVERFLOW' },
   loop: { length: 60, speed: 6, half: 3.4, height: 5, wiggle: 0, lamps: 'normal', label: 'LOCKER ROOM PASSAGE', lockers: true },
+  launch: { length: 26, speed: 11, half: 2.6, height: 3, wiggle: 0, climb: 7.5, lamps: 'none', label: 'LAUNCH', open: true },
+  aqueduct: { length: 95, speed: 8.5, half: 2.4, height: 3, wiggle: 0.35, cycles: 1, lamps: 'posts', label: 'SERVICE AQUEDUCT', open: true, aqueduct: true },
+  descent: { length: 40, speed: 11, half: 2.4, height: 3.4, wiggle: 0.2, climb: -7.5, lamps: 'normal', label: 'DESCENT CHUTE', brake: true },
+  parallel: { length: 115, speed: 6.5, half: 3.2, height: 5, wiggle: 0.2, cycles: 0.5, lamps: 'normal', label: 'TWIN CHANNEL', parallel: true },
   hall: { length: 130, speed: 4.5, half: 9, height: 11, wiggle: 0.12, cycles: 0.5, lamps: 'bright', label: 'POOL HALL', calm: true, hall: true },
 };
 
@@ -23,6 +27,10 @@ export function section(type, extra = {}) {
 /** A holding pool. holding: the raft stops and waits; otherwise it slows through and you switch gates in passing. */
 export function pool(exits, extra = {}) {
   return { id: nextId++, type: 'pool', length: 40, half: 7, height: 7, speed: extra.holding ? 0 : 3.2, lamps: 'bright', label: extra.holding ? 'HOLDING POOL' : 'JUNCTION POOL', exits, encounters: [], ...extra };
+}
+/** A fork decided by what the crew does (a jump, a rescue, a switch, beating a bulkhead), not by a gate arrow. */
+export function fork(exits, extra = {}) {
+  return { id: nextId++, type: 'fork', length: 0, exits, defaultExit: 0, encounters: [], ...extra };
 }
 export const bay = (extra = {}) => ({ id: nextId++, type: 'bay', length: 34, half: 5, height: 6, speed: 3, lamps: 'bright', label: 'ARRIVAL BAY', encounters: [], ...extra });
 export const drop = (extra = {}) => ({ id: nextId++, type: 'drop', length: 26, half: 2.6, height: 4, speed: 9, lamps: 'dark', label: 'SPILLWAY', encounters: [], ...extra });
@@ -114,6 +122,12 @@ export class Track {
 
     const walkList = (list) => {
       for (const item of list) {
+        if (item.type === 'fork') {
+          const chosen = item.exits[this.choices[item.id] ?? item.defaultExit ?? 0];
+          item.at = s;
+          if (chosen && walkList(chosen.sections)) return true;
+          continue;
+        }
         walk(item);
         if (item.type === 'pool') {
           const chosen = item.exits[this.choices[item.id] ?? item.defaultExit ?? 0];

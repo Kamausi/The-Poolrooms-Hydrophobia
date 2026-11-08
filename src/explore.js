@@ -387,6 +387,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     lastHealth = state.health;
     const live = blooms.filter((b) => b.active && !b.dying && !b.retreat);
     const nearby = live.filter((b) => distance(b.pos, eye) < 10).length;
+    state.directorPhase = director.phase;
     for (const a of director.update(dt, { hurt, enemies: live.length, nearby })) {
       if (a.type === 'unease') {
         hud.caption(a.caption);

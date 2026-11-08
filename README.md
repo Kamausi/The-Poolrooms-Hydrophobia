@@ -14,18 +14,23 @@ npm run build     # static site in dist/, host anywhere
 The game needs a browser with WebGL2. On a machine without a GPU it switches to a lighter render mode automatically; add `?quality=low` or `?quality=high` to the URL to choose yourself.
 
 ### Controls
-| | Keyboard and mouse |
-| --- | --- |
-| Signal pulse (fire) | Hold left click |
-| Inspection beam | Hold right click, or Q |
-| Disruption burst | F (uses a charge cell) |
-| Recharge | R |
-| Raft | A / D dodge · S brake (flumes and tubes) · Shift boost · hold X to look back |
-| Heal | H applies a carried field dressing |
-| Holding pools | Shoot an arrow to switch gates · Space depart · E moor at a dock · A / D look around |
-| On foot | WASD move · mouse look (click to capture) · E use · Shift run · V valve tool |
-| Drift, Undertow, ropes | Hold Space to stand up from full Drift · tap Space to kick free |
-| Pause and settings | Esc |
+| | Keyboard and mouse | Controller |
+| --- | --- | --- |
+| Steer (raft) / move (foot) | A / D · WASD | Left stick |
+| Aim / look | Mouse | Right stick |
+| Fire | Left click | Right trigger |
+| Lock-on volley (raft) | Hold right click, sweep, release | Left trigger |
+| Inspection beam | Q (right click on foot) | Y |
+| Hop | Space | A |
+| Brace behind the hull | Ctrl or C | B |
+| Use / rescue | E | X |
+| Disruption burst | F | LB |
+| Boost / run | Shift | RB |
+| Look back (raft) | Hold X | R3 |
+| Brake (flumes, tubes) | S | — |
+| Recharge · dressing · Ride Control | R · H · T | D-pad up · Select · — |
+| Holding pools | Shoot an arrow · Space depart · E moor | |
+| Pause and settings | Esc | Start |
 
 Touch: left half of the screen moves, right half aims or looks, with buttons for fire, scan, burst, use and boost. Aim assist snaps to targets near your finger.
 

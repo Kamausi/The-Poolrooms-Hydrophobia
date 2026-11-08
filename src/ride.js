@@ -73,6 +73,9 @@ export function createRide(canvas, state, sector, events, opts = {}) {
       bigWin: P(`Pool window ${i}`, slab, glow([0.5, 0.75, 0.85], 1.1)),
       farRaft: P(`Far raft ${i}`, slab, dark([0.08, 0.05, 0.04])),
       marker: P(`Depth marker ${i}`, plane, { ...signMaterial('1.2 M', 'depth', 0.3, 256, 128), doubleSided: true }),
+      glass: P(`Partition glass ${i}`, slab, { color: [0.6, 0.8, 0.85], metallic: 0.2, roughness: 0.05, alphaMode: 'blend', opacity: 0.25 }),
+      farWater: P(`Twin water ${i}`, slab, waterMat()), farWall: P(`Twin wall ${i}`, slab, tileMat),
+      post: P(`Aqueduct post ${i}`, cylinder(12, 0, 1), { color: [0.3, 0.32, 0.3], metallic: 0.7, roughness: 0.4 }),
       rules: P(`Pool rules ${i}`, plane, { ...signMaterial('POOL RULES\nNO RUNNING · NO DIVING\nNO GUESTS AFTER CLOSING', 'rule', 0.5, 512, 220), doubleSided: true }),
     });
   }
@@ -211,6 +214,39 @@ export function createRide(canvas, state, sector, events, opts = {}) {
     head: P(`River floater head ${i}`, sphere(14, 10), { color: [0.85, 0.86, 0.82], metallic: 0, roughness: 0.2 }),
     active: false, s: 0, offset: 0, survivor: true, state: 'floating', hp: 2,
   }));
+  // ---------- Raft movement content ----------
+  const buoy = () => P('Gate marker', sphere(14, 10), glow([1, 0.45, 0.1], 1.5, { color: [1, 0.5, 0.12], roughness: 0.4 }));
+  const gateSets = Array.from({ length: 3 }, () => ({ a: buoy(), b: buoy(), active: false, s: 0, lane: 0, done: false }));
+  let gateStreak = 0;
+  const debrisPool = Array.from({ length: 3 }, (_, i) => ({ a: P(`Floating debris ${i}`, box(0.15, 2), { color: [0.6, 0.55, 0.45], metallic: 0, roughness: 0.8 }), b: P(`Floating chair ${i}`, box(0.08, 2), { color: [0.93, 0.93, 0.9], metallic: 0, roughness: 0.4 }), active: false, s: 0, lane: 0, done: false }));
+  const pickups = Array.from({ length: 3 }, (_, i) => ({ part: P(`Air pickup ${i}`, box(0.12, 2), glow([0.6, 1, 0.8], 2.5, { color: [0.4, 0.7, 0.5] })), active: false, s: 0, lane: 0, item: 'parts', done: false }));
+  const ramp = {
+    lip: P('Ramp lip', slab, tileMat), foam: P('Ramp foam', slab, glow([0.9, 0.97, 1], 2.2)),
+    chev: [0, 1, 2].map((i) => P(`Ramp chevron ${i}`, slab, glow([1, 0.8, 0.2], 2.5))),
+    active: false, s: 0, lane: 0, fork: null, decided: false,
+  };
+  const sluice = {
+    wheel: P('Sluice control', torus(0.12, 40, 12), glow([0.2, 1, 0.9], 2.5)),
+    sign: P('Sluice sign', plane, { ...signMaterial('SLUICE\nMAINTENANCE BYPASS', 'sign', 0.8, 384, 160), doubleSided: true }),
+    active: false, pos: [0, 0, 0], yaw: 0, hits: 0, fork: null, side: 1,
+  };
+  const stranded = {
+    body: P('Stranded Drainer', cylinder(12, 0.3, 2), { color: [0.95, 0.55, 0.15], metallic: 0, roughness: 0.6 }),
+    head: P('Stranded Drainer head', sphere(12, 8), { color: [0.75, 0.6, 0.5], metallic: 0, roughness: 0.6 }),
+    ledge: P('Ledge', slab, tileMat),
+    active: false, s: 0, side: 1, hp: 4, window: 0, spawnT: 0, fork: null, resolved: false, pos: [0, 0, 0],
+  };
+  const bulkhead = { door: P('Bulkhead', slab, { color: [0.35, 0.36, 0.33], metallic: 0.8, roughness: 0.35 }), active: false, fork: null, forkS: 0, t: 0, total: 0, decided: false };
+  const crewRaft = {
+    lip: P('Crew raft', torus(0.3, 32, 12), { color: [0.75, 0.32, 0.12], metallic: 0, roughness: 0.6 }),
+    riders: [0, 1, 2].map((i) => P(`Crew rider ${i}`, cylinder(12, 0.3, 2), { color: [0.95, 0.5, 0.15], metallic: 0, roughness: 0.6 })),
+    active: false, sec: null, hits: 0, spawnT: 0, pos: [0, 0, 0],
+  };
+  const lockMarks = Array.from({ length: 6 }, (_, i) => P(`Lock ${i}`, torus(0.05, 32, 8), glow([1, 0.3, 0.3], 4)));
+  const volleyBeams = Array.from({ length: 6 }, (_, i) => P(`Volley beam ${i}`, box(0, 1), glow([1, 0.5, 0.4], 12)));
+  const shots = Array.from({ length: 8 }, (_, i) => ({ part: P(`Spitter shot ${i}`, sphere(14, 10), glow([0.8, 0.3, 1], 5)), active: false, pos: [0, 0, 0], from: null, reflect: false, t: 0 }));
+  const abyss = P('Abyss water', slab, waterMat());
+  const foam = Array.from({ length: 8 }, (_, i) => P(`Current foam ${i}`, slab, glow([0.85, 0.95, 1], 0.6)));
   const ghost = P('Distant figure', cylinder(12, 0.3, 2), dark([0.02, 0.02, 0.03]));
 
   const blaster = createBlaster(state);
@@ -261,15 +297,107 @@ export function createRide(canvas, state, sector, events, opts = {}) {
   const fx = { eye: [0, 0, 0], look: [0, 0, 0], fwd: [0, 0, -1] };
   let sink = 0;
   let dressing = 0;
+  let velX = 0; // lateral velocity: the raft has weight
+  let jumpY = 0, jumpV = 0, lastHop = -10;
+  let braced = false, braceStart = -10;
+  const locks = [];
+  let lockTimer = 0, volleyT = 0;
+  let volleyLines = [];
+  let photoPending = null;
+  let attendantCall = 0;
   const director = createDirector(random, { relax: [26, 42], level: sector.index });
   let lastHealth = state.health;
   const setpiece = { active: false, t: 0, step: 0 };
+
+  function hop(power) {
+    jumpV = (state.fit === 'handling' ? 5.2 : 4.3) * power;
+    lastHop = time;
+    sound.splash();
+  }
+
+  /** Ride control: the park steers. It reads the water well and it is very smooth. */
+  function autopilotSteer(lim) {
+    let target = 0;
+    const near = (list) => list.filter((x) => x.active && x.s > s && x.s - s < 40).sort((a, b) => a.s - b.s)[0];
+    const g = near(gateSets), d = near(debrisPool), k = near(pickups);
+    if (ramp.active && ramp.s > s && ramp.s - s < 60) target = ramp.lane;
+    else if (g) target = g.lane;
+    else if (k) target = k.lane;
+    if (d && Math.abs(target - d.lane) < 1.4) target = d.lane + (d.lane > 0 ? -2.2 : 2.2);
+    for (const u of patches) if (u.active && u.s > s && u.s - s < 30 && Math.abs(target - u.offset) < 1.6) target = u.offset + (u.offset > 0 ? -2.4 : 2.4);
+    target = clamp(target, -lim, lim);
+    // It also calls the jumps.
+    const jumpables = [ramp.active ? ramp.s : null, d?.s, ...ropes.filter((r) => r.active).map((r) => r.s), k?.s].filter((x) => x != null && x - s > 0);
+    const next = Math.min(...jumpables, Infinity);
+    if (next - s < speed * 0.45 && next - s > 0 && jumpY === 0 && time - attendantCall > 1.5) {
+      attendantCall = time;
+      hud.say('RIDE CONTROL', 'Please brace for the splash.', 'attendant');
+      hop(1);
+    }
+    return clamp((target - offset) * 0.9 - velX * 0.35, -1, 1);
+  }
+
+  /** Mark and release: hold right mouse, sweep across targets, release for a linked volley. Each lock costs charge. */
+  function updateLocks(dt, eye, look, aimDir) {
+    const list = targets().filter((t) => t.key);
+    if (input.locking && !braced) {
+      if (locks.length < 6 && state.charge > 0) {
+        let best = null, bestA = 0.14;
+        for (const t of list) {
+          if (locks.includes(t.key) || distance(eye, t.pos) > 45) continue;
+          const a = angleTo(eye, aimDir, t.pos);
+          if (a < bestA) { bestA = a; best = t; }
+        }
+        if (best) {
+          lockTimer += dt;
+          if (lockTimer > 0.12) {
+            lockTimer = 0;
+            locks.push(best.key);
+            state.charge -= 1;
+            sound.tick?.(locks.length);
+          }
+        } else lockTimer = 0;
+      }
+    } else if (locks.length) {
+      // Release: the volley.
+      volleyLines = [];
+      const from = blaster.muzzle(eye, look, aimDir);
+      for (const key of locks) {
+        const t = list.find((x) => x.key === key);
+        if (!t) continue;
+        t.fn();
+        const again = targets().find((x) => x.key === key);
+        again?.fn();
+        volleyLines.push([from, t.pos]);
+        sound.accent?.('hit');
+      }
+      volleyT = 0.18;
+      locks.length = 0;
+      sound.fire();
+    }
+    volleyT -= dt;
+    lockMarks.forEach((m, i) => {
+      const t = locks[i] && list.find((x) => x.key === locks[i]);
+      if (t) writeBasis(m.matrix, t.pos, cameraRight(eye, look), UP, normalize(sub(eye, t.pos)), 0.6, 0.6, 0.6);
+      else hide(m);
+    });
+    volleyBeams.forEach((bm, i) => {
+      const ln = volleyT > 0 && volleyLines[i];
+      if (!ln) return hide(bm);
+      const d = sub(ln[1], ln[0]);
+      const z = normalize(d);
+      const x = normalize(cross(Math.abs(z[1]) > 0.95 ? [1, 0, 0] : UP, z));
+      writeBasis(bm.matrix, add(ln[0], scale(d, 0.5)), x, cross(z, x), z, 0.025, 0.025, Math.hypot(...d));
+    });
+  }
+  const cameraRight = (eye, look) => normalize(cross(sub(look, eye), UP));
 
   function runDirector(dt, sec, curRoom) {
     const hurt = Math.max(0, lastHealth - state.health);
     lastHealth = state.health;
     const live = blooms.filter((b) => b.active && !b.dying && !b.retreat);
     const nearby = live.filter((b) => distance(b.pos, fx.eye) < 12).length;
+    state.directorPhase = director.phase;
     for (const a of director.update(dt, { hurt, enemies: live.length, nearby })) {
       if (a.type === 'unease' || a.type === 'warn') {
         hud.caption(a.caption);
@@ -342,10 +470,30 @@ export function createRide(canvas, state, sector, events, opts = {}) {
   };
   const stopOf = (r) => r.s0 + r.sec.length * 0.42;
 
+  let lastForkLow = false;
+  const findItem = (id, list = plan.items) => {
+    for (const it of list) {
+      if (it.id === id) return it;
+      if (it.exits) for (const ex of it.exits) { const f = findItem(id, ex.sections); if (f) return f; }
+    }
+    return null;
+  };
+  function decideFork(id, success, why) {
+    if (id == null) return;
+    track.choose(id, success ? 1 : 0);
+    lastForkLow = !success;
+    hud.toast(why);
+    sound.accent?.(success ? 'gate' : 'low');
+  }
+
   function spawnBloom(atS, off, y) {
     const b = blooms.find((x) => !x.active);
     if (!b) return;
-    Object.assign(b, { active: true, hp: 2 + (sector.index > 3 ? 1 : 0), dying: 0, phase: random() * 6, pos: track.lateral(atS, off, y), drift: [(random() - 0.5) * 0.8, 0, 0], rear: atS < s, stagger: 0, flash: 0, retreat: false });
+    const spitter = sector.index >= 1 && atS > s && random() < 0.2;
+    Object.assign(b, { active: true, hp: 2 + (sector.index > 3 ? 1 : 0) + (spitter ? 1 : 0), dying: 0, phase: random() * 6, pos: track.lateral(atS, off, y), drift: [(random() - 0.5) * 0.8, 0, 0], rear: atS < s, stagger: 0, flash: 0, retreat: false, spitter, spit: 2 + random() * 2, goal: null });
+    b.core.material.color = spitter ? [0.25, 0.03, 0.3] : [0.35, 0.03, 0.03];
+    b.core.material.emissiveColor = spitter ? [0.8, 0.3, 1] : [1, 0.22, 0.08];
+    return b;
   }
 
   /** Yaw for a wall-mounted target, angled 45 degrees toward the oncoming raft. */
@@ -444,11 +592,51 @@ export function createRide(canvas, state, sector, events, opts = {}) {
       if (!f) return;
       Object.assign(f, { active: true, s: at, offset: (random() < 0.5 ? -1 : 1) * half * 0.45, survivor: e.survivor, state: 'floating', hp: 2 });
       hud.say('JUNE', 'Someone in the water ahead. Steer to them, or don\'t. I can\'t tell if they\'re breathing.', 'crew');
+    } else if (e.kind === 'gates') {
+      const lim = Math.min(half, 6) - 1;
+      e.lanes.forEach((lane, k) => {
+        const g = gateSets.find((x) => !x.active);
+        if (g) Object.assign(g, { active: true, s: at + k * 11, lane: lane * lim, done: false });
+      });
+    } else if (e.kind === 'debris') {
+      const d = debrisPool.find((x) => !x.active);
+      if (d) Object.assign(d, { active: true, s: at, lane: e.lane * (Math.min(half, 6) - 1), done: false });
+    } else if (e.kind === 'airPickup') {
+      const k = pickups.find((x) => !x.active);
+      if (k) Object.assign(k, { active: true, s: at, lane: e.lane * (half - 0.9), item: e.item, done: false });
+    } else if (e.kind === 'ramp') {
+      Object.assign(ramp, { active: true, s: at, lane: e.side * (Math.min(half, 6) - 1.3), fork: e.fork, decided: false });
+      hud.say('TUBS', `Water's piling up on the ${e.side < 0 ? 'left' : 'right'} wall. That's a launch. Get in its lane and hop, or boost into it.`, 'crew');
+    } else if (e.kind === 'sluice') {
+      const side = random() < 0.5 ? -1 : 1;
+      Object.assign(sluice, { active: true, side, pos: track.lateral(at, side * (half - 0.2), 2.3), yaw: facingYaw(at, side), hits: 0, fork: e.fork });
+      hud.say('DEZ', 'Sluice control on the wall. Two hits opens the maintenance bypass. Miss it and we take the overflow.', 'crew');
+    } else if (e.kind === 'stranded' || e.kind === 'rescue') {
+      if (e.kind === 'rescue' && state.strandedSaved?.[state.sectorKey]) {
+        decideFork(e.fork, true, 'THE DRAINER YOU PROTECTED OPENED THIS GATE');
+        hud.say('???', 'Told you I\'d get it open. Go. I\'ll find my own way.', 'marco');
+        return;
+      }
+      const side = random() < 0.5 ? -1 : 1;
+      Object.assign(stranded, { active: true, s: at + 45, side, hp: 4, window: 12, spawnT: 1, fork: e.kind === 'rescue' ? e.fork : null, resolved: false });
+      stranded.pos = track.lateral(stranded.s, side * (half + 0.2), 1.4);
+      hud.say('JUNE', 'There\'s someone on the ledge ahead! A Drainer! They\'re working a door and the Blooms are going for them. Cover them!', 'crew');
+    } else if (e.kind === 'bulkhead') {
+      const f = findItem(e.fork);
+      const forkS = f?.at ?? at + 120;
+      const total = (forkS - at) / (sec.speed * 1.35);
+      Object.assign(bulkhead, { active: true, fork: e.fork, forkS, t: total, total, decided: false });
+      hud.say('MARS', 'Bulkhead\'s closing ahead! Boost! Shift, now!', 'crew');
+    } else if (e.kind === 'crewRaft') {
+      Object.assign(crewRaft, { active: true, sec, hits: 0, spawnT: 2 });
+      hud.say('JUNE', 'That\'s us! The other raft, on the other side of the glass! There are Blooms behind them. Cover us through the gaps!', 'crew');
     } else if (e.kind === 'setpiece') {
       Object.assign(setpiece, { active: true, t: 0, step: 0 });
+      photoPending = 'THE POOL HALL';
     } else if (e.kind === 'lockerRoom') {
-      Object.assign(locker, { active: true, sec, s: at + 30 });
+      Object.assign(locker, { active: true, sec, s: at + 30, sameBox: !!e.sameBox });
       sec.pass = sec.pass || 1;
+      if (e.sameBox) hud.caption('[the hum stops. Even the water is quiet]');
     }
   }
 
@@ -464,7 +652,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
   // ---------- Shooting ----------
   function targets() {
     const list = [];
-    const T = (pos, r, fn) => list.push({ pos, r, fn });
+    const T = (pos, r, fn, key = null) => list.push({ pos, r, fn, key });
     for (const b of blooms) if (b.active && !b.dying) T(b.pos, 0.75, () => {
       b.hp -= state.damage;
       sound.hit();
@@ -480,8 +668,9 @@ export function createRide(canvas, state, sector, events, opts = {}) {
         events.cleared();
         ripple = [...b.pos];
         rippleTime = time;
+        sound.accent?.('hit');
       }
-    });
+    }, b);
     for (const g of signals) if (g.active && !g.used) T(g.pos, 0.85, () => {
       g.used = 0.001;
       sound.heal();
@@ -493,12 +682,13 @@ export function createRide(canvas, state, sector, events, opts = {}) {
       f.alive = false;
       sound.burst();
       hud.hitmarker();
+      sound.accent?.('snap');
       if (r.floats.every((x) => !x.alive)) {
         events.score(150, 'LANE ROPE CUT');
         r.active = false;
         events.cleared();
       }
-    });
+    }, f);
     if (valve.active && !valve.turned) {
       if (valve.covered > 0) T(valve.pos, 0.8, () => {
         valve.covered -= 1;
@@ -576,6 +766,16 @@ export function createRide(canvas, state, sector, events, opts = {}) {
         events.cleared();
       }
     });
+    if (sluice.active) T(sluice.pos, 0.75, () => {
+      sluice.hits += 1;
+      hud.hitmarker();
+      sound.accent?.('valve');
+      if (sluice.hits >= 2) {
+        sluice.active = false;
+        decideFork(sluice.fork, true, 'SLUICE OPEN · YOU SHOT THE CONTROL, SO THE BYPASS IS OPEN');
+      }
+    }, sluice);
+    for (const sh of shots) if (sh.active && !sh.reflect) T(sh.pos, 0.45, () => { sh.active = false; sound.hit(); hud.hitmarker(); }, sh);
     for (const c of caches) if (c.active && !c.falling) T(c.pos, 0.6, () => {
       c.falling = 0.001;
       sound.splash();
@@ -707,6 +907,8 @@ export function createRide(canvas, state, sector, events, opts = {}) {
       lastSec = sec;
       sound.setMuffle(!!sec.muffle);
       if (sec.type === 'lift') hud.say('TUBS', 'Lift. We can\'t get off. Don\'t look in the windows.', 'crew');
+      if (sec.aqueduct) setTimeout(() => hud.say('JUNE', 'This isn\'t on any floor of the map. We\'re above the building. There is no above the building.', 'crew'), 6000);
+      if (sec.type === 'overflow' && lastForkLow) hud.caption('[the lower channel is dark and loud]');
       if (sec.type === 'tube' && sec.muffle) hud.caption('[pressure tube — sound goes dull]');
     }
 
@@ -734,15 +936,56 @@ export function createRide(canvas, state, sector, events, opts = {}) {
     s = Math.min(track.length - 0.5, s + speed * dt);
 
     // Dodge, or look around while held in a pool.
-    const steer = (isDown('a') || isDown('arrowleft') ? -1 : 0) + (isDown('d') || isDown('arrowright') ? 1 : 0) + input.move[0];
+    const steerIn = clamp((isDown('a') || isDown('arrowleft') ? -1 : 0) + (isDown('d') || isDown('arrowright') ? 1 : 0) + input.move[0], -1, 1);
+    if (wasPressed('t')) {
+      state.autopilot = !state.autopilot;
+      hud.toast(state.autopilot ? 'RIDE CONTROL IS STEERING · it is very smooth · Drift rises while you let it' : 'YOU HAVE THE RAFT');
+    }
+    const lim = Math.max(0.5, Math.min(sec.half, 6) - 0.95);
     if (holding) {
-      viewYaw = clamp(viewYaw - steer * dt * 1.6, -1.2, 1.2);
+      viewYaw = clamp(viewYaw - steerIn * dt * 1.6, -1.2, 1.2);
       offset = damp(offset, 0, 3, dt);
+      velX = 0;
     } else {
       viewYaw = damp(viewYaw, 0, 3, dt);
-      const list = state.passenger.stage >= 5 ? 0.6 : 0;
-      offset = damp(offset, clamp(steer, -1, 1) * Math.min(sec.half * 0.5, 3) + list, 6, dt);
+      // The raft has weight: steering accelerates it sideways, water drag slows it, currents push it.
+      let steer = steerIn;
+      if (state.autopilot && Math.abs(steerIn) < 0.1) steer = autopilotSteer(lim);
+      if (state.autopilot) state.drift = Math.min(100, state.drift + dt * 0.35);
+      const accel = state.fit === 'handling' ? 15 : 10;
+      const current = (sec.current || 0) * Math.sin(s * 0.035 + sec.id);
+      velX += (steer * accel - velX * 2.6 + current * 2.4 + (state.passenger.stage >= 5 ? 1.2 : 0)) * dt;
+      offset += velX * dt;
+      if (Math.abs(offset) > lim) {
+        if (Math.abs(velX) > 2.4 && jumpY < 0.1) {
+          sound.thump(Math.sign(offset) * 0.6);
+          state.raft = Math.max(0, state.raft - 2);
+          hud.caption('[the raft scrapes the tile]');
+        }
+        offset = clamp(offset, -lim, lim);
+        velX *= -0.25;
+      }
+      // Hop: Space. Clears low ropes, floating debris and still water; the launch on a ramp.
+      if (wasPressed(' ') && !state.sitting && jumpY <= 0.001 && sec.type !== 'lift' && !curRoom) hop(1);
     }
+    if (jumpY > 0 || jumpV > 0) {
+      jumpV -= 12 * dt;
+      jumpY = Math.max(0, jumpY + jumpV * dt);
+      if (jumpY === 0) {
+        jumpV = 0;
+        shake = Math.max(shake, 0.3);
+        sound.splash();
+        sound.accent?.('land');
+        state.noise = Math.min(100, state.noise + 12);
+        ripple = track.lateral(s + 1, offset, 0);
+        rippleTime = time;
+      }
+    }
+    // Brace: duck behind the hull. Safer, faster recharge, no firing.
+    const nowBraced = input.bracing && !state.sitting;
+    if (nowBraced && !braced) braceStart = time;
+    braced = nowBraced;
+    state.braced = braced;
 
     // Drift: warm water, calm channels, isolation.
     // Beautiful, calm spaces are where people stop wanting to leave.
@@ -772,8 +1015,9 @@ export function createRide(canvas, state, sector, events, opts = {}) {
     const jitter = shake > 0 ? [(Math.random() - 0.5) * shake * 0.3, (Math.random() - 0.5) * shake * 0.3, 0] : [0, 0, 0];
     // Sitting down in the water: the camera sinks toward the surface.
     sink = damp(sink, state.sitting ? 0.7 : 0, 1.5, dt);
-    const eye = add(track.lateral(s, offset, 1.35 + bob - sink), jitter);
-    const ahead = track.lateral(s + 10, offset * 0.6, 1.2 + bob * 0.5 - sink * 1.6);
+    const duck = braced ? 0.5 : 0;
+    const eye = add(track.lateral(s, offset, 1.35 + bob - sink - duck + jumpY), jitter);
+    const ahead = track.lateral(s + 10, offset * 0.6, 1.2 + bob * 0.5 - sink * 1.6 - duck + jumpY * 0.6);
     let look = ahead;
     // Hold X to look back over the raft at whatever is chasing it.
     if (isDown('x')) look = add(eye, sub(eye, ahead));
@@ -893,10 +1137,14 @@ export function createRide(canvas, state, sector, events, opts = {}) {
 
     // Blaster
     if (wasPressed('r')) blaster.recharge();
-    if (blaster.trigger(dt, input.firing, true)) {
+    const canFire = !braced && !input.locking;
+    if (braced && !state.recharging) state.charge = Math.min(state.maxCharge, state.charge + dt * (state.fit === 'capacity' ? 14 : 10));
+    if (blaster.trigger(dt, input.firing && canFire, true)) {
       const to = shoot(eye, aimDir);
       blaster.showBeam(blaster.muzzle(eye, look, aimDir), to);
+      sound.accent?.('shot');
     }
+    updateLocks(dt, eye, look, aimDir);
     if (wasPressed('f')) burst(eye, aimDir);
     if (wasPressed('h') && state.dressings > 0 && state.health < 100 && !dressing) { dressing = 2.5; state.dressings -= 1; hud.toast('APPLYING A FIELD DRESSING'); }
     if (dressing > 0) { dressing -= dt; events.heal(dt * 16); }
@@ -941,6 +1189,14 @@ export function createRide(canvas, state, sector, events, opts = {}) {
         temperature: sector.index === 0 ? 0.08 : -0.04,
       },
     });
+    // The ride photo: taken by the park, at the top of a launch or a set piece.
+    if (photoPending && (jumpV < 0.5 || setpiece.active)) {
+      try {
+        (state.photos ||= []).push({ sector: state.sectorKey, label: photoPending, url: canvas.toDataURL('image/jpeg', 0.5) });
+        if (state.photos.length > 4) state.photos.shift();
+      } catch {}
+      photoPending = null;
+    }
   }
 
   function useFilter(dt) {
@@ -1007,6 +1263,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
       } else if (next.sec.type === 'bay') lines.push(`SAFE ROOM ARRIVAL BAY ${d ? `IN ${d} M` : 'HERE'}`);
       else if (next.sec.type === 'drop') lines.push(`SPILLWAY DROP IN ${d} M · NO CHECKPOINT`);
     }
+    lines.push(`RAFT FIT: ${(state.fit || 'standard').toUpperCase()} · PILOT: ${state.autopilot ? 'RIDE CONTROL (T)' : 'YOU (T)'}${locks.length ? ` · LOCKS ${locks.length}` : ''}${braced ? ' · BRACED' : ''}`);
     if (state.upgrades.includes('depth')) lines.push(`DEPTH SENSOR: ${sec.shallow ? 'SHALLOW · SAFE' : sec.type === 'tube' || sec.type === 'overflow' ? 'DEEP · CONNECTED · DANGER' : 'DEEP'}`);
     return lines;
   }
@@ -1069,7 +1326,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
   }
 
   function placeRaft(dt, fwd, rgt, bob) {
-    const base = add(track.lateral(s + 0.85, offset, 0.08), [0, bob * 0.5, 0]);
+    const base = add(track.lateral(s + 0.85, offset, 0.08 + jumpY), [0, bob * 0.5, 0]);
     const upV = cross(rgt, fwd);
     const list = state.passenger.stage >= 5 ? 0.12 : 0;
     const tiltUp = normalize(add(upV, scale(rgt, list)));
@@ -1122,8 +1379,9 @@ export function createRide(canvas, state, sector, events, opts = {}) {
     return { a, z, xL, y, right: [-xL[0], 0, -xL[2]] };
   }
 
+  const TWIN_KEYS = ['glass', 'farWater', 'farWall', 'post'];
   const HALL_KEYS = ['deckL', 'deckR', 'chairL', 'chairR', 'backL', 'backR', 'upperWin', 'slide', 'bigWin', 'farRaft', 'marker', 'rules'];
-  const SEG_KEYS = ['left', 'right', 'ceiling', 'floor', 'water', 'belt', 'lamp', 'rib', 'winL', 'winR', 'figure', 'debris', ...HALL_KEYS];
+  const SEG_KEYS = ['left', 'right', 'ceiling', 'floor', 'water', 'belt', 'lamp', 'rib', 'winL', 'winR', 'figure', 'debris', ...HALL_KEYS, ...TWIN_KEYS];
   function placeSegments() {
     for (const seg of segments) {
       while (seg.s + SEG < s - SEG) seg.s += SEGMENTS * SEG;
@@ -1139,12 +1397,23 @@ export function createRide(canvas, state, sector, events, opts = {}) {
       const sec = track.sectionAt(mid).sec;
       const B = segBasis(mid);
       const put = (part, right, up, sx, sy, sz) => writeBasis(part.matrix, add(add(B.a.p, scale(B.right, right)), scale(B.y, up)), B.xL, B.y, B.z, sx, sy, sz);
-      const half = sec.half, H = sec.sky ? 1.6 : sec.height;
+      const open = sec.sky || sec.open;
+      const half = sec.half, H = open ? 1.1 : sec.height;
       const n = Math.floor(seg.s / SEG);
       const L = SEG + 0.9;
       put(seg.left, -(half + 0.3), H / 2 - 0.6, 0.6, H + 1.2, L);
-      put(seg.right, half + 0.3, H / 2 - 0.6, 0.6, H + 1.2, L);
-      if (sec.sky) hide(seg.ceiling);
+      if (sec.parallel) {
+        // A glass partition (with gaps to shoot through) and the crew's channel beyond it.
+        hide(seg.right);
+        if (n % 3 !== 0) put(seg.glass, half + 0.1, H / 2 - 0.6, 0.12, H + 1.2, L); else hide(seg.glass);
+        put(seg.farWater, half + 4.4, -0.01, 8, 0.02, L);
+        put(seg.farWall, half + 8.7, H / 2 - 0.6, 0.6, H + 1.2, L);
+      } else {
+        put(seg.right, half + 0.3, H / 2 - 0.6, 0.6, H + 1.2, L);
+        hide(seg.glass); hide(seg.farWater); hide(seg.farWall);
+      }
+      if (sec.aqueduct && n % 2 === 0) put(seg.post, -(half + 0.3), -6, 0.3, 12, 0.3); else hide(seg.post);
+      if (open) hide(seg.ceiling);
       else put(seg.ceiling, 0, H + 0.3, half * 2 + 1.8, 0.6, L);
       put(seg.floor, 0, sec.shallow ? -0.75 : -0.9, half * 2 + 1.2, 0.6, L);
       if (sec.belt) {
@@ -1154,8 +1423,13 @@ export function createRide(canvas, state, sector, events, opts = {}) {
         hide(seg.belt);
         put(seg.water, 0, sec.shallow ? -0.32 : -0.01, half * 2 + 0.2, 0.02, L);
       }
-      const lampOn = sec.sky ? false : sec.lamps === 'bright' ? true : sec.lamps === 'normal' || sec.lamps === 'flicker' ? n % 2 === 0 : sec.lamps === 'sparse' ? n % 3 === 0 : !!sec.lit && n % 2 === 0;
-      if (lampOn) {
+      const lampOn = sec.sky ? false : sec.lamps === 'posts' ? n % 2 === 0 : sec.lamps === 'none' ? false : sec.lamps === 'bright' ? true : sec.lamps === 'normal' || sec.lamps === 'flicker' ? n % 2 === 0 : sec.lamps === 'sparse' ? n % 3 === 0 : !!sec.lit && n % 2 === 0;
+      if (lampOn && sec.lamps === 'posts') {
+        put(seg.lamp, -(half + 0.3), 1.6, 0.25, 0.25, 0.25);
+        seg.lamp.material.emission = 9;
+        seg.flickerDark = false;
+        seg.lampPos = add(add(B.a.p, scale(B.right, -(half + 0.3))), scale(B.y, 1.6));
+      } else if (lampOn) {
         put(seg.lamp, 0, H - 0.02, 1.5, 0.06, 0.5);
         const f = hash(n);
         const flick = sec.lamps === 'flicker' ? (Math.sin(time * 23 + f * 70) > 0.2 ? 0.1 : 1) : f > 0.85 ? (Math.sin(time * 37 + f * 90) > 0.6 ? 0.15 : 1) : 1;
@@ -1369,6 +1643,25 @@ export function createRide(canvas, state, sector, events, opts = {}) {
       // Rear swarms chase the raft, so they have to be faster than it.
       let closing = d < 22 ? (2.2 + sector.index * 0.3) * closeRate : 0;
       if (b.rear) closing = speed + 2.4;
+      // Spitters hold their distance and throw.
+      if (b.spitter && !b.goal) {
+        if (d < 16) closing = -speed * 0.0 + (d < 13 ? -1.5 : 0);
+        b.spit -= dt;
+        if (b.spit < 0.7 && b.spit + dt >= 0.7) { sound.tick?.(8); b.flash = 0.7; }
+        if (b.spit <= 0 && d < 30) {
+          b.spit = 3.2 + random() * 1.5;
+          const sh = shots.find((x) => !x.active);
+          if (sh) Object.assign(sh, { active: true, pos: [...b.pos], from: b, reflect: false, t: 0 });
+        }
+      }
+      // Some Blooms go for someone else: a stranded Drainer, or the crew's raft.
+      if (b.goal) {
+        const g = sub(b.goal(), b.pos);
+        const gd = Math.hypot(...g);
+        if (gd < 1) { b.active = false; b.onGoal?.(); continue; }
+        b.pos = add(b.pos, scale(normalize(g), (3.5 + (crewRaft.active ? speed : 0)) * dt));
+        closing = 0;
+      }
       if (b.stagger > 0) closing = 0;
       if (b.retreat) {
         b.pos = add(b.pos, [0, -dt * 1.5, 0]);
@@ -1380,10 +1673,11 @@ export function createRide(canvas, state, sector, events, opts = {}) {
       writeYaw(b.core.matrix, [b.pos[0], b.pos[1] + Math.sin(b.phase * 0.7) * 0.15, b.pos[2]], b.phase * 0.4, pulse / squash, pulse * 0.92 * squash, pulse);
       writeYaw(b.spikes.matrix, b.pos, b.phase, pulse * 2.3, 0.07, 0.07);
       b.core.material.emission = b.flash > 0 ? 9 : 1.6 + Math.sin(b.phase * 2) * 0.8;
-      if (d < 1.1) {
+      if (d < 1.1 && !b.goal) {
         b.active = false;
         sound.burst();
-        damage(12, b.rear ? 'A Bloom caught the raft from behind.' : 'A Bloom burst against you.', 3);
+        const front = !b.rear;
+        damage(braced && front ? (state.fit === 'protection' ? 2 : 4) : 12, b.rear ? 'A Bloom caught the raft from behind.' : 'A Bloom burst against you.', braced && front ? 0 : 3);
       } else if (behind(b.pos) && !b.rear) b.active = false;
       else if (b.rear && d > 45) b.active = false;
     }
@@ -1403,9 +1697,14 @@ export function createRide(canvas, state, sector, events, opts = {}) {
       r.floats.forEach((f, j) => (f.alive ? writeYaw(f.part.matrix, add(f.pos, [0, Math.sin(time * 3 + j) * 0.08, 0]), 0, 0.32, 0.26, 0.32) : hide(f.part)));
       if (r.s < s + 0.5) {
         r.active = false;
-        sound.splash();
-        damage(18, 'The Lane Rope dragged you through the water.', 12);
-        state.drift = Math.min(100, state.drift + 12);
+        if (jumpY > 0.35) {
+          hud.toast('HOPPED THE ROPE');
+          sound.accent?.('gate');
+        } else {
+          sound.splash();
+          damage(18, 'The Lane Rope dragged you through the water.', 12);
+          state.drift = Math.min(100, state.drift + 12);
+        }
       }
     }
     for (const u of patches) {
@@ -1417,6 +1716,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
       u.eye.material.emission = near < 18 ? 3 + Math.sin(time * 10) * 2 : 0.02;
       writeYaw(u.eye.matrix, add(c, [0, 0.01, 0]), 0, 0.12, 0.03, 0.12);
       if (near < 14 && !u.warned) { u.warned = true; hud.say('JUNE', 'Still water. Shoot the still water!', 'crew'); }
+      if (near < 0.5 && !u.grabbed && jumpY > 0.3) { u.grabbed = true; hud.toast('HOPPED THE STILL WATER'); }
       if (near < 0.5 && !u.grabbed) {
         u.grabbed = true;
         held = 3.5;
@@ -1512,6 +1812,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
       }
       if (f.s < s - 5) f.active = false;
     }
+    updateRaftContent(dt, eye);
     updateLifeguard(eye);
     updateUnloading();
     updateDistant();
@@ -1528,6 +1829,228 @@ export function createRide(canvas, state, sector, events, opts = {}) {
         events.damage(dt, 'Something heavy sat with you until the raft went under.', true);
         state.drift = Math.min(100, state.drift + dt);
       }
+    }
+  }
+
+  function updateRaftContent(dt, eye) {
+    const half = track.sectionAt(s).sec.half;
+    // Gate markers: thread the pair.
+    for (const g of gateSets) {
+      if (!g.active) { hide(g.a); hide(g.b); continue; }
+      const bob2 = Math.sin(time * 2 + g.s) * 0.06;
+      writeYaw(g.a.matrix, track.lateral(g.s, g.lane - 1.05, 0.15 + bob2), 0, 0.22, 0.3, 0.22);
+      writeYaw(g.b.matrix, track.lateral(g.s, g.lane + 1.05, 0.15 + bob2), 0, 0.22, 0.3, 0.22);
+      if (!g.done && g.s < s) {
+        g.done = true;
+        if (Math.abs(offset - g.lane) < 0.95) {
+          gateStreak += 1;
+          events.score(40 * gateStreak, `GATE ×${gateStreak}`);
+          sound.accent?.('gate');
+          if (gateStreak === 3) { hud.toast('CLEAN LINE · +1 PART'); state.scrap += 1; }
+        } else gateStreak = 0;
+      }
+      if (g.s < s - 6) g.active = false;
+    }
+    // Floating debris: steer around it or hop it.
+    for (const d of debrisPool) {
+      if (!d.active) { hide(d.a); hide(d.b); continue; }
+      const p = track.lateral(d.s, d.lane, 0.12);
+      const yaw = track.at(d.s).yaw + d.s;
+      writeYaw(d.a.matrix, p, yaw, 1.1, 0.25, 0.7);
+      writeYaw(d.b.matrix, add(p, [0.3, 0.35, 0]), yaw * 1.7, 0.5, 0.45, 0.5);
+      if (!d.done && Math.abs(d.s - s - 1.2) < 0.8) {
+        d.done = true;
+        if (Math.abs(offset - d.lane) < 1.15 && jumpY < 0.3) {
+          sound.thump();
+          shake = 0.5;
+          held = Math.max(held, 0.6);
+          damage(6, 'The raft hit floating debris.', 8);
+        } else if (jumpY >= 0.3) hud.toast('HOPPED THE DEBRIS');
+      }
+      if (d.s < s - 6) d.active = false;
+    }
+    // Things caught in the air: only reachable mid-jump.
+    for (const k of pickups) {
+      if (!k.active) { hide(k.part); continue; }
+      const p = track.lateral(k.s, k.lane, 1.9 + Math.sin(time * 2 + k.s) * 0.08);
+      writeYaw(k.part.matrix, p, time, k.item === 'tag' ? 0.3 : 0.45, k.item === 'tag' ? 0.05 : 0.35, k.item === 'tag' ? 0.2 : 0.35);
+      if (!k.done && Math.abs(k.s - s - 0.8) < 1) {
+        k.done = true;
+        if (Math.abs(offset - k.lane) < 1.1 && jumpY > 0.4) {
+          if (k.item === 'tag') {
+            const names = ['Caleb Teague', 'Priya Natarajan', 'Rosa Imbert', 'Okon Bassey'];
+            const name = names[(state.tags || []).length % names.length];
+            (state.tags ||= []).push(name);
+            state.logbook.push({ id: `tag-${name}`, title: `CREW SEVEN ID TAG · ${name.toUpperCase()}`, text: `A Pumphouse ID tag on a broken lanyard, caught in the air above an aqueduct that has no source. ${name}. Crew Seven. Still warm.` });
+            hud.toast(`CREW SEVEN ID TAG · ${name.toUpperCase()}`);
+            sound.pickup();
+          } else give(k.item);
+        }
+      }
+      if (k.s < s - 6) k.active = false;
+    }
+    // The ramp: piled water against a lip, foam, chevrons. Line up, then hop or boost.
+    if (ramp.active) {
+      const yaw = track.at(ramp.s).yaw;
+      const p = track.lateral(ramp.s, ramp.lane, 0);
+      const z = [Math.sin(yaw), 0, Math.cos(yaw)];
+      const pitch = 0.32;
+      const fz = normalize([z[0] * Math.cos(pitch), Math.sin(pitch), z[2] * Math.cos(pitch)]);
+      const fx = [Math.cos(yaw), 0, -Math.sin(yaw)];
+      writeBasis(ramp.lip.matrix, add(p, [0, 0.15, 0]), fx, normalize(cross(fz, fx)), fz, 2.2, 0.3, 4);
+      writeBasis(ramp.foam.matrix, add(p, [0, 0.33, 0]), fx, normalize(cross(fz, fx)), fz, 2.1, 0.04, 3.8);
+      ramp.chev.forEach((c, i) => writeYaw(c.matrix, track.lateral(ramp.s - 8 - i * 6, ramp.lane, 0.02), yaw, 0.9, 0.02, 0.25));
+      if (!ramp.decided && ramp.s - s < 1.5) {
+        ramp.decided = true;
+        const inLane = Math.abs(offset - ramp.lane) < 1.25;
+        const committed = time - lastHop < 0.6 || jumpY > 0.05 || speed > track.sectionAt(s).sec.speed * 1.25;
+        if (inLane && committed) {
+          decideFork(ramp.fork, true, 'LAUNCH · THE UPPER CHANNEL');
+          jumpV = 6.8;
+          photoPending = 'THE LAUNCH';
+          setTimeout(() => hud.say('TUBS', 'Where is this water coming from? There\'s nothing up here feeding it.', 'crew'), 2500);
+        } else {
+          decideFork(ramp.fork, false, inLane ? 'NOT ENOUGH SPEED · LOWER CHANNEL' : 'MISSED THE LAUNCH · LOWER CHANNEL');
+          state.noise = Math.min(100, state.noise + 30);
+          hud.caption('[the raft slams down into the lower channel — everything heard that]');
+        }
+      }
+      if (ramp.s < s - 10) ramp.active = false;
+    } else { hide(ramp.lip); hide(ramp.foam); ramp.chev.forEach(hide); }
+    // Aqueduct: a vast pool far below.
+    if (track.sectionAt(s).sec.aqueduct) writeYaw(abyss.matrix, add(track.at(s).p, [0, -24, -40]), track.at(s).yaw, 160, 0.02, 200);
+    else hide(abyss);
+    // Currents: foam streaks drift with the push, so the water can be read.
+    const cur = (track.sectionAt(s).sec.current || 0) * Math.sin(s * 0.035 + track.sectionAt(s).sec.id);
+    foam.forEach((f, i) => {
+      if (Math.abs(cur) < 0.15 || track.roomAt(s)) return hide(f);
+      const at = s + 6 + i * 5;
+      const lane = ((time * cur * 0.6 + i * 0.37) % 1) * 2 - 1;
+      writeYaw(f.matrix, track.lateral(at, lane * (Math.min(half, 6) - 1), 0.015), track.at(at).yaw + cur * 0.4, 0.12, 0.01, 1.6);
+    });
+    // Sluice control.
+    if (sluice.active) {
+      writeBasis(sluice.wheel.matrix, sluice.pos, [Math.cos(sluice.yaw), 0, -Math.sin(sluice.yaw)], UP, [Math.sin(sluice.yaw), 0, Math.cos(sluice.yaw)], 0.5, 0.5, 0.5);
+      facing(sluice.sign, add(sluice.pos, [0, 0.9, 0]), [Math.sin(sluice.yaw), 0, Math.cos(sluice.yaw)], 1.6, 0.65);
+      const f = findItem(sluice.fork);
+      if (f && s > f.at - 15) {
+        sluice.active = false;
+        decideFork(sluice.fork, false, 'SLUICE MISSED · OVERFLOW CHANNEL');
+      }
+    } else { hide(sluice.wheel); hide(sluice.sign); }
+    // A stranded Drainer on a ledge: protect them while they work the door.
+    if (stranded.active) {
+      const yaw = track.at(stranded.s).yaw;
+      writeYaw(stranded.ledge.matrix, track.lateral(stranded.s, stranded.side * (half + 0.4), 0.7), yaw, 1.6, 0.3, 5);
+      writeYaw(stranded.body.matrix, stranded.pos, yaw, 0.2, 0.75, 0.16);
+      writeYaw(stranded.head.matrix, add(stranded.pos, [0, 0.95, 0]), yaw, 0.15, 0.18, 0.15);
+      if (!stranded.resolved && stranded.s - s < 70) {
+        stranded.window -= dt;
+        stranded.spawnT -= dt;
+        if (stranded.spawnT <= 0 && stranded.window > 2) {
+          stranded.spawnT = 1.8;
+          const b = spawnBloom(stranded.s + 10 + random() * 8, stranded.side * (half - 0.3), 0.4);
+          if (b) {
+            b.goal = () => stranded.pos;
+            b.onGoal = () => {
+              stranded.hp -= 1;
+              hud.caption(`[the Drainer cries out — ${stranded.side < 0 ? 'left' : 'right'}]`);
+            };
+          }
+        }
+        if (stranded.hp <= 0 || stranded.window <= 0 || stranded.s < s + 2) {
+          stranded.resolved = true;
+          if (stranded.hp > 0) {
+            state.rescued += 1;
+            (state.strandedSaved ||= {})[state.sectorKey] = true;
+            hud.say('???', 'Got it! Door\'s open. I\'ll release the gate up ahead for you. Go!', 'marco');
+            hud.toast(`DRAINER PROTECTED · ${state.rescued} RESCUED`);
+            give('cell');
+            if (stranded.fork != null) decideFork(stranded.fork, true, 'YOU PROTECTED THE DRAINER, SO THE GATE IS OPEN');
+          } else {
+            hud.say('JUNE', 'They went under. They went under and we watched.', 'crew');
+            state.drift = Math.min(100, state.drift + 12);
+            if (stranded.fork != null) decideFork(stranded.fork, false, 'NOBODY OPENED THE GATE · OVERFLOW CHANNEL');
+          }
+        }
+      }
+      if (stranded.s < s - 15) stranded.active = false;
+    } else { hide(stranded.body); hide(stranded.head); hide(stranded.ledge); }
+    // A closing bulkhead: beat it or take the detour.
+    if (bulkhead.active) {
+      bulkhead.t -= dt;
+      const frac = clamp(bulkhead.t / bulkhead.total, 0, 1);
+      const sec2 = track.sectionAt(Math.max(0, bulkhead.forkS - 1)).sec;
+      writeYaw(bulkhead.door.matrix, track.lateral(bulkhead.forkS, 0, 0.1 + (sec2.height - 0.2) * (0.5 + frac * 0.9)), track.at(bulkhead.forkS).yaw, sec2.half * 2 + 0.6, sec2.height, 0.4);
+      if (!bulkhead.decided) {
+        hud.objective(`BULKHEAD CLOSING · ${Math.max(0, bulkhead.t).toFixed(1)} s · BOOST (Shift)`);
+        if (bulkhead.forkS - s < 14) {
+          bulkhead.decided = true;
+          const made = bulkhead.t > (bulkhead.forkS - s) / Math.max(1, speed);
+          decideFork(bulkhead.fork, made, made ? 'THROUGH THE BULKHEAD · SHORTCUT' : 'THE BULKHEAD SEALED · DETOUR');
+          hud.objective('Shoot what moves. Scan what hides. Watch the route.');
+          if (!made) bulkhead.t = -1;
+        }
+      }
+      if (bulkhead.forkS < s - 8) bulkhead.active = false;
+    } else hide(bulkhead.door);
+    // The crew's raft beyond the glass: cover them.
+    if (crewRaft.active) {
+      const sec2 = crewRaft.sec;
+      crewRaft.pos = track.lateral(s + 10, sec2.half + 4.4, 0.12);
+      flat(crewRaft.lip, crewRaft.pos, 0.95, 0.95, 1.1);
+      crewRaft.riders.forEach((r, i) => writeYaw(r.matrix, add(crewRaft.pos, [Math.cos(i * 2.1) * 0.5, 0.75, Math.sin(i * 2.1) * 0.5]), 0, 0.2, 0.7, 0.16));
+      crewRaft.spawnT -= dt;
+      if (crewRaft.spawnT <= 0) {
+        crewRaft.spawnT = 2.6;
+        const b = spawnBloom(s - 10, sec2.half + 4.4, 1.2);
+        if (b) {
+          b.rear = false;
+          b.goal = () => crewRaft.pos;
+          b.onGoal = () => {
+            crewRaft.hits += 1;
+            hud.say(pick(['DEZ', 'TUBS', 'JUNE', 'MARS'].filter((n) => n !== state.name.toUpperCase())), pick(['We\'re hit!', 'Behind us! Behind us!', 'Cover us!']), 'crew');
+          };
+        }
+      }
+      const range = track.ranges.find((r) => r.sec === sec2);
+      if (range && s > range.s1 - 2) {
+        crewRaft.active = false;
+        if (crewRaft.hits < 3) {
+          state.overrides += 1;
+          hud.say('DEZ', 'Thanks for the cover. I patched your next gate into our board: you have an override.', 'crew');
+          hud.toast('THE CREW HAD YOUR BACK · +1 OVERRIDE');
+        } else hud.say('MARS', 'We made it. Barely. We\'ll see you at the drain.', 'crew');
+      }
+    } else { hide(crewRaft.lip); crewRaft.riders.forEach(hide); }
+    // Spitter projectiles: shoot them, dodge them, brace for them, or time the brace and send them back.
+    for (const sh of shots) {
+      if (!sh.active) { hide(sh.part); continue; }
+      sh.t += dt;
+      const goal = sh.reflect ? (sh.from?.active ? sh.from.pos : null) : eye;
+      if (!goal) { sh.active = false; continue; }
+      const dvec = sub(goal, sh.pos);
+      const dd = Math.hypot(...dvec);
+      sh.pos = add(sh.pos, scale(normalize(dvec), Math.min(dd, (sh.reflect ? 20 : 10) * dt)));
+      writeYaw(sh.part.matrix, sh.pos, time * 4, 0.22, 0.22, 0.22);
+      if (dd < 0.9) {
+        if (sh.reflect) {
+          sh.active = false;
+          if (sh.from?.active && !sh.from.dying) { sh.from.dying = 0.001; events.cleared(); sound.burst(); events.score(150, 'RETURNED TO SENDER'); }
+        } else if (braced && time - braceStart < 0.4) {
+          sh.reflect = true;
+          sound.accent?.('parry');
+          hud.toast('ARC PULSE · RETURNED');
+        } else if (braced) {
+          sh.active = false;
+          sound.thump();
+          hud.caption('[it splashes against the hull]');
+        } else {
+          sh.active = false;
+          damage(9, 'A Spitter\'s glob hit you.', 0);
+        }
+      }
+      if (sh.t > 8) sh.active = false;
     }
   }
 
@@ -1717,6 +2240,11 @@ export function createRide(canvas, state, sector, events, opts = {}) {
     clouds.forEach((c, i) => writeYaw(c.part.matrix, [c.base[0] + cloudCycle * 3, c.base[1], c.base[2]], 0, 30 + hash(i + 1) * 30, 4 + hash(i + 2) * 4, 14 + hash(i + 4) * 14));
   }
 
+  if (import.meta.env.DEV) window.__rideTest = {
+    shotAhead(dist = 8) { const sh = shots.find((x) => !x.active); const b = spawnBloom(s + dist + 4, offset, 1.3); Object.assign(sh, { active: true, pos: track.lateral(s + dist, offset, 1.3), from: b, reflect: false, t: 0 }); return { sh, b }; },
+    bloomAhead() { return spawnBloom(s + 10, offset * 0.6, 1.2); },
+    get locks() { return locks.length; },
+  };
   if (import.meta.env.DEV) window.__ride = { track, valve, linked, lifeguard, locker, wake, passengerStep, burst: () => burst(fx.eye, fx.fwd), get s() { return s; }, set s(v) { s = v; } };
 
   return {

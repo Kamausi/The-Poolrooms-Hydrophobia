@@ -70,6 +70,50 @@ function noise({ time = 0.3, gain = 0.3, freq = 800, q = 0.8, type = 'bandpass',
   src.start(t);
 }
 
+// ---------- The machinery as music ----------
+// A pump pulse on a fixed grid (100 bpm). Player actions queue tonal accents that land on the next eighth
+// note; the shot itself always sounds immediately. Intensity follows the pacing director; Drift softens it all.
+const music = { next: 0, step: 0, queue: [], phase: 'relax', intensity: 0, drift: 0, bus: null, filter: null, pad: null };
+const STEP = 60 / 100 / 2;
+const SCALE = [0, 3, 5, 7, 10, 12, 15, 17];
+function musicBus() {
+  if (music.bus || !ensure()) return music.bus;
+  music.filter = ctx.createBiquadFilter();
+  music.filter.type = 'lowpass';
+  music.filter.frequency.value = 6000;
+  music.bus = ctx.createGain();
+  music.bus.gain.value = 0.9;
+  music.bus.connect(music.filter).connect(muffle);
+  const pad = ctx.createGain();
+  pad.gain.value = 0;
+  [220, 330, 440].forEach((f) => { const o = ctx.createOscillator(); o.type = 'sine'; o.frequency.value = f; o.connect(pad); o.start(); });
+  pad.connect(music.filter);
+  music.pad = pad;
+  return music.bus;
+}
+function note(t, freq, { type = 'sine', time = 0.2, gain = 0.06 } = {}) {
+  const o = ctx.createOscillator(), g = ctx.createGain();
+  o.type = type;
+  o.frequency.setValueAtTime(freq, t);
+  g.gain.setValueAtTime(gain, t);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + time);
+  o.connect(g).connect(music.bus);
+  o.start(t);
+  o.stop(t + time + 0.02);
+}
+function noiseAt(t, { time = 0.08, gain = 0.04, freq = 6000 } = {}) {
+  const src = ctx.createBufferSource();
+  src.buffer = noiseBuffer(time);
+  const f = ctx.createBiquadFilter();
+  f.type = 'highpass';
+  f.frequency.value = freq;
+  const g = ctx.createGain();
+  g.gain.setValueAtTime(gain, t);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + time);
+  src.connect(f).connect(g).connect(music.bus);
+  src.start(t);
+}
+
 export const sound = {
   unlock() {
     if (ensure() && ctx.state === 'suspended') ctx.resume();
@@ -131,6 +175,41 @@ export const sound = {
   whistle(pan = 0) {
     tone({ type: 'sine', from: 2900, to: 3100, time: 0.5, gain: 0.12, pan });
     tone({ type: 'sine', from: 3100, to: 2700, time: 0.7, gain: 0.12, delay: 0.55, pan });
+  },
+  /** Advance the machinery grid. phase: the director's phase; drift 0..100. */
+  music(phase, drift) {
+    if (!enabled || !ensure() || !musicBus()) return;
+    music.phase = phase;
+    const d = drift / 100;
+    music.filter.frequency.value = 6000 - d * 5200;
+    music.pad.gain.value = Math.max(0, d - 0.45) * 0.05;
+    if (music.next < ctx.currentTime) music.next = ctx.currentTime + 0.05;
+    const loud = { relax: 0.25, warning: 0.5, buildup: 0.8, peak: 1, fade: 0.6 }[phase] ?? 0.3;
+    while (music.next < ctx.currentTime + 0.12) {
+      const t = music.next;
+      const beat = music.step % 2 === 0;
+      if (beat && (phase !== 'relax' || music.step % 8 === 0)) note(t, 48, { type: 'sine', time: 0.25, gain: 0.14 * loud });
+      if (!beat && (phase === 'peak' || phase === 'buildup')) noiseAt(t, { gain: 0.025 * loud });
+      if (phase === 'peak' && music.step % 4 === 2) note(t, 96, { type: 'square', time: 0.08, gain: 0.02 });
+      for (const a of music.queue.splice(0, 3)) {
+        const i = a.i % SCALE.length;
+        const base = { hit: 440, gate: 660, snap: 110, valve: 880, land: 70, parry: 990, shot: 0, low: 82 }[a.kind] ?? 440;
+        if (base) note(t, base * 2 ** ((a.kind === 'hit' ? SCALE[i] : 0) / 12), { type: a.kind === 'snap' || a.kind === 'land' ? 'triangle' : 'sine', time: a.kind === 'valve' ? 0.4 : 0.18, gain: 0.05 });
+        if (a.kind === 'valve') noiseAt(t, { time: 0.4, gain: 0.05, freq: 2500 });
+      }
+      music.next += STEP;
+      music.step += 1;
+    }
+  },
+  /** Queue a musical accent for an action (it lands on the next eighth note). */
+  accent(kind) {
+    if (kind === 'shot') return;
+    music.queue.push({ kind, i: music.queue.length + music.step });
+    if (music.queue.length > 6) music.queue.shift();
+  },
+  /** Immediate tick, rising with n (lock acquisition, warnings). */
+  tick(n = 1) {
+    tone({ type: 'square', from: 500 + n * 90, to: 520 + n * 90, time: 0.05, gain: 0.04 });
   },
   /** The pump room: a loud, steady, low machine drone. Safety sounds like this. */
   pumpRoom(on) {

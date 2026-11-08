@@ -42,6 +42,13 @@ export const UPGRADES = [
   { id: 'headlamp', name: 'Raft headlamp', text: 'Lights dark channels and shows what is behind each upcoming gate.', cost: 3 },
   { id: 'valve', name: 'Valve tool', text: 'Drain a flooded passage by hand from the dock (V).', cost: 2 },
 ];
+/** Raft configurations: handling, protection or capacity, chosen at the workbench. */
+export const RAFT_FITS = [
+  { id: 'standard', name: 'Standard hull', text: 'Balanced. What Dez built.' },
+  { id: 'handling', name: 'Light hull', text: 'Steers faster and hops higher. Thinner.' },
+  { id: 'protection', name: 'Shielded hull', text: 'Bracing blocks almost everything from the front. Heavier.' },
+  { id: 'capacity', name: 'Cradle hull', text: '+8 blaster charge and a faster recharge cradle when braced.' },
+];
 /** Supplies converted into items. */
 export const RECIPES = [
   { id: 'cell', name: 'Charge cell', text: 'For the disruption burst.', cost: 2, can: (s) => s.cells < 3, apply: (s) => (s.cells += 1) },
@@ -231,6 +238,54 @@ export function showSafeRoom(state, sector, nextSector, nextPlan, onLeave, onSav
       });
       body.append(routes);
     }
+  }
+
+  // Raft fit: one configuration at a time, chosen here, not juggled during a fight.
+  const fits = el('div', 'choices');
+  fits.append(el('p', 'mono', 'RAFT FIT'));
+  for (const f of RAFT_FITS) {
+    const b = el('button', `choice route${(state.fit || 'standard') === f.id ? ' selected' : ''}`);
+    b.append(el('b', null, f.name), el('span', null, f.text));
+    b.onclick = () => {
+      state.fit = f.id;
+      state.maxCharge = 24 + (f.id === 'capacity' ? 8 : 0);
+      state.charge = state.maxCharge;
+      fits.querySelectorAll('.route').forEach((x) => x.classList.remove('selected'));
+      b.classList.add('selected');
+      onSave();
+    };
+    fits.append(b);
+  }
+  body.append(fits);
+
+  // The ride photo. The park takes one at the top of every launch.
+  const photo = (state.photos || []).filter((ph) => ph.sector === state.sectorKey).pop();
+  if (photo) {
+    const wrap = el('div');
+    wrap.append(el('p', 'mono', `RIDE PHOTO · ${photo.label}`));
+    const c = document.createElement('canvas');
+    c.style.width = '100%';
+    c.style.border = '6px solid #f2efe6';
+    const img = new Image();
+    img.onload = () => {
+      c.width = img.width;
+      c.height = img.height;
+      const g = c.getContext('2d');
+      g.drawImage(img, 0, 0);
+      // Someone is sitting in the empty seat.
+      g.globalAlpha = 0.5;
+      g.fillStyle = '#d8dcd4';
+      const x = c.width * 0.5, y = c.height * 0.8, u = c.height * 0.09;
+      g.beginPath(); g.ellipse(x, y - u * 1.6, u * 0.45, u * 0.55, 0, 0, Math.PI * 2); g.fill();
+      g.fillRect(x - u * 0.55, y - u, u * 1.1, u * 1.6);
+      g.globalAlpha = 1;
+      g.fillStyle = '#f2efe6';
+      g.font = `${Math.round(c.height * 0.05)}px "IBM Plex Mono", monospace`;
+      g.fillText(`UNDERFLOW PARK · GUEST ${state.band}`, c.width * 0.03, c.height * 0.95);
+    };
+    img.src = photo.url;
+    wrap.append(c, el('p', null, ['The empty seat appears occupied.', 'There are more of you in it than there were.', 'Your life vest has someone else\'s number on it.', 'It shows the raft coming from a route nobody took.'][state.guests % 4]));
+    body.append(wrap);
   }
 
   body.append(logbookView(state));

@@ -155,3 +155,7 @@ body[data-mode='ride'] #touch-use { display: none; }
 .safe-live p { margin: 4px 0; }
 .graffiti .reply { padding-left: 18px; font-size: 17px; color: #4b5a52 !important; }
 @media (max-width: 640px) { #modal.safe { justify-items: center; } #modal.safe .panel { margin: 60px 0 0; } }
+
+body.touch:not([data-mode='ride']) #touch-jump, body.touch:not([data-mode='ride']) #touch-brace, body.touch:not([data-mode='ride']) #touch-lock { display: none; }
+
+#hint { white-space: normal; text-align: center; width: min(900px, 92vw); line-height: 1.6; }
