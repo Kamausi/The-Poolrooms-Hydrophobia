@@ -4,6 +4,8 @@ let ctx = null;
 let master = null;
 let hum = null;
 let enabled = true;
+let muffle = null;
+let bus = null; // everything except the hum goes through here, so tubes can muffle it
 
 function ensure() {
   if (ctx) return ctx;
@@ -13,6 +15,11 @@ function ensure() {
   master = ctx.createGain();
   master.gain.value = 0.55;
   master.connect(ctx.destination);
+  muffle = ctx.createBiquadFilter();
+  muffle.type = 'lowpass';
+  muffle.frequency.value = 20000;
+  bus = ctx.createGain();
+  bus.connect(muffle).connect(master);
   return ctx;
 }
 
@@ -23,7 +30,15 @@ function noiseBuffer(seconds) {
   return buffer;
 }
 
-function tone({ type = 'sine', from = 440, to = from, time = 0.15, gain = 0.2, delay = 0 }) {
+function out(pan) {
+  if (!pan) return bus;
+  const p = ctx.createStereoPanner();
+  p.pan.value = Math.max(-1, Math.min(1, pan));
+  p.connect(bus);
+  return p;
+}
+
+function tone({ type = 'sine', from = 440, to = from, time = 0.15, gain = 0.2, delay = 0, pan = 0 }) {
   if (!enabled || !ensure()) return;
   const t = ctx.currentTime + delay;
   const osc = ctx.createOscillator();
@@ -33,12 +48,12 @@ function tone({ type = 'sine', from = 440, to = from, time = 0.15, gain = 0.2, d
   osc.frequency.exponentialRampToValueAtTime(Math.max(1, to), t + time);
   g.gain.setValueAtTime(gain, t);
   g.gain.exponentialRampToValueAtTime(0.0001, t + time);
-  osc.connect(g).connect(master);
+  osc.connect(g).connect(out(pan));
   osc.start(t);
   osc.stop(t + time + 0.02);
 }
 
-function noise({ time = 0.3, gain = 0.3, freq = 800, q = 0.8, type = 'bandpass', delay = 0 }) {
+function noise({ time = 0.3, gain = 0.3, freq = 800, q = 0.8, type = 'bandpass', delay = 0, pan = 0 }) {
   if (!enabled || !ensure()) return;
   const t = ctx.currentTime + delay;
   const src = ctx.createBufferSource();
@@ -50,7 +65,7 @@ function noise({ time = 0.3, gain = 0.3, freq = 800, q = 0.8, type = 'bandpass',
   const g = ctx.createGain();
   g.gain.setValueAtTime(gain, t);
   g.gain.exponentialRampToValueAtTime(0.0001, t + time);
-  src.connect(filter).connect(g).connect(master);
+  src.connect(filter).connect(g).connect(out(pan));
   src.start(t);
 }
 
@@ -86,10 +101,14 @@ export const sound = {
     osc2.start();
     hum = { osc, osc2, g, filter };
   },
-  setHum(drift) {
+  setHum(drift, silent = false) {
     if (!hum) return;
-    hum.g.gain.value = 0.03 + drift * 0.07;
+    hum.g.gain.value = silent ? 0.002 : 0.03 + drift * 0.07;
     hum.filter.frequency.value = 220 - drift * 120;
+  },
+  /** Pressure tubes and underwater moments: everything goes dull. */
+  setMuffle(on) {
+    if (muffle) muffle.frequency.value = on ? 650 : 20000;
   },
   fire: () => tone({ type: 'square', from: 1800, to: 420, time: 0.07, gain: 0.05 }),
   empty: () => tone({ type: 'square', from: 140, to: 90, time: 0.08, gain: 0.08 }),
@@ -108,9 +127,39 @@ export const sound = {
     tone({ type: 'sawtooth', from: 160, to: 50, time: 0.3, gain: 0.25 });
     noise({ time: 0.25, gain: 0.25, freq: 300, type: 'lowpass' });
   },
-  whistle() {
-    tone({ type: 'sine', from: 2900, to: 3100, time: 0.5, gain: 0.12 });
-    tone({ type: 'sine', from: 3100, to: 2700, time: 0.7, gain: 0.12, delay: 0.55 });
+  whistle(pan = 0) {
+    tone({ type: 'sine', from: 2900, to: 3100, time: 0.5, gain: 0.12, pan });
+    tone({ type: 'sine', from: 3100, to: 2700, time: 0.7, gain: 0.12, delay: 0.55, pan });
+  },
+  burstBig() {
+    noise({ time: 0.8, gain: 0.5, freq: 300, q: 0.4 });
+    tone({ type: 'sawtooth', from: 900, to: 60, time: 0.6, gain: 0.18 });
+  },
+  thump(pan = 0) {
+    tone({ type: 'sine', from: 70, to: 35, time: 0.35, gain: 0.45, pan });
+    noise({ time: 0.2, gain: 0.25, freq: 160, type: 'lowpass', pan });
+  },
+  pump(pan = 0) {
+    for (let i = 0; i < 4; i++) noise({ time: 0.5, gain: 0.18, freq: 90, type: 'lowpass', delay: i * 0.45, pan });
+  },
+  footstep(pan = 0, wet = false) {
+    noise({ time: 0.12, gain: wet ? 0.2 : 0.12, freq: wet ? 900 : 1600, q: 1.2, pan });
+  },
+  vent() {
+    noise({ time: 2.5, gain: 0.08, freq: 400, type: 'lowpass' });
+  },
+  laugh(pan = 0) {
+    [0, 0.14, 0.3].forEach((d, i) => tone({ type: 'triangle', from: 600 + i * 40, to: 520, time: 0.1, gain: 0.04, delay: d, pan }));
+  },
+  gate() {
+    noise({ time: 0.9, gain: 0.25, freq: 220, type: 'lowpass' });
+    tone({ type: 'square', from: 110, to: 140, time: 0.6, gain: 0.04 });
+  },
+  wrong() {
+    tone({ type: 'square', from: 220, to: 160, time: 0.25, gain: 0.08 });
+  },
+  jet(pan = 0) {
+    noise({ time: 0.7, gain: 0.25, freq: 2500, q: 0.5, pan });
   },
   chime() {
     tone({ type: 'sine', from: 660, to: 660, time: 0.5, gain: 0.07 });

@@ -80,10 +80,10 @@ button.primary { background: var(--accent); color: #101713; }
 #subtitle.marco b { color: var(--drift); }
 #subtitle.drift { color: var(--drift); font-style: italic; }
 #subtitle.drift b { color: var(--drift); }
-#toast { position: absolute; left: 50%; top: 40%; transform: translateX(-50%); opacity: 0; color: var(--accent); white-space: nowrap; }
+#toast { position: absolute; left: 50%; top: 61%; transform: translateX(-50%); opacity: 0; color: var(--accent); white-space: nowrap; }
 #toast.show { animation: toast 1.6s ease-out; }
 @keyframes toast { 0% { opacity: 0; transform: translate(-50%, 8px); } 15% { opacity: 1; transform: translate(-50%, 0); } 80% { opacity: 1; } 100% { opacity: 0; } }
-#prompt { position: absolute; left: 50%; top: 28%; transform: translateX(-50%); background: #000a; padding: 10px 16px; border: 1px solid var(--line); white-space: nowrap; }
+#prompt { position: absolute; left: 50%; top: 36%; transform: translateX(-50%); background: #000a; padding: 10px 16px; border: 1px solid var(--line); max-width: min(760px, 90vw); text-align: center; line-height: 1.7; }
 
 .overlay { position: fixed; inset: 0; z-index: 10; display: grid; place-items: center; background: #050806cc; backdrop-filter: blur(6px); padding: 16px; }
 .overlay[hidden], #menu[hidden], #hud[hidden], #prompt[hidden] { display: none; }
@@ -120,3 +120,29 @@ body[data-mode='ride'] #touch-use { display: none; }
   #subtitle { font-size: 14px; bottom: 170px; }
   #prompt { white-space: normal; text-align: center; max-width: 90vw; }
 }
+
+/* Route indicator, raft panel, heat, captions, scan readout */
+.route { margin-top: 10px; display: grid; gap: 3px; max-width: 300px; color: #cfe3d6; }
+.route p:first-child { color: var(--accent); }
+.raft-panel { display: grid; gap: 2px; margin-bottom: 10px; color: #cbd2c4; }
+.raft-panel b { color: var(--ink); font-weight: 500; }
+.raft-panel b.warn { color: var(--danger); }
+.bar.heat { width: 120px; margin: 6px 0 0 auto; }
+.bar.heat i { background: #ffb347; width: 0; }
+.bar.heat i.low { background: var(--danger); }
+#caption { position: absolute; left: 50%; bottom: 196px; transform: translateX(-50%); opacity: 0; transition: opacity 0.3s; color: #e8f2ff; background: #0008; padding: 6px 12px; white-space: nowrap; }
+#caption.show { opacity: 1; }
+#scan { position: absolute; transform: translateX(-50%); color: #9fe0ff; white-space: nowrap; text-shadow: 0 1px 4px #000; }
+.settings { display: grid; gap: 8px; margin: 12px 0; }
+.settings label { display: flex; gap: 10px; align-items: center; font-size: 13px; }
+.keypad { display: grid; grid-template-columns: repeat(3, 64px); gap: 8px; justify-content: center; margin: 16px 0; }
+.keypad button { height: 52px; background: #ffffff10; border: 1px solid var(--line); font: 600 18px 'IBM Plex Mono', monospace; }
+.keypad-display { text-align: center; font: 600 28px 'IBM Plex Mono', monospace; letter-spacing: 0.4em; color: var(--accent); }
+.logbook { display: grid; gap: 10px; max-height: 40vh; overflow-y: auto; margin: 12px 0; }
+.logbook article { border-left: 2px solid var(--line); padding-left: 12px; }
+.logbook h3 { margin: 0 0 4px; font: 600 11px 'IBM Plex Mono', monospace; letter-spacing: 0.12em; color: var(--accent); }
+.logbook p { margin: 0; font-size: 13px; }
+.terminal { background: #021208; border: 1px solid #1c5a30; color: #9dffb8; font: 12px 'IBM Plex Mono', monospace; padding: 12px 14px; white-space: pre-wrap; line-height: 1.6; }
+.seed-row { display: flex; gap: 8px; align-items: center; margin: 8px 0 16px; flex-wrap: wrap; }
+.seed-row input { background: #ffffff10; border: 1px solid var(--line); color: var(--ink); padding: 10px 12px; font: 12px 'IBM Plex Mono', monospace; width: 160px; }
+@media (max-width: 640px) { .route { display: none; } }

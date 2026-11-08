@@ -51,32 +51,9 @@ Heavily reinforced, brightly lit chambers that act as hard checkpoints between p
 
 The game runs on 67js (`index.html` + `src/`). The old Three.js prototype is kept at `public/legacy/combat-build-02.html` and linked from the menu.
 
-**Campaign 1, "Overflow":** three sectors (The Yellow Channel 12 m, The Blue Reservoir 28 m, The Last Drain 46 m). Each one is raft → dock → on foot → Safe Room.
+**Campaign 1, "Overflow":** eight attractions: the Welcome Pools, the Lazy River, the Wave Hall, the Family Splash Zone, the Blacklight Pavilion, the Filtration Works, the Hotel Baths and the Rooftop Lagoon. Each is a branching raft ride, then a holding pool with a dock; you either explore on foot to power the service gate to the Safe Room, force it, or take the bypass with no checkpoint. **Endless mode** strings seeded attractions together with rising threat.
 
-**On the raft**
-- an endless, gently curving tiled channel with flickering lamps
-- aim with the cursor; hold click to fire; `R` recharge; `A`/`D` dodge; `Shift` boost
-- **Blooms** drift at you and burst on contact; **Signals** heal and lower Drift
-- **Lane Ropes** cross the channel: pop all five floats or take damage
-- **Undertow** patches of still water: shoot them before you pass, or the raft is held and Blooms swarm
-- **the Lifeguard** (sectors 2 and 3): shoot the lamp on its chair before you pass, or it whistles and calls Blooms
-- a blue **drain valve** on the wall: three hits drain a key stretch of the level you'll walk at the dock; miss it and that stretch stays flooded
-
-**On foot**
-- a hand-built grid level per sector with dry walkways and knee-deep pools (slower, more Drift)
-- find the power cell, then bring it to the Safe Room door; pick up scrap parts on the way
-- Blooms roam toward you, and "rush hour" waves arrive on a timer
-- the Undertow follows you through the water and holds you until you shoot it
-- the Lifeguard spots you if you stand in the water near its tower
-- chlorine fumes start after two minutes and slowly hurt you
-
-**Systems**
-- **Drift** rises in warm water and from Marco's calls; it fades the decorative HUD (vitals, charge and prompts stay readable), washes out the picture and makes the Attendant talk to you. At 100 you sit down in the water and take damage until you snap out of it (Space or fire).
-- **Safe Rooms:** full heal and Drift reset, graffiti from earlier crews, a workbench (three blaster upgrades paid for with scrap), a dispatch board (Lazy River or Rapids for the next sector), a saved checkpoint, and a terminal whose guest count keeps rising
-- the Attendant's PA, crew radio (Dez, Tubs, June, Mars) and Marco as subtitles; all sound is synthesized
-- the ending is "The Loop" from the story bible
-
-**Not built yet:** AI crewmates and online co-op, Marco/Grout/Floater as physical entities, Lost & Found items, track branching from target hits, Campaigns 2 to 4 and the other two endings, Drift showing on the player's hands, GLB models.
+[SYSTEMS_DESIGN.md](SYSTEMS_DESIGN.md) section 13 lists every system that is implemented, and what is not yet.
 
 ## Systems
 

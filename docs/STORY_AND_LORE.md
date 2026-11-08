@@ -58,6 +58,9 @@ They send down **Drainer crews**: four-person teams with a salvaged raft and the
 2. **Recover the lost.** Crews bring back belongings, and sometimes people.
 3. **Map the way back.** Nobody from the last three crews has reported in.
 
+### Checked in
+Every Drainer wakes the same way: in a raft, the water warm, a numbered wristband on their arm that they don't remember putting on. The announcements say to remain seated until the unloading station. You have already passed it three times, each time farther underwater. The park has checked you in, and it will not close while guests remain.
+
 ### The personal hook
 The previous crew, **Crew Seven**, went down six weeks ago. Their raft came back up the slide empty: still floating, still dry inside, with all four life vests neatly folded on the seat.
 
@@ -238,13 +241,18 @@ The Lido believe the Main Drain is **a door home**. Their leader, **Mrs. Vance**
 Structured like a Left 4 Dead campaign: chapters ending in Safe Rooms, then a finale where the crew has to hold out. Each chapter alternates **raft → dock → on foot → Safe Room**.
 
 ### Campaign 1 — "Overflow"
-| # | Chapter | Depth | What happens |
-|---|---|---|---|
-| 1 | **The Yellow Channel** | 12 m | The descent. Blooms only. The Attendant welcomes you. First dock, first power cell, first Safe Room. |
-| 2 | **The Blue Reservoir** | 28 m | The classic white-and-blue Poolrooms. First Undertow. Marco is heard for the first time; June goes quiet. |
-| 3 | **The Last Drain** | 46 m | Night swimming. Lifeguard towers. Crew Seven's empty campsite and a Signal with Caleb's markings. |
+Eight attractions, each ending at a holding pool with a dock and, if you power its service gate, a Safe Room. See [SYSTEMS_DESIGN.md](SYSTEMS_DESIGN.md) for each attraction's rules.
 
-**The current build is a prototype of this campaign.**
+| # | Attraction | What happens |
+|---|---|---|
+| 1 | **The Welcome Pools** | You wake in a raft with a wristband on your arm and pass the unloading station a fourth time, deeper than ever. Tutorial dock. A fake shelter. |
+| 2 | **The Lazy River** | A distant raft that never gets closer, until it is waiting in the junction pool, empty, vests folded. The first Lifeguard. |
+| 3 | **The Wave Hall** | Every wave leaves something closer to shore. The Passenger starts here. |
+| 4 | **The Family Splash Zone** | Jets that fire for nobody. A child laughing on the slides. |
+| 5 | **The Blacklight Pavilion** | Markings only the beam can see. A mural of the crew, painted before they arrived. |
+| 6 | **The Filtration Works** | Pumps that hide movement until they stop. Raise the water to cross; something else crosses too. |
+| 7 | **The Hotel Baths** | A locker room you pass again and again. Doors that come out the far side of the building. |
+| 8 | **The Rooftop Lagoon** | Sky. The clouds repeat on the announcement cycle. The surface, and the loop. |
 
 ### Later campaigns (outline)
 - **Campaign 2 — "Deep End":** the Lido, the dispatch board's alternative routes, Grout reshaping a maze of pools. Finale: a holdout at a flooding Safe Room while the Attendant announces "closing time."

@@ -239,20 +239,20 @@ Low composure changes perception: announcements become personal, reflections lag
 
 ---
 
-## 11. Reconciling with the story bible
+## 11. How this direction was combined with the story bible
 
-| Topic | This direction | Story bible / current build | Recommendation |
-|---|---|---|---|
-| Who you are | A lone guest waking in a raft with a numbered wristband | Mars and the Drainer crew, sent down from the Pumphouse | **Keep the Drainers** (co-op needs a crew), and add the wristband: after the first Safe Room, every crew member is wearing one. The park has checked them in. |
-| The guest counter | Central mystery | The Attendant and Lifeguard count heads | **Merge.** Occupancy is the facility's version of the head count. |
-| Score | Secondary; challenge mode only | Signal Score on the HUD | Keep for now; move it out of the campaign HUD when switch and valve targets cover the campaign rewards. |
-| Sanity | Composure | Drift | **Same thing.** Keep the name Drift. |
-| Docks | Optional, inspected before committing | Mandatory at the end of each ride | Move to optional docks with a holding pool; keep one mandatory dock per sector at first. |
-| Underwake | New name | Undertow | **Keep "Undertow"** and adopt the expanded rules. |
-| Sector length | 15–25 minutes | ~5 minutes | Grow toward 15–25 as puzzles and branches arrive; test it. |
-| Endless mode | Separate mode with shareable route seeds | Not planned | Add after Campaign 1. The ride already uses seeded generation. |
+Both are in the game. Where they touched, they were combined rather than one replacing the other.
 
----
+| Topic | In the game |
+|---|---|
+| Who you are | Mars of the Drainer crew (co-op needs a crew) **and** you wake in a raft with a numbered wristband, having passed the unloading station three times. The wristband number appears in announcements and the ending. |
+| The guest counter | The facility's head count. It is on the HUD and the Safe Room terminal, and it goes up every Safe Room although you are alone. |
+| Score | Hidden in the campaign; good shots change the situation instead. Endless mode shows a score. |
+| Sanity | Drift is composure. Vitals are the body. Instruments stay readable at any Drift. |
+| Docks | Optional. Each sector ends at a holding pool: moor and explore, force the gate with a burst, or take the bypass. |
+| Underwake | Kept the name Undertow, with the expanded rules. |
+| Sectors | The three earlier sectors became the first steps of eight attractions. |
+| Sector length | Not yet at 15–25 minutes; it needs tuning with real players. |
 
 ## 12. Presentation
 
@@ -260,10 +260,21 @@ Readable tile patterns and depth markings; beautiful, unsettling pools of light;
 
 ---
 
-## 13. What the current build already does with this
+## 13. What the build implements
 
-- **Raft → foot consequence:** each sector has a **blue drain valve** on the channel wall (a ring/wheel target, three hits). Shooting it drains a key stretch of the dock level (`d` cells in `sectors.js`): you walk it dry, past exposed maintenance paint, with no Drift build-up and no Undertow. Miss it and that stretch stays flooded. Dez tells you which happened when you land.
-- **Reliable instruments:** Drift fades only the decorative HUD.
-- **Occupancy:** the Safe Room terminal reports *GUESTS CHECKED IN*, which rises every sector even though you're alone.
+Everything in sections 1–12 is implemented except where noted under **Not yet**.
 
-Next steps, in order: optional docks with a holding pool → arrow route switches with visible gates → inspection beam → the Passenger → capability upgrades in place of numeric ones.
+- **Facility:** occupancy counter, wristband, personal announcements, repairs done while you are not looking (lamps you shoot out come back), documents about guest counts, closures and work orders.
+- **Raft:** blaster mount (charge trickles back while seated, faster recharge), locker (charge cells, filters, parts), mooring at holding pools, route indicator, pressure brake (S, flumes and tubes), maintenance panel and visible hull patches, integrity that can list the raft or sink it.
+- **Channels:** lazy channel, fast flume, raft lift (windows with figures), holding pool, junction pool, pressure tube (muffled sound, ribs, dark until its breaker is thrown), overflow (shallow, flickering, debris, uses filters), spillway drop, arrival bay, looping locker room.
+- **Branches:** junction pools with two gated exits labelled public / maintenance / overflow. Arrow targets throw the gates; you see them move and see the stub of the route you didn't take.
+- **Blaster:** signal pulse with heat, overheat and noise; inspection beam (right-click/Q) that reads sensors, seats, rules and hidden things; disruption burst (F) that spends a charge cell, stuns or pushes back entities, and can force a locked gate.
+- **Targets:** arrow (gates), ring (drain valve; locker-room pump), bar (tube breaker, lifeguard breaker), linked sequences with a scannable maintenance sensor, unmarked anomalies only visible to the beam or in a flicker, supply crates, grout-covered targets.
+- **Uncomfortable shots:** the tube breaker turns the lights on and starts the pumps, which brings an Undertow; restoring power on foot wakes the deep water; raising the water floats the bridge and lets the Undertow cross.
+- **Docks:** inspect from the holding pool (beacon state, what is on the platform, the inspection lamp checks the raft for a Passenger); moor, force, or bypass. The bypass skips the checkpoint and burns filters.
+- **On foot, by attraction:** Welcome Pools (tutorial, fake shelter, fountain); Lazy River (island kiosk, Lifeguard: no swimming during the cycle); Wave Hall (14-second waves flood the tidal floor and carry Floaters ashore, Lifeguard: no running); Splash Zone (timed jets that sometimes fire for nobody, Lifeguard: no discharge while lit); Blacklight Pavilion (UV markings, keypad code painted on the pools, visible only to the beam); Filtration Works (pump currents, pump control that must be restarted before launch, water level and floating bridge); Hotel Baths (looping doorways); Rooftop Lagoon (open sky, clouds that jump back every forty seconds, lagoon level and a sensor that exists only in the reflection).
+- **Entities:** Blooms; Undertow (still patch ahead, pursuing wake with warning impacts, broken by spillways or bursts; on foot it follows you through connected water, sped up by noise and running, lured by fountains); Lifeguard (posted rule, whistle, then pursuit until you break line of sight; cut its breaker to stop the cycle); Passenger (five stages from a dipping cushion to a listing raft; scan the seat to see it; bursts and Safe Rooms push it back); Grout (spreads through wet, dark tile; light, draining and bursts stop it); Marco (directional voice, a throat in the wall if you follow it, then it moves); Floaters (survivor or trap, scans unreliable).
+- **Safe Rooms:** arrival bay with pressure door, beacon and vent tone (fake shelters lack them); Drift reset, minimum recharge, Passenger cleansed; logbook; workbench (cells, filters, raft patches, dressings); six capability upgrades (lens, depth sensor, stronger tether, signal recorder, headlamp, valve tool); route terminal with partial information and a preset for the next junction.
+- **Modes and presentation:** eight-sector campaign ending in "The Loop"; endless mode with seeds, records and shareable links; resume exactly where you left off after closing the tab; settings for grain, distortion and camera roll, sway, captions, touch aim assist and look sensitivity; captions for directional sounds; stereo-panned sound; touch aim assist.
+
+**Not yet:** online co-op and AI crewmates; Campaigns 2–4 and the other two endings; the impossible-return puzzle beyond the looping locker room; reflections that lag behind you; sector length tuned with players.

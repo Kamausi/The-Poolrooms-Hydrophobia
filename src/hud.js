@@ -1,13 +1,17 @@
 // The DOM overlay drawn over the 67js canvas.
+import { settings } from './settings.js';
 
 const $ = (id) => document.getElementById(id);
 const el = {};
 const queue = [];
 let speaking = 0;
+let captionTimer = 0;
+
+const IDS = ['hud', 'sector-name', 'objective', 'score', 'score-wrap', 'cleared', 'depth', 'vitals', 'vitals-bar', 'drift', 'drift-bar', 'charge', 'charge-max', 'charge-state', 'mode', 'crosshair', 'subtitle', 'toast', 'prompt', 'damage', 'driftfx', 'scrap', 'hint', 'band', 'guests', 'route', 'raft', 'filter', 'filters', 'cells', 'heat-bar', 'caption', 'scan', 'raft-panel'];
 
 export function initHud() {
-  el.fading = document.querySelectorAll('.hud-tl, .hud-tr, #hint');
-  for (const id of ['hud', 'sector-name', 'objective', 'score', 'cleared', 'depth', 'vitals', 'vitals-bar', 'drift', 'drift-bar', 'charge', 'charge-max', 'charge-state', 'mode', 'crosshair', 'subtitle', 'toast', 'prompt', 'damage', 'driftfx', 'scrap', 'hint']) el[id] = $(id);
+  for (const id of IDS) el[id] = $(id);
+  el.fading = document.querySelectorAll('.hud-tl, #cleared, #depth, #hint');
 }
 
 export const hud = {
@@ -15,29 +19,38 @@ export const hud = {
     el.hud.hidden = !on;
   },
   sector(sector, objective) {
-    el['sector-name'].textContent = `SECTOR 0${sector.index + 1} · ${sector.name}`;
+    el['sector-name'].textContent = sector.endless ? `ENDLESS · DEPTH ${sector.index + 1} · ${sector.name}` : `SECTOR 0${sector.index + 1} · ${sector.name}`;
     el.objective.textContent = objective;
   },
   objective(text) {
     el.objective.textContent = text;
   },
   stats(state) {
+    el['score-wrap'].hidden = !state.endless;
     el.score.textContent = String(Math.floor(state.score)).padStart(5, '0');
+    el.band.textContent = `WRISTBAND ${state.band}`;
+    el.guests.textContent = `GUESTS CHECKED IN: ${state.guests}`;
     el.cleared.textContent = `${state.cleared} ENTITIES DISPERSED`;
     el.vitals.textContent = Math.ceil(state.health);
-    el['vitals-bar'].style.width = `${state.health}%`;
+    el['vitals-bar'].style.width = `${Math.min(100, state.health)}%`;
     el['vitals-bar'].classList.toggle('low', state.health < 30);
     el.drift.textContent = Math.floor(state.drift);
     el['drift-bar'].style.width = `${state.drift}%`;
     el.charge.textContent = state.charge;
     el['charge-max'].textContent = `/ ${state.maxCharge}`;
-    el['charge-state'].textContent = state.recharging ? 'RECHARGING…' : state.charge === 0 ? '[R] RECHARGE' : 'ARC BLASTER / MK.II';
+    el['charge-state'].textContent = state.overheated ? 'OVERHEATED' : state.recharging ? 'RECHARGING…' : state.charge === 0 ? '[R] RECHARGE' : state.mounted ? 'ARC BLASTER · MOUNT CHARGING' : 'ARC BLASTER / MK.II';
+    el['heat-bar'].style.width = `${Math.min(100, state.heat)}%`;
+    el['heat-bar'].classList.toggle('low', state.heat > 75);
     el.scrap.textContent = `${state.scrap} PARTS`;
-    // Drift fades the HUD and washes the screen, as described in the story bible.
+    el.cells.textContent = '▮'.repeat(state.cells) + '▯'.repeat(Math.max(0, 3 - state.cells));
+    el.raft.textContent = `${Math.ceil(state.raft)}%`;
+    el.raft.classList.toggle('warn', state.raft < 40);
+    el.filter.textContent = `${Math.ceil(state.filter)}%`;
+    el.filters.textContent = String(state.filters);
+    // Drift fades decoration only. Vitals, charge, raft and prompts are instruments: they stay readable.
     const d = state.drift / 100;
-    // Decoration fades with Drift; vitals, charge and prompts stay readable.
     for (const c of el.fading) c.style.opacity = String(1 - d * 0.6);
-    el.driftfx.style.opacity = String(Math.max(0, d - 0.25) * 1.1);
+    el.driftfx.style.opacity = settings.distortion ? String(Math.max(0, d - 0.25) * 1.1) : '0';
   },
   depth(text) {
     el.depth.textContent = text;
@@ -48,11 +61,20 @@ export const hud = {
   hint(text) {
     el.hint.textContent = text;
   },
+  route(lines) {
+    el.route.replaceChildren(...lines.map((line) => {
+      const p = document.createElement('p');
+      p.textContent = line;
+      return p;
+    }));
+  },
   crosshair(ndcX, ndcY, centered) {
     const x = centered ? 50 : (ndcX * 0.5 + 0.5) * 100;
     const y = centered ? 50 : (-ndcY * 0.5 + 0.5) * 100;
     el.crosshair.style.left = `${x}%`;
     el.crosshair.style.top = `${y}%`;
+    el.scan.style.left = `${x}%`;
+    el.scan.style.top = `calc(${y}% + 26px)`;
   },
   hitmarker() {
     el.crosshair.classList.remove('hit');
@@ -63,6 +85,17 @@ export const hud = {
     el.damage.classList.remove('flash');
     void el.damage.offsetWidth;
     el.damage.classList.add('flash');
+  },
+  /** Inspection beam readout under the crosshair. */
+  scan(text) {
+    el.scan.textContent = text || '';
+  },
+  /** A caption for an important sound, with where it came from. */
+  caption(text) {
+    if (!settings.captions) return;
+    el.caption.textContent = text;
+    el.caption.classList.add('show');
+    captionTimer = 2.8;
   },
   /** Radio and PA lines. Queued so they never overlap. kind: crew | attendant | marco | drift */
   say(speaker, text, kind = 'crew') {
@@ -85,6 +118,10 @@ export const hud = {
     el.subtitle.classList.remove('show');
   },
   update(dt) {
+    if (captionTimer > 0) {
+      captionTimer -= dt;
+      if (captionTimer <= 0) el.caption.classList.remove('show');
+    }
     if (speaking > 0) {
       speaking -= dt;
       if (speaking <= 0) el.subtitle.classList.remove('show');
@@ -93,12 +130,11 @@ export const hud = {
     const next = queue.shift();
     if (!next) return;
     el.subtitle.className = `show ${next.kind}`;
-    el.subtitle.innerHTML = '';
     const who = document.createElement('b');
     who.textContent = next.speaker;
     const line = document.createElement('span');
     line.textContent = next.text;
-    el.subtitle.append(who, line);
+    el.subtitle.replaceChildren(who, line);
     speaking = 2.2 + next.text.length * 0.045;
   },
 };

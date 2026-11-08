@@ -14,29 +14,40 @@ npm run build     # static site in dist/, host anywhere
 The game needs a browser with WebGL2. On a machine without a GPU it switches to a lighter render mode automatically; add `?quality=low` or `?quality=high` to the URL to choose yourself.
 
 ### Controls
-| | On the raft | On foot |
-| --- | --- | --- |
-| Aim / look | Mouse cursor | Mouse (click to capture) |
-| Fire | Hold left click | Hold left click |
-| Recharge | `R` | `R` |
-| Move | `A` / `D` dodge, `Shift` boost | `WASD`, `Shift` run |
-| Use | `E` at the dock | `E` |
-| Snap out of Drift | `Space` | `Space` |
-| Pause | `Esc` | `Esc` |
+| | Keyboard and mouse |
+| --- | --- |
+| Signal pulse (fire) | Hold left click |
+| Inspection beam | Hold right click, or Q |
+| Disruption burst | F (uses a charge cell) |
+| Recharge | R |
+| Raft | A / D dodge · S brake (flumes and tubes) · Shift boost |
+| Holding pools | Shoot an arrow to switch gates · Space depart · E moor at a dock · A / D look around |
+| On foot | WASD move · mouse look (click to capture) · E use · Shift run · V valve tool |
+| Drift | Space to snap out of it |
+| Pause and settings | Esc |
 
-Touch: left half of the screen moves, right half aims or looks, with on-screen fire and use buttons.
+Touch: left half of the screen moves, right half aims or looks, with buttons for fire, scan, burst, use and boost. Aim assist snaps to targets near your finger.
+
+## Modes
+- **Campaign 1, "Overflow":** eight attractions, from the Welcome Pools to the Rooftop Lagoon. Each is a branching ride ending at a holding pool with an optional dock.
+- **Endless:** seeded attractions with rising threat and a score. Enter a seed on the menu or open `?seed=1234`; your best depth per seed is kept.
+- The game saves your exact position every few seconds; closing the tab and choosing **Resume** puts you back where you were. Safe Rooms are the checkpoints you return to after dying.
 
 ## Code
 | File | What it does |
 | --- | --- |
-| `src/main.js` | Game flow: menu, sectors, Safe Rooms, death, ending, save |
-| `src/ride.js` | The raft: recycled channel, encounters, rail camera |
-| `src/explore.js` | On foot: grid levels, power cell, door, roaming entities |
-| `src/blaster.js` | Arc Blaster charge, fire timing, first-person model and beam |
-| `src/sectors.js` | Sector data: colours, speed, threats, level maps, dialogue, graffiti |
+| `src/main.js` | Game flow: campaign, endless, intro, docks, Safe Rooms, death, ending, saving and resuming |
+| `src/track.js` | The slide as data: channel types, holding pools with gated exits, branches |
+| `src/plans.js` | Builds each sector's ride and fills it with encounters |
+| `src/ride.js` | The raft: geometry along the track, targets, entities, the Passenger, gates |
+| `src/explore.js` | On foot: grid levels and each attraction's rules |
+| `src/blaster.js` | Pulse, inspection beam and disruption burst |
+| `src/sectors.js` | The eight attractions: palettes, rides, maps, rules, voices, graffiti |
+| `src/documents.js` | Found documents for the logbook |
+| `src/ui.js` | Safe Room, workbench, route terminal, logbook, keypad, settings |
 | `src/hud.js`, `src/style.css` | The overlay |
-| `src/audio.js` | Synthesized sound |
-| `src/input.js`, `src/quality.js`, `src/textures.js`, `src/math.js` | Input, render quality, tile textures, matrix helpers |
+| `src/audio.js` | Synthesized, stereo-panned sound |
+| `src/input.js`, `src/settings.js`, `src/quality.js`, `src/labels.js`, `src/textures.js`, `src/math.js` | Input, options, render quality, sign textures, tile textures, maths |
 
 The first prototype (a single minified Three.js file) is kept at `public/legacy/combat-build-02.html` and is linked from the menu.
 

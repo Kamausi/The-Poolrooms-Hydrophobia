@@ -52,19 +52,35 @@ export function hide(part) {
   writeYaw(part.matrix, HIDDEN, 0, 0.0001, 0.0001, 0.0001);
 }
 
-/** Camera basis for a look-at camera with world up +Y. */
-export function cameraBasis(eye, target) {
+/** Camera basis for a look-at camera. up defaults to world +Y; a tilted up rolls the camera. */
+export function cameraBasis(eye, target, up = [0, 1, 0]) {
   const forward = normalize(sub(target, eye));
-  const right = normalize(cross(forward, [0, 1, 0]));
-  const up = cross(right, forward);
-  return { forward, right, up };
+  const right = normalize(cross(forward, up || [0, 1, 0]));
+  const camUp = cross(right, forward);
+  return { forward, right, up: camUp };
 }
 
 /** World-space ray through a point on screen (ndc in -1..1, y up). fov is vertical, in degrees. */
-export function screenRay(eye, target, fov, aspect, ndcX, ndcY) {
-  const { forward, right, up } = cameraBasis(eye, target);
+export function screenRay(eye, target, fov, aspect, ndcX, ndcY, upVec) {
+  const { forward, right, up } = cameraBasis(eye, target, upVec);
   const t = Math.tan((fov * Math.PI) / 360);
   return normalize(add(forward, add(scale(right, ndcX * t * aspect), scale(up, ndcY * t))));
+}
+
+/** Project a world point to ndc. Returns null when it is behind the camera. */
+export function project(eye, target, fov, aspect, point, upVec) {
+  const { forward, right, up } = cameraBasis(eye, target, upVec);
+  const d = sub(point, eye);
+  const z = dot(d, forward);
+  if (z <= 0.1) return null;
+  const t = Math.tan((fov * Math.PI) / 360);
+  return [dot(d, right) / (z * t * aspect), dot(d, up) / (z * t), z];
+}
+
+/** Angle in radians between a ray direction and the direction to a point. */
+export function angleTo(origin, dir, point) {
+  const d = normalize(sub(point, origin));
+  return Math.acos(Math.max(-1, Math.min(1, dot(d, dir))));
 }
 
 /** Distance along the ray to a sphere, or Infinity. */
@@ -98,4 +114,16 @@ export function linear(hex) {
 export function display(hex) {
   const n = parseInt(hex.replace('#', ''), 16);
   return [(n >> 16) & 255, (n >> 8) & 255, n & 255].map((v) => v / 255);
+}
+
+/** Stereo pan and a caption word for a sound at point, heard from eye facing forward. */
+export function soundDir(eye, forward, point) {
+  const d = sub(point, eye);
+  const f = normalize([forward[0], 0, forward[2]]);
+  const r = [-f[2], 0, f[0]];
+  const len = Math.hypot(d[0], d[2]) || 1;
+  const x = (d[0] * r[0] + d[2] * r[2]) / len;
+  const z = (d[0] * f[0] + d[2] * f[2]) / len;
+  const label = z > 0.7 ? 'ahead' : z < -0.7 ? 'behind' : x > 0 ? 'right' : 'left';
+  return { pan: x * 0.9, label, distance: len };
 }

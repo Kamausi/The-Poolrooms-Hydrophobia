@@ -27,16 +27,23 @@
   <section id="menu">
     <p class="eyebrow"><span></span>DRAINER CREW EIGHT · PUMPHOUSE DISPATCH</p>
     <h1>The water only<br /><em>goes deeper.</em></h1>
-    <p class="intro">The Backrooms is flooding. Something at the bottom of the Poolrooms is blocking the drain.</p>
+    <p class="intro">The park is still running. The pumps work, the towels are warm, the announcements play. Nobody is here. The guest counter changes when you are alone.</p>
     <p class="description">Crew Seven went down six weeks ago. Their raft came back up the slide empty, four life vests folded on the seat. Ride the slide. Shoot what moves in the water. Get off at the docks, find the power, and reach the Safe Rooms before the chlorine, or the calm, gets to you.</p>
     <div class="launch">
       <button id="start" class="primary">ENTER THE FLOW ↗</button>
       <button id="continue" hidden>CONTINUE FROM CHECKPOINT</button>
     </div>
+    <div class="seed-row">
+      <button id="endless">ENDLESS MODE</button>
+      <input id="seed" inputmode="numeric" placeholder="seed (optional)" aria-label="Endless seed" />
+      <span id="records" class="mono small"></span>
+    </div>
     <dl class="controls">
-      <dt>RAFT</dt><dd>Aim with the mouse · hold click to fire · R recharge · A/D dodge · Shift boost</dd>
-      <dt>ON FOOT</dt><dd>WASD move · mouse look · click fire · E use · Shift run</dd>
-      <dt>ALWAYS</dt><dd>Esc pause · Space to snap out of Drift</dd>
+      <dt>RAFT</dt><dd>Aim with the mouse · hold click: signal pulse · S brake (flumes, tubes) · A/D dodge · Shift boost</dd>
+      <dt>POOLS</dt><dd>Shoot an arrow to switch gates · Space depart · E moor at a dock · A/D look around</dd>
+      <dt>ON FOOT</dt><dd>WASD move · mouse look · E use · Shift run · V valve tool</dd>
+      <dt>BLASTER</dt><dd>Hold right-click or Q: inspection beam · F: disruption burst (uses a charge cell) · R recharge</dd>
+      <dt>ALWAYS</dt><dd>Esc pause and settings · Space to snap out of Drift</dd>
     </dl>
     <p class="mono small"><span id="engine">RENDERED WITH 67JS</span> · <a href="/legacy/combat-build-02.html">Play the old Three.js combat build</a></p>
   </section>
@@ -48,11 +55,12 @@
       <span class="rule"></span>
     </div>
     <div class="hud-tr">
-      <p class="mono">SIGNAL SCORE</p>
-      <p id="score" class="big">00000</p>
+      <p class="mono" id="band">WRISTBAND 0000</p>
+      <p class="mono small" id="guests">GUESTS CHECKED IN: 1</p>
+      <p id="score-wrap" hidden><span class="mono small">SIGNAL SCORE</span><br /><span id="score" class="big">00000</span></p>
       <p id="cleared" class="mono small"></p>
       <p id="depth" class="mono small accent"></p>
-      <p id="scrap" class="mono small"></p>
+      <div id="route" class="route mono small"></div>
     </div>
     <div class="hud-bl">
       <p class="mono">VITALS</p>
@@ -63,9 +71,17 @@
       <p id="mode" class="mono small"></p>
     </div>
     <div class="hud-br">
+      <div class="raft-panel mono small" id="raft-panel">
+        <p>RAFT <b id="raft">100%</b></p>
+        <p>FILTER <b id="filter">100%</b> ×<b id="filters">1</b></p>
+        <p>CELLS <b id="cells">▮▯▯</b> · <b id="scrap">0 PARTS</b></p>
+      </div>
       <p id="charge-state" class="mono">ARC BLASTER / MK.II</p>
       <p><span id="charge" class="big">24</span> <span id="charge-max" class="mono">/ 24</span></p>
+      <div class="bar heat"><i id="heat-bar"></i></div>
     </div>
+    <p id="caption" class="mono"></p>
+    <p id="scan" class="mono small"></p>
     <p id="hint" class="mono small"></p>
     <div id="crosshair"><i></i></div>
     <p id="subtitle"></p>
@@ -73,6 +89,8 @@
     <p id="prompt" class="mono" hidden></p>
     <div class="touch-controls">
       <button id="touch-boost">BOOST</button>
+      <button id="touch-scan">SCAN</button>
+      <button id="touch-burst">BURST</button>
       <button id="touch-reload">R</button>
       <button id="touch-use">USE</button>
       <button id="touch-fire">FIRE</button>
@@ -83,7 +101,8 @@
     <div class="panel">
       <p class="mono small">TRANSMISSION PAUSED</p>
       <h2>The current can wait.</h2>
-      <div class="actions"><button id="resume" class="primary">RESUME THE FLOW ↗</button><button id="quit">MENU</button></div>
+      <div class="actions"><button id="resume" class="primary">RESUME THE FLOW ↗</button><button id="quit">SAVE AND QUIT TO MENU</button></div>
+      <div id="pause-extra"></div>
     </div>
   </section>
 

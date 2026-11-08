@@ -4,6 +4,10 @@ export const input = {
   keys: new Set(),
   pressed: new Set(), // keys pressed since the last frame
   firing: false,
+  scanHeld: false, // right mouse or touch SCAN; Q also scans
+  get scanning() {
+    return this.scanHeld || this.keys.has('q');
+  },
   aim: [0, 0], // cursor in normalised device coordinates (ride mode)
   look: [0, 0], // accumulated mouse movement since last frame (explore mode)
   move: [0, 0], // touch stick, x right, y forward
@@ -25,13 +29,17 @@ export function initInput(target) {
   addEventListener('blur', () => {
     input.keys.clear();
     input.firing = false;
+    input.scanHeld = false;
   });
 
   canvas.addEventListener('mousedown', (e) => {
     if (e.button === 0) input.firing = true;
+    if (e.button === 2) input.scanHeld = true;
   });
+  canvas.addEventListener('contextmenu', (e) => e.preventDefault());
   addEventListener('mouseup', (e) => {
     if (e.button === 0) input.firing = false;
+    if (e.button === 2) input.scanHeld = false;
   });
   addEventListener('mousemove', (e) => {
     const rect = canvas.getBoundingClientRect();
@@ -125,4 +133,6 @@ function setupTouch() {
   hold('touch-use', () => input.pressed.add('e'), () => {});
   hold('touch-reload', () => input.pressed.add('r'), () => {});
   hold('touch-boost', () => input.keys.add('shift'), () => input.keys.delete('shift'));
+  hold('touch-scan', () => (input.scanHeld = true), () => (input.scanHeld = false));
+  hold('touch-burst', () => input.pressed.add('f'), () => {});
 }
