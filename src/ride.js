@@ -194,6 +194,11 @@ export function createRide(canvas, state, sector, events, opts = {}) {
   };
   const clouds = Array.from({ length: 14 }, (_, i) => ({ part: P(`Cloud ${i}`, box(0.4, 3), { tag: 'unlit', color: [0.97, 0.98, 1], metallic: 0, roughness: 1 }), base: [0, 0, 0] }));
   const towers = Array.from({ length: 7 }, (_, i) => P(`Tower ${i}`, slab, tileMat));
+  const floaters = Array.from({ length: 2 }, (_, i) => ({
+    body: P(`River floater ${i}`, cylinder(14, 0.45, 2), { color: [0.82, 0.84, 0.8], metallic: 0, roughness: 0.25 }),
+    head: P(`River floater head ${i}`, sphere(14, 10), { color: [0.85, 0.86, 0.82], metallic: 0, roughness: 0.2 }),
+    active: false, s: 0, offset: 0, survivor: true, state: 'floating', hp: 2,
+  }));
   const ghost = P('Distant figure', cylinder(12, 0.3, 2), dark([0.02, 0.02, 0.03]));
 
   const blaster = createBlaster(state);
@@ -350,6 +355,11 @@ export function createRide(canvas, state, sector, events, opts = {}) {
       Object.assign(unloading, { active: true, s: at + 20, said: false });
     } else if (e.kind === 'distantRaft') {
       Object.assign(distant, { active: true, parked: false });
+    } else if (e.kind === 'floater') {
+      const f = floaters.find((x) => !x.active);
+      if (!f) return;
+      Object.assign(f, { active: true, s: at, offset: (random() < 0.5 ? -1 : 1) * half * 0.45, survivor: e.survivor, state: 'floating', hp: 2 });
+      hud.say('JUNE', 'Someone in the water ahead. Steer to them, or don\'t. I can\'t tell if they\'re breathing.', 'crew');
     } else if (e.kind === 'lockerRoom') {
       Object.assign(locker, { active: true, sec, s: at + 30 });
       sec.pass = sec.pass || 1;
@@ -462,6 +472,18 @@ export function createRide(canvas, state, sector, events, opts = {}) {
         sound.burst();
         for (let k = 0; k < 3; k++) spawnBloom(s + 10 + k * 2, (random() - 0.5) * 3, 1 + random() * 2);
         hud.caption('[it splits open — ahead]');
+      }
+    });
+    for (const f of floaters) if (f.active && f.state !== 'gone') T(track.lateral(f.s, f.offset, 0.1), 0.7, () => {
+      hud.hitmarker();
+      if (f.survivor) {
+        f.state = 'gone';
+        hud.say('JUNE', 'They flinched. They were alive. They went under.', 'crew');
+        state.drift = Math.min(100, state.drift + 8);
+      } else if (--f.hp <= 0) {
+        f.state = 'gone';
+        sound.burst();
+        events.cleared();
       }
     });
     for (const c of caches) if (c.active && !c.falling) T(c.pos, 0.6, () => {
@@ -695,6 +717,17 @@ export function createRide(canvas, state, sector, events, opts = {}) {
       if (p.dock) lines.push('E · Moor and explore the dock');
       lines.push(`SPACE · Depart through ${chosen.label.split('·')[0].trim()}`);
       lines.push('Shoot an arrow to switch gates · A/D look');
+      const lockedEx = p.exits.findIndex((ex) => ex.locked && !powered());
+      if (lockedEx >= 0 && state.overrides > 0) {
+        lines.push(`O · Use a maintenance override (${state.overrides})`);
+        if (wasPressed('o')) {
+          state.overrides -= 1;
+          (state.power ||= {})[state.sectorKey] = 'override';
+          track.choose(p.id, lockedEx);
+          sound.gate();
+          hud.toast('MAINTENANCE OVERRIDE ACCEPTED · SERVICE GATE OPEN');
+        }
+      }
       prompt = lines.join('   ');
       if (p.dock && !holding.inspected) {
         holding.inspected = true;
@@ -718,7 +751,14 @@ export function createRide(canvas, state, sector, events, opts = {}) {
         }
       }
     }
-    if (finished && curRoom?.sec.type === 'bay') {
+    if (finished && curRoom?.sec.type === 'bay' && state.drift > 85) {
+      // The door does not register you. Say your name until it does.
+      prompt = `NO GUEST DETECTED · the door does not notice you · E · say your name out loud`;
+      if (wasPressed('e')) {
+        state.drift -= 6;
+        hud.say(state.name.toUpperCase(), `${state.name}. ${state.name} ${state.band}. I'm here.`, 'crew');
+      }
+    } else if (finished && curRoom?.sec.type === 'bay') {
       prompt = 'E · Enter the Safe Room';
       if (!curRoom.vent) {
         curRoom.vent = true;
@@ -761,6 +801,17 @@ export function createRide(canvas, state, sector, events, opts = {}) {
 
     voices(dt, sec, curRoom);
 
+    // The Caller gives route advice in a crewmate's voice. It is not to be trusted.
+    const nj = track.nextRoom(s, 'pool');
+    if (nj && nj.sec.junction && nj.s0 - s < 110 && nj.s0 - s > 60 && !nj.sec.called && sector.index > 0) {
+      nj.sec.called = true;
+      if (random() < 0.5) {
+        const ex = nj.sec.exits[Math.floor(random() * 2)];
+        const who = pick(['DEZ', 'TUBS', 'JUNE', 'MARS'].filter((n) => n !== state.name.toUpperCase()));
+        hud.say('THE CALLER', `(in ${who}'s voice) Take the ${ex.side < 0 ? 'left' : 'right'} gate. ${ex.side < 0 ? 'Left' : 'Right'} is safe. Trust me.`, 'marco');
+        hud.caption(`[${who}'s voice — but ${who} is on the other channel]`);
+      }
+    }
     hud.route(routeLines(sec));
     hud.depth(`${(sector.depth + (s / track.length) * 4).toFixed(1)} M · ${Math.round(speed * 3.6)} KM/H${braking ? ' · BRAKING' : ''}`);
     hud.prompt(prompt);
@@ -847,7 +898,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
         const chosen = track.choices[next.sec.id] ?? next.sec.defaultExit ?? 0;
         lines.push(`${next.sec.dock ? 'HOLDING POOL · DOCK' : 'JUNCTION'} ${d ? `IN ${d} M` : 'HERE'}`);
         next.sec.exits.forEach((ex, i) => lines.push(`${i === chosen ? '●' : '○'} ${ex.side < 0 ? '◀' : '▶'} ${ex.label}${ex.locked && !powered() ? ' · LOCKED' : ''}`));
-        if (state.upgrades.includes('headlamp')) lines.push(`  ${next.sec.exits[chosen].note}`);
+        if (state.upgrades.includes('headlamp') || state.memory?.route) lines.push(`  ${state.memory?.route && !state.upgrades.includes('headlamp') ? 'JUNE\'S OLD ROUTE: ' : ''}${next.sec.exits[chosen].note}`);
       } else if (next.sec.type === 'bay') lines.push(`SAFE ROOM ARRIVAL BAY ${d ? `IN ${d} M` : 'HERE'}`);
       else if (next.sec.type === 'drop') lines.push(`SPILLWAY DROP IN ${d} M · NO CHECKPOINT`);
     }
@@ -865,6 +916,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
     if (valve.active) cands.push({ obj: valve, pos: valve.pos, need: 0.3, done: () => (valve.covered ? 'GROUT · CLEAR IT FIRST' : `DRAIN VALVE · ${Math.max(0, 3 - valve.hits)} HITS`), label: 'VALVE' });
     if (lifeguard.active && !lifeguard.gone) cands.push({ obj: lifeguard, pos: lifeguard.breakerPos || [0, -999, 0], need: 0.4, done: () => 'LAMP BREAKER · SHOOT WHILE THE LAMP IS DARK', label: 'LIFEGUARD CHAIR' });
     if (locker.active && locker.pumpPos) cands.push({ obj: locker, pos: locker.pumpPos, need: 0.5, done: () => 'PUMP RING · THE SAME ON EVERY PASS', label: 'PUMP' });
+    for (const f of floaters) if (f.active && f.state === 'floating') cands.push({ obj: f, pos: track.lateral(f.s, f.offset, 0.1), need: 1, label: 'FIGURE IN THE WATER', done: (o) => `PULSE: ${(o.survivor === (hash(o.s) < 0.7)) ? 'FAINT' : 'NONE'} · READING UNRELIABLE` });
     if (raftSeat) cands.push({ obj: state.passenger, pos: raftSeat, need: 1, done: (o) => { revealTimer = 2; return o.stage > 0 ? `SEAT OCCUPIED · STAGE ${o.stage}` : 'SEAT EMPTY'; }, label: 'OPPOSITE SEAT' });
     let best = null, bestA = cone;
     for (const c of cands) {
@@ -1274,6 +1326,29 @@ export function createRide(canvas, state, sector, events, opts = {}) {
       }
       if (spill.s < s - 10) spill.active = false;
     } else { hide(spill.grate); hide(spill.sheet); }
+    for (const f of floaters) {
+      if (!f.active || f.state === 'gone') { hide(f.body); hide(f.head); if (f.active && f.s < s - 5) f.active = false; continue; }
+      const p = track.lateral(f.s, f.offset, 0.08 + Math.sin(time + f.s) * 0.02);
+      const yaw = track.at(f.s).yaw;
+      writeBasis(f.body.matrix, p, [Math.cos(yaw), 0, -Math.sin(yaw)], [Math.sin(yaw), 0, Math.cos(yaw)], UP, 0.24, 0.75, 0.16);
+      writeYaw(f.head.matrix, add(p, [Math.sin(yaw) * 0.85, 0.02, Math.cos(yaw) * 0.85]), yaw, 0.17, 0.12, 0.2);
+      // Steering the raft over them is the rescue (or the mistake).
+      if (Math.abs(f.s - s - 1) < 1.2 && Math.abs(f.offset - offset) < 1.3 && f.state === 'floating') {
+        f.state = 'gone';
+        if (f.survivor) {
+          state.rescued += 1;
+          give(random() < 0.5 ? 'cell' : 'filter');
+          hud.say('???', 'You came back. You came back for me.', 'marco');
+          hud.toast(`SURVIVOR PULLED ABOARD · ${state.rescued} RESCUED · they swim for the next dock`);
+        } else {
+          held = 2.5;
+          sound.gurgle();
+          damage(10, 'A Floater rolled over and held the raft.', 8);
+          hud.caption('[it rolls over — beside the raft]');
+        }
+      }
+      if (f.s < s - 5) f.active = false;
+    }
     updateLifeguard(eye);
     updateUnloading();
     updateDistant();

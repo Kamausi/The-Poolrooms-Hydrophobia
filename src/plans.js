@@ -34,10 +34,10 @@ export function populate(sec, random, threat, features = [], theme = {}) {
   };
   const base = {
     channel: () => { blooms(Math.round(len / 35 * threat)); E.push({ at: spot(), kind: 'signal' }); if (random() < 0.5 * threat) E.push({ at: spot(0.3, 0.9), kind: 'rope' }); },
-    lazy: () => { blooms(Math.round(len / 60 * threat)); E.push({ at: spot(), kind: 'signal' }); if (random() < 0.5) E.push({ at: spot(), kind: 'anomaly' }); },
+    lazy: () => { blooms(Math.round(len / 60 * threat)); E.push({ at: spot(), kind: 'signal' }); if (random() < 0.5) E.push({ at: spot(), kind: 'anomaly' }); if (random() < 0.45) E.push({ at: spot(), kind: 'floater', survivor: random() < 0.55 }); },
     flume: () => { blooms(Math.round(len / 30 * threat)); if (random() < 0.7) E.push({ at: spot(0.3, 0.9), kind: 'rope' }); },
     tube: () => { blooms(Math.round(len / 45 * threat)); E.push({ at: spot(0.4, 0.8), kind: 'undertow' }); },
-    overflow: () => { blooms(Math.round(len / 30 * threat)); E.push({ at: spot(0.5, 0.9), kind: 'undertow' }); },
+    overflow: () => { blooms(Math.round(len / 30 * threat)); E.push({ at: spot(0.5, 0.9), kind: 'undertow' }); if (random() < 0.5) E.push({ at: spot(), kind: 'floater', survivor: random() < 0.45 }); },
     lift: () => {},
     loop: () => { E.push({ at: len * 0.5, kind: 'lockerRoom' }); },
   }[sec.type];

@@ -23,13 +23,13 @@ The game needs a browser with WebGL2. On a machine without a GPU it switches to 
 | Raft | A / D dodge · S brake (flumes and tubes) · Shift boost |
 | Holding pools | Shoot an arrow to switch gates · Space depart · E moor at a dock · A / D look around |
 | On foot | WASD move · mouse look (click to capture) · E use · Shift run · V valve tool |
-| Drift | Space to snap out of it |
+| Drift, Undertow, ropes | Hold Space to stand up from full Drift · tap Space to kick free |
 | Pause and settings | Esc |
 
 Touch: left half of the screen moves, right half aims or looks, with buttons for fire, scan, burst, use and boost. Aim assist snaps to targets near your finger.
 
 ## Modes
-- **Campaign 1, "Overflow":** eight attractions, from the Welcome Pools to the Rooftop Lagoon. Each is a branching ride ending at a holding pool with an optional dock.
+- **Campaign 1, "Overflow":** choose Mars, Dez, Tubs or June, then ride eight attractions, from the Welcome Pools to the Rooftop Lagoon. Each is a branching ride ending at a holding pool with an optional dock.
 - **Endless:** seeded attractions with rising threat and a score. Enter a seed on the menu or open `?seed=1234`; your best depth per seed is kept.
 - The game saves your exact position every few seconds; closing the tab and choosing **Resume** puts you back where you were. Safe Rooms are the checkpoints you return to after dying.
 
@@ -44,6 +44,7 @@ Touch: left half of the screen moves, right half aims or looks, with buttons for
 | `src/blaster.js` | Pulse, inspection beam and disruption burst |
 | `src/sectors.js` | The eight attractions: palettes, rides, maps, rules, voices, graffiti |
 | `src/documents.js` | Found documents for the logbook |
+| `src/crew.js` | The four Drainers, the roll call, and what survives a loop |
 | `src/ui.js` | Safe Room, workbench, route terminal, logbook, keypad, settings |
 | `src/hud.js`, `src/style.css` | The overlay |
 | `src/audio.js` | Synthesized, stereo-panned sound |

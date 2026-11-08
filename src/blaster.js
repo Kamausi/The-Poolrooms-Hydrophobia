@@ -136,7 +136,9 @@ export function createBlaster(state) {
       const x = normalize(cross([0, 1, 0], z));
       const y = cross(z, x);
       const G = 0.6;
-      const base = add(add(add(eye, scale(cam.right, 0.24)), scale(cam.up, -0.2 + bob)), scale(cam.forward, 0.5 - kick * 0.04));
+      // As Drift rises your grip relaxes and the blaster sags out of view.
+      const sag = Math.max(0, state.drift - 40) * 0.0025;
+      const base = add(add(add(eye, scale(cam.right, 0.24 + sag * 0.3)), scale(cam.up, -0.2 + bob - sag)), scale(cam.forward, 0.5 - kick * 0.04));
       const at = (o) => add(add(add(base, scale(x, o[0] * G)), scale(y, o[1] * G)), scale(z, o[2] * G));
       writeBasis(body.matrix, at([0, 0, 0]), x, y, z, 0.13 * G, 0.12 * G, 0.46 * G);
       writeBasis(shroud.matrix, at([0, 0.085, -0.02]), x, y, z, 0.1 * G, 0.06 * G, 0.34 * G);

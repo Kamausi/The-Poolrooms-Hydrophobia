@@ -43,11 +43,14 @@ Heavily reinforced, brightly lit chambers that act as hard checkpoints between p
 ```
 
 - **Rendering: 67js.** A 67js scene is a list of parts, each with a geometry, a column-major matrix and a PBR material. A renderer keeps the part list it was built with, so the game builds a fixed pool of parts per scene (channel segments, Blooms, Signals and so on), moves them with `updateParts`, and hides unused ones by collapsing them out of view. The ride recycles 26 channel segments ahead of the camera, so a slide of any length uses the same parts.
-- **Why 67js instead of Three.js:** scenes are plain data, which suits procedural geometry and tooling; it has a water shader, HDR bloom and up to 16 point lights per frame built in; and its MCP server lets an agent build and preview scenes, which we can use later for level blockouts and trailer renders. The production bundle is 264 KB, half the size of the old single-file Three.js build.
+- **Why 67js instead of Three.js:** scenes are plain data, which suits procedural geometry and tooling; it has a water shader, HDR bloom and up to 16 point lights per frame built in; and its MCP server lets an agent build and preview scenes, which we can use later for level blockouts and trailer renders. The production bundle is smaller than the old single-file build, but a smaller download is not evidence of lower rendering cost; 67js itself makes no general speed claim over Three.js.
 - **Quality:** if the browser reports a software renderer (no GPU), the game uses 67js's `light` shading, a lower resolution, four lamps and no bloom. `?quality=low` or `?quality=high` in the URL overrides this.
 - **Still planned:** Rust/WASM for physics and AI if JavaScript becomes the bottleneck; GLB models from Blender via `67js/addons/gltf`; online co-op with one player hosting the simulation.
 
 ## Current build
+
+**Verification status.** Reported implementation: a playable eight-attraction solo campaign and endless mode on 67js, with the systems listed in SYSTEMS_DESIGN.md section 13. Automated headless tests exercised the reported flows, mostly by advancing the simulation and drawing only the final frame, which checks game-state transitions but not continuous rendering or input responsiveness. Software-rendered frame times (about 55 ms, roughly 18 fps, in early tests) say nothing about a given GPU or phone. **Human play feel, sustained performance on target devices, and difficulty balance remain unverified.**
+
 
 The game runs on 67js (`index.html` + `src/`). The old Three.js prototype is kept at `public/legacy/combat-build-02.html` and linked from the menu.
 

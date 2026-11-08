@@ -6,6 +6,10 @@ const el = {};
 const queue = [];
 let speaking = 0;
 let captionTimer = 0;
+let player = 'MARS';
+let last = null; // the run's state, for lines that depend on Drift and the manifest
+const CREW_NAMES = ['MARS', 'DEZ', 'TUBS', 'JUNE'];
+const garble = (text, amount) => text.replace(/[A-Z0-9]/g, (c) => (Math.random() < amount ? '·' : c));
 
 const IDS = ['hud', 'sector-name', 'objective', 'score', 'score-wrap', 'cleared', 'depth', 'vitals', 'vitals-bar', 'drift', 'drift-bar', 'charge', 'charge-max', 'charge-state', 'mode', 'crosshair', 'subtitle', 'toast', 'prompt', 'damage', 'driftfx', 'scrap', 'hint', 'band', 'guests', 'route', 'raft', 'filter', 'filters', 'cells', 'heat-bar', 'caption', 'scan', 'raft-panel'];
 
@@ -25,11 +29,18 @@ export const hud = {
   objective(text) {
     el.objective.textContent = text;
   },
+  setPlayer(name) {
+    player = String(name).toUpperCase();
+  },
   stats(state) {
+    last = state;
     el['score-wrap'].hidden = !state.endless;
     el.score.textContent = String(Math.floor(state.score)).padStart(5, '0');
-    el.band.textContent = `WRISTBAND ${state.band}`;
-    el.guests.textContent = `GUESTS CHECKED IN: ${state.guests}`;
+    // The facility stops acknowledging you as Drift rises: your band blurs, the raft stops counting you.
+    const fade = Math.max(0, (state.drift - 65) / 35);
+    el.band.textContent = `WRISTBAND ${fade > 0 ? garble(state.band, fade * 0.8) : state.band} · ${fade > 0.6 ? garble(player, fade * 0.6) : player}`;
+    const aboard = (state.mounted ? 1 : 0) + (state.passenger?.stage > 0 && state.mounted ? 1 : 0) - (state.drift > 85 && state.mounted ? 1 : 0);
+    el.guests.textContent = `GUESTS CHECKED IN: ${state.guests}${state.mounted ? ` · RAFT OCCUPANCY ${aboard}` : ''}`;
     el.cleared.textContent = `${state.cleared} ENTITIES DISPERSED`;
     el.vitals.textContent = Math.ceil(state.health);
     el['vitals-bar'].style.width = `${Math.min(100, state.health)}%`;
@@ -99,6 +110,18 @@ export const hud = {
   },
   /** Radio and PA lines. Queued so they never overlap. kind: crew | attendant | marco | drift */
   say(speaker, text, kind = 'crew') {
+    // In callouts Marco is "the Caller", so it never sounds like Mars.
+    if (speaker === '???' && kind === 'marco') speaker = 'THE CALLER';
+    if (CREW_NAMES.includes(speaker) && last) {
+      if (speaker === player) {
+        speaker = `${speaker} (YOU)`;
+        // Your own replies get shorter as you drift.
+        if (last.drift > 50) text = `${text.split(/[.!?]/)[0]}…`;
+      } else if (last.forgotten?.includes(speaker.toLowerCase())) {
+        speaker = '[NO IDENTIFIER]';
+        text = garble(text, 0.25);
+      }
+    }
     if (queue.some((q) => q.text === text)) return;
     queue.push({ speaker, text, kind });
   },

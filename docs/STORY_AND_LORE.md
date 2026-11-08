@@ -307,5 +307,108 @@ No long cutscenes. The story comes through:
 | Names | Kept: **Mars Teague**, **Dez Okoro**, **Tobias "Tubs" Ferrante**, **June Abernathy** (the crew); **Crew Seven**, **Caleb Teague**, **Priya** (the lost crew); **the Pumphouse** (outpost), **the Lido** (Safe Room dwellers), **Mrs. Vance** (Lido leader), **the Attendant** (PA voice), **the Drainers** (the job). All can still be renamed. |
 | Co-op | **Both**, in this order: (1) single-player with three AI crewmates, like Left 4 Dead's bots; (2) 4-player online co-op. The current build is solo; the story reason is that the raft split at the junction, so the crew talks to you over the radio. |
 | Tone | **Body horror**: slow, clean, bloodless transformation (see Tone rules). |
-| Ending | **One canon ending, "The Loop,"** with "Seal the drain" as the alternate and "Count heads" as the secret. |
-| The Attendant | **Implied, then confirmed only in the secret ending**: it's an earlier Mars who took the chair. |
+| Ending | **The Loop is canon**, but every loop keeps something (see section 13). "Seal the drain" and "Count heads" are real alternatives with stated consequences; Count Heads is earned by keeping people counted, not by a collectible. |
+| The Attendant | **An earlier Mars, with limits** (see section 14): why she sat down is explained; what the role is stays uncertain. |
+| Callout name | In combat the crew calls Marco **"the Caller"**, so it never sounds like "Mars" on the radio. The folklore name stays Marco. |
+
+---
+
+## 11. The central theme
+
+**The park makes people comfortable enough to stop resisting. The crew keeps one another from disappearing.** Drift, rescues, the missing expedition, the Safe Room roll call and the endings are all versions of that one relationship.
+
+---
+
+## 12. Character foundations
+
+Each Drainer has a practical role and a belief about what gets people home. The Poolrooms tests the belief.
+
+| Character | Role | Believes | What the Poolrooms does to that |
+|---|---|---|---|
+| **Mars Teague** | Lead | Everyone survives if someone keeps the crew together. | Leadership becomes control, especially when someone wants to stay. |
+| **Dez Okoro** | Engineer | Every failure has a cause that can be isolated and repaired. | A repaired machine produces an impossible result. |
+| **Tobias "Tubs" Ferrante** | Ride expert | Knowing a ride's routine makes it predictable. | The park knows the routine too, and changes it on purpose. |
+| **June Abernathy** | Mapper | A recorded route makes a place understandable. | The map stays accurate while the destination changes. |
+
+**Their links to Crew Seven have different shapes**, so the crew can disagree without anyone being irrational:
+- **Mars:** her younger brother **Caleb** was on Crew Seven. Grief, and the urge to fix it by leading.
+- **June:** her partner **Priya** was Crew Seven's mapper. They argued the night before, and Priya volunteered. Guilt.
+- **Dez:** he **signed off the repair** on Crew Seven's raft. It came back with the repair intact and nobody in it. He treats it as a fault to find, because admitting grief would hurt more.
+- **Tubs:** he **trained Crew Seven's rider** on the slide and told her the ride always brings you back. A promise he can't take back.
+
+**Why "Tubs":** at the theme park, he was the operator who climbed into a log-flume tub to clear a jam mid-cycle while the next boat was coming. The crew tells it as a joke; he doesn't.
+
+**All four are playable** (chosen at the start of the campaign). Mars is central to the Attendant mystery, but she is not the only one who can change the outcome:
+- **Dez** understands what clearing or sealing the drain physically does to the water above.
+- **June** keeps the record that survives a loop; if she stays counted, her route carries into the next expedition.
+- **Tubs** recognises the gap in the ride cycle that makes reaching the chair possible.
+
+### Pumphouse and Lido
+- **The Pumphouse** believes survival means **fixing the system**: departures, flood measurements, salvage, repairs, expedition records.
+- **The Lido** believes survival means **learning to live inside it**. Its people know things the Drainers don't and have credible reasons to stay.
+- **Mrs. Vance** is helpful and competent: she runs the pump rooms, cares for residents, hands out filters, and opposes clearing the drain ("Everyone down there is asleep. They are not suffering. You are the ones suffering."). Her objection should make the player wonder whether the mission's assumptions are complete. She warned Caleb not to sit in the chair.
+
+---
+
+## 13. The Loop: chronology and what survives
+
+The game keeps this mysterious; the bible does not.
+
+1. **Crew Seven** went down in raft **R-7**. Caleb, Priya, Crew Seven's rider (trained by Tubs) and a fourth Drainer.
+2. At the Main Drain, Crew Seven chose to clear it. They went down with the blockage. **Caleb did not**: he climbed the chair (section 14).
+3. Caleb, now partly the Attendant, **sent R-7 back up the slide empty**: four vests folded, so the next crew would come prepared. That is why the Pumphouse correctly identified the raft as Crew Seven's, and wrongly concluded Crew Seven had returned it.
+4. **Crew Eight** (the player's crew) is sent down because of that raft. They ride a different raft, which splits at the junction.
+5. If Crew Eight clears the drain (The Loop), they surface at the top of the Welcome Pools and **send their own raft back**, vests folded, tag in their own handwriting. Every crew finds the last crew's raft.
+
+**What survives a loop** (implemented: the next campaign starts different):
+- The **flood level** upstairs is lower (the drain was cleared).
+- A **note in your own handwriting** waits in the raft's locker.
+- **June's route** survives if June was never left uncounted: the route indicator shows "June's old route" at junctions.
+- The count of people **rescued** is kept across loops.
+
+So the geography repeats, but the situation changes.
+
+**Campaign functions** (story roles, not four copies of one route):
+1. *Overflow:* discover the journey has already happened.
+2. *Deep End:* find out which records, objects and memories survive a loop.
+3. *Night Swim:* learn what an earlier crew, including an earlier Mars, did about it.
+4. *The Main Drain:* decide, knowing the consequences.
+
+**Endings and their consequences** (as implemented):
+
+| Ending | Survives | Remains | Changes |
+|---|---|---|---|
+| **The Loop** (canon) | The crew, and everyone rescued | Crew Seven, below the drain | The flood falls; the next crew starts better prepared |
+| **Seal the drain** | The crew, and everyone rescued | Everyone in the drain, whole | The flood slows; the loop stops; no raft goes back up |
+| **Count heads** | Everyone counted | The player, in the chair, for now | The park can close, because everyone in it has been counted |
+
+**Count heads** is earned: nobody left uncounted at a roll call, at least two names read back, at least two people rescued.
+
+---
+
+## 14. Mars, the Attendant, the chair and the Lifeguard
+
+- **The chair is a control station.** From it you can read and change the park's count.
+- **The Lifeguard is separate**: an enforcement entity attached to the station. Whoever sits in the chair can influence it only within its rules; they cannot switch it off.
+- **An earlier Mars sat in the chair** because she believed becoming part of the park's operation was the only way to keep her crew from disappearing. Her original virtue (keeping everyone together) is exactly what the role now does to guests. She still cares about the crew while running a system that harms them.
+- **Caleb** followed her example in the last loop (point 2 above), which is why his raft came back with intent.
+- **Revealed in the Count Heads ending:** an earlier Mars reached the chair, accepted responsibility, her words are embedded in the announcements, and her presence changed how later expeditions are treated (the folded vests, the warnings).
+- **Left open:** whether the Attendant contains all of her; whether there were attendants before her; whether she controls the announcements or is used to deliver them; whether she recognises the current crew; whether anyone can leave the role.
+
+---
+
+## 15. Body horror is identity loss
+
+The physical stages (section 1) are the visible half. The other half is that **the person becomes harder to distinguish, record and hold onto.**
+
+| Stage | Body | Recognition (implemented where marked ✓) |
+|---|---|---|
+| Early | Fingers stay wrinkled; a wristband loosens; a scar is hard to find | Your wristband number starts to blur on the HUD ✓ |
+| Middle | A hand settles into a crease where a joint should resist | A crewmate's name fades on the Safe Room manifest; the terminal counts one fewer ✓ |
+| Late | Present, but unacknowledged | The raft's occupancy display counts one fewer passenger ✓; the arrival-bay door doesn't detect you until you say your name ✓; a forgotten crewmate's radio arrives with no identifier ✓ |
+
+Drift is the same process felt from inside: the shivering stops ✓, your grip relaxes and the blaster sags ✓, your radio replies get shorter ✓, staying in the water starts to sound sensible.
+
+**Safe Rooms reverse it with discomfort:** hard floors, moving air, mechanical vibration, unpleasantly clear light, other people addressing you, and a record that says you are here. Recovery is shown: your name sharpens back into letters on the manifest ✓.
+
+**Counting heads is a routine action from the start** ✓: the crew counts off before every launch. Later, the terminal starts disagreeing. The crew can still hear the missing person. You choose: accept the facility's count, or take the time and risk to read their name back.

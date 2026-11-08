@@ -23,7 +23,7 @@ const RADIUS = 0.45;
 const UP = [0, 1, 0];
 const DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1]];
 const CURRENT = { '>': [1, 0], '<': [-1, 0], '^': [0, -1], v: [0, 1] };
-const WATERISH = new Set(['~', 'u', 'L', 'f', 'R', '>', '<', '^', 'v']);
+const WATERISH = new Set(['~', 'u', 'L', 'f', 'R', 'r', '>', '<', '^', 'v']);
 
 export function createExplore(canvas, state, sector, events, opts = {}) {
   const rules = sector.explore || {};
@@ -270,6 +270,12 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     eyes: P(`Floater eyes ${i}`, slab, glow([0.7, 0.9, 1], 0.02)),
     cell: [x, z], pos: center(x, z), survivor: random() < 0.4, state: 'floating', hp: 3, holdT: 0,
   }));
+  // Lane ropes across water crossings: they wrap anyone wading through until their floats are cut.
+  const ropes = find('r').map(([x, z], i) => ({
+    line: P(`Foot rope ${i}`, slab, { color: [0.85, 0.85, 0.8], metallic: 0, roughness: 0.6 }),
+    floats: [0, 1, 2].map((j) => ({ part: P(`Foot rope float ${i}.${j}`, ball, glow([1, 0.4, 0.1], 0.6, { color: j % 2 ? [0.9, 0.9, 0.85] : [0.9, 0.25, 0.08], roughness: 0.4 })), alive: true })),
+    x, z, cut: false, holding: 0, cooldown: 0,
+  }));
   const marcos = find('m').map(([x, z]) => ({ pos: center(x, z), timer: 4 + random() * 6, throat: P('Marco throat', sphere(16, 12), { color: [0.85, 0.7, 0.68], metallic: 0, roughness: 0.3 }), shown: 0, throatPos: null }));
   const groutSources = find('g');
   const grout = new Map(); // "x,z" -> { cleared }
@@ -412,6 +418,12 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
       sound.gate();
       hud.toast('SENSOR TRIPPED · GATE OPEN');
     });
+    for (const r of ropes) if (!r.cut) r.floats.forEach((f, j) => f.alive && test(ropeFloatPos(r, j), 0.4, () => {
+      f.alive = false;
+      sound.burst();
+      hud.hitmarker();
+      if (r.floats.every((q) => !q.alive)) { r.cut = true; r.holding = 0; hud.toast('LANE ROPE CUT'); events.cleared(); }
+    }));
     for (const m of marcos) if (m.shown > 0 && m.throatPos) test(m.throatPos, 0.6, () => {
       m.shown = 0;
       sound.burst();
@@ -529,6 +541,10 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     if (scanTarget.t >= best.need) return best.done();
     return `${best.label} · ${Math.round((scanTarget.t / best.need) * 100)}%`;
   }
+  function ropeFloatPos(r, j) {
+    const c = center(r.x, r.z);
+    return [c[0] + (j - 1) * 1.2, surface(r.x, r.z) + 0.2, c[2]];
+  }
   function reflectionPos() {
     const c = center(...reflCell);
     return [c[0], surface(...reflCell) + 0.02, c[2]];
@@ -563,7 +579,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     const running = isDown('shift') && len > 0.1;
     let speed = (water ? 2.3 : 4.2) * (running ? (water ? 1.35 : 1.45) : 1);
     if (groutHere && !groutHere.cleared) speed *= 0.5;
-    const held = undertow.holding > 0 || floaters.some((f) => f.state === 'holding');
+    const held = undertow.holding > 0 || floaters.some((f) => f.state === 'holding') || ropes.some((r) => r.holding > 0) || state.sitting;
     if (!held) {
       player.pos = add(player.pos, add(scale(forward, mz * speed * dt), scale(right, mx * speed * dt)));
       const cur = CURRENT[at(pcx, pcz)];
@@ -594,7 +610,9 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     } else if (tIdx < 0) lastLoop = null;
 
     const swayY = settings.sway ? Math.sin(bob) * 0.045 : 0;
-    const eye = [player.pos[0], player.floor + EYE + swayY, player.pos[2]];
+    // Cold water makes you shiver. The shivering stops as the water starts to feel warm, which is worse.
+    const shiver = water && state.drift < 35 && settings.sway ? (35 - state.drift) / 35 * 0.008 : 0;
+    const eye = [player.pos[0] + (Math.random() - 0.5) * shiver, player.floor + EYE + swayY + (Math.random() - 0.5) * shiver, player.pos[2]];
     const dir = [-Math.sin(player.yaw) * Math.cos(player.pitch), Math.sin(player.pitch), -Math.cos(player.yaw) * Math.cos(player.pitch)];
     const target = add(eye, dir);
     state.cameraUp = UP;
@@ -815,9 +833,12 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
       if (g.used) g.used += dt;
       g.part.material.emission = g.used ? Math.max(0.2, 8 - g.used * 20) : 2.4 + Math.sin(time * 4) * 0.7;
     }
-    if (undertow.holding > 0) ask(5, 'THE UNDERTOW HAS YOU · shoot the still water, or burst (F)');
+    if (undertow.holding > 0) ask(5, 'THE UNDERTOW HAS YOU · tap SPACE to kick free, shoot the still water, or burst (F)');
+    updateRopes(dt);
+    if (ropes.some((r) => r.holding > 0)) ask(5, 'THE ROPE HAS YOU · shoot its floats, or tap SPACE to pull free');
     if (floaters.some((f) => f.state === 'holding')) ask(5, 'IT HAS YOU · shoot it, or burst (F)');
     if (lifeguard && lifeguard.state === 'pursuit') ask(4, 'THE LIFEGUARD IS COMING · break its line of sight');
+    if (lifeguard && lifeguard.warn > 0 && lifeguard.state === 'watching') ask(4, `THE LIFEGUARD HAS SEEN YOU · ${lifeguard.rule === 'swim' ? 'get out of the water' : 'stop running'} or get out of its sight · ${Math.max(0, 2.5 - lifeguard.warn).toFixed(1)} s`);
 
     // Rush hour: the Attendant is the pacing.
     waveTimer -= dt;
@@ -905,6 +926,28 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     if (state.drift > 60) hud.say('THE ATTENDANT', pick(AMBIENT.drift), 'drift');
     else if (state.drift > 40) hud.say('THE ATTENDANT', pick(AMBIENT.personal).replace('{name}', state.name).replace('{band}', state.band), 'attendant');
     else hud.say('THE ATTENDANT', sector.attendant.explore, 'attendant');
+  }
+
+  function updateRopes(dt) {
+    const [pcx, pcz] = cellOf(player.pos[0], player.pos[2]);
+    for (const r of ropes) {
+      if (r.cut) { hide(r.line); r.floats.forEach((f) => hide(f.part)); continue; }
+      const c = center(r.x, r.z);
+      writeYaw(r.line.matrix, [c[0], surface(r.x, r.z) + 0.2, c[2]], Math.PI / 2, 0.04, 0.04, CELL);
+      r.floats.forEach((f, j) => (f.alive ? writeYaw(f.part.matrix, add(ropeFloatPos(r, j), [0, Math.sin(time * 3 + j) * 0.05, 0]), 0, 0.28, 0.22, 0.28) : hide(f.part)));
+      r.cooldown = Math.max(0, r.cooldown - dt);
+      if (r.holding > 0) {
+        r.holding -= dt;
+        if (wasPressed(' ')) r.holding -= 0.5;
+        events.damage(dt * 6, 'The Lane Rope wrapped you under.', true);
+        state.drift = Math.min(100, state.drift + dt * 4);
+        if (r.holding <= 0) r.cooldown = 4;
+      } else if (pcx === r.x && pcz === r.z && r.cooldown <= 0) {
+        r.holding = 2.5;
+        sound.gurgle();
+        hud.caption('[the rope tightens around your legs]');
+      }
+    }
   }
 
   function updateWaves(dt) {
@@ -1061,6 +1104,12 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     const canEnter = (x, z) => isWater(x, z) || at(x, z) === 'x' || (at(x, z) === 'B' && highWater);
     if (undertow.holding > 0) {
       undertow.holding -= dt;
+      // Solo rule: nobody can pull you out, so you can kick free yourself.
+      if (wasPressed(' ')) {
+        undertow.holding -= 0.55;
+        sound.splash();
+        if (undertow.holding <= 0) hud.caption('[you kick free]');
+      }
       events.damage(dt * 9, 'The Undertow pulled you under.', true);
       state.drift = Math.min(100, state.drift + dt * 10);
       player.pos = add(player.pos, scale(sub(undertow.pos, player.pos), dt * 0.8));
@@ -1115,9 +1164,19 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     const sees = distance(b, player.pos) < 20 && lineOfSight(b, player.pos) && L.blind <= 0;
     L.calm += dt;
     if (L.calm > 30 && L.violations > 0 && L.state === 'watching') { L.violations -= 1; L.calm = 0; }
-    if (L.state === 'watching' && sees) {
-      if (L.rule === 'swim' && water && L.lampOn) violate('No swimming during the maintenance cycle.');
-      if (L.rule === 'run' && running) violate('No running on deck.');
+    // A violation is: being exposed while breaking the posted rule, after a warning. Getting out of the water,
+    // stopping, or breaking line of sight during the warning ends it.
+    const breaking = sees && L.state === 'watching' && ((L.rule === 'swim' && water && L.lampOn) || (L.rule === 'run' && running));
+    L.warn = breaking ? (L.warn || 0) + dt : Math.max(0, (L.warn || 0) - dt * 2);
+    if (breaking && L.warn > 0 && !L.warned) {
+      L.warned = true;
+      hud.caption('[a short warning whistle — the tower]');
+      sound.whistle(soundDir(player.pos, forwardVec(), L.base).pan * 0.5);
+    }
+    if (!breaking && L.warn <= 0) L.warned = false;
+    if (L.warn > 2.5) {
+      L.warn = 0;
+      violate(L.rule === 'swim' ? 'Swimming during the maintenance cycle.' : 'Running on deck.');
     }
     if (L.state === 'pursuit') {
       const to = sub(player.pos, L.pos);
@@ -1159,8 +1218,9 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
           if (item === 'cell') state.cells = Math.min(3, state.cells + 1);
           else state.filters = Math.min(3, state.filters + 1);
           sound.pickup();
+          state.rescued += 1;
           hud.say('???', 'You came back. You came back for me.', 'marco');
-          hud.toast(`A SURVIVOR · +1 ${item === 'cell' ? 'CHARGE CELL' : 'FILTER'} · they swim for the dock`);
+          hud.toast(`A SURVIVOR · ${state.rescued} RESCUED · +1 ${item === 'cell' ? 'CHARGE CELL' : 'FILTER'} · they swim for the dock`);
         } else {
           f.state = 'holding';
           f.holdT = 2.5;

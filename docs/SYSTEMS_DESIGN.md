@@ -278,3 +278,35 @@ Everything in sections 1–12 is implemented except where noted under **Not yet*
 - **Modes and presentation:** eight-sector campaign ending in "The Loop"; endless mode with seeds, records and shareable links; resume exactly where you left off after closing the tab; settings for grain, distortion and camera roll, sway, captions, touch aim assist and look sensitivity; captions for directional sounds; stereo-panned sound; touch aim assist.
 
 **Not yet:** online co-op and AI crewmates; Campaigns 2–4 and the other two endings; the impossible-return puzzle beyond the looping locker room; reflections that lag behind you; sector length tuned with players.
+
+---
+
+## 14. Crew rules: rescue, solo play, fair encounters
+
+### Solo play has explicit rescue rules (implemented)
+Radio companions cannot physically rescue you, so nothing waits on a teammate who isn't there.
+- **Full Drift:** you sit down in the water and can't move. Hold **Space** to remember why you're leaving while a crewmate talks you back on the radio. That restores you to Drift 70. After **15 seconds** without that, you have stayed: a clear failure and a checkpoint restart. No indefinite incapacitation.
+- **Undertow on foot:** tap **Space** to kick free, shoot the still water, or burst. **On the raft:** it holds the raft for a few seconds and lets go; spillways and bursts break pursuit.
+- **Lane Rope on foot:** tap Space to pull free, or shoot its floats.
+
+### AI crewmates (next): rescue is the defining feature
+Valve's own write-ups on Left 4 Dead's survivor bots single out rescuing incapacitated players as the hard problem, with predictability and trust as explicit goals. The AI crew will have a small, dependable vocabulary: **Stay close · Hold here · Help them · Follow my route · Return to the raft.** They say what they intend ("Going for June." / "I can't reach you from this side." / "Clear that rope and I can get across." / "I'm staying on the dry ledge."), so a delayed rescue reads as understandable rather than broken. Pulling someone up from full Drift uses the rescuer's line from `crew.js` ("You told me not to let you stay.").
+
+### Playing well grants access, and takes you deeper (implemented)
+A sector with a signal rating of 1200 or more earns a **maintenance override** (press O at a locked gate) and **full route data** on the terminal, and routes the next sector deeper (+10% threat). Reading a name back also adds a little risk (+5%). Good play helps your objective and pulls you further in.
+
+### The Lifeguard's violation is defined (implemented)
+Riding the raft is always permitted. On foot, breaking the posted rule **while exposed to it** starts a warning (a short whistle and a countdown). Getting out of the water, stopping running, or breaking line of sight during the warning ends it. Only after 2.5 seconds does it whistle for real; a second violation brings pursuit, which ends when you break line of sight for 5 seconds. The "no discharge while the lamp is lit" rule is a discrete act, so it applies at once, with the lamp visible and the sign posted.
+
+### Every entity in both modes, adapted
+
+| Entity | Raft | Foot |
+|---|---|---|
+| Undertow | Still patch ahead; pursuing wake that grips the raft | Pulls you through connected water |
+| Lane Rope | Blocks the channel; catches the raft | Wraps you at a water crossing |
+| Grout | Grows over targets you need | Spreads and changes passages after a caption warning |
+| Marco ("the Caller") | Misleading route advice at junctions, in a crewmate's voice | Draws you away to a throat in the wall |
+| Floater | A rescue chance while moving: steer over them (or regret it) | Close inspection and an extraction decision |
+
+### Rescues and headcounts feed the endings (implemented)
+Survivors pulled out on the raft or on foot are counted. Names read back at roll call are counted. Leaving nobody uncounted, reading back at least two names and rescuing at least two people opens **Count Heads** at the Main Drain.

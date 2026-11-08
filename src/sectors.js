@@ -15,6 +15,7 @@
 //   B  sunken platform (floats at high water)      T  looping doorway (T pairs swap you)
 //   K  keypad door     n  depth marking (code digit, visible under inspection)
 //   R  reflection on the water (rooftop)            G  gate opened by the reflected sensor
+//   r  water crossed by a Lane Rope (wraps you until its floats are shot)
 
 export const SECTORS = [
   {
@@ -42,6 +43,7 @@ export const SECTORS = [
       explore: 'The changing rooms are cleaned hourly. Please leave them as you found them.',
     },
     crew: [
+      ['MARS', 'Count off. Dez? Tubs? June? Good. Nobody drifts, nobody stays.'],
       ['DEZ', 'Raft split at the junction. You are on the east channel alone. Radio stays on.'],
       ['TUBS', 'Everything here is a ride. Rides have switches. The blaster talks to them.'],
       ['JUNE', 'Check your wrist. There is a band on it. I did not put it there.'],
@@ -62,7 +64,7 @@ export const SECTORS = [
       '#.~#P.l.s#~.#',
       '#.~#..g..#~.#',
       '#.~###d###~.#',
-      '#.~u~~f~~~~.#',
+      '#.~u~~f~r~~.#',
       '#..b..m..L~.#',
       '#s...h...~~S#',
       '#############',
@@ -73,6 +75,7 @@ export const SECTORS = [
       explore: 'A lifeguard is on duty. Swimming is not permitted during the maintenance cycle.',
     },
     crew: [
+      ['JUNE', 'I mapped this river last time. Same bends. It goes somewhere else now.'],
       ['JUNE', 'There is a raft ahead of us. It is not getting closer. We are doing the same speed.'],
       ['MARS', 'Lifeguard chair. Watch its lamp. Don\'t fire while it\'s lit.'],
       ['DEZ', 'Lift ahead. Nothing to do on a lift but look out the windows. Don\'t.'],
@@ -91,7 +94,7 @@ export const SECTORS = [
       '#...........#',
       '#wwwwwwwwwww#',
       '#wwwwwwwwwww#',
-      '#~~~~~f~~~~~#',
+      '#~~~~~f~~~r~#',
       '#~~u~~~~~L~~#',
       '#~~~~~~~~~~~#',
       '#x.xxxxxxx.x#',
@@ -104,6 +107,7 @@ export const SECTORS = [
       explore: 'No running on deck.',
     },
     crew: [
+      ['DEZ', 'The wave machine is fine. Nothing wrong with it. That is what scares me.'],
       ['TUBS', 'Wave pools run on a cycle. Learn the cycle, cross between waves.'],
       ['JUNE', 'Every wave leaves something closer to the beach. Something with arms.'],
       ['MARS', 'Don\'t run near the chair. It\'s the only rule it cares about here.'],
@@ -135,6 +139,7 @@ export const SECTORS = [
       explore: 'No blaster discharge while the warning lamp is lit.',
     },
     crew: [
+      ['TUBS', 'Ride routine: jets, pause, jets. It skipped a pause. Rides don\'t skip.'],
       ['DEZ', 'The jets are on timers. Mostly. Some of them fire for nobody.'],
       ['JUNE', 'I can hear someone laughing on the slides. Small someone.'],
       ['TUBS', 'Lamp on the chair means hold your fire. Lamp off, do what you like.'],
@@ -166,6 +171,7 @@ export const SECTORS = [
       explore: 'The code is posted for all guests. Please look closely.',
     },
     crew: [
+      ['MARS', 'If anyone stops answering, I read your name until you do.'],
       ['DEZ', 'Hold right-click to scan. The inspection beam shows what the dark hides. It also shows you to them.'],
       ['JUNE', 'Some of those glowing shapes are moving between the walls.'],
       ['MARS', 'Numbered targets ahead. Scan the sensor first so we know the order.'],
@@ -197,6 +203,7 @@ export const SECTORS = [
       explore: 'Please restart the pumps when you have finished.',
     },
     crew: [
+      ['DEZ', 'I signed off on Crew Seven\'s raft. Same welds as ours. The same welds.'],
       ['DEZ', 'Shoot the bar targets to throw the breakers. Lights on in the tubes. Pumps too, probably.'],
       ['TUBS', 'If you stop a pump, restart it before we launch. No pump, no water. No water, no ride.'],
       ['JUNE', 'The machinery is loud enough to hide things. Then it stops, and you hear them.'],
@@ -228,6 +235,7 @@ export const SECTORS = [
       explore: 'Please do not run in the corridors.',
     },
     crew: [
+      ['JUNE', 'The map is right. The rooms are where I drew them. We are not.'],
       ['TUBS', 'We passed that locker room already. Same lockers. Different things in them.'],
       ['JUNE', 'One thing in there stays the same every pass. Find it and break it on the right pass.'],
       ['MARS', 'The doors loop. Walk through one and you come out the other side of the building.'],
@@ -260,6 +268,7 @@ export const SECTORS = [
       explore: 'The view is for guests only.',
     },
     crew: [
+      ['TUBS', 'Every ride ends where it started. I told Crew Seven\'s rider that. I trained her.'],
       ['MARS', 'Sky. Actual sky. Don\'t look at it too long.'],
       ['JUNE', 'The clouds just jumped back. Same clouds. Same order.'],
       ['DEZ', 'There\'s a sensor in the reflection that isn\'t on the balcony. Get the water level right and scan it.'],

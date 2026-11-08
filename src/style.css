@@ -146,3 +146,4 @@ body[data-mode='ride'] #touch-use { display: none; }
 .seed-row { display: flex; gap: 8px; align-items: center; margin: 8px 0 16px; flex-wrap: wrap; }
 .seed-row input { background: #ffffff10; border: 1px solid var(--line); color: var(--ink); padding: 10px 12px; font: 12px 'IBM Plex Mono', monospace; width: 160px; }
 @media (max-width: 640px) { .route { display: none; } }
+.actions button:disabled { opacity: 0.4; cursor: not-allowed; }

@@ -2,6 +2,7 @@
 import { settings, saveSettings, SETTING_LABELS } from './settings.js';
 import { COMFORTS } from './sectors.js';
 import { ROUTES } from './plans.js';
+import { CREW, crewById, fadingCrew } from './crew.js';
 
 const $ = (id) => document.getElementById(id);
 const el = (tag, cls, text) => {
@@ -53,11 +54,72 @@ export const RECIPES = [
  * The Safe Room. state: the run. nextPlan: the next sector's ride plan (for the route terminal).
  * nextSector: its data. onLeave(): continue. onSave(): persist after changes.
  */
-export function showSafeRoom(state, sector, nextSector, nextPlan, onLeave, onSave) {
+export function showSafeRoom(state, sector, nextSector, nextPlan, onLeave, onSave, access = {}) {
   const body = el('div');
   const comfort = COMFORTS[(state.guests + state.sectorIndex) % COMFORTS.length];
   body.append(el('p', null, `The bulkhead seals behind you. The vent hums. The lights are too bright for anything that lives in the water. ${comfort}`));
   body.append(el('p', 'mono', `CHECKPOINT CONFIRMED · DRIFT RESET · RAFT CLEANSED · GUESTS CHECKED IN: ${state.guests}`));
+  // Recovery you can see: hard floor, moving air, a record that says you are here.
+  if (state.arrivalDrift > 65) body.append(el('p', null, `When you came in, your name on the manifest was a smudge and the door took two tries to notice you. Under the hard white light the letters come back: ${crewById(state.character).full.toUpperCase()}. Your wristband reads ${state.band} again.`));
+
+  // Roll call: the crew counts off before every launch. Later, the facility starts disagreeing.
+  const roll = el('div', 'choices');
+  roll.append(el('p', 'mono', 'ROLL CALL · THE MANIFEST'));
+  const fading = fadingCrew(state);
+  let resolved = !fading;
+  for (const c of CREW) {
+    if (c.id === state.character) { roll.append(el('p', null, `${c.full} · you · present`)); continue; }
+    if (state.forgotten.includes(c.id)) { roll.append(el('p', 'mono', `— — — — —  · NO RECORD (you can still hear them on the radio)`)); continue; }
+    if (fading && c.id === fading.id) {
+      const row = el('div', 'choices');
+      row.append(el('p', null, `${c.full.replace(/[a-z]/g, (ch) => (Math.random() < 0.5 ? '·' : ch))} · the terminal counts ${CREW.length - state.forgotten.length - 1}. ${c.name} answers on the radio: "Here. I'm here. Say my name."`));
+      const read = el('button', 'choice');
+      read.append(el('b', null, `Read ${c.name}'s name back into the manifest`), el('span', null, 'Takes the time, and the noise carries: the next sector is a little harder. Their name stays.'));
+      const accept = el('button', 'choice');
+      accept.append(el('b', null, 'Accept the terminal\'s count'), el('span', null, `The door will open on schedule. ${c.name} will come through the radio without an identifier from now on.`));
+      read.onclick = () => {
+        state.recognized += 1;
+        state.pressure = Math.min(1.6, (state.pressure || 1) + 0.05);
+        row.replaceChildren(el('p', null, `${c.full} · present. The letters hold.`));
+        resolved = true;
+        launch?.removeAttribute('disabled');
+        onSave();
+      };
+      accept.onclick = () => {
+        state.forgotten.push(c.id);
+        row.replaceChildren(el('p', 'mono', '— — — — —  · NO RECORD'));
+        resolved = true;
+        launch?.removeAttribute('disabled');
+        onSave();
+      };
+      row.append(read, accept);
+      roll.append(row);
+      continue;
+    }
+    roll.append(el('p', null, `${c.full} · "Here."`));
+  }
+  body.append(roll);
+
+  // Playing well earns access, and carries you deeper.
+  if (access.earned) body.append(el('p', 'mono', `SIGNAL RATING ${access.sectorScore} · MAINTENANCE OVERRIDE ISSUED (${state.overrides} held · press O at a locked gate) · FULL ROUTE DATA · NEXT SECTOR ROUTED DEEPER`));
+  else if (access.sectorScore != null) body.append(el('p', 'mono', `SIGNAL RATING ${access.sectorScore} · 1200 earns an override and full route data`));
+
+  // The Lido: people who stopped trying to leave.
+  if (sector.index >= 4 && sector.index <= 6 && !sector.endless) {
+    const vance = el('div');
+    vance.append(el('p', 'mono', 'THE LIDO · MRS. VANCE'));
+    vance.append(el('p', null, [
+      'Mrs. Vance is already here, hands folded in her lap because they no longer unfold. She has kept this pump room running for years. "Filters are on the shelf, take two. You\'re going to clear the drain? Everyone down there is asleep, dear. They are not suffering. You are the ones suffering."',
+      '"The Pumphouse thinks the park is broken. It isn\'t. It is doing exactly what it was built for: keeping guests. Learn how it works and it will keep you kindly. Fight it and it keeps you anyway."',
+      '"Caleb Teague came through here. He asked about the chair. I told him not to sit in it. Somebody always does."',
+    ][sector.index - 4]));
+    if (!state.vanceFilters?.[sector.index]) {
+      (state.vanceFilters ||= {})[sector.index] = true;
+      state.filters = Math.min(3, state.filters + 2);
+      state.filter = 100;
+    }
+    body.append(vance);
+  }
 
   const wall = el('div', 'graffiti');
   for (const line of sector.graffiti || []) {
@@ -112,10 +174,11 @@ export function showSafeRoom(state, sector, nextSector, nextPlan, onLeave, onSav
   if (nextSector && nextPlan) {
     const term = el('div', 'terminal');
     const junction = nextPlan.items.find((it) => it.type === 'pool' && it.junction);
+    const full = state.upgrades.includes('headlamp') || access.earned || state.memory?.route;
     const dock = nextPlan.items.find((it) => it.type === 'pool' && it.dock);
     const lines = [`ROUTE TERMINAL · NEXT: ${nextSector.name} · ${nextSector.depth} M`];
     const status = (route) => {
-      const known = state.upgrades.includes('headlamp');
+      const known = full;
       if (route === 'public') return `lighting good · signage clear · ${known ? 'longer, gentle' : 'length unknown'}`;
       if (route === 'maintenance') return `machinery working · equipment storage · ${known ? 'flume and pressure tube' : 'hazards unknown'}`;
       return `pressure ${known ? 'unstable' : 'unknown'} · few docks · shortcut`;
@@ -145,7 +208,12 @@ export function showSafeRoom(state, sector, nextSector, nextPlan, onLeave, onSav
 
   body.append(logbookView(state));
   refresh();
-  showModal('A moment above water.', body, [[nextSector ? 'LAUNCH INTO THE NEXT SECTOR ↗' : 'OPEN THE LAST DOOR ↗', onLeave, true]], 'SAFE ROOM · AUTHENTICATED');
+  showModal('A moment above water.', body, [[nextSector ? 'COUNT OFF AND LAUNCH ↗' : 'OPEN THE LAST DOOR ↗', onLeave, true]], 'SAFE ROOM · AUTHENTICATED');
+  const launch = document.querySelector('#modal-actions button');
+  if (!resolved) {
+    launch.setAttribute('disabled', '');
+    launch.title = 'Finish the roll call first';
+  }
 }
 
 export function logbookView(state) {

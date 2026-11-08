@@ -14,6 +14,7 @@ import { sound } from './audio.js';
 import { quality } from './quality.js';
 import { rng } from './math.js';
 import { showModal, hideModal, showSafeRoom, showDocument, showKeypad, settingsView, logbookView } from './ui.js';
+import { CREW, crewById, loadLoops, saveLoop } from './crew.js';
 
 const SAVE_KEY = 'underflow-save-v2';
 const RESUME_KEY = 'underflow-resume-v2';
@@ -27,6 +28,7 @@ const freshState = (extra = {}) => ({
   raft: 100, patches: 0, upgrades: [], logbook: [], power: {}, drained: {}, attempt: 0, guests: 1,
   band: String(1000 + Math.floor(Math.random() * 8999)).padStart(4, '0'), name: 'Mars', crewLine: 0,
   passenger: { stage: 0, t: 0 }, ride: null, sectorKey: 's0', endless: false, seed: 0, sitting: false,
+  character: 'mars', rescued: 0, recognized: 0, forgotten: [], overrides: 0, sectorScore: 0, pressure: 1, sitT: 0, resolve: 0, memory: null,
   ...extra,
 });
 
@@ -50,7 +52,7 @@ function sectorAt(index) {
 }
 function planFor(sector) {
   const random = rng(5000 + sector.index * 97 + state.attempt * 13 + state.seed * 3);
-  return { items: buildPlan(sector, random, sector.threat || 1), choices: {} };
+  return { items: buildPlan(sector, random, (sector.threat || 1) * (state.pressure || 1)), choices: {} };
 }
 const keyFor = (index) => `${state.endless ? 'e' : 's'}${index}`;
 
@@ -84,20 +86,35 @@ const events = {
   heal(n) { state.health = Math.min(100, state.health + n); },
   score(n, label) {
     state.score += n;
+    state.sectorScore += n;
     if (label) hud.toast(state.endless ? `+${n} · ${label}` : label);
   },
   cleared() { state.cleared += 1; },
   tick(dt) {
     // Full Drift: you sit down in the warm water. Space or firing pulls you back.
+    // Solo rule: nobody is physically there to pull you up. You get one clear way out (hold SPACE while
+    // a crewmate talks you back on the radio) and one clear failure (fifteen seconds and you have stayed).
     if (state.drift >= 100 && !state.sitting) {
       state.sitting = true;
+      state.sitT = 0;
+      state.resolve = 0;
       hud.say('THE ATTENDANT', 'There. Isn\'t that better?', 'drift');
+      const friend = CREW.filter((c) => c.id !== state.character && !state.forgotten.includes(c.id))[0];
+      if (friend) hud.say(friend.name.toUpperCase(), friend.stay, 'crew');
     }
     if (state.sitting) {
-      events.damage(dt * 5, 'You sat down in the warm water and did not get up.', true);
-      hud.prompt('YOU ARE DRIFTING · press SPACE or fire to snap out of it');
-      if (wasPressed(' ') || input.firing) state.drift -= wasPressed(' ') ? 9 : dt * 6;
-      if (state.drift < 82) state.sitting = false;
+      state.sitT += dt;
+      state.resolve = Math.max(0, state.resolve + (input.keys.has(' ') ? dt / 2.5 : -dt / 5));
+      const left = Math.max(0, 15 - state.sitT);
+      hud.prompt(`YOU SAT DOWN IN THE WATER · HOLD SPACE to remember why you're leaving ${'▮'.repeat(Math.round(state.resolve * 10))}${'▯'.repeat(10 - Math.round(state.resolve * 10))} · ${Math.ceil(left)} s`);
+      if (state.resolve >= 1) {
+        state.sitting = false;
+        state.drift = 70;
+        hud.toast('YOU STOOD UP');
+      } else if (left <= 0) {
+        state.lastHurt = 'You stayed. It was warm, and nobody was counting you anymore.';
+        state.health = 0;
+      }
     }
     hud.stats(state);
     if (state.health <= 0) die();
@@ -159,6 +176,7 @@ function swap(next) {
 
 // ---------- Flow ----------
 function beginSector(index) {
+  state.sectorScore = 0;
   state.sectorIndex = index;
   state.sectorKey = keyFor(index);
   state.crewLine = 0;
@@ -210,6 +228,7 @@ function enterSafeRoom() {
   clearResume();
   const sector = sectorAt(state.sectorIndex);
   // Composure fully recovers; equipment gets a minimum recharge; the raft is cleansed.
+  state.arrivalDrift = state.drift;
   state.drift = 0;
   state.sitting = false;
   state.health = Math.max(state.health, 60);
@@ -226,7 +245,7 @@ function enterSafeRoom() {
   const last = !state.endless && state.sectorIndex === SECTORS.length - 1;
   if (last) {
     try { localStorage.removeItem(SAVE_KEY); } catch {}
-    return showEnding();
+    return showEndingChoice();
   }
   const nextIndex = state.sectorIndex + 1;
   const nextSec = sectorAt(nextIndex);
@@ -240,33 +259,76 @@ function enterSafeRoom() {
     try { localStorage.setItem(SAVE_KEY, JSON.stringify(s)); } catch {}
   };
   saveNow();
-  showSafeRoom(state, sector, nextSec, state.nextPlan, () => { hideModal(); nextSector(true); }, saveNow);
+  // Playing well earns access (an override, full route data) and carries you deeper: the next sector is harder.
+  const earned = state.sectorScore >= 1200;
+  if (earned) {
+    state.overrides += 1;
+    state.pressure = Math.min(1.6, (state.pressure || 1) + 0.1);
+  }
+  const access = { earned, sectorScore: state.sectorScore };
+  state.sectorScore = 0;
+  saveNow();
+  showSafeRoom(state, sector, nextSec, state.nextPlan, () => { hideModal(); nextSector(true); }, saveNow, access);
 }
 
 function nextSector() {
   hideModal();
   const next = state.sectorIndex + 1;
-  if (!state.endless && next >= SECTORS.length) return showEnding();
+  if (!state.endless && next >= SECTORS.length) return showEndingChoice();
   if (state.endless) recordEndless();
   beginSector(next);
   startRide();
 }
 
-function showEnding() {
+/** The Main Drain. Three endings, each with clear consequences. Count Heads is earned by keeping people counted. */
+function showEndingChoice() {
   mode = 'end';
   hud.show(false);
   clearResume();
-  showModal('You found the surface.', `The last bulkhead opens onto a ladder, and the ladder goes up, and up, into yellow light and damp carpet.
+  const me = crewById(state.character);
+  const counted = state.forgotten.length === 0 && state.recognized >= 2 && state.rescued >= 2;
+  const body = document.createElement('div');
+  const p = (t) => { const e = document.createElement('p'); e.textContent = t; body.append(e); };
+  p('The last bulkhead opens onto the Main Drain: a grate the size of a cathedral, and in it everyone the park stopped counting, folded small, fused, breathing. Crew Seven is there. Caleb\'s face smiles when Mars says his name over the radio.');
+  p(`You kept ${state.recognized} name${state.recognized === 1 ? '' : 's'} on the manifest by reading them back. You pulled ${state.rescued} survivor${state.rescued === 1 ? '' : 's'} out of the water.${state.forgotten.length ? ` You let the count close over ${state.forgotten.map((id) => crewById(id).name).join(' and ')}.` : ''}`);
+  const cs = document.createElement('p');
+  cs.className = 'mono';
+  cs.textContent = counted ? 'THE CHAIR IS EMPTY. YOU HAVE BEEN COUNTING ALL ALONG.' : 'COUNT HEADS · needs: nobody left uncounted, two names read back, two people rescued';
+  body.append(cs);
+  showModal('The Main Drain.', body, [
+    ['CLEAR THE DRAIN · THE LOOP ↗', () => ending('loop'), true],
+    ['SEAL THE DRAIN', () => ending('seal')],
+    ...(counted ? [['COUNT HEADS', () => ending('count')]] : []),
+  ], `${me.full.toUpperCase()} · GUESTS CHECKED IN: ${state.guests}`);
+}
 
-At the top of the Welcome Pools a raft is waiting. Dry inside. Four life vests, folded neatly on the seat. A wristband on the cushion, numbered ${state.band}.
+function ending(kind) {
+  const mem = saveLoop(state, kind);
+  const me = crewById(state.character);
+  const T = {
+    loop: ['You found the surface.', `You clear the drain. Everything the park was holding goes down at once, Crew Seven with it, and the water drops. Upstairs, the Pumphouse floods recede for the first time in months.
 
-You know the handwriting on the tag. It's yours. The raft that came back empty was always going to be this one.
+You climb a ladder into yellow light and damp carpet and come out at the top of the Welcome Pools. A raft is waiting: dry, four life vests folded on the seat, a wristband numbered ${state.band} on the cushion. The tag is in your handwriting. The empty raft that started all this was yours, sent back up by someone who wanted the next crew to come prepared.
 
-GUESTS CHECKED IN: ${state.guests} · GUESTS CHECKED OUT: 0
+Survived: the four of you, and ${state.rescued} rescued. Remained: Crew Seven, now somewhere below the drain. Changed: the water is falling. What you learned stays: ${mem.route ? 'June\'s route is in the raft\'s locker' : 'a note in your handwriting'}.`],
+    seal: ['The water keeps rising, slower.', `You close the drain with Pumphouse equipment. Crew Seven stays where it is: lost, but whole, still breathing in the grate.
 
-Entities dispersed: ${state.cleared} · Documents recorded: ${state.logbook.length}
+Nobody goes down. The loop breaks here: there will be no empty raft for the next crew. The water upstairs keeps rising, slower now, and the Pumphouse will have to live with it.
 
-END OF CAMPAIGN 1 · OVERFLOW`, [['RIDE AGAIN ↗', () => { hideModal(); newCampaign(); }, true], ['MENU', toMenu]], 'THE LOOP');
+You climb back the long way. It takes days. Survived: the four of you and ${state.rescued} rescued. Remained: everyone in the drain. Changed: the flood slowed; the loop stopped.`],
+    count: ['Count heads.', `${me.name} climbs the Lifeguard's chair. It is not the Lifeguard's: it is a control station, and the Lifeguard is only what enforces it. The previous occupant left a voice in the announcements and nothing else.
+
+From the chair, you can read the whole park's count. You read it out loud. Every name. The ones folded in the drain, the ones on the manifests, Crew Seven, Caleb, Priya. Each one you read stops being zero.
+
+The doors start registering people. The drain loosens on its own. The park can close, because for the first time everyone in it has been counted.
+
+You stay in the chair until the count is done. The credits run under the Attendant's voice, and it is yours.
+
+Survived: everyone counted. Remained: you, for now. Changed: the park knows who is here.`],
+  }[kind];
+  showModal(T[0], `${T[1]}
+
+GUESTS CHECKED IN: ${state.guests} · ENTITIES DISPERSED: ${state.cleared} · DOCUMENTS: ${state.logbook.length} · LOOPS: ${mem.loops}`, [['RIDE AGAIN ↗', () => { hideModal(); newCampaign(); }, true], ['MENU', toMenu]], kind === 'loop' ? 'THE LOOP' : kind === 'seal' ? 'SEAL THE DRAIN' : 'COUNT HEADS');
 }
 
 function die() {
@@ -296,8 +358,8 @@ Somewhere above, a raft comes back up the slide. Empty.`, [
       hideModal();
       const save = loadJSON(SAVE_KEY);
       const attempt = state.attempt + 1;
-      if (save) state = { ...freshState(), ...save };
-      else state = freshState({ band: state.band });
+      if (save) state = { ...freshState(), ...save, memory: state.memory };
+      else state = freshState({ band: state.band, character: state.character, name: state.name, memory: state.memory });
       state.attempt = attempt;
       beginSector(state.sectorIndex);
       startRide();
@@ -316,18 +378,45 @@ function recordEndless() {
 }
 
 function newCampaign() {
-  state = freshState();
+  const memory = loadLoops();
+  mode = 'intro';
+  const body = document.createElement('div');
+  const intro = document.createElement('p');
+  intro.textContent = 'Four Drainers went down the slide. The raft split at the junction. Who woke up alone on this channel?';
+  body.append(intro);
+  const list = document.createElement('div');
+  list.className = 'choices';
+  for (const c of CREW) {
+    const b = document.createElement('button');
+    b.className = 'choice';
+    const n = document.createElement('b'); n.textContent = `${c.full} · ${c.role}`;
+    const t = document.createElement('span'); t.textContent = `Believes: ${c.belief} ${c.link}`;
+    b.append(n, t);
+    b.onclick = () => beginCampaignAs(c.id, memory);
+    list.append(b);
+  }
+  body.append(list);
+  showModal('Who is on the raft?', body, [['MENU', toMenu]], memory.loops ? `LOOP ${memory.loops + 1}` : 'DRAINER CREW EIGHT');
+}
+
+function beginCampaignAs(id, memory) {
+  const me = crewById(id);
+  state = freshState({ character: id, name: me.name, memory });
+  hud.setPlayer(me.name);
   try { localStorage.removeItem(SAVE_KEY); } catch {}
   clearResume();
   beginSector(0);
-  mode = 'intro';
+  const others = CREW.filter((c) => c.id !== id).map((c) => c.name);
+  const remembered = memory.loops
+    ? `\n\nSomething is different this time. The Pumphouse flood gauge reads lower than it should. There is a note in the raft's locker in your own handwriting.${memory.route ? ' June\'s route from last time is folded inside it.' : ''}`
+    : '';
   showModal('Remain seated.', `You wake in a raft. The water is warm. There is a numbered wristband on your arm: ${state.band}. You don't remember putting it on.
 
 The Arc Blaster is tethered to the seat. The announcements say to remain seated until the unloading station.
 
 You have already passed the unloading station three times. Each time, it was farther underwater.
 
-Dez's voice crackles on the radio. The raft split at the junction. The crew is on the other channel. The Backrooms above are flooding, and the drain is somewhere below you.`, [['ENTER THE FLOW ↗', () => { hideModal(); startRide(); }, true]], `WRISTBAND ${state.band} · CHECKED IN`);
+${others.join(', ')}: their voices crackle on the radio. The raft split at the junction. They are on the other channel. Count off before every launch. If anyone stops answering, read their name back.${remembered}`, [['ENTER THE FLOW ↗', () => { hideModal(); startRide(); }, true]], `${me.full.toUpperCase()} · WRISTBAND ${state.band} · CHECKED IN`);
 }
 
 function startEndless(seed) {
@@ -340,6 +429,7 @@ function startEndless(seed) {
 
 function resume(data) {
   state = { ...freshState(), ...data.state };
+  hud.setPlayer(state.name);
   const p = data.position;
   if (p.mode === 'explore') startExplore({ pos: p.pos, yaw: p.yaw, hasCell: p.hasCell });
   else startRide({ resumeS: p.s, departed: p.departed });
@@ -408,6 +498,7 @@ $('continue').onclick = () => {
   const save = loadJSON(SAVE_KEY);
   if (!save) return;
   state = { ...freshState(), ...save };
+  hud.setPlayer(state.name);
   beginSector(state.sectorIndex);
   startRide();
 };
