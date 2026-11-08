@@ -1,0 +1,18 @@
+{
+  "name": "underflow",
+  "version": "0.3.0",
+  "private": true,
+  "type": "module",
+  "description": "First-person horror rail-shooter in the Poolrooms, rendered with 67js",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "67js": "npm:@codepawlhq/67js@0.16.0"
+  },
+  "devDependencies": {
+    "vite": "^6.0.0"
+  }
+}

@@ -1,0 +1,136 @@
+// Campaign 1, "Overflow". Each sector is a raft ride, a dock, a stretch on foot and a Safe Room.
+// Colours are sRGB hex; textures.js and the scenes convert them.
+
+export const SECTORS = [
+  {
+    id: 'yellow-channel',
+    name: 'THE YELLOW CHANNEL',
+    depth: 12,
+    tile: '#d8d29a', grout: '#8f8a52', stain: '#7a6a2e',
+    water: '#2d4a2c', fog: '#1d2414', lamp: '#fff3c8',
+    rideLength: 520,
+    speed: 8.5,
+    threats: { blooms: 1, ropes: 1, undertows: 1, lifeguards: 0, signals: 1 },
+    map: [
+      '###########',
+      '#D..#....P#',
+      '#.~~#.~~~.#',
+      '#.~~..~~~.#',
+      '#.~~#.~u~.#',
+      '###.#.~~~.#',
+      '#s..#..b..#',
+      '#.~~~~~.###',
+      '#.~b~~~..S#',
+      '#..s....###',
+      '###########',
+    ],
+    attendant: {
+      start: 'Welcome, rider. Please keep your hands and feet inside the raft at all times.',
+      dock: 'This raft is now arriving at Maintenance Dock One. Please mind the gap.',
+      explore: 'Riders are reminded that the water is perfectly safe.',
+    },
+    crew: [
+      ['DEZ', 'Raft split at the junction. You are on the east channel alone. Radio stays on.'],
+      ['TUBS', 'Hold the trigger on anything red. Green rings are ours. Crew Seven painted them.'],
+      ['JUNE', 'Water is still in patches ahead. Still water is wrong water. Shoot it.'],
+    ],
+    graffiti: [
+      'CREW 4 WAS HERE. THE WATER IS WARM. DON\'T SIT DOWN.',
+      'IT SAID MY NAME OVER THE SPEAKER. I NEVER TOLD IT MY NAME.',
+      '||||  ||||  ||  days? hours? the lights never change',
+    ],
+  },
+  {
+    id: 'blue-reservoir',
+    name: 'THE BLUE RESERVOIR',
+    depth: 28,
+    tile: '#e8eef0', grout: '#9ab3bd', stain: '#6f8f99',
+    water: '#1f5a6e', fog: '#0f1c22', lamp: '#eaf6ff',
+    rideLength: 640,
+    speed: 9.5,
+    threats: { blooms: 1.35, ropes: 1.3, undertows: 1.4, lifeguards: 1, signals: 0.9 },
+    map: [
+      '#############',
+      '#D...#......#',
+      '#.~~.#.~~~~.#',
+      '#.~~...~~~~.#',
+      '#.~~.#.~~L~.#',
+      '#..s.#.~~~~.#',
+      '###.##..u...#',
+      '#P..#..b.~~.#',
+      '#.~.....~~~.#',
+      '#.~b#..s##.S#',
+      '#############',
+    ],
+    attendant: {
+      start: 'Excellent score, rider. You may be eligible for an upgrade.',
+      dock: 'The Shallow End is now closed. Please proceed to the Deep End.',
+      explore: 'A lifeguard is on duty. Please do not swim alone.',
+    },
+    crew: [
+      ['JUNE', 'Someone is calling Marco down here. Do not answer it. Please do not answer it.'],
+      ['MARS', 'Lifeguard chair ahead. If it sees you in the water it calls everything. Shoot its lamp.'],
+      ['DEZ', 'Rope in the water. Pop the floats or it takes you off the raft.'],
+    ],
+    graffiti: [
+      'THE LIFEGUARD COUNTS US. IT GOT TO FIVE. THERE WERE FOUR OF US.',
+      'my fingers have been pruned for a week. they don\'t un-prune.',
+      'CALEB T. — CREW 7 — HEADING DOWN. TELL MARS NOT TO FOLLOW.',
+    ],
+  },
+  {
+    id: 'last-drain',
+    name: 'THE LAST DRAIN',
+    depth: 46,
+    tile: '#3c5a78', grout: '#1c2a3a', stain: '#0e1620',
+    water: '#0b2638', fog: '#04080d', lamp: '#9fd8ff',
+    rideLength: 760,
+    speed: 10.5,
+    threats: { blooms: 1.7, ropes: 1.5, undertows: 1.8, lifeguards: 1.6, signals: 0.8 },
+    map: [
+      '#############',
+      '#D..~~~~~...#',
+      '#...~~L~~.b.#',
+      '#.s.~~~~~...#',
+      '###.###.#####',
+      '#.....#.....#',
+      '#.~~~.u.~~~.#',
+      '#.~b~.#.~P~.#',
+      '#.~~~.#.~~~.#',
+      '#..s..#...#S#',
+      '#############',
+    ],
+    attendant: {
+      start: 'Attention: rush hour. All riders proceed to the Main Drain.',
+      dock: 'Thank you for riding. Your raft will be returned to the start.',
+      explore: 'Closing time is approaching. Please gather your belongings.',
+    },
+    crew: [
+      ['TUBS', 'This is a ride. Every ride ends where it started. Think about that.'],
+      ['JUNE', 'Priya\'s voice. It is Priya\'s voice. It is not Priya.'],
+      ['MARS', 'That Signal has Caleb\'s mark. He was here. Keep going.'],
+    ],
+    graffiti: [
+      'THE DRAIN ISN\'T BLOCKED BY SOMETHING. IT\'S BLOCKED BY SOMEONE.',
+      'we folded our vests so the next crew would have them',
+      'YOU HAVE BEEN HERE BEFORE. CHECK THE HANDWRITING.',
+    ],
+  },
+];
+
+/** Things the Attendant and Marco say during play, picked at random. */
+export const AMBIENT = {
+  attendant: [
+    'Please remain seated.',
+    'Riders who leave the raft do so at their own risk.',
+    'The water is perfectly safe.',
+    'Your score has been recorded.',
+    'Lost property may be collected at the Main Drain.',
+  ],
+  marco: ['Marco…', 'Marco?', 'Ma…rco…', 'MARCO.'],
+  drift: [
+    'You could stop here. It is warm.',
+    'Nobody is counting you anymore.',
+    'Sit down. The raft will come back for you.',
+  ],
+};
