@@ -22,7 +22,24 @@ The title has two meanings:
 1. **Calm is the threat.** The water is warm, the light is soft, the hum is soothing. Fear comes from how good it feels to stay.
 2. **It's a ride, and a ride wants riders.** The slides were built *for* you. Someone or something wants you to enjoy them.
 3. **Quiet, then chaos.** On foot it's slow, exposed and silent, like Left 4 Dead between hordes. On the raft it's loud, fast and full of targets, like a dark-ride shooter gone wrong.
-4. **No gore.** Bodies aren't torn apart. They're found sitting peacefully in shallow water, smiling, with their eyes open.
+4. **Body horror, not gore.** Nothing here is torn apart. Bodies *change*: they prune, soften, swell, fold and fuse, slowly and without blood, under clean fluorescent light. The water preserves everything, so what you find is pale, swollen and perfectly clean. See [Body horror](#body-horror) below.
+
+### Body horror
+The Poolrooms don't kill people. They *underflow* them. It happens in stages, and every entity is one of those stages gone wrong.
+
+| Stage | What happens to the body |
+|---|---|
+| **Pruning** | Fingertips wrinkle and stay wrinkled. Days later the whole hand is wrinkled. It never smooths out again. |
+| **Softening** | Skin goes white and soft as wet paper. It tears like paper too, painlessly. Tile chips and grout work their way in under it. |
+| **Swelling** | Water fills the body. Faces go smooth and featureless. Eyes cloud over and start to reflect, like the surface of a pool. |
+| **Folding** | The body gets *smaller*. Joints bend the wrong way to make room. People fold up like letters, tighter and tighter, still breathing. |
+| **Rounding to zero** | What's left is too small to count. It goes down the drain. |
+
+Rules for using it:
+- **Slow and close, never splatter.** The camera lingers on a hand, not a wound.
+- **Clean.** No blood, no rot. The chlorine keeps everything sterile, which is worse.
+- **Personal.** The worst body horror happens to people the crew knew. Every special entity was once a person, and late-game graffiti names some of them.
+- **The player is not exempt.** As Drift rises, the player's own hands (holding the blaster) start to prune and soften. At full Drift, the fingers have started to fold.
 
 ---
 
@@ -91,7 +108,7 @@ The slides aren't random plumbing. They form **a ride**, with:
 Nobody knows who built it. Tubs's theory: **rides are built to move people efficiently through a space and keep them happy while they wait.** The Poolrooms is moving people down, and the score keeps them happy.
 
 ### The Attendant
-A voice over a crackling PA system. Polite, warm, a little too slow. You never see it.
+A voice over a crackling PA system. Polite, warm, a little too slow. You never see it, and it's always "it", never he or she.
 
 > *"Welcome, riders. Please keep your hands and feet inside the raft at all times."*
 > *"Excellent score. You may be eligible for an upgrade."*
@@ -100,6 +117,8 @@ A voice over a crackling PA system. Polite, warm, a little too slow. You never s
 **Gameplay role:** the Attendant is the in-world face of the **AI Director**, the system (borrowed from Left 4 Dead) that controls pacing. When the Attendant announces a closure, the route changes. When it says *"Rush hour,"* a horde is coming. Players learn to read it.
 
 **Lore role:** an "upgrade" means being sent deeper. High scorers get pulled down faster. The game rewards you for playing well and quietly punishes you for it.
+
+**How much is explained:** never in plain dialogue, but there are enough clues to work it out. The Attendant is whoever took the Lifeguard's chair in a previous loop: an earlier Mars. The clues: it knows the crew's names, its pauses match Mars's speech, and a Safe Room message says *check the handwriting*. The secret ending confirms it. Players who find it get the answer; everyone else gets a mystery that holds together.
 
 ### The Arc Blaster
 Dez's weapon. It's built from fluorescent ballasts and fires the **60 Hz hum** of the lights back at things in concentrated bursts.
@@ -127,7 +146,7 @@ Clots of rust, hair, algae and something that pulses. They drift in the current 
 - **Raft:** float toward you in clusters and burst on contact (damage). Shoot them before they arrive.
 - **Foot:** cling to walls and ceilings in dark corners, then drop into the water around you.
 - **Tell:** a faint red glow under the surface and the smell of iron.
-- **Lore:** Blooms grow wherever something has *dissolved*. Big clusters mean someone was lost there.
+- **Lore:** Blooms grow wherever someone has *dissolved*. Up close they're hair, fingernails, baby teeth and flakes of soft skin, knotted together with rust and beating with a slow pulse. Big clusters mean someone was lost there. Sometimes a Bloom still wears a ring.
 
 ### Special: The Undertow
 Never seen directly. It lives under the surface. Its only sign is that **the water goes perfectly still** in a patch, even while it ripples everywhere else.
@@ -135,6 +154,7 @@ Never seen directly. It lives under the surface. Its only sign is that **the wat
 - **Foot:** grabs the player from below and drags them toward the nearest drain. They can't free themselves; a teammate has to shoot the still patch. *(This is the Left 4 Dead "pinning" role: it punishes anyone who strays from the group.)*
 - **Raft:** hooks the raft and pulls it toward a **wrong branch** in the slide. Shoot the still patch before the junction or you're diverted to a harder route.
 - **Counter:** stay together; watch for calm water.
+- **What it is:** you only see it when it has you. Arms, pale and soft as wet paper, with far too many joints, and webbed fingers that close around the ankle like a cuff. There is no body attached that anyone has found.
 
 ### Special: Marco
 A voice in the distance calling **"Marco…"** Its voice sounds like someone you know.
@@ -143,7 +163,7 @@ A voice in the distance calling **"Marco…"** Its voice sounds like someone you
 - **Foot:** leads players into flooded dead ends. A player who follows it alone starts **Drifting** fast.
 - **Raft:** calls from side passages, tempting you to shoot the targets that open those shortcuts. Some shortcuts are real; some lead into it.
 - **Counter:** never answer. Stick together. June can tell real voices from fake ones; she's the crew's early warning.
-- **Lore:** Marco is not one creature. It's the echo of everyone who called out down here and was never answered.
+- **Lore:** Marco is not one creature. It's the echo of everyone who called out down here and was never answered. If you find where the voice comes from, it's a throat: just a throat, grown into the tiles at the waterline, swollen with all the voices it has swallowed.
 
 ### Special: Lane Rope
 A rope of floats strung across a channel. Then it moves.
@@ -158,12 +178,14 @@ Something that lives *in the walls*, moving through the lines between tiles. Gro
 - **Foot:** creates ambushes by sealing doorways shut or opening new ones. It rearranges the layout while you're in it.
 - **Raft:** shifts the tiles of the slide itself, opening holes and gaps. Shoot the darkened tile to drive it out.
 - **Counter:** watch for spreading dark lines and shoot where they converge.
+- **What it is:** people who sat against the walls too long. The tile grew over them. The grout lines are seams of skin. When a tile falls away, something soft and white is underneath, and it is still moving.
 
 ### Special: The Floater
 Looks like a person lying face-down in the water, perfectly still. Sometimes it is. Sometimes it's a missing Drainer, and you can save them.
 
 - **Mechanic:** walk close and it rolls over and grabs you. But some floaters really are survivors (rescue them for bonus supplies and lore). Players have to decide whether to check.
 - **Counter:** a single blaster shot makes a fake floater flinch, but it also scares a real survivor away. The game deliberately keeps this uncertain.
+- **What it is:** swollen smooth, skin translucent enough to see the water inside. When it rolls over, its face has no features left, and its eyes are two small circles of pool surface reflecting the ceiling lights.
 
 ### Stalker: The Lifeguard
 A very tall, thin figure on an impossibly high white chair, overlooking the larger pools. Whistle around its neck. Sunglasses that never move.
@@ -173,6 +195,7 @@ A very tall, thin figure on an impossibly high white chair, overlooking the larg
 - **Raft:** some slide routes run right past its chair. Shoot the overhead lights to blind it as you pass, or brace for a horde.
 - **It cannot be killed.** It can only be avoided or blinded.
 - **Lore:** the Lifeguard counts heads. It wants everyone *in the water*, where they belong. Mars eventually realises it's counting her crew, and the count is always one too many.
+- **What it is:** sunburned skin on a body that has never seen the sun, peeling in long strips. The sunglasses have grown into its face. The whistle has grown into its lips; to blow it, it squeezes its own chest.
 
 ### Hazard: Chlorine & Drift
 Not an entity but a pressure system that keeps players moving.
@@ -182,7 +205,8 @@ Not an entity but a pressure system that keeps players moving.
   - The music gets softer and more beautiful.
   - The HUD fades.
   - The Attendant starts speaking *to you directly, by name*.
-  - At full Drift, your character **sits down in the water** and stops responding until a teammate pulls them up.
+  - Your character's hands, holding the blaster, start to prune and soften.
+  - At full Drift, your character **sits down in the water** and stops responding until a teammate pulls them up. (Solo, you mash Space or fire to snap out of it.)
 - Drift drops in Safe Rooms, near teammates, near Signals, and when you shoot (noise and light pull you back).
 
 ---
@@ -205,7 +229,7 @@ The power cell restarts the door mechanism. Once the bulkhead seals, nothing get
 ### The Lido
 In deeper Safe Rooms you sometimes meet the **Lido**: survivors who stopped trying to leave and live permanently in the plant rooms. They trade, they repair, they know rumours. They are very relaxed. Some of them have high Drift and don't seem to mind.
 
-The Lido believe the Main Drain is **a door home**. Their leader, **Mrs. Vance**, has been down so long she can't remember the colour yellow.
+The Lido believe the Main Drain is **a door home**. Their leader, **Mrs. Vance**, has been down so long she can't remember the colour yellow. Her skin is soft as tissue and she keeps her hands in her lap, folded, because they don't unfold anymore.
 
 ---
 
@@ -230,12 +254,22 @@ Structured like a Left 4 Dead campaign: chapters ending in Safe Rooms, then a fi
 ### The truth about the blockage
 At the bottom is the **Main Drain**: a grate the size of a cathedral, with water spiralling through it. It's blocked by a mass of Floaters, Blooms and belongings: everyone who was lost, packed together and calm.
 
-Crew Seven are part of it. They aren't dead. They're **underflowed**: too small to count, perfectly at peace.
+Crew Seven are part of it. They aren't dead. They're **underflowed**: folded small, fused into the mass, too small to count, perfectly at peace. Caleb's face is in there. It smiles when Mars says his name.
 
-### The ending choice
-1. **Clear the drain.** The blockage goes through, Crew Seven with it. The water above recedes and the Backrooms is saved, but you don't know where they went. The way out, if there is one, is open. *"You found the surface."*
-2. **Seal the drain.** Use the Pumphouse's equipment to close it. Crew Seven stays where it is: lost but intact. The water above keeps rising more slowly. You go back up the long way, if that's possible.
-3. **(Secret) Take the Lifeguard's chair.** With maximum Drift, Mars climbs the tower and takes the whistle. Somebody has to count heads. The ride needs an operator.
+### The endings
+**Canon ending: "The Loop."** The crew clears the drain. The blockage goes down, Crew Seven with it, and the water drops. The crew climbs a ladder out of the Main Drain, up into yellow light and damp carpet, and finds itself at the top of the Yellow Channel. A raft is waiting: dry, with four life vests folded neatly on the seat. The tag is in Mars's handwriting.
+
+The raft that came back empty at the start of the game was theirs. They are the crew that went down before. The ride ends where it started.
+
+Why this is the canon one:
+- It pays off the opening hook (the empty raft) instead of leaving it as flavour.
+- It explains the Safe Room graffiti that turns out to be in your own handwriting.
+- It fits Tubs's line that every ride ends where it started, and it makes replaying the campaign part of the story.
+- The current build already ends this way.
+
+**Alternate ending: "Seal the drain."** The crew closes the drain with Pumphouse equipment. Crew Seven stays below: lost, but whole. The loop breaks, the water keeps rising more slowly, and the crew climbs back the long way. Bittersweet, and the only ending in which nobody goes down.
+
+**Secret ending: "Count heads."** Reached with full Drift at the Main Drain. Mars climbs the Lifeguard's chair and takes the whistle. The ride needs an operator. The credits roll over the Attendant's voice, and for the first time it's Mars's voice, slowed down.
 
 ---
 
@@ -258,10 +292,12 @@ No long cutscenes. The story comes through:
 
 ---
 
-## 10. Open decisions
+## 10. Decisions
 
-1. **Names.** Are the crew names and "the Pumphouse," "the Lido" and "the Attendant" right, or placeholders?
-2. **Co-op scope.** Do we commit to 4-player online co-op (big technical cost), or single-player with AI teammates first?
-3. **The ending.** Should the endings stay ambiguous, or should one be clearly canon?
-4. **How dark.** The current tone is quiet, eerie and gore-free. Should it go further toward body horror?
-5. **The Attendant.** Never explained, or revealed late (e.g. a former crew member who became the operator)?
+| Question | Decision |
+|---|---|
+| Names | Kept: **Mars Teague**, **Dez Okoro**, **Tobias "Tubs" Ferrante**, **June Abernathy** (the crew); **Crew Seven**, **Caleb Teague**, **Priya** (the lost crew); **the Pumphouse** (outpost), **the Lido** (Safe Room dwellers), **Mrs. Vance** (Lido leader), **the Attendant** (PA voice), **the Drainers** (the job). All can still be renamed. |
+| Co-op | **Both**, in this order: (1) single-player with three AI crewmates, like Left 4 Dead's bots; (2) 4-player online co-op. The current build is solo; the story reason is that the raft split at the junction, so the crew talks to you over the radio. |
+| Tone | **Body horror**: slow, clean, bloodless transformation (see Tone rules). |
+| Ending | **One canon ending, "The Loop,"** with "Seal the drain" as the alternate and "Count heads" as the secret. |
+| The Attendant | **Implied, then confirmed only in the secret ending**: it's an earlier Mars who took the chair. |
