@@ -6,6 +6,7 @@ import { writeYaw, writeBasis, hide, add, sub, scale, normalize, clamp, damp, rn
 import { tileTexture } from './textures.js';
 import { signMaterial, quad } from './labels.js';
 import { createBlaster, PROFILES, PROFILE_ORDER } from './blaster.js';
+import { createCrewFigure, hideCrewFigure, poseStanding } from './crewfigure.js';
 import { input, wasPressed, isDown, requestLock } from './input.js';
 import { hud } from './hud.js';
 import { sound } from './audio.js';
@@ -348,7 +349,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
   const juneParts = { body: P('June, sitting', cylinder(12, 0.3, 2), { color: [0.25, 0.4, 0.6], metallic: 0, roughness: 0.6 }), head: P('June head', sphere(12, 8), { color: [0.75, 0.62, 0.52], metallic: 0, roughness: 0.4 }) };
   const juneEvent = { state: juneCan ? 'waiting' : 'none', pos: null, lift: 0 };
   // Ariadne's thread: a line paid out from the raft behind you, so you can find the way back. Grout cuts it.
-  const threadParts = Array.from({ length: 70 }, (_, i) => P(`Thread ${i}`, slab, glow([1, 0.82, 0.25], 0.9, { color: [1, 0.8, 0.25] })));
+  const threadParts = Array.from({ length: 70 }, (_, i) => P(`Thread ${i}`, slab, glow([1, 0.82, 0.25], 0.55, { color: [0.75, 0.6, 0.2] })));
   const thread = [];
   // Fumes: only in marked stagnant pockets, and around a pump you have just started.
   const stagnant = new Set();
@@ -366,13 +367,10 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
   const pingMark = P('Ping marker', torus(0.06, 32, 8), glow([0.4, 1, 0.9], 6));
   // The crew on foot: they walk your own trail behind you (so they never take a route you couldn't), cover you,
   // come to you when you are down, and are at the raft when you board. Distinct silhouettes, as on the raft.
-  const LOOK = { mars: ['#3a4a5c', '#b19a50', 1, 1], dez: ['#22324a', '#9a8445', 1.02, 0.95], tubs: ['#8a8278', '#a8823a', 1.05, 1.3], june: ['#c9c6b8', '#b46a3c', 1.08, 0.85] };
   const followers = (state.regrouped || sector.index > 0) && !state.endless && (!sector.custom || sector.chapter)
     ? Object.keys(state.crewState || {}).filter((c) => !(state.forgotten || []).includes(c) && state.crewState[c] !== 'hurt').slice(0, 3).map((id, k) => ({
       id, k, pos: null, cool: 1 + k * 0.5,
-      body: P(`Crew ${id} on foot`, cylinder(14, 0.4, 2), { color: linear(LOOK[id][0]), metallic: 0, roughness: 0.75 }),
-      vest: P(`Crew ${id} vest on foot`, box(0.08, 2), { color: linear(LOOK[id][1]), metallic: 0, roughness: 0.6 }),
-      head: P(`Crew ${id} head on foot`, sphere(14, 10), { color: [0.62, 0.48, 0.38], metallic: 0, roughness: 0.6 }),
+      fig: createCrewFigure(P, id, ' on foot'), walk: 0, pace: 0, yaw: 0,
     }))
     : [];
   const crewShot = P('Crew shot on foot', slab, glow([0.85, 1, 0.45], 10));
@@ -1331,23 +1329,27 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     for (const f of followers) {
       f.pos ||= [raftPos[0] + (f.k - 1) * 0.9, 0, raftPos[2] + 0.9];
       const sitting = f.id === 'june' && juneEvent.state === 'sitting';
-      if (sitting || juneEvent.state === 'left' && f.id === 'june') { hide(f.body); hide(f.vest); hide(f.head); continue; }
+      if (sitting || juneEvent.state === 'left' && f.id === 'june') { hideCrewFigure(f.fig); continue; }
       // Target: a point on your trail behind you; when you are down, your side.
       const trailPt = thread[thread.length - 1 - (f.k + 1)] || [raftPos[0] + (f.k - 1) * 0.9, 0, raftPos[2] + 0.8];
       const target = state.downed && f.k === 0 ? [player.pos[0] + 0.7, 0, player.pos[2] + 0.4] : trailPt;
       const to = [target[0] - f.pos[0], 0, target[2] - f.pos[2]];
       const dd = Math.hypot(to[0], to[2]);
       const spd = dd > 6 ? 5.5 : 3.6;
-      if (dd > 0.6) f.pos = add(f.pos, scale(normalize(to), Math.min(dd, spd * dt)));
+      const moving = dd > 0.6;
+      if (moving) f.pos = add(f.pos, scale(normalize(to), Math.min(dd, spd * dt)));
+      // Stride from actual movement, so feet don't skate: pace eases in and out.
+      f.pace = damp(f.pace, moving ? Math.min(1, spd / 5) : 0, 6, dt);
+      f.walk += dt * (4 + f.pace * 6) * (f.pace > 0.05 ? 1 : 0);
       const [cx, cz] = cellOf(f.pos[0], f.pos[2]);
       const fl = floorTop(cx, cz);
       const wet = inWaterAt(f.pos[0], f.pos[2]);
       const kneel = state.downed && f.k === 0 && dd < 1 ? 0.45 : 0;
-      const L = LOOK[f.id], h = 1.25 * L[2] - kneel - (wet ? 0.35 : 0);
-      const yaw = Math.atan2(player.pos[0] - f.pos[0], player.pos[2] - f.pos[2]);
-      writeYaw(f.body.matrix, [f.pos[0], fl + h / 2, f.pos[2]], yaw, 0.2 * L[3], h, 0.16 * L[3]);
-      writeYaw(f.vest.matrix, [f.pos[0], fl + h * 0.68, f.pos[2]], yaw, 0.42 * L[3], 0.34, 0.34 * L[3]);
-      writeYaw(f.head.matrix, [f.pos[0], fl + h + 0.13, f.pos[2]], yaw, 0.12, 0.14, 0.12);
+      const h = 1.25 * f.fig.L.tall - kneel - (wet ? 0.35 : 0);
+      // Face where they are going while walking; turn to you when they stop.
+      const want = moving ? Math.atan2(to[0], to[2]) : Math.atan2(player.pos[0] - f.pos[0], player.pos[2] - f.pos[2]);
+      f.yaw += Math.atan2(Math.sin(want - f.yaw), Math.cos(want - f.yaw)) * Math.min(1, dt * 6);
+      poseStanding(f.fig, { feet: [f.pos[0], fl - (wet ? 0.35 : 0), f.pos[2]], yaw: f.yaw, walk: f.walk, pace: f.pace, drop: kneel });
       // Cover fire: the nearest Bloom they can see, or the Undertow if it has you.
       f.cool -= dt;
       if (f.cool > 0) continue;
@@ -1464,9 +1466,11 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
       const a = i === 0 ? [raftPos[0], 0.05, raftPos[2]] : thread[i - 1];
       const b = thread[i];
       if (!a || !b || b.cut) return hide(part);
+      // Stop short of your own feet, so the line guides from the floor ahead instead of running into the lens.
+      if (Math.hypot(b[0] - player.pos[0], b[2] - player.pos[2]) < 1.4) return hide(part);
       const d = [b[0] - a[0], 0, b[2] - a[2]];
       const L = Math.hypot(d[0], d[2]) || 0.01;
-      writeYaw(part.matrix, [(a[0] + b[0]) / 2, Math.max(a[1], b[1]), (a[2] + b[2]) / 2], Math.atan2(d[0], d[2]), 0.03, 0.02, L);
+      writeYaw(part.matrix, [(a[0] + b[0]) / 2, Math.max(a[1], b[1]), (a[2] + b[2]) / 2], Math.atan2(d[0], d[2]), 0.022, 0.015, L);
     });
     if (surge && !surge.done) {
       const near = Math.hypot(panelPos[0] - player.pos[0], panelPos[2] - player.pos[2]) < 9;

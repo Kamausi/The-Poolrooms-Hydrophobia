@@ -67,19 +67,23 @@ The Blacklight Pavilion keeps its violet; the Rooftop Lagoon's sky is overcast.
 
 ## Architecture and surfaces (built: `src/textures.js`, `src/ride.js`)
 
-Square tile grids with batch variation (a few tiles from a different firing), grout darkened where moisture never leaves, hairline cracks and drip stains. A faded waterline band runs along every channel wall; now and then it continues at the wrong height. The normal pattern is established before it is broken.
+Square tile grids with batch variation (a few tiles from a different firing), grout darkened where moisture never leaves, hairline cracks and drip stains. A faded waterline band runs along every channel wall; now and then it continues at the wrong height. The normal pattern is established before it is broken. Things you interact with look like fittings, not game objects: signal targets are lit rings on dark wall plates, and gate markers are worn safety-yellow channel buoys with a black band and a small lamp.
 
-## The raft and the crew (built: `src/ride.js`)
+## The tool in your hand (built: `src/blaster.js`)
 
-The raft is worn safety yellow with a rope trim, black straps, a strapped supply case, and every scuff and patch it has ever had. From the first Safe Room onward the crew rides in it with you, each with a distinct silhouette and the only warm colours in the frame: Mars compact in a short jacket, Dez in navy workwear, Tubs broad in a padded vest, June tall in a long pale waterproof. They duck when you brace, sway with the paddle, and their seat is empty when the manifest forgets them.
+A maintenance instrument, not a toy. It has a matte painted receiver, a vented heat shroud, a worn safety-yellow carry handle, a raked grip, a charge window set into the side, an inspection lens in its own housing, and a muzzle collar. A worn work glove is closed on the grip, and the sleeve is navy waterproof with a reflective band. Edges are lightly bevelled so they read; nothing is glossy.
+
+## The raft and the crew (built: `src/ride.js`, `src/crewfigure.js`)
+
+The raft is worn safety yellow with a rope trim, black straps, a strapped supply case, and every scuff and patch it has ever had. From the first Safe Room onward the crew rides in it with you, each with a distinct silhouette and the only warm colours in the frame: Mars compact in a short jacket, Dez in navy workwear, Tubs broad in a padded vest, June tall in a long pale waterproof. Each reads by silhouette before colour: Mars in a safety helmet, Dez in a brimmed cap, Tubs in a beanie, June in a hood. One figure build serves every place they appear: seated on the gunwale with their hands on the rope, walking your trail on foot (legs, boots, a stride driven by how far they actually move, arms swinging against the legs), and standing or sitting in the Safe Room. They duck when you brace, sway with the paddle, and their seat is empty when the manifest forgets them.
 
 ## Entities (built: `src/ride.js`, `src/explore.js`)
 
-Swelling, flattening, folding, loss of anatomy, made of rubber, fabric, water and porcelain. Blooms are translucent waterlogged masses with a faint coral heart that brightens as they swell to attack, and collapse into folds when they die. The Undertow is a flattened form under the surface. Grout moves through the seams (and clicks first). The Lifeguard is a rigid outline in a faded red uniform, arms straight down, pale hands and one coral whistle cord, readable by posture before face.
+Swelling, flattening, folding, loss of anatomy, made of rubber, fabric, water and porcelain. Blooms are translucent waterlogged masses: faceted folds that shift on their own slow beats around a faint coral heart, with short strands hanging from them. The heart brightens as they swell to attack, and they collapse into folds when they die. The climber rises out of the water and hauls itself over the tube: pale and wet, its head hanging and its arms too long, reaching into the raft. The Undertow is a flattened form under the surface. Grout moves through the seams (and clicks first). The Lifeguard is a rigid outline in a faded red uniform, arms straight down, pale hands and one coral whistle cord, readable by posture before face.
 
-## Interface (built: `src/style.css`)
+## Interface (built: `src/style.css`, `src/hud.js`)
 
-Dark petroleum panels, dirty ivory text, thin teal borders, short monospaced readings, coral only for danger and green only for recovery. The reticle has a dark outline so it reads on dark water and pale tile. The world can lie (contradictory counters, false announcements, unverified voices); crew status, controls and prompts never do.
+Dark petroleum panels, dirty ivory text, thin teal borders, short monospaced readings, coral only for danger and green only for recovery. The reticle has a dark outline so it reads on dark water and pale tile. The middle of the frame belongs to the world and the reticle. Announcements sit in the upper third, interaction prompts just below the reticle on a thin teal-edged strip, and speech and sound captions at the bottom. The control list shows for a few seconds when a mode starts or after pausing, then fades. Steady facts (raft fit, who is piloting) live in the Safe Room and pause, not on the HUD. On short screens the decorative counters drop away. The world can lie (contradictory counters, false announcements, unverified voices); crew status, controls and prompts never do.
 
 ## Main menu (built: `src/menuscene.js`)
 

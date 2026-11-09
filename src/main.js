@@ -362,7 +362,8 @@ function enterSafeRoom() {
   clearResume();
   const sector = sectorAt(state.sectorIndex);
   // The room itself is rendered behind the overlay: hard light, loud pumps, a window onto an empty pool.
-  swap(() => createSafeRoom(canvas, sector, { drained: !!(state.custom?.chapter && state.routeMod?.[state.sectorKey] === 'drained') }));
+  const present = Object.keys(state.crewState || {}).filter((c) => !(state.forgotten || []).includes(c) && state.crewState[c] !== 'grabbed');
+  swap(() => createSafeRoom(canvas, sector, { drained: !!(state.custom?.chapter && state.routeMod?.[state.sectorKey] === 'drained'), crew: present }));
   // Composure fully recovers; equipment gets a minimum recharge; the raft is cleansed.
   state.arrivalDrift = state.drift;
   state.drift = 0;
@@ -843,7 +844,7 @@ window.__underflow = {
   setState(patch) { Object.assign(state, patch); },
   step(n, dt = 1 / 30) {
     manual = true;
-    for (let i = 0; i < n && scene && !paused && (mode === 'ride' || mode === 'explore'); i++) {
+    for (let i = 0; i < n && scene && !paused && ['ride', 'explore', 'safe', 'menu'].includes(mode); i++) {
       quality.skipRender = i < n - 1;
       scene.update(dt);
       endFrame();

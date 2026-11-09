@@ -4,6 +4,7 @@
 // window is still wrong.
 import { Renderer67, box, cylinder, sphere } from '67js';
 import { writeYaw, writeBasis, linear, display } from './math.js';
+import { createCrewFigure, poseStanding, poseSeated } from './crewfigure.js';
 import { tileTexture } from './textures.js';
 import { signMaterial, quad } from './labels.js';
 import { quality } from './quality.js';
@@ -79,6 +80,26 @@ export function createSafeRoom(canvas, sector, opts = {}) {
   for (let i = 0; i < 6; i++) put(`Hall lamp ${i}`, { color: [1, 1, 0.95], metallic: 0, roughness: 1, emission: 12, emissiveColor: linear(sector.lamp) }, [-40 + i * 16, 14.9, -40 - (i % 2) * 30], [4, 0.1, 1]);
   for (let i = 0; i < 10; i++) put(`Hall chair ${i}`, { color: [0.93, 0.93, 0.9], metallic: 0, roughness: 0.4 }, [-30 + i * 6, -0.4, -20], [0.6, 0.6, 0.6]);
 
+  // The people the text says are here: Tubs at the kettle, Dez at the glass looking at the pool, June on the cot.
+  const SPOTS = {
+    tubs: { stand: [-2.35, 0, -0.75], yaw: -2.2 },
+    dez: { stand: [1.0, 0, -3.35], yaw: Math.PI },
+    mars: { stand: [-0.7, 0, -3.3], yaw: Math.PI + 0.25 },
+    june: { sit: [4.35, 0.47, -2.6], fwd: [-1, 0, 0] },
+  };
+  const crew = (opts.crew || []).filter((id) => SPOTS[id]).map((id) => ({ id, fig: createCrewFigure(P, id, ' in the Safe Room'), spot: SPOTS[id] }));
+  const UPV = [0, 1, 0];
+  const poseCrew = (t) => {
+    crew.forEach(({ fig, spot }, i) => {
+      if (spot.sit) {
+        const fwd = spot.fwd, rgt = [-fwd[2], 0, fwd[0]].map((c) => -c);
+        const breathe = Math.sin(t * 1.1 + i) * 0.01;
+        poseSeated(fig, { p: [spot.sit[0], spot.sit[1] + breathe, spot.sit[2]], rgt, fwd, up: UPV, upL: [0.12, 1, 0], side: 1, duck: 0.05 });
+      } else poseStanding(fig, { feet: spot.stand, yaw: spot.yaw + Math.sin(t * 0.4 + i * 2) * 0.05, walk: t * 0.8, pace: 0 });
+    });
+  };
+  poseCrew(0);
+
   for (const p of parts) if (p.matrix[15] === 0) writeYaw(p.matrix, [0, -500, 0], 0, 1e-4, 1e-4, 1e-4);
   const renderer = new Renderer67(canvas, parts, {
     ground: false, world: true, hdr: true, ...quality.renderer,
@@ -100,6 +121,7 @@ export function createSafeRoom(canvas, sector, opts = {}) {
       if (clockFlicker <= 0) clockFlicker = 3 + Math.random() * 5;
       lamps.forEach((l, i) => (l.material.emission = clockFlicker < 0.08 && i === 1 ? 2 : 14));
       beacon.material.emission = 5 + Math.sin(time * 3) * 2;
+      poseCrew(time);
       const pan = Math.sin(time * 0.08) * 0.35;
       const eye = [1.5 + hum, 1.6 + hum, 2.6];
       const target = [Math.sin(pan) * 6 - 0.5, 1.4, -6];

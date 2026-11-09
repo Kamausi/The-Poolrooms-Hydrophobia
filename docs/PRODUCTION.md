@@ -28,7 +28,7 @@ Verified headlessly end to end: arrival, diverter, landing bonus, docking sequen
 |---|---|---|---|
 | Player feel | Aiming, firing, steering, bracing, wading and docking feel precise and consistent | New players control it with either input and understand their mistakes | Systems built (profiles, focus, shove, brace, docking sequence, trajectory foam, rebinding); **feel unverified by people** |
 | World design | Memorable spaces, believable construction, deliberate impossibilities | Players navigate by landmarks | Palette, tile kit, waterline bands, signage system; architectural kit is primitives, **not finished art** |
-| Characters and creatures | Complete models, animation, reactions, voice | Convincing in chaos | Crew silhouettes that lean, brace and jolt; followers on foot; a full Bloom state set (all procedural). **No authored skeletal animation, finished models or voice yet** |
+| Characters and creatures | Complete models, animation, reactions, voice | Convincing in chaos | One procedural crew figure (headwear silhouettes, arms, legs, a stride from real movement) seated, walking and in the Safe Room; folded Blooms with strands; a climber that hauls itself aboard (all procedural). **No authored skeletal animation, finished models or voice yet** |
 | Cooperation | Players and AI reliably help, travel, fight, finish objectives | Works with 1 human + 3 bots, mixed, 4 humans | AI crew covers, revives (abstracted), follows your trail, rides with you. **No online play** |
 | Campaign design | Distinct objectives, route choices, escalation, payoffs | Players distinguish sectors by what they did | Eight sectors + reference chapter, dock kinds, route consequences |
 | Sound and presentation | Water, architecture, machinery, voices, music, UI as one identity | Players understand events without prompts | Synthesised audio language, per-space reverb, ducking under warnings; **no recorded audio or voice** |
@@ -45,6 +45,22 @@ Verified headlessly end to end: arrival, diverter, landing bonus, docking sequen
 - **Shot readback:** muzzle, beam, a spark in the profile's colour where it landed, the target's reaction, and the world's response (relays arc, ropes drop, currents turn).
 - **Raft readability:** a faint foam line ahead shows where momentum, current and a soft chamber are taking you, only when something is moving you.
 - **Room acoustics:** tiled corridors ring, halls and reservoirs are long, tubes are dull, the Safe Room is dry.
+
+## Presentation pass, checked by staged captures
+
+Each part of the game was captured headlessly at 1280×720 (high quality, software rendering). The weakest things on screen were fixed one at a time and captured again:
+
+| Found | Changed |
+|---|---|
+| Up to four text layers stacked in the middle of the frame; a 13-item control list always on screen | Prompts below the reticle, announcements in the upper third, speech and captions at the bottom; the controls fade after a few seconds |
+| The tool in hand was a glossy, heavily rounded blob with a pale ball and an orange sleeve | A built maintenance tool and a gloved hand (see `ART_DIRECTION.md`) |
+| The crew were a cylinder, a slab and a ball; on foot they slid without legs; the Safe Room said they were there and it was empty | One crew figure with headwear, arms and legs, used seated, walking and in the Safe Room |
+| Blooms were a smooth ball with a bar through it; the climber was an upright white cylinder with a spinning ball | Folded faceted masses with strands; a climber that hauls itself over the tube |
+| A gate marker bloomed into a glowing egg beside the raft; signal targets were 1.1 m hoops floating in the air | Channel buoys with a lamp; lit rings on wall plates (hit areas unchanged) |
+| The foam line ahead read as road markings; the guide thread on foot ran into the lens | Fainter foam flecks further ahead; the thread stops short of your feet |
+| Subtitles landed mid-screen on short landscape screens | Short-screen layout |
+
+The DEV `step()` hook now also advances the Safe Room and the menu, so captures show what a player sees. These are software renders of single frames. Motion, GPU rendering and how any of it feels to a person are still unchecked.
 
 ## Balance, measured with a competent-player bot
 

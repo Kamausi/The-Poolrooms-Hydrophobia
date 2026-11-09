@@ -6,6 +6,7 @@ import { Renderer67, box, sphere, cylinder, torus } from '67js';
 import { dot, writeYaw, writeBasis, writeSegment, hide, add, sub, scale, normalize, clamp, damp, rng, screenRay, raySphere, rayPlaneY, linear, cross, display, project, angleTo, soundDir, distance } from './math.js';
 import { tileTexture } from './textures.js';
 import { signMaterial, quad } from './labels.js';
+import { createCrewFigure, hideCrewFigure, poseSeated } from './crewfigure.js';
 import { createBlaster, PROFILES, PROFILE_ORDER } from './blaster.js';
 import { input, wasPressed, isDown } from './input.js';
 import { hud } from './hud.js';
@@ -179,73 +180,23 @@ export function createRide(canvas, state, sector, events, opts = {}) {
   const hookRope = P('Hook line', slab, { color: [0.95, 0.8, 0.2], metallic: 0, roughness: 0.6 });
   const hookHead = P('Hook', torus(0.05, 18, 6), { color: [0.6, 0.6, 0.6], metallic: 0.9, roughness: 0.3 });
   // The crew in the raft (after they regroup at the first Safe Room). Distinct silhouettes, the only warm colours.
-  // Read by silhouette first, colour second: Mars's safety helmet, Dez's brimmed cap, Tubs broad in a beanie,
-  // June tall in a pale hood and long coat.
-  const CREW_LOOK = {
-    mars: { jacket: '#3a4a5c', vest: '#b19a50', hat: '#b19a50', hatKind: 'helmet', tall: 1, broad: 1 },
-    dez: { jacket: '#22324a', vest: '#9a8445', hat: '#1b2738', hatKind: 'cap', tall: 1.02, broad: 0.95 },
-    tubs: { jacket: '#8a8278', vest: '#a8823a', hat: '#2b2a27', hatKind: 'beanie', tall: 1.05, broad: 1.3 },
-    june: { jacket: '#c9c6b8', vest: '#b46a3c', hat: '#bdbaac', hatKind: 'hood', tall: 1.08, broad: 0.85, coat: true },
-  };
-  const skin = { color: [0.5, 0.38, 0.3], metallic: 0, roughness: 0.65 };
-  const crewFigs = ['mars', 'dez', 'tubs', 'june'].map((id) => {
-    const L = CREW_LOOK[id];
-    const cloth = { color: linear(L.jacket), metallic: 0, roughness: 0.8 };
-    return {
-      id,
-      body: P(`Crew ${id}`, cylinder(14, 0.4, 2), cloth),
-      vest: P(`Crew vest ${id}`, box(0.04, 2), { color: linear(L.vest).map((c) => c * 0.8), metallic: 0, roughness: 0.8 }),
-      shoulders: P(`Crew shoulders ${id}`, box(0.35, 3), cloth),
-      armL: P(`Crew arm L ${id}`, cylinder(10, 0.45, 2), cloth),
-      armR: P(`Crew arm R ${id}`, cylinder(10, 0.45, 2), cloth),
-      handL: P(`Crew hand L ${id}`, box(0.4, 2), { color: [0.1, 0.1, 0.09], metallic: 0, roughness: 0.95 }),
-      handR: P(`Crew hand R ${id}`, box(0.4, 2), { color: [0.1, 0.1, 0.09], metallic: 0, roughness: 0.95 }),
-      head: P(`Crew head ${id}`, sphere(14, 10), skin),
-      hat: P(`Crew hat ${id}`, sphere(16, 10), { color: linear(L.hat), metallic: 0, roughness: L.hatKind === 'helmet' ? 0.5 : 0.9 }),
-      brim: P(`Crew brim ${id}`, box(0.2, 2), { color: linear(L.hat), metallic: 0, roughness: 0.9 }),
-    };
-  });
-  const crewPieces = (f) => [f.body, f.vest, f.shoulders, f.armL, f.armR, f.handL, f.handR, f.head, f.hat, f.brim];
+  // The crew in the raft (after they regroup at the first Safe Room); the figure itself is in crewfigure.js.
+  const crewFigs = ['mars', 'dez', 'tubs', 'june'].map((id) => createCrewFigure(P, id));
   const SEATS = [[-1.0, 1.6], [1.02, 1.4], [-1.1, 0.75]]; // on the gunwales, out of the line of fire
   function placeCrew(base, rgt, fwd, up) {
     const aboard = (state.regrouped || state.sectorIndex > 0) && !state.endless ? Object.keys(state.crewState).filter((c) => !(state.forgotten || []).includes(c) && state.crewState[c] !== 'grabbed') : [];
     let seat = 0;
     for (const f of crewFigs) {
       const on = aboard.includes(f.id) && seat < SEATS.length && !(capsize && capsize.t > 0.6 && capsize.t < 4.4);
-      if (!on) { crewPieces(f).forEach(hide); continue; }
-      const L = CREW_LOOK[f.id];
+      if (!on) { hideCrewFigure(f); continue; }
       const [x, z] = SEATS[seat++];
-      const side = x < 0 ? -1 : 1; // which gunwale they sit on; the inboard arm holds the raft's rope
       const hurt = state.crewState[f.id] === 'hurt';
-      const duckC = braced || hurt || flowT > 0 || shake > 0.45 ? 0.25 : 0; // they brace with you, and when the water turns
+      const duck = braced || hurt || flowT > 0 || shake > 0.45 ? 0.25 : 0; // they brace with you, and when the water turns
       const sway = Math.sin(time * 1.3 + seat) * 0.03 + (paddleT > 0.5 ? Math.sin(strokePhase * Math.PI * 2) * 0.06 : 0);
       const p = add(add(add(base, scale(rgt, x + sway)), scale(fwd, z)), scale(up, 0.12));
-      const h = 0.5 * L.tall - duckC; // seated low on the tube
       // They lean into turns (against the slide), and jolt on impacts; bracing hunches them forward.
-      const upL = normalize(add(add(up, scale(rgt, clamp(-velX * 0.05, -0.22, 0.22) + (shake > 0.3 ? Math.sin(time * 40 + seat) * 0.05 : 0))), scale(fwd, duckC * 0.8)));
-      const B = L.broad;
-      writeBasis(f.body.matrix, add(p, scale(upL, h / 2)), rgt, upL, fwd, 0.17 * B, h * (L.coat ? 1.08 : 1), 0.14 * B);
-      writeBasis(f.vest.matrix, add(p, scale(upL, h * 0.6)), rgt, upL, fwd, 0.36 * B, h * 0.5, 0.31 * B);
-      const sh = add(p, scale(upL, h * 0.9));
-      writeBasis(f.shoulders.matrix, sh, rgt, upL, fwd, 0.42 * B, 0.11, 0.2 * B);
-      const neck = add(sh, scale(upL, 0.07));
-      const head = add(neck, scale(upL, 0.1));
-      writeBasis(f.head.matrix, head, rgt, upL, fwd, 0.095, 0.115, 0.105);
-      // Arms: down to the rope on the gunwale, gripping; the paddle stroke pulls them back and forth.
-      const stroke = paddleT > 0.5 ? Math.sin(strokePhase * Math.PI * 2) * 0.12 : 0;
-      for (const [arm, hand, k] of [[f.armL, f.handL, -1], [f.armR, f.handR, 1]]) {
-        const shoulder = add(sh, scale(rgt, 0.2 * B * k));
-        const grip = add(add(add(p, scale(rgt, (0.24 * B + 0.08) * k + (k === side ? 0.06 : -0.02))), scale(fwd, 0.16 + stroke * k)), scale(up, 0.06 + duckC * 0.3));
-        writeSegment(arm.matrix, shoulder, grip, 0.05 * B);
-        writeBasis(hand.matrix, grip, rgt, upL, fwd, 0.08, 0.06, 0.1);
-      }
-      const hatK = L.hatKind;
-      if (hatK === 'helmet') writeBasis(f.hat.matrix, add(head, scale(upL, 0.06)), rgt, upL, fwd, 0.118, 0.075, 0.128);
-      else if (hatK === 'cap') writeBasis(f.hat.matrix, add(head, scale(upL, 0.065)), rgt, upL, fwd, 0.104, 0.06, 0.11);
-      else if (hatK === 'beanie') writeBasis(f.hat.matrix, add(head, scale(upL, 0.07)), rgt, upL, fwd, 0.104, 0.085, 0.11);
-      else writeBasis(f.hat.matrix, add(add(head, scale(upL, 0.025)), scale(fwd, -0.02)), rgt, upL, fwd, 0.128, 0.142, 0.13); // the hood
-      if (hatK === 'cap') writeBasis(f.brim.matrix, add(add(head, scale(upL, 0.05)), scale(fwd, 0.11)), rgt, upL, fwd, 0.16, 0.015, 0.1);
-      else hide(f.brim);
+      const upL = normalize(add(add(up, scale(rgt, clamp(-velX * 0.05, -0.22, 0.22) + (shake > 0.3 ? Math.sin(time * 40 + seat) * 0.05 : 0))), scale(fwd, duck * 0.8)));
+      poseSeated(f, { p, rgt, fwd, up, upL, side: x < 0 ? -1 : 1, stroke: paddleT > 0.5 ? Math.sin(strokePhase * Math.PI * 2) * 0.12 : 0, duck });
     }
   }
   // The climber: pale, waterlogged, too long in the arm. It hauls itself over the tube rather than standing up.
@@ -2378,7 +2329,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
       const lim = Math.max(0.5, Math.min(sec0.half, 6) - 0.95);
       traj.forEach((t, i) => {
         for (let k = 0; k < 4; k++) { v += (-v * 2.6 + (sec0.bias || 0) * 2.4 + hullFx.pull) * 0.06; x = clamp(x + v * 0.06, -lim, lim); }
-        const at = s + 2 + speed * 0.24 * (i + 1);
+        const at = s + 4 + speed * 0.24 * (i + 1);
         // Foam flecks, thinning with distance: a read of the water, not a painted lane.
         writeYaw(t.matrix, track.lateral(at, x, 0.02), track.at(at).yaw + Math.sin(i * 1.9) * 0.25, 0.06 * (1 - i * 0.08), 0.008, 0.28 + (i % 2) * 0.1);
       });
