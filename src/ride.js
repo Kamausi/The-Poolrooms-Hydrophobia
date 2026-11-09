@@ -925,7 +925,10 @@ export function createRide(canvas, state, sector, events, opts = {}) {
       } else if (a.type === 'spawn' && !curRoom && sec.type !== 'lift') {
         // Groups arrive from more than one direction: ahead, from the wall grates, and behind the raft.
         for (let k = 0; k < a.count; k++) {
-          const from = a.flank ? k % 3 : 0;
+          // In slow water (the reservoir, a paddled stretch) nothing spawns behind: it would catch the raft for free.
+          // The pressure comes from the grates instead, where it can be seen and answered.
+          let from = a.flank ? k % 3 : 0;
+          if (from === 2 && (speed < 4 || sec.paddle)) from = 1;
           if (from === 2) spawnBloom(s - 14 - random() * 8, (random() - 0.5) * sec.half, 0.8 + random() * 1.6);
           else if (from === 1) spawnBloom(s + 18 + random() * 14, (random() < 0.5 ? -1 : 1) * (Math.min(sec.half, 6) - 0.3), 0.3 + random() * 0.4);
           else spawnBloom(s + 35 + random() * 25, (random() - 0.5) * Math.min(sec.half, 6) * 1.4, 0.8 + random() * 2);
