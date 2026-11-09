@@ -11,9 +11,12 @@ async function open({ width = 960, height = 540, clear = true } = {}) {
   const errors = [];
   page.on('pageerror', (e) => errors.push('PAGE ' + e.message));
   page.on('console', (m) => { if (m.type() === 'error') errors.push('CONSOLE ' + m.text().slice(0, 200)); });
+  // A freshly started dev server (CI) can take a while to transform the modules: wait for the game's hooks,
+  // not for a fixed time.
+  const ready = async () => { await page.waitForFunction(() => !!window.__underflow, null, { timeout: 120000 }); await page.waitForTimeout(800); };
   await page.goto(`${BASE}/?quality=low`);
-  await page.waitForTimeout(1000);
-  if (clear) { await page.evaluate(() => localStorage.clear()); await page.reload(); await page.waitForTimeout(1000); }
+  await ready();
+  if (clear) { await page.evaluate(() => localStorage.clear()); await page.reload(); await ready(); }
   return { browser, page, errors };
 }
 
