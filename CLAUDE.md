@@ -26,7 +26,9 @@ Local notes: `src/CLAUDE.md` (engine and module rules). Skills in `.claude/skill
 npm run dev            # http://localhost:5173 (DEV hooks: window.__underflow, __ride, __explore)
 npm run build          # dist/
 npm run build:single   # dist/UNDERFLOW.html, one playable file
-npm test               # maps, smoke, chapter, memory, resume (starts its own dev server)
+npm test               # unit tests, then the browser tests (starts its own dev server)
+npm run typecheck      # tsc over the files listed in tsconfig.json
+npm run test:unit      # Vitest: pure modules, no browser (tests/unit/)
 npm run test:balance   # the competent-player bot through all eight attractions (slow)
 ```
 

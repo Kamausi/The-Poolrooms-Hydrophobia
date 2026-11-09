@@ -4,6 +4,7 @@ Headless Chromium (software GL, `?quality=low`) driving the game through its DEV
 
 | File | Checks | Time |
 |---|---|---|
+| `unit/*.test.js` | Vitest, no browser: director phases, omen holds, busy delays spawns, rng determinism, hull chambers, facility memory authoring | instant |
 | `maps.mjs` | Every dock map is solvable (node only, no browser) | instant |
 | `smoke.cjs` | Normal maps build; the HUD hides the menu and fades the controls; all eight attractions ride to the dock, explore, restore and board | ~1 min |
 | `chapter.cjs` | The Closed Wave Pool end to end | ~1 min |
@@ -19,9 +20,13 @@ Headless Chromium (software GL, `?quality=low`) driving the game through its DEV
 | `single.cjs` | `dist/UNDERFLOW.html` opens from disk, starts and carries its recorded sound (run `npm run build:single` first) | <1 min |
 
 ```sh
-npm test                    # the quick set
+npm test                    # unit tests, then the quick browser set
+npm run test:unit           # unit tests only
+npm run typecheck           # type check (tsconfig.json lists the files)
 node tests/run.mjs balance  # one test by name
 UNDERFLOW_URL=http://localhost:5173 node tests/smoke.cjs   # against a server you already run
 ```
 
 Each test prints `ok` / `FAIL` lines and exits non-zero on a failure or any page error. Shared helpers are in `lib.cjs`.
+
+CI (`.github/workflows/node.js.yml`) runs on Node 20 and 22: `npm ci`, `npx playwright install --with-deps chromium`, typecheck, unit tests, build, browser tests. Playwright is pinned to the version whose Chromium the cloud sessions have preinstalled.

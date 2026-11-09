@@ -69,6 +69,21 @@ The Blacklight Pavilion keeps its violet; the Rooftop Lagoon's sky is overcast.
 
 Square tile grids with batch variation (a few tiles from a different firing), grout darkened where moisture never leaves, hairline cracks and drip stains. The tiles have relief: recessed grout, bevelled edges that catch the lamps, each tile set very slightly off true, and a faint glaze wear from a CC0 detail map. The Safe Room floor is diamond plate. A faded waterline band runs along every channel wall; now and then it continues at the wrong height. The normal pattern is established before it is broken. Things you interact with look like fittings, not game objects: signal targets are lit rings on dark wall plates, and gate markers are worn safety-yellow channel buoys with a black band and a small lamp.
 
+## The Poolrooms grammar: grid, circle, arch
+
+**Rule: every Poolrooms space looks structurally simple at first glance and geometrically impossible after inspection.** Not "look how detailed this is", but "I understand this room… no, I don't."
+
+The reference board (tiled columns standing in water, nested circular tunnels, the yellow office meeting the tiled canal, a cloud-painted room with a slide entering the water, coloured slide tubes in a tiled void) moves the identity toward *an impossible architectural rendering of an aquatic centre*:
+
+- **Tile is the material.** Walls, floors, ceilings, columns, arches, stairs and pool interiors share the small-format grid. Material variety stays very low.
+- **Grid + circle + arch.** Round tiled columns rising straight out of floor and water; arches at the mouths of corridors; circular tunnels; curved pools.
+- **Empty.** Normal Poolrooms spaces hold water, columns, an opening and perhaps a ladder. Crates, carts, cables and signage belong to maintenance spaces and Safe Rooms, which stay comparatively cluttered and human. A single silhouette in an empty room carries enormous weight.
+- **Saturated water.** Against yellowed ivory, water is one of the few rich colours: aqua in the shallows, emerald-teal deeper, near-black green where you can't reach. It should look inviting; that is Drift's temptation.
+- **Extreme light.** Either sterile and shadowless (nowhere to hide, then one black opening) or nearly black with only the water and a few fixtures readable. Darkness is worse after time somewhere bright.
+- **Rare childish rooms.** Clouds, primary-colour slides, painted fish, with nobody in them. Rare, so they become landmarks.
+- **Slides through impossible architecture.** Tubes that enter walls at impossible angles, cross huge tiled voids, return to the same chamber. Seen before they are ridden.
+- **Descent.** Early: recognisable pools with small spatial errors. Middle: huge tiled halls, nested arches, flooded corridors, circular tunnels. Deep: wall, floor and pool stop being distinct. Near the Main Drain the grid bends around organic forms.
+
 ## The tool in your hand (built: `src/blaster.js`)
 
 A maintenance instrument, not a toy. It has a matte painted receiver, a vented heat shroud, a worn safety-yellow carry handle, a raked grip, a charge window set into the side, an inspection lens in its own housing, and a muzzle collar. A worn work glove is closed on the grip, and the sleeve is navy waterproof with a reflective band. Edges are lightly bevelled so they read; nothing is glossy.
