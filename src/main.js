@@ -17,8 +17,9 @@ import { sound } from './audio.js';
 import { quality } from './quality.js';
 import { rng } from './math.js';
 import { playlog, createFrameStats } from './playlog.js';
+import { facility, recordSector, note, rescueVisitor, authorExpedition, saveFacility } from './memory.js';
 import { settings } from './settings.js';
-import { showModal, hideModal, applyDisplaySettings, showSafeRoom, showDocument, showKeypad, settingsView, logbookView } from './ui.js';
+import { showModal, hideModal, applyDisplaySettings, ledgerView, showSafeRoom, showDocument, showKeypad, settingsView, logbookView } from './ui.js';
 import { CREW, crewById, loadLoops, saveLoop } from './crew.js';
 
 const SAVE_KEY = 'underflow-save-v2';
@@ -53,7 +54,14 @@ function sectorAt(index) {
   // A custom or shared route: one attraction's look, the player's own ride tokens.
   if (state.custom?.chapter) return { ...REFERENCE_CHAPTER, index: REFERENCE_CHAPTER.index, custom: true };
   if (state.custom) return { ...SECTORS[state.custom.base] , index, ride: state.custom.tokens, custom: true, crew: [] };
-  if (!state.endless) return { ...SECTORS[index], index };
+  if (!state.endless) {
+    // The facility's accepted variation for this expedition: fixed at departure, the same for every retry.
+    const base = SECTORS[index];
+    const v = state.variants?.[index];
+    if (!v) return { ...base, index };
+    const ride = v.extend ? [...base.ride.slice(0, -1), 'hall:extended', base.ride[base.ride.length - 1]] : base.ride;
+    return { ...base, index, ride, map: v.map || base.map, variant: v };
+  }
   // Endless: a seeded attraction per depth, with a random ride and harder threats.
   const r = rng(state.seed * 131 + index * 7919);
   const base = SECTORS[Math.floor(r() * SECTORS.length)];
@@ -62,7 +70,7 @@ function sectorAt(index) {
 }
 function planFor(sector) {
   const random = rng(5000 + sector.index * 97 + state.attempt * 13 + state.seed * 3);
-  return { items: buildPlan(sector, random, (sector.threat || 1) * (state.pressure || 1) * (state.highWater ? 1.3 : 1)), choices: {} };
+  return { items: buildPlan(sector, random, (sector.threat || 1) * (state.pressure || 1) * (state.highWater ? 1.3 : 1) * (sector.variant?.dangerous ? 1.25 : 1)), choices: {} };
 }
 const keyFor = (index) => `${state.endless ? 'e' : 's'}${index}`;
 
@@ -150,6 +158,13 @@ const events = {
       }
     }
     state.protectT = Math.max(0, (state.protectT || 0) - dt);
+    // Everyone brought back gets a name in the crew's ledger. The facility's records will disagree.
+    while ((state.namedRescues || 0) < state.rescued) {
+      state.namedRescues = (state.namedRescues || 0) + 1;
+      const name = rescueVisitor(state.sectorKey);
+      (state.visitorsThisRun ||= []).push(name);
+      hud.toast(`${name.toUpperCase()} · BROUGHT TO SAFETY · IN THE LEDGER`);
+    }
     // Incapacitated: once per checkpoint, the first fall is not death. Pulse only, from the floor.
     if (state.health <= 0 && !state.fatal && !state.downed && !state.downUsed && !state.sitting) {
       const crew = Object.keys(state.crewState || {}).filter((c) => !state.forgotten.includes(c) && state.crewState[c] !== 'hurt');
@@ -220,7 +235,9 @@ const events = {
       const i = dock?.exits.findIndex((ex) => ex.route === 'service');
       if (dock && i >= 0) state.ride.choices[dock.id] = i;
       // What the crew did on foot rewrites the way out: a flooded outlet or an exposed one.
+      if (!state.endless && !state.custom && !(state.memDone ||= {})[`r${state.sectorKey}`]) { state.memDone[`r${state.sectorKey}`] = true; recordSector(state.sectorKey, 'restored'); }
       const mod = state.routeMod?.[state.sectorKey];
+      if (mod && !state.endless && !state.custom && !state.memDone[`m${state.sectorKey}`]) { state.memDone[`m${state.sectorKey}`] = true; recordSector(state.sectorKey, mod); }
       const ex = dock?.exits[i];
       if (mod && ex && !ex.modded) {
         ex.modded = mod;
@@ -234,14 +251,19 @@ const events = {
     startRide({ resumeS: state.ridePosition?.s, departed: state.ridePosition?.departed });
   },
   safeRoom() { playlog.record('section', { label: state.sectorKey, seconds: Math.round((performance.now() - (state.sectorStart || performance.now())) / 1000) }); enterSafeRoom(); },
+  /** Optional spaces explored, documents read, puzzles solved: what the facility expands next time. */
+  interest(n = 1) { if (!state.endless && !state.custom) recordSector(state.sectorKey, 'interest', n); },
+  /** The crew's ledger: only ever what actually happened. */
+  ledger(kind, item) { if (note(kind, item)) hud.toast(`FIELD LEDGER · ${item.toUpperCase()}`); },
   drop() {
+    if (!state.endless && !state.custom) recordSector(state.sectorKey, 'bypassed');
     // The bypass: no checkpoint, no heal. The spillway drops you into the next sector.
     hud.toast('SPILLWAY · NO CHECKPOINT');
     sound.splash();
     nextSector(false);
   },
   read(doc) {
-    if (!state.logbook.some((d) => d.id === doc.id)) state.logbook.push(doc);
+    if (!state.logbook.some((d) => d.id === doc.id)) { state.logbook.push(doc); events.interest(1); }
     pauseForOverlay(() => showDocument(doc, resumeFromOverlay));
   },
   keypad(code, success) {
@@ -337,6 +359,7 @@ function enterSafeRoom() {
   state.guests += 1;
   state.downUsed = false;
   state.downed = null;
+  if (!state.endless && !state.custom) { recordSector(state.sectorKey, 'visits'); note('places', sector.name); }
   state.fatal = false;
   for (const c of Object.keys(state.crewState || {})) if (state.crewState[c] === 'hurt') state.crewState[c] = 'ok';
   if (state.challenge?.kind === 'departure') return events.challengeDone('You made the last departure.');
@@ -449,6 +472,7 @@ ${expeditionRecord()}`, [['RIDE AGAIN ↗', () => { hideModal(); newCampaign(); 
 function die() {
   if (mode !== 'ride' && mode !== 'explore') return;
   playlog.record('death', { sector: state.sectorKey, cause: state.lastHurt || 'unknown', mode });
+  if (!state.endless && !state.custom) recordSector(state.sectorKey, 'deaths');
   mode = 'dead';
   releaseLock();
   hud.prompt('');
@@ -526,6 +550,12 @@ function newCampaign() {
 function beginCampaignAs(id, memory) {
   const me = crewById(id);
   state = freshState({ character: id, name: me.name, memory });
+  // A new expedition departs: the facility authors this expedition's world from what earlier ones did.
+  facility.expeditions += 1;
+  saveFacility();
+  state.expedition = facility.expeditions;
+  state.variants = authorExpedition(SECTORS);
+  for (const v of Object.values(state.variants)) for (const n of v.notes) note('changes', n);
   hud.setPlayer(me.name);
   try { localStorage.removeItem(SAVE_KEY); } catch {}
   clearResume();
@@ -701,7 +731,7 @@ function setPaused(on) {
     copy.textContent = 'COPY PLAYTEST LOG';
     copy.className = 'bind';
     copy.onclick = () => { navigator.clipboard?.writeText(playlog.export()); copy.textContent = 'COPIED · paste it to whoever runs the playtest'; };
-    box.replaceChildren(settingsView(), logbookView(state), copy);
+    box.replaceChildren(settingsView(), logbookView(state), ledgerView(), copy);
   }
 }
 

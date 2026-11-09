@@ -15,6 +15,7 @@ import { AMBIENT } from './sectors.js';
 import { documentFor } from './documents.js';
 import { createDirector, AFTERMATH } from './director.js';
 import { compressorRefill } from './hull.js';
+import { facility as facilityMem } from './memory.js';
 import { showModal, hideModal } from './ui.js';
 
 /** Machines whose setting changes the way out: [title, option A, option B] with [label, routeMod, toast]. */
@@ -219,6 +220,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     if (c) container = { part: P('Supply container', box(0.08, 2), { color: [0.85, 0.55, 0.12], metallic: 0.3, roughness: 0.5, emission: 0.4, emissiveColor: [1, 0.6, 0.2] }), pos: add(center(...c), [0, 0.45, 0]), taken: false };
   }
   let paddleCool = 0;
+  const facility = facilityMem;
 
   // ---------- Exploration pass: puzzles, architecture, the thread, the crew ----------
   const label = (text, style, pos, normal, w, h, px = 384, py = 160) => facing(P(`Sign ${text.slice(0, 12)}`, plane, { ...signMaterial(text, style, 0.8, px, py), doubleSided: true }), pos, normal, w, h);
@@ -247,6 +249,30 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     const w = wallSpot(dx0, dz0);
     label(`PRESSURE DIAGRAM\nOPEN IN ORDER: ${valveOrder.join(' → ')}\nPUMPS: 1 2 3 4`, 'rule', add(w.pos, [0, 0.2, 0]), w.normal, 1.6, 0.7, 512, 220);
   }
+  // ---------- What the facility remembers (memory.js authored this expedition's variation) ----------
+  const variant = sector.variant || {};
+  const remembered = [];
+  if (variant.plaque) {
+    // The repair is still there. The plaque credits someone else.
+    const w = wallSpot(dx0, dz0);
+    label('PUMP REPAIRED\nCREDIT: DRAINER CREW SEVEN\nTOOL MARKS ON FILE', 'count', add(w.pos, [0.9, -0.3, 0]), w.normal, 1.3, 0.6, 512, 220);
+    remembered.push({ pos: w.pos, cap: '[a plaque credits Crew Seven for a repair your crew made. The tool marks are yours: you can see where the wrench slipped.]', ledger: `${sector.name}: our repair, credited to Crew Seven` });
+  }
+  const lockerCell = variant.lockers ? takeCell() : null;
+  if (lockerCell) {
+    // A second changing room with the same locker numbers. One locker holds a dry vest with a name on it.
+    const w = wallSpot(...lockerCell);
+    for (let i = 0; i < 4; i++) {
+      const l = P(`Remembered locker ${i}`, box(0.04, 2), { color: [0.18, 0.28, 0.38], metallic: 0.6, roughness: 0.45 });
+      writeYaw(l.matrix, add(add(w.pos, scale(normalize(cross(w.normal, UP)), (i - 1.5) * 0.75)), [0, -0.7, 0]), Math.atan2(w.normal[0], w.normal[2]), 0.7, 2, 0.5);
+    }
+    label('0417 · 0418 · 0419 · 0420', 'count', add(w.pos, [0, 0.6, 0]), w.normal, 1.8, 0.35, 512, 96);
+    const visitor = (state.visitorsThisRun || [])[0] || facility.visitors[facility.visitors.length - 1]?.name;
+    remembered.push({ pos: center(...lockerCell), cap: visitor ? `[the same locker numbers as the last changing room. In 0417, a dry flotation vest. The name inside the collar: ${visitor}.]` : '[the same locker numbers as the last changing room. In 0417, a dry flotation vest with your crew\'s number inside the collar.]', ledger: `${sector.name}: a second changing room with the same locker numbers` });
+  }
+  if (variant.waiting) remembered.push({ pos: [dockC[0], 0, dockC[2]], cap: '[last time you skipped this dock. Every light in it is on. The tether post has been polished.]', ledger: `${sector.name}: the skipped dock was waiting with its lights on` });
+  if (variant.dangerous) remembered.push({ pos: [dockC[0], 0, dockC[2]], cap: '[scratched into the dock edge: DON\'T STAY HERE. Two hands. One of them is yours.]', ledger: `${sector.name}: people keep dying here` });
+  if (variant.map) remembered.push({ pos: [dockC[0], 0, dockC[2]], cap: '[the water is not where you left it. Your last diversion held.]', ledger: `${sector.name}: the water level changed between expeditions` });
   // A pool clock that only moves while nobody is looking at it.
   const clockCell = takeCell();
   const clock = clockCell ? (() => {
@@ -886,6 +912,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     for (const v of vignettes) if (!v.seen && Math.hypot(v.pos[0] - eye[0], v.pos[2] - eye[2]) < 3) {
       v.seen = true;
       hud.caption(v.cap);
+      events.interest?.(1);
       state.drift = Math.min(100, state.drift + 2);
     }
 
@@ -1298,6 +1325,11 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     shoveFatigue = Math.max(0, shoveFatigue - dt * 0.6);
     pingT -= dt;
     if (pingT <= 0) hide(pingMark);
+    for (const r of remembered) if (!r.seen && Math.hypot(r.pos[0] - eye[0], r.pos[2] - eye[2]) < 3.2) {
+      r.seen = true;
+      hud.caption(r.cap);
+      events.ledger?.('changes', r.ledger);
+    }
     // Valves in the diagram's order. A wrong one resets them all, loudly.
     for (const v of pumpValves) {
       v.wheel.material.emissiveColor = v.open ? [0.4, 1, 0.5] : [0.3, 0.65, 1];
@@ -1309,6 +1341,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
           valveStep += 1;
           sound.gate();
           hud.toast(valveStep === 3 ? 'ALL THREE VALVES OPEN · PRESSURE AT THE PUMP · the diagram says four' : `VALVE ${v.id} OPEN · ${valveStep}/3`);
+          if (valveStep === 3) { events.interest?.(2); events.ledger?.('machinery', 'Pressure diagram: valves in the posted order; the fourth pump is behind the glass'); }
           if (valveStep === 3) setTimeout(() => hud.caption('[through a submerged observation window: the fourth pump, in a room that should be where the corridor you just walked through is]'), 2500);
         } else {
           for (const x of pumpValves) x.open = false;
@@ -1423,6 +1456,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
 
   function restorePower() {
     vapour = 40;
+    events.ledger?.('machinery', `${K.machine}: ${K.verb}`);
     hud.caption('[the pump coughs out trapped vapour — chlorine, thick, around the machine. Get clear or use a filter]');
     (state.power ||= {})[key] = true;
     // What the raft gets from this stop.

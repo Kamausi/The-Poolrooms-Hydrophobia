@@ -88,6 +88,7 @@ export function populate(sec, random, threat, features = [], theme = {}) {
     else if (f === 'stranded') E.push({ at: len * 0.35, kind: 'stranded' });
     else if (f === 'crate') E.push({ at: len * 0.2, kind: 'cache', item: 'parts', marked: true });
     else if (f === 'setpiece') E.push({ at: len * 0.3, kind: 'setpiece' });
+    else if (f === 'extended') { sec.extended = true; sec.label = 'EXTENDED SERVICE CORRIDOR'; sec.lamps = 'bright'; E.length = 0; E.push({ at: 6, kind: 'extended' }); }
     else if (f === 'wavepool') { sec.wavepool = true; sec.lamps = 'bright'; E.length = 0; E.push({ at: 8, kind: 'wavesign' }); }
     else if (f === 'diverter') E.push({ at: len * 0.7, kind: 'diverter' });
     else if (f === 'ballast') { E.length = 0; E.push({ at: len * 0.2, kind: 'ballast' }); }

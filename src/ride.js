@@ -1067,6 +1067,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
       sound.gurgle();
       hull.hit('stern', 12, 'entity', 0.6);
       hud.caption('[the Undertow has the trailing edge — the rear of the raft is going under]');
+      events.ledger?.('behaviours', 'Undertow: takes the trailing edge; counterweight and shoot the grip');
       hud.say('MARS', 'Weight forward and to a side! Everybody! Shoot the thing on the back!', 'crew');
     } else if (e.kind === 'crewStop') {
       if (isSolo()) return;
@@ -1080,6 +1081,11 @@ export function createRide(canvas, state, sector, events, opts = {}) {
     } else if (e.kind === 'tautLine') {
       tautLine = 7;
       hud.caption('[the safety line at the back is pulled tight into the water. Everyone is in the raft. One. Two. Three. Four.]');
+    } else if (e.kind === 'extended') {
+      // World authoring, announced as maintenance. Last time this was a short passage.
+      hud.say('THE ATTENDANT', 'The service corridor has been extended to accommodate your return.', 'attendant');
+      setTimeout(() => hud.say(crewName(), 'This was a corridor. Last time this was a corridor. It\'s a pool hall now. It\'s running.', 'crew'), 4000);
+      events.ledger?.('changes', `${sector.name}: the service corridor became a working pool hall`);
     } else if (e.kind === 'wavesign') {
       Object.assign(wave, { active: true, s: at + 40 });
       sound.duck(2);
@@ -1089,6 +1095,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
     } else if (e.kind === 'climber') {
       if (climber || overboard || capsize) return;
       climber = { side: random() < 0.5 ? -1 : 1, t: 0, lean: 0, hp: 2.5, pos: null };
+      events.ledger?.('behaviours', 'Climbers: lean away, then shove');
       sound.splash();
       sound.duck(1);
       hud.caption(`[something has the ${climber.side < 0 ? 'left' : 'right'} side of the raft — it is climbing on]`);
@@ -1244,6 +1251,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
       sound.pump(-0.6);
       reverseFlow(-1, 'the diverter swings — the current bends toward the maintenance landing');
       events.score(150, 'DIVERTER THROWN · MAINTENANCE LANDING');
+      events.ledger?.('machinery', 'Diverter relay: bends the current toward a landing');
     }, 'diverter');
     if (crewGrab?.gripPos) T(crewGrab.gripPos, 0.6, () => { crewGrab.hp -= shotProfile === 'scatter' ? 2 : shotProfile === 'disruptor' ? 2 : 1; sound.hit(); hud.hitmarker(); }, 'crewgrip');
     if (climber?.pos) T(climber.pos, 0.5, () => { climber.hp -= shotProfile === 'scatter' ? 2 : 0.5; sound.hit(); hud.hitmarker(); if (climber.hp <= 0) knockClimber('shot'); }, 'climber');
@@ -1263,7 +1271,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
       // Shoot low: the buoyant sac. Rupture it and the Bloom goes under.
       if (lastHitPoint && lastHitPoint[1] < b.pos[1] - 0.2 && b.hp > 0) {
         b.hp = 0;
-        if (!saidHull.has('sac')) { saidHull.add('sac'); hud.caption('[the sac under it ruptures — it goes under like a stone]'); }
+        if (!saidHull.has('sac')) { saidHull.add('sac'); hud.caption('[the sac under it ruptures — it goes under like a stone]'); events.ledger?.('behaviours', 'Bloom: a low shot ruptures the buoyant sac'); }
         events.score(40, 'SAC RUPTURED');
       }
       if (b.hp <= 0) {
@@ -1298,6 +1306,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
           events.score(200, 'ROPE ANCHOR SPLIT');
           events.cleared();
           hud.caption('[the anchor tears out of the tile — the whole rope drops into the water]');
+          events.ledger?.('behaviours', 'Lane Rope: split an anchor and the whole line drops');
         }
       }, `ropeanchor${i}`);
     });
@@ -2314,6 +2323,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
       b.done = true;
       sound.burstBig();
       events.score(1000, 'BALLAST SUNK');
+      events.ledger?.('behaviours', 'Ballast: tear the anchoring growths, then the core');
       events.cleared();
       hud.caption('[it lets go of the walls. The water goes slack. The vests come up one by one.]');
       setTimeout(() => hud.say('THE ATTENDANT', 'Your party has qualified for the lower attractions.', 'attendant'), 2500);

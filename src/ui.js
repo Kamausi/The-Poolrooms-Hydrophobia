@@ -5,6 +5,7 @@ import { COMFORTS } from './sectors.js';
 import { ROUTES } from './plans.js';
 import { CREW, crewById, fadingCrew } from './crew.js';
 import { ensureHull, compressorRefill, CHAMBER_NAME } from './hull.js';
+import { facility, sectorMem, saveFacility, falseRecord } from './memory.js';
 
 const $ = (id) => document.getElementById(id);
 const el = (tag, cls, text) => {
@@ -255,6 +256,24 @@ export function showSafeRoom(state, sector, nextSector, nextPlan, onLeave, onSav
     if (!state.logbook.some((d) => d.id === `story-${sector.index}`)) state.logbook.push({ id: `story-${sector.index}`, title: STORY[1], text: STORY[2] });
   }
   if ([1, 5].includes(sector.index) && !sector.endless) body.append(el('p', null, 'On the wall hangs an old photograph of the reservoir\'s observation gallery, from the day it opened. There is a raft on the water in the photograph. It is yours. The patches are in the same places.'));
+  // The facility's records about the people you saved: official, confident, wrong. The ledger knows better.
+  if (!sector.endless && facility.visitors.length) {
+    const v = facility.visitors[(sector.index + facility.expeditions) % facility.visitors.length];
+    body.append(el('p', 'mono small', falseRecord(v, sector.name)));
+    body.append(el('p', null, `Your field ledger says ${v.name} was brought to safety on expedition ${v.expedition}. The ledger is in your handwriting.`));
+  }
+  // What did this place do to you? The facility listens; it expands what unsettles and simplifies what loses people.
+  if (!sector.endless) {
+    const fb = el('div', 'choices');
+    fb.append(el('p', 'mono small', 'FIELD NOTE · THIS ATTRACTION'));
+    for (const [k, t] of [['unsettling', 'It stayed with me'], ['lost', 'I got lost'], ['quiet', 'Too quiet, in a good way']]) {
+      const b = el('button', 'bind');
+      b.textContent = t;
+      b.onclick = () => { const m = sectorMem(state.sectorKey); (m.feedback ||= {})[k] = (m.feedback[k] || 0) + 1; saveFacility(); fb.replaceChildren(el('p', 'mono small', 'NOTED IN THE LEDGER')); };
+      fb.append(b);
+    }
+    body.append(fb);
+  }
   if (state.stats) body.append(el('p', 'mono small', `TEAMMATES FREED ${state.stats.freed} · REVIVES ${state.stats.revives} · REPAIRS ${state.stats.repairs} (${state.stats.pressureRepairs} under pressure) · SURVIVORS ${state.stats.survivors}`));
 
   // Workbench
@@ -422,6 +441,24 @@ export function showSafeRoom(state, sector, nextSector, nextPlan, onLeave, onSav
     launch.setAttribute('disabled', '');
     launch.title = 'Finish the roll call first';
   }
+}
+
+/**
+ * The Pumphouse field ledger: the crew's own discovery catalogue, kept across every expedition. It is the one
+ * record in the game that is never wrong. The facility's documents will disagree with it.
+ */
+export function ledgerView() {
+  const wrap = el('div');
+  const L = facility.ledger;
+  wrap.append(el('p', 'mono', `PUMPHOUSE FIELD LEDGER · ${facility.expeditions} EXPEDITION${facility.expeditions === 1 ? '' : 'S'} · VERIFIED BY THE CREW`));
+  const list = el('div', 'logbook');
+  for (const [k, title] of [['places', 'PLACES'], ['machinery', 'MACHINERY IDENTIFIED'], ['behaviours', 'ENTITY BEHAVIOURS OBSERVED'], ['visitors', 'VISITORS BROUGHT TO SAFETY'], ['changes', 'CHANGES NOTICED BETWEEN EXPEDITIONS']]) {
+    const a = el('article');
+    a.append(el('h3', null, `${title} · ${L[k].length}`), el('p', null, L[k].length ? L[k].join(' · ') : '—'));
+    list.append(a);
+  }
+  wrap.append(list);
+  return wrap;
 }
 
 export function logbookView(state) {
