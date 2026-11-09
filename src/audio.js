@@ -301,6 +301,66 @@ export const sound = {
     noise({ time: 0.3, gain: 0.1, freq: 1800, q: 1.2 });
     tone({ type: 'triangle', from: 180, to: 260, time: 0.25, gain: 0.06, delay: 0.1 });
   },
+  scatter() {
+    noise({ time: 0.22, gain: 0.32, freq: 900, q: 0.5 });
+    tone({ type: 'square', from: 300, to: 60, time: 0.18, gain: 0.08 });
+    noise({ time: 0.12, gain: 0.08, freq: 3000, delay: 0.32 }); // the cycle
+  },
+  disrupt() {
+    tone({ type: 'sawtooth', from: 90, to: 900, time: 0.25, gain: 0.08 });
+    tone({ type: 'sine', from: 1400, to: 120, time: 0.4, gain: 0.06, delay: 0.05 });
+  },
+  hookThrow() {
+    noise({ time: 0.4, gain: 0.08, freq: 1500, q: 1.5 });
+    tone({ type: 'triangle', from: 600, to: 300, time: 0.2, gain: 0.04 });
+  },
+  shove() {
+    noise({ time: 0.15, gain: 0.2, freq: 260, type: 'lowpass' });
+  },
+  ping() {
+    tone({ type: 'sine', from: 1320, to: 1320, time: 0.12, gain: 0.05 });
+    tone({ type: 'sine', from: 1760, to: 1760, time: 0.12, gain: 0.04, delay: 0.1 });
+  },
+  radio() {
+    noise({ time: 0.12, gain: 0.05, freq: 2500, q: 3 });
+  },
+  // The entities' audio language: presence, commitment, release. Learn these.
+  intake(pan = 0) { // Undertow: hollow suction under the water
+    tone({ type: 'sine', from: 70, to: 40, time: 1.1, gain: 0.12, pan });
+    noise({ time: 1, gain: 0.05, freq: 180, type: 'lowpass', pan });
+  },
+  release(pan = 0) { // a grip lets go: a rush of water and a gasp
+    noise({ time: 0.6, gain: 0.2, freq: 600, q: 0.4, pan });
+    tone({ type: 'sine', from: 500, to: 900, time: 0.25, gain: 0.04, delay: 0.3, pan });
+  },
+  floatKnock(pan = 0) { // Lane Rope: float segments knocking together
+    for (let i = 0; i < 4; i++) tone({ type: 'triangle', from: 320 + i * 20, to: 260, time: 0.06, gain: 0.07, delay: i * 0.13, pan });
+  },
+  clicks(pan = 0) { // Grout: fine ceramic clicks moving across a surface
+    for (let i = 0; i < 7; i++) noise({ time: 0.02, gain: 0.08, freq: 6500, q: 4, delay: i * 0.06 + Math.random() * 0.03, pan: pan + (i - 3) * 0.05 });
+  },
+  grind(pan = 0) { // Grout: a passage changing
+    noise({ time: 1.4, gain: 0.14, freq: 140, type: 'lowpass', pan });
+    tone({ type: 'sawtooth', from: 55, to: 45, time: 1.4, gain: 0.03, pan });
+  },
+  chair(pan = 0) { // the Lifeguard shifting in its chair before the whistle
+    tone({ type: 'sawtooth', from: 180, to: 140, time: 0.35, gain: 0.04, pan });
+  },
+  breath(pan = 0) { // Blooms: wet inhalations
+    noise({ time: 0.5, gain: 0.07, freq: 500, q: 1.2, pan });
+  },
+  /** Briefly pull the music and the hum down so a warning reads over the water. */
+  duck(seconds = 1.2) {
+    if (!ctx) return;
+    const t = ctx.currentTime;
+    for (const g of [music.bus?.gain, hum?.g.gain]) {
+      if (!g) continue;
+      const v = g.value;
+      g.cancelScheduledValues(t);
+      g.setValueAtTime(v * 0.35, t);
+      g.linearRampToValueAtTime(v, t + seconds);
+    }
+  },
   scrape(pan = 0) {
     noise({ time: 0.7, gain: 0.18, freq: 2400, q: 0.6, pan });
     tone({ type: 'sawtooth', from: 140, to: 90, time: 0.6, gain: 0.03, pan });

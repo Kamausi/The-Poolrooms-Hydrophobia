@@ -418,6 +418,12 @@ A broad hall; water piling against the outer wall. Take the launch and you land 
 | Ride Control | T | — | — |
 | Paddle (raft) / prod (foot) | Hold V | L3 toggles | PADDLE |
 | Patch and pump | Hold G | D-pad down | PATCH |
+| Blaster profile | 1–5, Tab, mouse wheel | D-pad right | ⟳ |
+| Focus / magnify (Disruptor: acquire) | Hold right mouse | Left trigger | LOCK |
+| Shove | Z | Tap B (hold B braces) | SHOVE |
+| Ping / radio check | B or middle mouse | D-pad left | PING |
+
+Every key is rebindable in the pause menu (Settings → Keys); paddle and brace can be toggles; steering sensitivity and camera motion (shake, roll, impacts) are sliders. The scan beam stays on Q; on foot, right mouse still scans.
 
 ### Boundaries kept
 Quiet channels stay; manoeuvres are announced (piled water, chevrons, Ride Control's call) and not stacked on a precise shot and a rescue at the same instant; camera motion is restrained (most of the rocking is in the raft and water); a missed launch gives a playable lower route (louder, darker), not a death.
@@ -461,3 +467,81 @@ A faint hiss in silence when every gauge reads steady; an old patch lifting at o
 
 ### The Blue Reservoir (implemented: Lazy River and Filtration Works)
 Calm water that needs paddling. A scrape on the left side (a ladder that shouldn't be there) and a hiss; patch while steering for the maintenance platform; an overflow grate Blooms; the Undertow catches the trailing edge and the job changes to counterweight; dock. The platform has a compressor, a route diagram, and discarded vests. Restoring the compressor powers the gate back onto the slide; the raft is firm again with fresh patches, and when you push off, something knocks on the new patch from underneath.
+
+## 18. Arcade decisions, Left 4 Dead's cooperation (implemented)
+
+The hierarchy: the Backrooms sets the world; Left 4 Dead sets teamwork and the rhythm of pressure and relief; rafting sets navigation, balance and attachment to the raft; arcade shooters set the clarity of aiming, firing, defending and deciding. Every arcade mechanic is kept for the decision it creates, on ordinary controls.
+
+### Four profiles and a tool (`src/blaster.js` PROFILES)
+| Profile | Job | Cost |
+|---|---|---|
+| Pulse | accurate shots, switches, weak points; focus magnifies | ordinary charge, which always comes back |
+| Repeater | sustained pressure on approaching Blooms | eats the shared reserve fast; heat |
+| Scatter | close threats, knockback, clearing a grip on a teammate | reserve; 12 m range; a long cycle |
+| Disruptor | splits rope anchors, tears Ballast's growths, interrupts machinery; focus acquires a volley | expensive shots, time to acquire |
+| Hook line | catches supplies and Floaters, pulls against a grip, hooks a crewmate's vest, reaches across gaps on foot | the line is loaded for a second: no shooting |
+
+One specialist reserve (shown on the HUD) feeds Repeater, Scatter and Disruptor, so a long Repeater burst leaves less for a Disruptor emergency. The equipped profile is always on the HUD; looking at a crate never turns a shot into a hook throw. Targeted damage changes behaviour: a low shot ruptures a Bloom's buoyant sac and it goes under; splitting a Lane Rope at a wall anchor drops the whole line; tearing Ballast's growths loose exposes its core.
+
+### Telegraphs (Virtua Cop's lesson)
+A Bloom about to burst swells, brightens and breathes (a wet inhalation, panned). A Lane Rope announces itself with float segments knocking, then silence. The Lifeguard's chair creaks before the whistle. Ballast's water bulges with a hollow intake before it surges. Undertow grabs start with the intake and end with a rush of water and a gasp. Warnings duck the music and hum so they read over the water; captions say what the sound reveals.
+
+### Arm's length (directional encounters)
+A **climber** takes one side of the raft: the raft lists toward it; hold the opposite direction to counterbalance until it slips, then **shove** it off (or Scatter it). Ignore it and it bites the side chamber and may take you over. Shove is dependable the first time and weaker if you spam it (fatigue recovers in a few seconds); it staggers Blooms close in and knocks spitter shots back, and it never disables the Lifeguard.
+
+### Rescues change the route (House of the Dead 2) and observation (Silent Scope)
+In the reservoir and some pool halls, a person hangs by a restraint beside a far maintenance window. Focus (right mouse) resolves it and reads it ("a strap at the wrist"); shoot the strap. The survivor opens the service spillway: the dock's service gate is open without the circuit, and supplies come down. Focus also reads Floaters: breathing (a survivor) or not breathing (turned toward the light).
+
+### Tug-of-war (camp games, as fiction)
+The Undertow takes a crewmate over the side. Hold E to keep the line in the band (too slack and they go under; too tight and it slips through your hands), and shoot the grip beside them (Scatter clears it fastest; the hook can catch their vest). Fail and they come back up in the other channel, cold and quiet (hurt until the next Safe Room).
+
+### Ballast (a rare, defeatable heavy threat)
+A submerged mass tangled in old life vests and hose, anchored between the walls. It holds the raft in the room and pulls it toward itself; every few seconds the water bulges and it surges down its lane. Tear the three anchoring growths loose (the Disruptor is made for this), then shoot the exposed core. In the Wave Hall's pool hall and the Rooftop's reservoir; 40% of endless reservoirs. The Lifeguard stays the unkillable enforcer.
+
+### The crew covers you (AI crewmates)
+While you paddle, patch, swim, pull a line or lie incapacitated, the crew fires on the nearest Bloom from the raft (faster, and on your pinged target first). Forgotten crew don't shoot; alone, nobody does. Crew status is on the HUD roster with shapes and words, not only colour: ● present, ✕ grabbed, ◐ drifting or hurt, ▲ down.
+
+### Pacing that watches everything
+The director counts a rescue, a repair, a climber, a crewmate in the Undertow, a player in the water or down, Ballast, a flume and water over the side against its pressure budget: while something else is the crisis, no new swarm lands; swarms shrink while you are busy. Recovery starts only when the fight is over and nobody needs rescuing. It changes the spacing of peaks, not enemy strength. In the crew's vocabulary: observation, anticipation, pressure, resolution, recovery. The Attendant speaks in the quiet after danger ("Your party has qualified for the lower attractions.", and after a rescue, "Thank you for returning your passenger to the designated seating area."), not during it.
+
+### Conditions and rescues
+| Condition | You can | The crew / you alone |
+|---|---|---|
+| Undertow grip (raft trailing edge) | counterweight, look back and shoot | hook line pulls against it |
+| Incapacitated (first fall per checkpoint) | fire Pulse at reduced power from the floor | a crewmate reaches you in 5 s and takes 4 s; alone, hold E for 5 s; hits set it back; 30 s to bleed out; the second fall is death |
+| Overboard | swim, kick, grab line or handle | a thrown line; alone, the handle or a clear checkpoint failure; the Lifeguard counts a swimmer |
+| Overwhelmed by Drift | hold Space | (on foot, June: lift her out) |
+
+A rescue or revive gives three seconds' grace from immediate recapture.
+
+### Communication you can trust, so deception is fair
+Crew speech over the radio is labelled with the speaker and RADIO. Speech in the environment is unverified and reads the same whoever said it: "VOICE · LEFT PASSAGE". The Caller (Marco) borrows a crewmate's words, never their radio, never the roster, never a status marker. **Ping** (B) marks what you aim at for the crew; within half a minute of an unverified voice it becomes a radio check, and the real crewmate says it wasn't them. Pings, captions and authored voices carry it all; no microphone needed.
+
+### Friendly fire
+The crew is not physically targetable in this build: seated on the raft they are protected, and a shove never knocks a teammate overboard. When AI crew walk the levels, modest friendly damage on foot (with rebukes), none while seated, and a strict expert setting.
+
+### Exploration
+- **Fumes are a condition, not a clock:** filters drain only in marked stagnant pockets (a faint green haze over the water), in the vapour a pump releases for forty seconds when you start it, and everywhere over water in High Water. Quiet exploration has room again.
+- **Pressure diagram puzzle** (water-control and repair stops): three valves A, B, C in separate rooms; the diagram at the dock gives the order, which changes every run. A wrong valve dumps the pressure, loudly. The diagram shows four pumps; the fourth is only ever seen through a submerged window, in a room that occupies the corridor you just walked.
+- **Architecture that carries encounters:** every depth marker reads 1.2 m, including the one beside a bottomless shaft; a pool clock that advances only while nobody looks at it; the same maintenance notice in every attraction, one more name each time (the last one is yours).
+- **Grout leaves evidence:** fine ceramic clicks, then a grind and a caption when a passage changes. It never removes the route back; it can cut the thread.
+- **The thread (the Labyrinth):** a line paid out from the raft behind you on foot, so you can always find the way back. A 3,000-year-old maze story: tie the thread at the door. A note in the Lazy River Safe Room says so in your handwriting.
+- **June in the water** (sectors 5–8): after a fight she stops answering, and you find her sitting in the warm water, looking relieved. Hold E to lift her out. Board without her and the count closes over her. Either way, the Attendant thanks "all three guests" for staying together.
+
+### Character, humour, story in objects
+Each crewmate notices a different kind of thing (Mars people, Dez machinery, Tubs ride behaviour, June space). Banter happens only in the quiet and stops mid-line if anyone is grabbed. Across the attractions: a maintenance sheet with four signatures and four mugs; a roster of three beside a photograph of four; "I don't remember her name. I remember how she knocks."; graffiti that reads "EVERYBODY CAME BACK." and, below it, "Everybody we could remember."; in the reservoir Safe Rooms, a photograph of the observation gallery on opening day with your raft in it, patches in the same places.
+
+### Raft fittings
+Three positions on a fixed footprint, fitted only in Safe Rooms: reinforced bow housing, better retrieval gear, emergency pressure reservoir, compact filtration unit, sealed storage. Field patches give basic control (a hand pump tops out at 70%); a compressor does the rest. Brace before a landing and the hull takes it.
+
+### Expeditions
+Campaigns open with a Pumphouse dispatch sheet (route, crew, last maintenance status, a photograph that matters later). Endings, deaths in challenges and custom routes show an expedition record: crew recovered, teammates freed, revives, repairs (and how many under pressure), supplies hauled in, survivors, names read back, routes discovered, then the score.
+
+## 19. Variants, custom routes, and Versus
+
+- **Challenges** (menu → CHALLENGES): Pump Defence (hold a maintenance chamber through five loud pump cycles; the pump stalls if you leave it), High Water (endless with the levels up: harder threats, tidal floors permanently under, fumes over all water), Last Departure (one attraction to its Safe Room in four minutes), Shared Expedition (a seeded run whose link is copied for sharing; encounters still answer to how you play).
+- **Route builder** (menu → ROUTE BUILDER): write a ride as section tokens (`channel lazy:valve reservoir:ballast junction:public|overflow fork:rescue dock:repair`), choose an attraction's look and rules, ride it, and copy a link (`?route=…&base=…`) that opens the same route for anyone. Unknown tokens are rejected with a message.
+- **Versus (not built):** four Drainers against four players controlling Undertow (exploit an exposed position), Marco (redirect attention with authored calls), Lane Rope (a temporary obstruction) and Grout (alter a limited part of the route), then swap. Rules to hold: entities spawn out of sight; attacks don't overlap on one Drainer; Grout can never remove every exit; scoring compares objectives, legitimate progress and extraction on matched routes; the cooperative director's recovery rules are replaced by a competitive ruleset. It needs the online layer, which does not exist yet.
+
+### Reference notes
+Redbeet's *Raft* and *Raft Survival Simulator* (published on the Nintendo eShop by GAMETOTOP.CC) are separate titles. Steam Workshop custom campaigns are a *Left 4 Dead 2* feature. Melee fatigue was added to the original *Left 4 Dead*'s Versus mode in a 2009 update, not as a universal rule. The Backrooms Wiki has several canons; UNDERFLOW keeps its own continuity (Drift, the Attendant, the Pumphouse, the Lido and its own entities) rather than importing a roster.

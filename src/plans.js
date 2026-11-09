@@ -65,6 +65,10 @@ export function populate(sec, random, threat, features = [], theme = {}) {
     E.push({ at: len * 0.5, kind: 'gates', lanes: [0, 1, 2].map(() => (random() - 0.5) * 0.9) });
   }
   if (sec.type === 'parallel') E.push({ at: 4, kind: 'crewRaft' });
+  // Arm's-length and rescue encounters: one dominant problem each.
+  if (['flume', 'overflow', 'channel'].includes(sec.type) && threat > 0.9 && random() < 0.35) E.push({ at: spot(0.3, 0.7), kind: 'climber' });
+  if (['overflow', 'tube'].includes(sec.type) && threat > 0.9 && random() < 0.4) E.push({ at: spot(0.25, 0.6), kind: 'crewGrab' });
+  if (sec.type === 'reservoir' || (sec.type === 'hall' && random() < 0.5)) E.push({ at: len * 0.05, kind: 'restrained' });
   for (const f of features) {
     if (f === 'valve') E.push({ at: spot(0.35, 0.6), kind: 'valve', covered: theme.grout && random() < 0.5 });
     else if (f === 'signals') E.push({ at: spot(), kind: 'signal' }, { at: spot(), kind: 'signal' });
@@ -84,6 +88,8 @@ export function populate(sec, random, threat, features = [], theme = {}) {
     else if (f === 'stranded') E.push({ at: len * 0.35, kind: 'stranded' });
     else if (f === 'crate') E.push({ at: len * 0.2, kind: 'cache', item: 'parts', marked: true });
     else if (f === 'setpiece') E.push({ at: len * 0.3, kind: 'setpiece' });
+    else if (f === 'ballast') { E.length = 0; E.push({ at: len * 0.2, kind: 'ballast' }); }
+    else if (f === 'climber') E.push({ at: spot(0.3, 0.7), kind: 'climber' });
   }
   return sec;
 }
@@ -180,6 +186,6 @@ export function buildEndlessPlan(random, depthIndex) {
   const types = ['channel', 'lazy', 'flume', 'tube', 'overflow', 'lift', 'loop'];
   const pick = () => types[Math.floor(random() * types.length)];
   const kinds = ['power', 'repair', 'water', 'retrieval', 'winch'];
-  const tokens = [pick(), `${pick()}:valve`, `junction:${['public', 'maintenance', 'overflow'].sort(() => random() - 0.5).slice(0, 2).join('|')}`, random() < 0.35 ? 'reservoir' : pick(), `dock:${kinds[Math.floor(random() * kinds.length)]}`];
+  const tokens = [pick(), `${pick()}:valve`, `junction:${['public', 'maintenance', 'overflow'].sort(() => random() - 0.5).slice(0, 2).join('|')}`, random() < 0.35 ? `reservoir${random() < 0.4 ? ':ballast' : ''}` : pick(), `dock:${kinds[Math.floor(random() * kinds.length)]}`];
   return { tokens, threat };
 }

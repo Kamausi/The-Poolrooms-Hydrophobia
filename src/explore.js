@@ -5,7 +5,7 @@ import { Renderer67, box, sphere, cylinder, torus } from '67js';
 import { writeYaw, writeBasis, hide, add, sub, scale, normalize, clamp, damp, rng, raySphere, rayPlaneY, linear, distance, cross, display, angleTo, soundDir } from './math.js';
 import { tileTexture } from './textures.js';
 import { signMaterial, quad } from './labels.js';
-import { createBlaster } from './blaster.js';
+import { createBlaster, PROFILES, PROFILE_ORDER } from './blaster.js';
 import { input, wasPressed, isDown, requestLock } from './input.js';
 import { hud } from './hud.js';
 import { sound } from './audio.js';
@@ -210,6 +210,78 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     if (c) container = { part: P('Supply container', box(0.08, 2), { color: [0.85, 0.55, 0.12], metallic: 0.3, roughness: 0.5, emission: 0.4, emissiveColor: [1, 0.6, 0.2] }), pos: add(center(...c), [0, 0.45, 0]), taken: false };
   }
   let paddleCool = 0;
+
+  // ---------- Exploration pass: puzzles, architecture, the thread, the crew ----------
+  const label = (text, style, pos, normal, w, h, px = 384, py = 160) => facing(P(`Sign ${text.slice(0, 12)}`, plane, { ...signMaterial(text, style, 0.8, px, py), doubleSided: true }), pos, normal, w, h);
+  const wallSpot = (x, z) => {
+    const wd = DIRS.find(([dx, dz]) => isWall(x + dx, z + dz)) || [0, 1];
+    const c = center(x, z);
+    return { pos: [c[0] + wd[0] * (CELL / 2 - 0.08), 1.7, c[2] + wd[1] * (CELL / 2 - 0.08)], normal: [-wd[0], 0, -wd[1]] };
+  };
+  const floorCells = find('.').filter(([x, z]) => Math.abs(x - dx0) + Math.abs(z - dz0) > 3);
+  const takeCell = () => floorCells.splice(Math.floor(random() * floorCells.length), 1)[0];
+  // Pump sequence (water-control and repair stops): three valves, an order on a diagram at the dock that varies by run.
+  // The diagram shows four pumps. You will only ever find three.
+  const valvesOn = dockKind === 'water' || dockKind === 'repair';
+  const valveOrder = ['A', 'B', 'C'].sort(() => random() - 0.5);
+  const pumpValves = valvesOn ? ['A', 'B', 'C'].map((id) => {
+    const c = takeCell();
+    if (!c) return null;
+    const w = wallSpot(...c);
+    const wheel = P(`Pump valve ${id}`, torus(0.1, 32, 10), glow([0.3, 0.65, 1], 1.5, { color: [0.2, 0.5, 1] }));
+    writeBasis(wheel.matrix, add(w.pos, scale(w.normal, 0.1)), normalize(cross(w.normal, UP)), UP, w.normal, 0.45, 0.45, 0.45);
+    label(`VALVE ${id}\nPUMP ${'ABC'.indexOf(id) + 1} OF 4`, 'sign', add(w.pos, [0, 0.8, 0]), w.normal, 1, 0.42);
+    return { id, pos: w.pos, wheel, open: false };
+  }).filter(Boolean) : [];
+  let valveStep = 0;
+  if (valvesOn) {
+    const w = wallSpot(dx0, dz0);
+    label(`PRESSURE DIAGRAM\nOPEN IN ORDER: ${valveOrder.join(' → ')}\nPUMPS: 1 2 3 4`, 'rule', add(w.pos, [0, 0.2, 0]), w.normal, 1.6, 0.7, 512, 220);
+  }
+  // A pool clock that only moves while nobody is looking at it.
+  const clockCell = takeCell();
+  const clock = clockCell ? (() => {
+    const w = wallSpot(...clockCell);
+    const faces = ['03:14', '03:14', '04:51', '11:02', '03:13'].map((t, i) => {
+      const part = P(`Pool clock ${i}`, plane, { ...signMaterial(`POOL CLOCK\n${t}`, 'depth', 0.8, 256, 128), doubleSided: true });
+      facing(part, add(w.pos, [0, 0.9, 0]), w.normal, 0.8, 0.4);
+      return { part, m: Float32Array.from(part.matrix) };
+    });
+    return { pos: w.pos, faces, i: 0, away: 0 };
+  })() : null;
+  // The same maintenance notice, every attraction, one more name each time.
+  const NOTICE_NAMES = ['R. Imbert', 'C. Teague', 'P. Natarajan', 'O. Bassey', 'H. Vance', 'J. Sato', state.name];
+  const noticeCell = takeCell();
+  const notice = noticeCell ? (() => {
+    const w = wallSpot(...noticeCell);
+    const names = NOTICE_NAMES.slice(0, Math.min(NOTICE_NAMES.length, 1 + sector.index));
+    label(`MAINTENANCE NOTICE\nDO NOT ENTER THE OVERFLOW ALONE\n${names.join(' · ')}`, 'sign', add(w.pos, [0, 0.4, 0]), w.normal, 1.7, 0.75, 512, 220);
+    return { pos: w.pos, seen: false, names };
+  })() : null;
+  // Every depth marker says 1.2 metres. Including the one by the shaft with no bottom.
+  const shafts = find('x').slice(0, 2);
+  for (const [x, z] of shafts) facing(P('Depth 1.2', plane, { ...signMaterial('1.2 M', 'depth', 0.8, 256, 128), doubleSided: true }), add(center(x, z), [0, 0.05, 0]), [0, 1, 0], 0.8, 0.4);
+  // June in the water: the defining moment. After a fight, she sits down in the warm water and looks relieved.
+  const juneCan = sector.index >= 4 && state.character !== 'june' && !(state.forgotten || []).includes('june') && !sector.custom;
+  const juneParts = { body: P('June, sitting', cylinder(12, 0.3, 2), { color: [0.25, 0.4, 0.6], metallic: 0, roughness: 0.6 }), head: P('June head', sphere(12, 8), { color: [0.75, 0.62, 0.52], metallic: 0, roughness: 0.4 }) };
+  const juneEvent = { state: juneCan ? 'waiting' : 'none', pos: null, lift: 0 };
+  // Ariadne's thread: a line paid out from the raft behind you, so you can find the way back. Grout cuts it.
+  const threadParts = Array.from({ length: 70 }, (_, i) => P(`Thread ${i}`, slab, glow([1, 0.82, 0.25], 0.9, { color: [1, 0.8, 0.25] })));
+  const thread = [];
+  // Fumes: only in marked stagnant pockets, and around a pump you have just started.
+  const stagnant = new Set();
+  for (const [x, z] of [...find('~'), ...find('x')]) if (hash(x * 3.1, z * 1.7) < 0.22 && stagnant.size < 10) stagnant.add(`${x},${z}`);
+  const haze = [...stagnant].map((k) => {
+    const [x, z] = k.split(',').map(Number);
+    const part = P(`Stagnant haze ${k}`, slab, { color: [0.55, 0.8, 0.4], metallic: 0, roughness: 1, emission: 0.25, emissiveColor: [0.6, 0.9, 0.4], alphaMode: 'blend', opacity: 0.07 });
+    writeYaw(part.matrix, add(center(x, z), [0, 0.35, 0]), 0, CELL * 0.95, 0.7, CELL * 0.95);
+    return part;
+  });
+  let vapour = 0; // seconds of trapped vapour after a pump starts
+  // Pump Defence (challenge): hold the chamber through five cycles.
+  const pumpChallenge = opts.challenge === 'pump' ? { cycle: 0, t: 0 } : null;
+  let shoveCool = 0, shoveFatigue = 0, pingT = 0, callerAt = -100, callerWho = null;
+  const pingMark = P('Ping marker', torus(0.06, 32, 8), glow([0.4, 1, 0.9], 6));
   const scrap = find('s').map(([x, z], i) => ({ part: P(`Scrap ${i}`, box(0.1, 2), glow([0.6, 1, 0.8], 0.4, { color: [0.55, 0.6, 0.58], metallic: 0.9, roughness: 0.3 })), pos: add(center(x, z), [(random() - 0.5) * 1.5, 0.25 + floorTop(x, z), (random() - 0.5) * 1.5]), taken: false }));
   const lockers = find('h').map(([x, z], i) => {
     const wd = DIRS.find(([dx, dz]) => isWall(x + dx, z + dz)) || [0, 1];
@@ -333,6 +405,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
   const grout = new Map(); // "x,z" -> { cleared }
   const groutParts = Array.from({ length: 24 }, (_, i) => P(`Grout ${i}`, slab, dark([0.025, 0.028, 0.022])));
   let groutTimer = 6;
+  let groutTold = false;
 
   const blaster = createBlaster(state);
   parts.push(...blaster.parts);
@@ -370,9 +443,12 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
   let stillT = 0;
   let sink = 0;
   let healing = 0;
+  let fumeSaid = false;
   const pick = (list) => list[Math.floor(random() * list.length)];
   const forwardVec = () => [-Math.sin(player.yaw), 0, -Math.cos(player.yaw)];
   hud.objective(hasCell ? (powered() ? 'Done. Return to the raft.' : K.carry) : K.find);
+  if (opts.challenge === 'pump') setTimeout(() => { director.crescendo(); hud.say('DEZ', 'Pump\'s running and it\'s loud. Five cycles. Stay near it — it stalls without us.', 'crew'); }, 1500);
+  if (state.highWater) hud.caption('[the water is up. The tidal floors are under. The air over the water is heavy.]');
   if (dockKind === 'repair') {
     hud.caption('[a maintenance platform: a dead compressor, a route diagram under plastic, a pile of discarded life vests]');
     setTimeout(() => hud.say('TUBS', 'Vests. Eleven of them. Somebody counted them off and left them here.', 'crew'), 3500);
@@ -691,7 +767,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     const running = isDown('shift') && len > 0.1;
     let speed = (water ? 2.3 : 4.2) * (running ? (water ? 1.35 : 1.45) : 1);
     if (groutHere && !groutHere.cleared) speed *= 0.5;
-    const held = undertow.holding > 0 || floaters.some((f) => f.state === 'holding') || ropes.some((r) => r.holding > 0) || state.sitting;
+    const held = undertow.holding > 0 || floaters.some((f) => f.state === 'holding') || ropes.some((r) => r.holding > 0) || state.sitting || !!state.downed;
     if (!held) {
       player.pos = add(player.pos, add(scale(forward, mz * speed * dt), scale(right, mx * speed * dt)));
       const cur = CURRENT[at(pcx, pcz)];
@@ -727,7 +803,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     // Sitting down in the water: you lower yourself until your eyes are almost at the surface.
     sink = damp(sink, state.sitting ? EYE - 0.35 : 0, 1.2, dt);
     if (state.sitting) player.pitch = damp(player.pitch, -0.25, 1, dt);
-    const eye = [player.pos[0] + (Math.random() - 0.5) * shiver, player.floor + EYE - sink + swayY + (Math.random() - 0.5) * shiver, player.pos[2]];
+    const eye = [player.pos[0] + (Math.random() - 0.5) * shiver, player.floor + EYE - sink - (state.downed ? 1.1 : 0) + swayY + (Math.random() - 0.5) * shiver, player.pos[2]];
     // Field dressing: H. Takes a moment, and you cannot fire while you do it.
     if (wasPressed('h') && !healing && state.dressings > 0 && state.health < 100) { healing = 2.5; state.dressings -= 1; hud.toast('APPLYING A FIELD DRESSING'); }
     if (healing > 0) {
@@ -749,9 +825,12 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     const fromRaft = Math.hypot(raftPos[0] - player.pos[0], raftPos[2] - player.pos[2]);
     const driftRate = (water ? 0.6 + Math.min(2.4, waterT * 0.12) : 0.08) + (stillT > 6 ? 0.8 : 0) + (fromRaft > 34 ? 0.35 : 0) + (litHere ? 0 : 0.5);
     state.drift = clamp(state.drift + dt * driftRate * (1 + sector.index * 0.1), 0, 100);
-    if (water && sector.index >= 2) {
-      // Chlorine is heavier deeper in the park: filters.
-      state.filter -= dt * 1.2;
+    // Fumes are a condition, not a clock: a marked stagnant pocket, or the vapour a pump releases when you start it.
+    vapour = Math.max(0, vapour - dt);
+    const inFumes = (water && stagnant.has(`${pcx},${pcz}`)) || (vapour > 0 && Math.hypot(panelPos[0] - player.pos[0], panelPos[2] - player.pos[2]) < 9) || (state.highWater && water);
+    if (inFumes && !fumeSaid) { fumeSaid = true; hud.caption('[the air here is thick and sweet — chlorine. Your filter starts working]'); }
+    if (inFumes) {
+      state.filter -= dt * 2.4;
       if (state.filter <= 0) {
         if (state.filters > 1) { state.filters -= 1; state.filter = 100; hud.toast('FILTER SPENT · SWAPPED'); }
         else { state.filters = 0; state.filter = 0; events.damage(dt * 1.5, 'Chlorine fumes. No filter left.', true); }
@@ -797,9 +876,10 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     panel.material.emission = 1 + Math.sin(time * 3) * 0.4;
     if (Math.hypot(panelPos[0] - eye[0], panelPos[2] - eye[2]) < 2.6 && !powered()) {
       if (!hasCell) ask(1, `${K.machine} · needs a ${K.item}`);
+      else if (pumpValves.length && valveStep < 3) ask(2, `${K.machine} · NO PRESSURE · open the valves in the diagram's order (it is posted at the dock)`);
       else {
         // Operating the panel takes time and noise: hold E while the swarm comes. Getting hit sets you back.
-        if (isDown('e')) {
+        if (isDown('e') && !(pumpValves.length && valveStep < 3)) {
           if (!operating) { operating = 0.001; director.crescendo(); hud.caption(dockKind === 'winch' ? '[the winch chain screams on its drum — and something answers, everywhere]' : '[the machine groans awake — and something answers, everywhere]'); hud.say('DEZ', `That ${K.machine.toLowerCase()}\'s loud. Hold it. Whatever comes, hold it.`, 'crew'); }
           operating += dt;
           if (state.health < lastPanelHealth - 0.5) operating = Math.max(0.001, operating - 1.2);
@@ -821,6 +901,12 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
         }
       }
       ask(2, powered() ? 'E · Board the raft (service gate open)' : 'E · Board the raft (no power: bypass only)');
+      if (wasPressed('e') && juneEvent.state === 'sitting') {
+        // Leaving her there. The count closes over her.
+        juneEvent.state = 'left';
+        (state.forgotten ||= []).push('june');
+        hud.say('THE ATTENDANT', 'Thank you, all three guests, for staying together.', 'attendant');
+      }
       if (wasPressed('e')) {
         if (rules.currents && !pumpOn) {
           sound.wrong();
@@ -1022,10 +1108,32 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
 
     if (wasPressed('r')) blaster.recharge();
     if (!input.locked && !input.touch && (input.firing || input.scanning)) requestLock();
+    for (const id of PROFILE_ORDER) if (wasPressed(PROFILES[id].key)) { state.profile = id; hud.toast(`${PROFILES[id].label} · ${PROFILES[id].job}`); }
+    if (wasPressed('tab') || wasPressed('cycle-')) { state.profile = PROFILE_ORDER[(PROFILE_ORDER.indexOf(state.profile || 'pulse') + (wasPressed('tab') ? 1 : 4)) % 5]; hud.toast(PROFILES[state.profile].label); }
+    if (state.downed) state.profile = 'pulse';
     if (blaster.trigger(dt, input.firing && (input.locked || input.touch) && healing <= 0, false)) {
-      const to = shoot(eye, dir);
-      blaster.showBeam(blaster.muzzle(eye, target, dir), to);
+      const P0 = PROFILES[state.profile] || PROFILES.pulse;
+      const base = state.damage;
+      state.damage = base * P0.damage * (state.downed ? 0.6 : 1);
+      if (state.profile === 'hook') hookReach(eye, dir);
+      else if (state.profile === 'scatter') {
+        const r0 = normalize(cross(dir, UP)), u0 = cross(r0, dir);
+        let to = null;
+        for (let k = 0; k < P0.pellets; k++) {
+          const a = (k / P0.pellets) * Math.PI * 2, rr = k ? P0.spread : 0;
+          const d = normalize(add(dir, add(scale(r0, Math.cos(a) * rr), scale(u0, Math.sin(a) * rr))));
+          const hitAt = shoot(eye, d);
+          if (distance(hitAt, eye) > P0.range) continue;
+          to ||= hitAt;
+        }
+        blaster.showBeam(blaster.muzzle(eye, target, dir), to || add(eye, scale(dir, P0.range)));
+        for (const b of blooms) if (b.active && !b.dying && distance(b.pos, eye) < 5 && angleTo(eye, dir, b.pos) < 0.35) { b.stagger = 0.7; b.pos = add(b.pos, scale(dir, 1.4)); }
+      } else blaster.showBeam(blaster.muzzle(eye, target, dir), shoot(eye, dir));
+      state.damage = base;
     }
+    if (wasPressed('z')) shoveFoot(eye, dir);
+    if (wasPressed('b')) pingFoot(eye, dir);
+    updateFootExtras(dt, eye, dir, ask);
     if (wasPressed('f')) burst(eye);
     blaster.place(eye, target, dir, swayY * 0.4);
 
@@ -1060,6 +1168,147 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     });
   }
 
+  /** The hook line on foot: reach. Pull a part, a cell or a container to you across water or a gap. */
+  function hookReach(eye, dir) {
+    const range = (state.gear || []).includes('hookgear') ? 18 : 12;
+    let best = range, got = null;
+    for (const sc of scrap) if (!sc.taken) { const t = raySphere(eye, dir, sc.pos, 0.8); if (t < best) { best = t; got = () => { sc.pos = [eye[0] + dir[0] * 0.8, sc.pos[1], eye[2] + dir[2] * 0.8]; }; } }
+    if (!hasCell && cellPos) { const t = raySphere(eye, dir, cellPos, 0.9); if (t < best) { best = t; got = () => { hasCell = true; sound.pickup(); events.score(250, `${K.item.toUpperCase()} HOOKED`); hud.objective(K.carry); wave(2); }; } }
+    if (container && !container.taken) { const t = raySphere(eye, dir, container.pos, 1); if (t < best) { best = t; got = () => { container.pos = add(eye, add(scale(forwardVec(), 1.4), [0, -1.2, 0])); hud.caption('[you drag the container across on the line]'); }; } }
+    sound.hookThrow();
+    if (got) { got(); state.stats && (state.stats.shared += 1); } else hud.caption('[the hook skitters across the tile and comes back empty]');
+  }
+
+  function shoveFoot(eye, dir) {
+    if (shoveCool > 0) return;
+    shoveCool = 0.35;
+    const power = shoveFatigue < 2 ? 1 : shoveFatigue < 4 ? 0.5 : 0.2;
+    shoveFatigue += 1;
+    sound.shove();
+    for (const b of blooms) if (b.active && !b.dying && distance(b.pos, eye) < 2.8) { b.stagger = 0.9 * power; b.pos = add(b.pos, scale([dir[0], 0, dir[2]], 2.4 * power)); }
+    if (power < 0.5) hud.caption('[tired arms — the shove is weak]');
+  }
+
+  /** Ping: mark a spot for the crew; with a recent unverified voice, it is a radio check. */
+  function pingFoot(eye, dir) {
+    sound.ping();
+    pingT = 4;
+    const t = rayWorld(eye, dir);
+    writeYaw(pingMark.matrix, add(eye, scale(dir, Math.min(t, 25) - 0.2)), 0, 0.5, 0.5, 0.5);
+    const crew = Object.keys(state.crewState || {}).filter((c) => !(state.forgotten || []).includes(c) && state.crewState[c] !== 'hurt');
+    if (time - callerAt < 25 && callerWho) {
+      sound.radio();
+      if (crew.includes(callerWho.toLowerCase())) hud.say(callerWho, 'Wasn\'t me. I\'m nowhere near the showers. Don\'t go toward it.', 'crew');
+      else hud.say(crew[0]?.toUpperCase() || state.name.toUpperCase(), `${callerWho} isn't on the radio. Whatever that was, it wasn't ${callerWho}.`, 'crew');
+      hud.caption('[radio check: that voice was not on the radio]');
+      callerAt = -100;
+    } else if (crew.length) hud.say(crew[0].toUpperCase(), pick(['Marked.', 'Seen. Go.', 'I see it. Careful.']), 'crew');
+    else hud.caption('[radio check: static]');
+  }
+
+  /** Per-frame: valves, clock, notice, June, the thread, fumes haze, Pump Defence. */
+  function updateFootExtras(dt, eye, dir, ask) {
+    shoveCool -= dt;
+    shoveFatigue = Math.max(0, shoveFatigue - dt * 0.6);
+    pingT -= dt;
+    if (pingT <= 0) hide(pingMark);
+    // Valves in the diagram's order. A wrong one resets them all, loudly.
+    for (const v of pumpValves) {
+      v.wheel.material.emissiveColor = v.open ? [0.4, 1, 0.5] : [0.3, 0.65, 1];
+      if (v.open || Math.hypot(v.pos[0] - eye[0], v.pos[2] - eye[2]) > 2.4) continue;
+      ask(3, `E · Open valve ${v.id}`);
+      if (wasPressed('e')) {
+        if (valveOrder[valveStep] === v.id) {
+          v.open = true;
+          valveStep += 1;
+          sound.gate();
+          hud.toast(valveStep === 3 ? 'ALL THREE VALVES OPEN · PRESSURE AT THE PUMP · the diagram says four' : `VALVE ${v.id} OPEN · ${valveStep}/3`);
+          if (valveStep === 3) setTimeout(() => hud.caption('[through a submerged observation window: the fourth pump, in a room that should be where the corridor you just walked through is]'), 2500);
+        } else {
+          for (const x of pumpValves) x.open = false;
+          valveStep = 0;
+          sound.wrong();
+          sound.thump(0);
+          hud.toast('WRONG ORDER · PRESSURE DUMPED · ALL VALVES CLOSED');
+          director.crescendo();
+        }
+      }
+    }
+    // The clock advances only when you are not looking at it.
+    if (clock) {
+      const looking = angleTo(eye, dir, add(clock.pos, [0, 0.9, 0])) < 0.5 && distance(clock.pos, eye) < 14;
+      if (!looking) clock.away += dt;
+      if (!looking && clock.away > 3) { clock.away = 0; clock.i = (clock.i + 1) % clock.faces.length; }
+      clock.faces.forEach((f, i) => (i === clock.i ? f.part.matrix.set(f.m) : hide(f.part)));
+      if (looking && !clock.told && clock.i > 0) { clock.told = true; hud.caption('[the pool clock has moved. Nobody saw it move.]'); }
+    }
+    if (notice && !notice.seen && distance(notice.pos, eye) < 3.5) {
+      notice.seen = true;
+      hud.caption(`[the same maintenance notice as the last attraction. ${notice.names.length} names this time.${notice.names.includes(state.name) ? ' The last one is yours.' : ''}]`);
+      if (!state.logbook.some((d) => d.id === `notice-${key}`)) state.logbook.push({ id: `notice-${key}`, title: `MAINTENANCE NOTICE · ${sector.name.toUpperCase()}`, text: `DO NOT ENTER THE OVERFLOW ALONE. Signed: ${notice.names.join(', ')}. The same notice hangs in every attraction. Each copy has one more name than the last.` });
+    }
+    for (const [x, z] of shafts) if (Math.hypot(center(x, z)[0] - eye[0], center(x, z)[2] - eye[2]) < 3 && !shafts.told) { shafts.told = true; hud.caption('[every depth marker in this room says 1.2 metres. Including this one, beside a shaft whose bottom you cannot see.]'); }
+    // June: after the first fight, she stops answering. She is sitting in the warm water, looking relieved.
+    if (juneEvent.state === 'waiting' && director.phase === 'relax' && state.cleared > 2 && !juneEvent.pos) {
+      const wet = [...find('~')].filter(([x, z]) => distance(center(x, z), player.pos) < 22 && distance(center(x, z), player.pos) > 6);
+      const c = wet[Math.floor(random() * wet.length)];
+      if (c) {
+        juneEvent.pos = add(center(...c), [0, -0.35, 0]);
+        juneEvent.state = 'sitting';
+        state.crewState.june = 'drifting';
+        hud.caption('[June has stopped answering the radio]');
+        setTimeout(() => hud.say(state.name.toUpperCase(), 'June? June, count off.', 'crew'), 1500);
+      }
+    }
+    if (juneEvent.state === 'sitting') {
+      writeYaw(juneParts.body.matrix, juneEvent.pos, 0, 0.25, 0.55, 0.2);
+      writeYaw(juneParts.head.matrix, add(juneEvent.pos, [0, 0.62, 0]), 0, 0.15, 0.17, 0.15);
+      if (distance(juneEvent.pos, player.pos) < 2.4) {
+        ask(5, `HOLD E · lift June out of the water ${'▮'.repeat(Math.round(juneEvent.lift * 10))}${'▯'.repeat(10 - Math.round(juneEvent.lift * 10))}`);
+        if (!juneEvent.met) { juneEvent.met = true; hud.say('JUNE', 'It\'s okay. It\'s so warm. I\'ll catch up. You go on.', 'voice'); }
+        juneEvent.lift = isDown('e') ? juneEvent.lift + dt / 3 : Math.max(0, juneEvent.lift - dt * 0.2);
+        if (juneEvent.lift >= 1) {
+          juneEvent.state = 'lifted';
+          state.crewState.june = 'ok';
+          if (state.stats) state.stats.freed += 1;
+          state.recognized += 1;
+          hide(juneParts.body); hide(juneParts.head);
+          hud.say('JUNE', 'I — sorry. I was sure I\'d finished. I was sure I was home. Don\'t let me sit down again.', 'crew');
+          setTimeout(() => hud.say('THE ATTENDANT', 'Thank you, all three guests, for staying together.', 'attendant'), 3000);
+          events.score(300, 'JUNE LIFTED OUT');
+        }
+      }
+    } else { hide(juneParts.body); hide(juneParts.head); }
+    // The thread: paid out from the raft behind you, a point every two and a half metres.
+    const lastT = thread[thread.length - 1] || [raftPos[0], 0.03, raftPos[2]];
+    if (Math.hypot(player.pos[0] - lastT[0], player.pos[2] - lastT[2]) > 2.5) {
+      thread.push([player.pos[0], player.floor + 0.03, player.pos[2]]);
+      if (thread.length > threadParts.length) thread.shift();
+    }
+    threadParts.forEach((part, i) => {
+      const a = i === 0 ? [raftPos[0], 0.05, raftPos[2]] : thread[i - 1];
+      const b = thread[i];
+      if (!a || !b || b.cut) return hide(part);
+      const d = [b[0] - a[0], 0, b[2] - a[2]];
+      const L = Math.hypot(d[0], d[2]) || 0.01;
+      writeYaw(part.matrix, [(a[0] + b[0]) / 2, Math.max(a[1], b[1]), (a[2] + b[2]) / 2], Math.atan2(d[0], d[2]), 0.03, 0.02, L);
+    });
+    // Pump Defence: the chamber must be held. The pump stalls without you.
+    if (pumpChallenge) {
+      const nearPump = Math.hypot(panelPos[0] - player.pos[0], panelPos[2] - player.pos[2]) < 12;
+      if (nearPump) pumpChallenge.t += dt;
+      if (pumpChallenge.t > 28) {
+        pumpChallenge.t = 0;
+        pumpChallenge.cycle += 1;
+        sound.pump(0);
+        events.score(250, `PUMP CYCLE ${pumpChallenge.cycle}/5`);
+        if (pumpChallenge.cycle >= 5) return events.challengeDone('The pump ran five cycles. The chamber held.');
+        director.crescendo();
+      }
+      hud.objective(`PUMP DEFENCE · cycle ${pumpChallenge.cycle + 1}/5 · ${Math.round((pumpChallenge.t / 28) * 100)}%${nearPump ? '' : ' · STALLED — get back to the pump'}`);
+    }
+  }
+
   /** The paddle on foot: knock a Bloom back, hook a part out of reach, or sound the water ahead. */
   function paddleProd(eye) {
     const f = forwardVec();
@@ -1087,6 +1336,8 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
   }
 
   function restorePower() {
+    vapour = 40;
+    hud.caption('[the pump coughs out trapped vapour — chlorine, thick, around the machine. Get clear or use a filter]');
     (state.power ||= {})[key] = true;
     // What the raft gets from this stop.
     if (dockKind === 'repair') {
@@ -1147,6 +1398,12 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
   }
 
   function updateWaves(dt) {
+    if (state.highWater) {
+      // High Water: the tidal floors stay under.
+      waveOn = true;
+      tidal.forEach((t) => { const c = center(t.x, t.z); writeYaw(t.part.matrix, [c[0], 0.25, c[2]], 0, CELL, 0.02, CELL); });
+      return;
+    }
     if (!rules.waves) { tidal.forEach((t) => hide(t.part)); return; }
     waveT += dt;
     const was = waveOn;
@@ -1197,8 +1454,11 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     if (!groutSources.length) { groutParts.forEach(hide); return; }
     if (!grout.size) for (const [x, z] of groutSources) grout.set(`${x},${z}`, { cleared: 0 });
     groutTimer -= dt;
+    // Grout gives evidence before it moves: fine ceramic clicks, then the grind of a passage changing.
+    if (groutTimer < 1.8 && !groutTold) { groutTold = true; sound.clicks((random() - 0.5) * 1.2); if (random() < 0.4) hud.caption('[fine ceramic clicks, moving across the floor]'); }
     if (groutTimer <= 0) {
       groutTimer = 7;
+      groutTold = false;
       // Spreads through connected wet, unlit tile. Light and dry floor stop it.
       const wet = (x, z) => isWater(x, z) || at(x, z) === 'd' || DIRS.some(([dx, dz]) => isWater(x + dx, z + dz));
       const lit = (x, z) => lamps.some((l) => l.x === x && l.z === z && l.on);
@@ -1212,8 +1472,15 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
         }
       }
       if (front.length && grout.size < groutParts.length) {
-        grout.set(front[Math.floor(random() * front.length)], { cleared: 0 });
-        hud.caption('[something spreading through the grout lines]');
+        const k = front[Math.floor(random() * front.length)];
+        grout.set(k, { cleared: 0 });
+        const [gx, gz] = k.split(',').map(Number);
+        sound.grind(soundDir(player.pos, forwardVec(), center(gx, gz)).pan);
+        hud.caption('[a deeper scrape — the grout lines have moved. That passage is different now]');
+        // It cuts the thread where it crosses.
+        const before = thread.length;
+        for (let i = thread.length - 1; i >= 0; i--) { const [tx, tz] = cellOf(thread[i][0], thread[i][2]); if (tx === gx && tz === gz) thread[i].cut = true; }
+        if (thread.some((t) => t.cut) && before) hud.caption('[the thread back to the raft is cut where the grout moved]');
       }
     }
     let i = 0;
@@ -1378,7 +1645,8 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     L.warn = breaking ? (L.warn || 0) + dt : Math.max(0, (L.warn || 0) - dt * 2);
     if (breaking && L.warn > 0 && !L.warned) {
       L.warned = true;
-      hud.caption('[a short warning whistle — the tower]');
+      sound.chair(soundDir(player.pos, forwardVec(), L.base).pan * 0.5);
+      hud.caption('[the chair on the tower creaks — then a short warning whistle]');
       sound.whistle(soundDir(player.pos, forwardVec(), L.base).pan * 0.5);
     }
     if (!breaking && L.warn <= 0) L.warned = false;
@@ -1452,8 +1720,11 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
       if (m.timer <= 0) {
         m.timer = 12 + random() * 8;
         const info = soundDir(eye, forwardVec(), m.pos);
-        hud.say('???', `Marco… (it sounds like ${pick(['June', 'Dez', 'Tubs', 'Caleb', 'Priya'])})`, 'marco');
-        hud.caption(`[a voice calling "Marco" — ${info.label}]`);
+        // Unverified speech reads the same whoever said it. Ping (B) for a radio check.
+        const who = pick(['JUNE', 'DEZ', 'TUBS', 'MARS'].filter((n) => n !== state.name.toUpperCase()));
+        hud.say(`VOICE · ${info.label.toUpperCase()}`, pick([`${who[0] + who.slice(1).toLowerCase()} here — there's another cell through the showers.`, 'Marco…', `It's ${who[0] + who.slice(1).toLowerCase()}. Over here. I found the way out.`]), 'voice');
+        callerAt = time;
+        callerWho = who;
         state.drift = Math.min(100, state.drift + 3);
       }
       // Following the voice brings you to its source.
@@ -1488,7 +1759,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     clouds.forEach((c, i) => writeYaw(c.part.matrix, [c.base[0] + cycle * 3, c.base[1], c.base[2]], 0, 30 + hash(i, 4) * 30, 4 + hash(i, 5) * 4, 14 + hash(i, 6) * 14));
   }
 
-  if (import.meta.env.DEV) window.__explore = { player, center, undertow, lifeguard, cellPos, panelPos, raftPos, code, find, floaters, restorePower };
+  if (import.meta.env.DEV) window.__explore = { get valves() { return { order: valveOrder, step: valveStep, list: pumpValves }; }, june: juneEvent, thread, get clock() { return clock; }, stagnant, player, center, undertow, lifeguard, cellPos, panelPos, raftPos, code, find, floaters, restorePower };
 
   return {
     update,

@@ -38,10 +38,14 @@
       <input id="seed" inputmode="numeric" placeholder="seed (optional)" aria-label="Endless seed" />
       <span id="records" class="mono small"></span>
     </div>
+    <div class="seed-row">
+      <button id="challenges">CHALLENGES</button>
+      <button id="routes">ROUTE BUILDER</button>
+    </div>
     <dl class="controls">
-      <dt>RAFT</dt><dd>A/D steer · Space hop · click fire · hold right-click to lock, release for a volley · Ctrl/C brace · Shift boost · S brake · X look back · T Ride Control</dd>
+      <dt>RAFT</dt><dd>A/D steer · Space hop · click fire · right-click focus (Disruptor: lock, release for a volley) · 1–5, Tab or wheel: blaster profile · Ctrl/C brace · Z shove · B ping / radio check · V paddle · G patch · Shift boost · S brake · X look back · T Ride Control</dd>
       <dt>POOLS</dt><dd>Shoot an arrow to switch gates · Space depart · E moor at a dock · A/D look around</dd>
-      <dt>ON FOOT</dt><dd>WASD move · mouse look · E use · Shift run · V valve tool</dd>
+      <dt>ON FOOT</dt><dd>WASD move · mouse look · E use · Shift run · V paddle prod (valve tool at the raft) · Z shove · B ping</dd>
       <dt>BLASTER</dt><dd>Q (or right-click on foot): inspection beam · F: disruption burst (uses a charge cell) · R recharge · H dressing · controllers supported</dd>
       <dt>ALWAYS</dt><dd>Esc pause and settings · Space to snap out of Drift</dd>
     </dl>
@@ -57,6 +61,7 @@
     <div class="hud-tr">
       <p class="mono" id="band">WRISTBAND 0000</p>
       <p class="mono small" id="guests">GUESTS CHECKED IN: 1</p>
+      <p class="mono small" id="roster"></p>
       <p id="score-wrap" hidden><span class="mono small">SIGNAL SCORE</span><br /><span id="score" class="big">00000</span></p>
       <p id="cleared" class="mono small"></p>
       <p id="depth" class="mono small accent"></p>
@@ -96,6 +101,9 @@
       <button id="touch-lock">LOCK</button>
       <button id="touch-paddle">PADDLE</button>
       <button id="touch-patch">PATCH</button>
+      <button id="touch-shove">SHOVE</button>
+      <button id="touch-ping">PING</button>
+      <button id="touch-cycle">⟳</button>
       <button id="touch-burst">BURST</button>
       <button id="touch-reload">R</button>
       <button id="touch-use">USE</button>

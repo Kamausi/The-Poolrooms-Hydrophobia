@@ -1,4 +1,18 @@
 // Keyboard, mouse, pointer lock and touch, collected into one state object read once per frame.
+// Rebinding: the game reads each action's default key; settings.bindings maps the physical key onto it.
+import { settings, ACTIONS } from './settings.js';
+
+let remap = new Map(); // physical → default key
+let shadowed = new Set(); // default keys that were rebound away (pressing them does nothing)
+export function applyBindings() {
+  remap = new Map();
+  shadowed = new Set();
+  for (const [id, , def] of ACTIONS) {
+    const bound = settings.bindings?.[id];
+    if (bound && bound !== def) { remap.set(bound, def); shadowed.add(def); }
+  }
+}
+const logical = (k) => (remap.has(k) ? remap.get(k) : shadowed.has(k) ? null : k);
 
 export const input = {
   keys: new Set(),
@@ -20,14 +34,14 @@ export const input = {
   },
   /** Hold to paddle: lowers the blaster. One hold is a steady stroke rhythm, never mashing. */
   get paddling() {
-    return this.paddleHeld || this.keys.has('v');
+    return this.paddleHeld || (!settings.paddleToggle && this.keys.has('v'));
   },
   /** Hold to find a leak, press a patch over it, and pump the chamber back up. */
   get patching() {
     return this.patchHeld || this.keys.has('g');
   },
   get bracing() {
-    return this.braceHeld || this.keys.has('control') || this.keys.has('c');
+    return this.braceHeld || (!settings.braceToggle && (this.keys.has('control') || this.keys.has('c')));
   },
   aim: [0, 0], // cursor in normalised device coordinates (ride mode)
   look: [0, 0], // accumulated mouse movement since last frame (explore mode)
@@ -40,13 +54,22 @@ let canvas = null;
 
 export function initInput(target) {
   canvas = target;
+  applyBindings();
   addEventListener('keydown', (e) => {
-    const k = e.key.toLowerCase();
-    if (!input.keys.has(k)) input.pressed.add(k);
+    if (input.capture) { e.preventDefault(); input.capture(e.key.toLowerCase()); input.capture = null; return; }
+    const raw = e.key.toLowerCase();
+    if ([' ', 'arrowup', 'arrowdown', 'control', 'tab'].includes(raw)) e.preventDefault();
+    const k = logical(raw);
+    if (!k) return;
+    if (!input.keys.has(k)) {
+      input.pressed.add(k);
+      if (k === 'v' && settings.paddleToggle) input.paddleHeld = !input.paddleHeld;
+      if ((k === 'c' || k === 'control') && settings.braceToggle) input.braceHeld = !input.braceHeld;
+    }
     input.keys.add(k);
-    if ([' ', 'arrowup', 'arrowdown', 'control'].includes(k)) e.preventDefault();
   });
-  addEventListener('keyup', (e) => input.keys.delete(e.key.toLowerCase()));
+  addEventListener('keyup', (e) => { const k = logical(e.key.toLowerCase()); if (k) input.keys.delete(k); });
+  addEventListener('wheel', (e) => { if (input.context === 'ride' || input.context === 'explore') input.pressed.add(e.deltaY > 0 ? 'tab' : 'cycle-'); }, { passive: true });
   addEventListener('blur', () => {
     input.keys.clear();
     input.firing = false;
@@ -61,6 +84,7 @@ export function initInput(target) {
   canvas.addEventListener('mousedown', (e) => {
     if (e.button === 0) input.firing = true;
     if (e.button === 2) input.rightHeld = true;
+    if (e.button === 1) { input.pressed.add('b'); e.preventDefault(); }
   });
   canvas.addEventListener('contextmenu', (e) => e.preventDefault());
   addEventListener('mouseup', (e) => {
@@ -166,13 +190,17 @@ function setupTouch() {
   hold('touch-lock', () => (input.lockHeld = true), () => (input.lockHeld = false));
   hold('touch-paddle', () => (input.paddleHeld = true), () => (input.paddleHeld = false));
   hold('touch-patch', () => (input.patchHeld = true), () => (input.patchHeld = false));
+  hold('touch-shove', () => input.pressed.add('z'), () => {});
+  hold('touch-ping', () => input.pressed.add('b'), () => {});
+  hold('touch-cycle', () => input.pressed.add('tab'), () => {});
 }
 
 // Controller (Gamepad API). Left stick steers or moves; right stick aims (raft) or looks (on foot).
 // RT fire · LT lock · A hop · B brace · X use · Y scan · LB burst · RB boost · R3 look back · L3 paddle (toggle)
-// D-pad up recharge · D-pad down patch · Start pause
+// D-pad up recharge · D-pad down patch · D-pad left ping · D-pad right next profile · tap B shove · Start pause
 const prev = [];
-const EDGE = { 0: ' ', 2: 'e', 4: 'f', 9: 'escape', 12: 'r', 8: 'h' };
+const EDGE = { 0: ' ', 2: 'e', 4: 'f', 9: 'escape', 12: 'r', 8: 'h', 14: 'b', 15: 'tab' };
+let bDown = 0;
 const HOLD = { 5: 'shift', 11: 'x', 0: ' ' };
 export function pollGamepad(dt) {
   const pad = navigator.getGamepads?.().find((g) => g && g.connected);
@@ -194,7 +222,10 @@ export function pollGamepad(dt) {
   }
   input.firing = b(7) || (pad.buttons[7]?.value || 0) > 0.4;
   input.lockHeld = b(6) || (pad.buttons[6]?.value || 0) > 0.4;
-  input.braceHeld = b(1);
+  if (!settings.braceToggle) input.braceHeld = b(1);
+  // A tap of B is a shove; holding it is a brace.
+  if (b(1)) bDown += dt;
+  else if (bDown > 0) { if (bDown < 0.2) input.pressed.add('z'); if (settings.braceToggle && bDown < 0.2) input.braceHeld = !input.braceHeld; bDown = 0; }
   input.scanHeld = b(3);
   input.patchHeld = b(13);
   if (b(10) && !prev[10]) input.paddleHeld = !input.paddleHeld;

@@ -11,7 +11,7 @@ let last = null; // the run's state, for lines that depend on Drift and the mani
 const CREW_NAMES = ['MARS', 'DEZ', 'TUBS', 'JUNE'];
 const garble = (text, amount) => text.replace(/[A-Z0-9]/g, (c) => (Math.random() < amount ? '·' : c));
 
-const IDS = ['hud', 'sector-name', 'objective', 'score', 'score-wrap', 'cleared', 'depth', 'vitals', 'vitals-bar', 'drift', 'drift-bar', 'charge', 'charge-max', 'charge-state', 'mode', 'crosshair', 'subtitle', 'toast', 'prompt', 'damage', 'driftfx', 'scrap', 'hint', 'band', 'guests', 'route', 'raft', 'chambers', 'filter', 'filters', 'cells', 'heat-bar', 'caption', 'scan', 'raft-panel'];
+const IDS = ['hud', 'sector-name', 'objective', 'score', 'score-wrap', 'cleared', 'depth', 'vitals', 'vitals-bar', 'drift', 'drift-bar', 'charge', 'charge-max', 'charge-state', 'mode', 'crosshair', 'subtitle', 'toast', 'prompt', 'damage', 'driftfx', 'scrap', 'hint', 'band', 'guests', 'route', 'raft', 'chambers', 'roster', 'filter', 'filters', 'cells', 'heat-bar', 'caption', 'scan', 'raft-panel'];
 
 export function initHud() {
   for (const id of IDS) el[id] = $(id);
@@ -41,6 +41,8 @@ export const hud = {
     el.band.textContent = `WRISTBAND ${fade > 0 ? garble(state.band, fade * 0.8) : state.band} · ${fade > 0.6 ? garble(player, fade * 0.6) : player}`;
     const aboard = (state.mounted ? 1 : 0) + (state.passenger?.stage > 0 && state.mounted ? 1 : 0) - (state.drift > 85 && state.mounted ? 1 : 0);
     el.guests.textContent = `GUESTS CHECKED IN: ${state.guests}${state.mounted ? ` · RAFT OCCUPANCY ${aboard}` : ''}`;
+    // The crew on the radio: dependable state, never faked by the Caller. Shapes and words, not only colour.
+    if (state.crewState) el.roster.textContent = Object.entries(state.crewState).map(([id, st]) => (state.forgotten?.includes(id) ? '▯ — — —' : `${st === 'ok' ? '●' : st === 'down' ? '▲' : st === 'grabbed' ? '✕' : '◐'} ${id.toUpperCase()} ${st === 'ok' ? '' : st.toUpperCase()}`.trim())).join(' · ');
     el.cleared.textContent = `${state.cleared} ENTITIES DISPERSED`;
     el.vitals.textContent = Math.ceil(state.health);
     el['vitals-bar'].style.width = `${Math.min(100, state.health)}%`;
@@ -49,7 +51,8 @@ export const hud = {
     el['drift-bar'].style.width = `${state.drift}%`;
     el.charge.textContent = state.charge;
     el['charge-max'].textContent = `/ ${state.maxCharge}`;
-    el['charge-state'].textContent = state.overheated ? 'OVERHEATED' : state.recharging ? 'RECHARGING…' : state.charge === 0 ? '[R] RECHARGE' : state.mounted ? 'ARC BLASTER · MOUNT CHARGING' : 'ARC BLASTER / MK.II';
+    const prof = state.profile && state.profile !== 'pulse' ? `${state.profile.toUpperCase()} · RESERVE ${Math.floor(state.special ?? 0)}` : 'PULSE';
+    el['charge-state'].textContent = state.downed ? 'INCAPACITATED · PULSE ONLY' : state.overheated ? 'OVERHEATED' : state.recharging ? 'RECHARGING…' : state.charge === 0 ? '[R] RECHARGE' : `${prof}${state.mounted ? ' · MOUNT' : ''}`;
     el['heat-bar'].style.width = `${Math.min(100, state.heat)}%`;
     el['heat-bar'].classList.toggle('low', state.heat > 75);
     el.scrap.textContent = `${state.scrap} PARTS`;
@@ -119,7 +122,8 @@ export const hud = {
   /** Radio and PA lines. Queued so they never overlap. kind: crew | attendant | marco | drift */
   say(speaker, text, kind = 'crew') {
     // In callouts Marco is "the Caller", so it never sounds like Mars.
-    if (speaker === '???' && kind === 'marco') speaker = 'THE CALLER';
+    // Speech the game can't verify reads the same whoever said it: a voice, a place. Only the radio identifies.
+    if (kind === 'marco' || kind === 'voice') speaker = speaker.startsWith('VOICE') ? speaker : 'VOICE · NEARBY';
     if (CREW_NAMES.includes(speaker) && last) {
       if (speaker === player) {
         speaker = `${speaker} (YOU)`;
@@ -128,7 +132,7 @@ export const hud = {
       } else if (last.forgotten?.includes(speaker.toLowerCase())) {
         speaker = '[NO IDENTIFIER]';
         text = garble(text, 0.25);
-      }
+      } else if (kind === 'crew') speaker = `${speaker} · RADIO`;
     }
     if (queue.some((q) => q.text === text)) return;
     queue.push({ speaker, text, kind });

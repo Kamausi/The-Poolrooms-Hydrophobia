@@ -6,7 +6,7 @@ import { Renderer67, box, sphere, cylinder, torus } from '67js';
 import { writeYaw, writeBasis, hide, add, sub, scale, normalize, clamp, damp, rng, screenRay, raySphere, rayPlaneY, linear, cross, display, project, angleTo, soundDir, distance } from './math.js';
 import { tileTexture } from './textures.js';
 import { signMaterial, quad } from './labels.js';
-import { createBlaster } from './blaster.js';
+import { createBlaster, PROFILES, PROFILE_ORDER } from './blaster.js';
 import { input, wasPressed, isDown } from './input.js';
 import { hud } from './hud.js';
 import { sound } from './audio.js';
@@ -14,12 +14,13 @@ import { quality } from './quality.js';
 import { settings } from './settings.js';
 import { AMBIENT } from './sectors.js';
 import { Track, EXIT_OFFSET, section } from './track.js';
-import { createDirector, AFTERMATH } from './director.js';
+import { createDirector, AFTERMATH, BANTER } from './director.js';
 import { createHull, CHAMBERS, CHAMBER_NAME } from './hull.js';
 
 const SEG = 6;
 const SEGMENTS = 28;
 const FOV = 72;
+const FOCUS_FOV = 30;
 const UP = [0, 1, 0];
 const FLAT_X = [1, 0, 0], FLAT_Y = [0, 0, -1];
 
@@ -141,6 +142,22 @@ export function createRide(canvas, state, sector, events, opts = {}) {
     reflection: P('Reflection', slab, dark([0.01, 0.015, 0.02])),
     body: P('Passenger', cylinder(14, 0.4, 2), { color: [0.78, 0.8, 0.76], metallic: 0, roughness: 0.4 }),
     head: P('Passenger head', sphere(14, 10), { color: [0.8, 0.82, 0.78], metallic: 0, roughness: 0.3 }),
+  };
+
+  // ---------- Co-op and arcade parts ----------
+  const pingMark = P('Ping marker', torus(0.06, 32, 8), glow([0.4, 1, 0.9], 6));
+  const crewBeam = P('Crew cover fire', slab, glow([0.6, 1, 0.8], 10));
+  const hookRope = P('Hook line', slab, { color: [0.95, 0.8, 0.2], metallic: 0, roughness: 0.6 });
+  const hookHead = P('Hook', torus(0.05, 18, 6), { color: [0.6, 0.6, 0.6], metallic: 0.9, roughness: 0.3 });
+  const climberPart = { body: P('Climber', cylinder(12, 0.3, 2), { color: [0.82, 0.84, 0.8], metallic: 0, roughness: 0.35 }), head: P('Climber head', sphere(12, 8), { color: [0.85, 0.86, 0.82], metallic: 0, roughness: 0.3 }) };
+  const tug = { line: P('Tug line', slab, { color: [0.95, 0.8, 0.2], metallic: 0, roughness: 0.6 }), hand: P('Hand in the water', sphere(10, 8), { color: [0.85, 0.75, 0.68], metallic: 0, roughness: 0.4 }), grip: P('Grip on the crewmate', lumpy, dark([0.004, 0.01, 0.012])) };
+  const restrainedPart = { body: P('Restrained figure', cylinder(12, 0.3, 2), { color: [0.75, 0.7, 0.62], metallic: 0, roughness: 0.6 }), strap: P('Restraint', torus(0.08, 24, 8), glow([1, 0.4, 0.2], 2.5)), window: P('Observation window', slab, glow([0.8, 0.9, 1], 1.4)) };
+  const ballastParts = {
+    body: P('Ballast', lumpy, { color: [0.12, 0.13, 0.1], metallic: 0.2, roughness: 0.7 }),
+    core: P('Ballast core', ball, glow([1, 0.3, 0.15], 0.02, { color: [0.3, 0.05, 0.03] })),
+    anchors: [0, 1, 2].map((i) => P(`Ballast anchor ${i}`, slab, { color: [0.22, 0.18, 0.15], metallic: 0, roughness: 0.8 })),
+    knots: [0, 1, 2].map((i) => P(`Ballast growth ${i}`, lumpy, glow([1, 0.5, 0.2], 1.2, { color: [0.4, 0.15, 0.08] }))),
+    vests: [0, 1, 2, 3].map((i) => P(`Ballast vest ${i}`, box(0.05, 2), { color: [0.95, 0.45, 0.08], metallic: 0, roughness: 0.6 })),
   };
 
   // ---------- Entities ----------
@@ -330,6 +347,27 @@ export function createRide(canvas, state, sector, events, opts = {}) {
   const pendingPaddle = []; // paddle-feedback events waiting for the player to be paddling
   const saidHull = new Set();
   let underFloorUsed = false;
+  // Arcade and co-op state.
+  let fov = FOV, focusing = false;
+  let shoveCool = 0, shoveFatigue = 0;
+  let hookLine = null; // { t, to, hit }
+  let lastHitPoint = null, shotProfile = 'pulse';
+  let protect = 0; // seconds of grace after a rescue: no instant recapture
+  let climber = null; // { side, t, lean, hp }
+  let crewGrab = null; // { who, t, tension, hp, low }
+  let ballast = null; // { s, offset, anchors: [hp], core, surge, t }
+  let restrained = null; // { s, side, freed }
+  let coverT = 2, coverBeam = 0, coverFrom = null, coverTo = null;
+  let pingT = 0, pingPos = null, pinged = null;
+  let callerAt = -100, callerWho = null;
+  let reservoirUsed = false;
+  state.profile ||= 'pulse';
+  state.special ??= 60;
+  state.stats ||= { freed: 0, revives: 0, repairs: 0, pressureRepairs: 0, survivors: 0, routes: [], shared: 0, shoves: 0 };
+  state.crewState ||= {};
+  for (const c of ['mars', 'dez', 'tubs', 'june']) if (c !== state.character) state.crewState[c] ||= 'ok';
+  const crewAvailable = () => Object.keys(state.crewState).filter((c) => !(state.forgotten || []).includes(c) && state.crewState[c] !== 'hurt');
+  const gear = (g) => (state.gear || []).includes(g);
   const crewName = () => pick(['DEZ', 'TUBS', 'JUNE', 'MARS'].filter((n) => n !== state.name.toUpperCase()));
   const isSolo = () => (state.forgotten || []).length >= 3;
   const stretch = (part, a, b, w) => {
@@ -362,7 +400,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
     const swim = clamp(input.move[1] + (isDown('w') || isDown('arrowup') ? 1 : 0), 0, 1);
     ob.x = clamp(ob.x + steerIn * dt * 2, -lim - 0.4, lim + 0.4);
     // The raft keeps going; your crew back-paddles to hold it for you.
-    ob.back += (speed - swim * 2.5 - 0.3) * dt;
+    ob.back = Math.max(0.6, ob.back + (speed - swim * 2.5 - 0.3) * dt); // you can reach the stern, not swim through the raft
     if (ob.onLine) {
       ob.back -= dt * 3.4;
       ob.x = damp(ob.x, offset, 2.5, dt);
@@ -399,16 +437,27 @@ export function createRide(canvas, state, sector, events, opts = {}) {
         hud.say(crewName(), 'Missed — coiling it — again!', 'crew');
       }
     }
-    if (ob.back < 1.4 && Math.abs(ob.x - offset) < 1.4) {
+    // Close behind the raft, swimming pulls you in toward the handle's side.
+    if (ob.back < 2) ob.x = damp(ob.x, offset, swim * 1.5, dt);
+    if (ob.back < 1.5 && Math.abs(ob.x - offset) < 1.8) {
       prompt = 'E · GRAB THE HANDLE';
       if (wasPressed('e')) {
         overboard = null;
         shake = 0.5;
         sound.splash();
         hud.caption(ob.solo ? '[you drag yourself over the side by the handle — alone, shaking]' : '[hands on your vest — you are hauled back in]');
+        protect = 3;
+        if (!ob.solo) { state.stats.freed += 1; setTimeout(() => hud.say('THE ATTENDANT', 'Thank you for returning your passenger to the designated seating area.', 'attendant'), 3200); }
         if (!ob.solo) setTimeout(() => hud.say('MARS', 'Count off. Four? Four. Good. Don\'t do that again.', 'crew'), 1200);
         return '';
       }
+    }
+    // A swimmer is exactly what the Lifeguard watches for. Its chair creaks before the whistle.
+    if (lifeguard.active && lifeguard.lampOn && !lifeguard.gone && Math.abs(lifeguard.s - s) < 55 && !ob.lg) {
+      ob.lg = true;
+      sound.chair(0);
+      hud.caption('[a chair creaks somewhere above. The lamp swings toward the swimmer — you]');
+      setTimeout(() => { if (overboard === ob) violate(); }, 2500);
     }
     // The water wants you to stay in it.
     state.drift = Math.min(100, state.drift + dt * 4);
@@ -459,6 +508,187 @@ export function createRide(canvas, state, sector, events, opts = {}) {
     shake = Math.max(shake, 0.2);
     hud.caption('[knock. knock. knock. From underneath — right under the new patch.]');
     setTimeout(() => hud.say('MARS', 'Nobody answer it.', 'crew'), 1400);
+  }
+
+  function selectProfile(id) {
+    if (state.profile === id) return;
+    state.profile = id;
+    sound.tick?.(2);
+    hud.toast(`${PROFILES[id].label} · ${PROFILES[id].job}`);
+  }
+
+  /** Fire the selected profile. Pulse and Repeater shoot a ray; Scatter a short cone; Disruptor a heavy shot; Hook a line. */
+  function fireProfile(eye, look, aimDir) {
+    const P = PROFILES[state.profile] || PROFILES.pulse;
+    shotProfile = state.profile;
+    const muzzle = blaster.muzzle(eye, look, aimDir);
+    if (state.profile === 'hook') return throwHook(eye, aimDir);
+    const base = state.damage;
+    state.damage = base * P.damage * (state.downed ? 0.6 : 1);
+    if (state.profile === 'scatter') {
+      const rgt = normalize(cross(aimDir, UP));
+      const upv = cross(rgt, aimDir);
+      let to = null;
+      for (let k = 0; k < P.pellets; k++) {
+        const a = (k / P.pellets) * Math.PI * 2, r = k ? P.spread : 0;
+        const d = normalize(add(aimDir, add(scale(rgt, Math.cos(a) * r), scale(upv, Math.sin(a) * r))));
+        const hitAt = shoot(eye, d, P.range);
+        to ||= hitAt;
+      }
+      blaster.showBeam(muzzle, to);
+      shake = Math.max(shake, 0.18 * settings.camera);
+    } else {
+      blaster.showBeam(muzzle, shoot(eye, aimDir));
+      if (state.profile === 'disruptor') shake = Math.max(shake, 0.25 * settings.camera);
+    }
+    state.damage = base;
+    sound.accent?.('shot');
+  }
+
+  /** The hook line: equipped deliberately, thrown at what you aim at. While the line is loaded you are not shooting. */
+  function throwHook(eye, dir) {
+    const range = gear('hookgear') ? 24 : 16;
+    const hooks = [];
+    const H = (pos, r, fn, label) => hooks.push({ pos, r, fn, label });
+    for (const c of caches) if (c.active) H(c.pos, 0.9, () => { c.active = false; give(c.item); }, 'supplies');
+    for (const k of pickups) if (k.active && !k.done) H(track.lateral(k.s, k.lane, 1.9), 0.8, () => { k.done = true; k.active = false; give(k.item === 'tag' ? 'parts' : k.item); }, 'pickup');
+    for (const f of floaters) if (f.active && f.state === 'floating') H(track.lateral(f.s, f.offset, 0.1), 1, () => { f.state = 'gone'; if (f.survivor) { state.rescued += 1; state.stats.survivors += 1; give('cell'); hud.say('VOICE · IN THE WATER', 'You came back. You came back for me.', 'voice'); hud.toast(`SURVIVOR HAULED IN ON THE LINE · ${state.rescued} RESCUED`); } else { held = 1.5; sound.gurgle(); hud.caption('[it was never breathing. It holds the line — then lets go]'); } }, 'floater');
+    if (trailGrab?.pos) H(trailGrab.pos, 0.9, () => { trailGrab.lean += 1.6; hud.caption('[you haul on the line against the grip]'); }, 'grip');
+    if (crewGrab) H(crewGrab.handPos || [0, -500, 0], 0.9, () => { crewGrab.tension = Math.min(100, crewGrab.tension + 25); crewGrab.hooked = true; hud.caption('[the hook catches the vest — now you can pull]'); }, 'crew');
+    if (room.tether && holding) H(room.tether.matrix ? [room.tether.matrix[12], room.tether.matrix[13], room.tether.matrix[14]] : [0, -500, 0], 1, () => hud.toast('LINE ON THE MOORING POST · E to moor'), 'post');
+    let best = range, pick = null;
+    for (const h of hooks) { const d = raySphere(eye, dir, h.pos, h.r); if (d < best) { best = d; pick = h; } }
+    const to = pick ? pick.pos : add(eye, scale(dir, Math.min(range, rayPlaneY(eye, dir, track.at(s).p[1]) || range)));
+    hookLine = { t: 0, to, pick };
+  }
+
+  function updateHook(dt, base) {
+    if (!hookLine) { hide(hookRope); hide(hookHead); return; }
+    hookLine.t += dt;
+    const out = Math.min(1, hookLine.t / 0.35);
+    const back = hookLine.t > 0.35 ? Math.min(1, (hookLine.t - 0.35) / (gear('hookgear') ? 0.4 : 0.7)) : 0;
+    const from = add(base, [0, 0.9, 0]);
+    const tip = add(from, scale(sub(hookLine.to, from), out * (1 - back)));
+    stretch(hookRope, from, tip, 0.02);
+    writeYaw(hookHead.matrix, tip, time * 3, 1, 1, 1);
+    if (hookLine.t > 0.35 && !hookLine.done) {
+      hookLine.done = true;
+      if (hookLine.pick) { hookLine.pick.fn(); sound.pickup(); state.stats.shared += hookLine.pick.label === 'supplies' ? 1 : 0; }
+      else sound.splash();
+    }
+    if (back >= 1) hookLine = null;
+  }
+
+  /** Shove: dependable the first time, weaker if you keep spamming it. Knocks off climbers, staggers what is close. */
+  function shove(eye, fwd) {
+    if (shoveCool > 0) return;
+    shoveCool = 0.35;
+    const power = shoveFatigue < 2 ? 1 : shoveFatigue < 4 ? 0.5 : 0.2;
+    shoveFatigue += 1;
+    state.stats.shoves += 1;
+    sound.shove();
+    if (climber) {
+      climber.hp -= power * (climber.lean > 1 ? 3 : 1.2);
+      if (climber.hp <= 0) knockClimber('shove');
+      else hud.caption(power < 0.5 ? '[your arms are spent — the shove barely moves it]' : '[it slips — but holds on. Lean away and shove again]');
+      return;
+    }
+    let any = false;
+    for (const b of blooms) if (b.active && !b.dying && distance(b.pos, eye) < 3.4) {
+      b.stagger = 0.9 * power;
+      b.pos = add(b.pos, scale(normalize(sub(b.pos, eye)), 2.5 * power));
+      any = true;
+    }
+    for (const sh of shots) if (sh.active && distance(sh.pos, eye) < 2.5) { sh.reflect = true; any = true; }
+    if (any && power < 0.5) hud.caption('[tired arms — the shove is weak]');
+  }
+
+  function knockClimber(how) {
+    sound.splash();
+    hud.caption(how === 'shove' ? '[you shove it off the side — it goes under without a splash]' : '[it lets go of the raft]');
+    events.score(120, 'CLIMBER REPELLED');
+    climber = null;
+    protect = Math.max(protect, 1.5);
+  }
+
+  /** Ping: mark what you are aiming at. With nothing to mark, it is a radio check — the only dependable way to verify a voice. */
+  function ping(eye, dir) {
+    sound.ping();
+    let best = 60, mark = null;
+    for (const t of targets()) { const d = raySphere(eye, dir, t.pos, t.r * 1.8); if (d < best) { best = d; mark = t; } }
+    pingPos = mark ? [...mark.pos] : add(eye, scale(dir, Math.min(40, rayPlaneY(eye, dir, track.at(s).p[1]) || 20)));
+    pingT = 4;
+    pinged = mark?.key && mark.key.core ? mark.key : null;
+    const who = crewAvailable()[0]?.toUpperCase();
+    if (time - callerAt < 25 && callerWho) {
+      sound.radio();
+      const real = crewAvailable().map((c) => c.toUpperCase());
+      if (real.includes(callerWho)) hud.say(callerWho, 'That wasn\'t me. I haven\'t said a word since the junction. Where did you hear it?', 'crew');
+      else hud.say(who || state.name.toUpperCase(), `Nobody on the radio said that. ${callerWho} hasn't answered in a while.`, 'crew');
+      hud.caption('[radio check: the voice you heard was not on the radio]');
+      callerAt = -100;
+      return;
+    }
+    if (!who) { hud.caption('[radio check: static. Nobody answers. You are alone on this channel.]'); return; }
+    if (pinged) hud.say(who, pick(['On it.', 'Got the Bloom. Covering.', 'Marked. Watching it.']), 'crew');
+    else if (mark?.key === 'strap') hud.say(who, 'A person. Hanging on the window. Shoot the restraint — carefully.', 'crew');
+    else if (mark) hud.say(who, pick(['Seen.', 'Got it marked.', 'Yep. I see it.']), 'crew');
+    else {
+      // A radio check: everyone counts off.
+      const all = crewAvailable();
+      hud.say(state.name.toUpperCase(), 'Radio check. Count off.', 'crew');
+      all.forEach((c, i) => setTimeout(() => hud.say(c.toUpperCase(), pick(['Here.', 'Here. Still here.', 'Here — keep going.']), 'crew'), 700 + i * 650));
+    }
+  }
+
+  /** The crew covers whoever can't shoot: a paddler, a patcher, someone in the water. Alone, nobody does. */
+  function crewCover(dt, eye, busy) {
+    coverBeam -= dt;
+    const crew = crewAvailable().length;
+    if (!crew) return;
+    coverT -= dt * (busy ? 1 : 0.4) * (0.5 + crew / 6);
+    if (coverT > 0) return;
+    coverT = 1.4;
+    const live = blooms.filter((b) => b.active && !b.dying && distance(b.pos, eye) < 24);
+    const target = (pinged && live.includes(pinged) ? pinged : null) || live.sort((a, b) => distance(a.pos, eye) - distance(b.pos, eye))[0];
+    if (!target) return;
+    target.hp -= 1;
+    target.flash = 0.12;
+    target.stagger = 0.3;
+    if (target.hp <= 0) { target.dying = 0.001; sound.burst(); events.cleared(); }
+    coverFrom = track.lateral(s + 1.6, offset - 0.7, 1.15);
+    coverTo = [...target.pos];
+    coverBeam = 0.08;
+    sound.fire();
+  }
+
+  function freeRestrained() {
+    restrained.freed = true;
+    sound.gate();
+    state.rescued += 1;
+    state.stats.survivors += 1;
+    events.score(400, 'SURVIVOR CUT DOWN');
+    hud.say('VOICE · AT THE WINDOW', 'I\'m down — I\'m down. I know the service spillway. I\'ll open it for you. Supplies on the ledge. Go.', 'voice');
+    // The rescue changes the route: the dock's service gate opens without the circuit, and supplies come down.
+    (state.power ||= {})[state.sectorKey] ||= 'survivor';
+    const c = caches.find((x) => !x.active);
+    if (c) Object.assign(c, { active: true, pos: track.lateral(restrained.s + 6, 0, 2.4), falling: 0.001, item: 'cell' });
+    setTimeout(() => hud.toast('SERVICE GATE OPENED BY THE SURVIVOR · THE SAFE ROOM ROUTE IS OPEN'), 2500);
+  }
+
+  function hitAnchor(i) {
+    ballast.anchors[i] -= state.damage;
+    sound.hit();
+    hud.hitmarker();
+    if (ballast.anchors[i] <= 0) {
+      sound.burst();
+      hud.caption(`[an anchoring growth tears free — ${ballast.anchors.filter((a) => a > 0).length} left]`);
+      if (ballast.anchors.every((a) => a <= 0)) {
+        ballast.exposed = true;
+        sound.duck(1.5);
+        hud.say('DEZ', 'It\'s loose! There — the middle, the red bit. Everything into it!', 'crew');
+      }
+    }
   }
 
   /** Things the paddle finds. Only ever while you are paddling, in still water. */
@@ -564,7 +794,9 @@ export function createRide(canvas, state, sector, events, opts = {}) {
     const live = blooms.filter((b) => b.active && !b.dying && !b.retreat);
     const nearby = live.filter((b) => distance(b.pos, fx.eye) < 12).length;
     state.directorPhase = director.phase;
-    for (const a of director.update(dt, { hurt, enemies: live.length, nearby })) {
+    // Everything demanding attention counts against the pressure budget: no extra swarm on top of a rescue.
+    const busy = (overboard ? 1 : 0) + (crewGrab ? 0.8 : 0) + (trailGrab ? 0.8 : 0) + (ballast ? 1 : 0) + (climber ? 0.5 : 0) + (repairing ? 0.5 : 0) + (state.downed ? 1 : 0) + (sec.brake ? 0.25 : 0) + (hullFx.awash ? 0.3 : 0);
+    for (const a of director.update(dt, { hurt, enemies: live.length, nearby, busy })) {
       if (a.type === 'unease' || a.type === 'warn') {
         hud.caption(a.caption);
         if (a.type === 'warn') sound.pump(0);
@@ -585,6 +817,8 @@ export function createRide(canvas, state, sector, events, opts = {}) {
         if (c && !curRoom) Object.assign(c, { active: true, pos: track.lateral(s + 30, (random() < 0.5 ? -1 : 1) * (Math.min(sec.half, 6) - 0.4), 2.4), falling: 0, item: ['cell', 'filter', 'parts'][Math.floor(random() * 3)] });
         const [who, line] = AFTERMATH[Math.floor(random() * AFTERMATH.length)];
         hud.say(who, line, 'crew');
+        // The Attendant speaks in the quiet after danger, never during it.
+        if (random() < 0.3) setTimeout(() => hud.say('THE ATTENDANT', 'Your party has qualified for the lower attractions.', 'attendant'), 5000);
       }
     }
     updateSetpiece(dt);
@@ -645,6 +879,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
     return null;
   };
   function decideFork(id, success, why) {
+    if (!state.stats.routes.includes(why)) state.stats.routes.push(why);
     if (id == null) return;
     track.choose(id, success ? 1 : 0);
     lastForkLow = !success;
@@ -705,7 +940,10 @@ export function createRide(canvas, state, sector, events, opts = {}) {
       r.active = true;
       r.s = at;
       r.floats.forEach((f, j) => Object.assign(f, { alive: true, pos: track.lateral(at, (j - 2) * (half * 0.38), 1.25) }));
-      hud.say('DEZ', 'Rope across the channel. Pop the floats!', 'crew');
+      r.anchors = [2, 2];
+      r.tight = false;
+      sound.floatKnock(0);
+      hud.say('DEZ', 'Rope across the channel. Pop the floats — or split it at the wall anchor!', 'crew');
     } else if (e.kind === 'hullScrape') {
       // A ladder rail under the surface: it opens the left chamber.
       sound.scrape(-0.8);
@@ -737,6 +975,32 @@ export function createRide(canvas, state, sector, events, opts = {}) {
     } else if (e.kind === 'tautLine') {
       tautLine = 7;
       hud.caption('[the safety line at the back is pulled tight into the water. Everyone is in the raft. One. Two. Three. Four.]');
+    } else if (e.kind === 'climber') {
+      if (climber || overboard || capsize) return;
+      climber = { side: random() < 0.5 ? -1 : 1, t: 0, lean: 0, hp: 2.5, pos: null };
+      sound.splash();
+      sound.duck(1);
+      hud.caption(`[something has the ${climber.side < 0 ? 'left' : 'right'} side of the raft — it is climbing on]`);
+      hud.say('MARS', `${climber.side < 0 ? 'Left' : 'Right'} side! Weight to the ${climber.side < 0 ? 'right' : 'left'} and shove it off!`, 'crew');
+    } else if (e.kind === 'crewGrab') {
+      const who = crewAvailable().filter((c) => state.crewState[c] === 'ok')[0];
+      if (!who || crewGrab || overboard || capsize) return;
+      crewGrab = { who, t: 0, tension: 50, hp: 4, low: 0, side: random() < 0.5 ? -1 : 1 };
+      state.crewState[who] = 'grabbed';
+      sound.intake(crewGrab.side * 0.7);
+      sound.duck(1.5);
+      hud.say(who.toUpperCase(), 'It\'s got my leg — it\'s got — PULL!', 'crew');
+      hud.caption(`[the Undertow has ${who.toUpperCase()} over the ${crewGrab.side < 0 ? 'left' : 'right'} side. Hold E to keep the line tight — not too tight — and shoot the grip]`);
+    } else if (e.kind === 'restrained') {
+      if (restrained) return;
+      restrained = { s: at + 45, side: random() < 0.5 ? -1 : 1, freed: false };
+      hud.caption('[across the water, something hangs beside a maintenance window]');
+    } else if (e.kind === 'ballast') {
+      if (ballast) return;
+      ballast = { s: at + 34, offset: (random() - 0.5) * 2, anchors: [6, 6, 6], core: 18 + sector.index * 2, exposed: false, surge: 6, warn: 0, t: 0, done: false };
+      sound.intake(0);
+      hud.caption('[the current turns. Everything floating in the room is drifting toward one spot.]');
+      setTimeout(() => hud.say('JUNE', 'There\'s something in the middle of the room. Holding on to the walls. Holding the water.', 'crew'), 1800);
     } else if (e.kind === 'paddleHorror') {
       pendingPaddle.push(e.what);
     } else if (e.kind === 'undertow') {
@@ -841,10 +1105,12 @@ export function createRide(canvas, state, sector, events, opts = {}) {
 
   /** chamber and cause say where the raft was hit and what did it: it can open a leak, or put you over the side. */
   function damage(n, reason, raftHit = 0, chamber = null, cause = null) {
+    if (protect > 0) return; // just rescued: a moment to get your hands back
     events.damage(n, reason);
     if (raftHit) {
       const k = chamber || CHAMBERS[Math.floor(random() * 4)];
-      hull.hit(k, raftHit * 1.2, cause, cause ? 0.22 : 0);
+      const housed = k === 'bow' && gear('bow');
+      hull.hit(k, raftHit * (housed ? 0.6 : 1.2), cause, cause ? (housed ? 0.08 : 0.22) : 0);
       const soft = CHAMBERS.filter((c) => state.chambers[c] < 20).length;
       if (state.raft <= 3) events.damage(999, 'The raft came apart under you.');
       else if (soft >= 2 && !hull.state.capsized) startCapsize();
@@ -857,15 +1123,28 @@ export function createRide(canvas, state, sector, events, opts = {}) {
   function targets() {
     const list = [];
     const T = (pos, r, fn, key = null) => list.push({ pos, r, fn, key });
-    if (trailGrab?.pos) T(trailGrab.pos, 0.6, () => { trailGrab.hp -= 1; sound.hit(); }, 'grip');
+    if (trailGrab?.pos) T(trailGrab.pos, 0.6, () => { trailGrab.hp -= shotProfile === 'scatter' ? 2 : 1; sound.hit(); }, 'grip');
+    if (crewGrab?.gripPos) T(crewGrab.gripPos, 0.6, () => { crewGrab.hp -= shotProfile === 'scatter' ? 2 : shotProfile === 'disruptor' ? 2 : 1; sound.hit(); hud.hitmarker(); }, 'crewgrip');
+    if (climber?.pos) T(climber.pos, 0.5, () => { climber.hp -= shotProfile === 'scatter' ? 2 : 0.5; sound.hit(); hud.hitmarker(); if (climber.hp <= 0) knockClimber('shot'); }, 'climber');
+    if (restrained && !restrained.freed && restrained.strapPos) T(restrained.strapPos, 0.28, () => freeRestrained(), 'strap');
+    if (ballast && !ballast.done) {
+      ballast.anchorPos?.forEach((pos, i) => { if (ballast.anchors[i] > 0) T(pos, 0.7, () => hitAnchor(i), `anchor${i}`); });
+      if (ballast.exposed) T(ballast.corePos, 1.1, () => { ballast.core -= state.damage; sound.hit(); hud.hitmarker(); ballastParts.core.material.emission = 12; }, 'ballast');
+    }
     for (const b of blooms) if (b.active && !b.dying) T(b.pos, 0.75, () => {
       b.hp -= state.damage;
       sound.hit();
       hud.hitmarker();
       // Every hit reads: a flash, a stagger, a shove backwards.
       b.flash = 0.12;
-      b.stagger = 0.3;
-      b.pos = add(b.pos, scale(normalize(sub(b.pos, fx.eye)), 0.6));
+      b.stagger = shotProfile === 'scatter' ? 0.7 : 0.3;
+      b.pos = add(b.pos, scale(normalize(sub(b.pos, fx.eye)), shotProfile === 'scatter' ? 1.6 : 0.6));
+      // Shoot low: the buoyant sac. Rupture it and the Bloom goes under.
+      if (lastHitPoint && lastHitPoint[1] < b.pos[1] - 0.2 && b.hp > 0) {
+        b.hp = 0;
+        if (!saidHull.has('sac')) { saidHull.add('sac'); hud.caption('[the sac under it ruptures — it goes under like a stone]'); }
+        events.score(40, 'SAC RUPTURED');
+      }
       if (b.hp <= 0) {
         b.dying = 0.001;
         sound.burst();
@@ -882,6 +1161,24 @@ export function createRide(canvas, state, sector, events, opts = {}) {
       events.heal(16);
       events.score(50, 'SIGNAL · VITALS RESTORED');
       state.drift = Math.max(0, state.drift - 20);
+    });
+    // Split a Lane Rope at an anchor and the whole line drops. The Disruptor does it in one.
+    for (const r of ropes) if (r.active) [-1, 1].forEach((side, i) => {
+      const half = Math.min(track.sectionAt(r.s).sec.half, 6);
+      T(track.lateral(r.s, side * (half - 0.15), 1.25), 0.4, () => {
+        r.anchors = r.anchors || [2, 2];
+        r.anchors[i] -= shotProfile === 'disruptor' ? 2 : 1;
+        sound.hit();
+        hud.hitmarker();
+        if (r.anchors[i] <= 0) {
+          r.floats.forEach((f) => (f.alive = false));
+          r.active = false;
+          sound.splash();
+          events.score(200, 'ROPE ANCHOR SPLIT');
+          events.cleared();
+          hud.caption('[the anchor tears out of the tile — the whole rope drops into the water]');
+        }
+      }, `ropeanchor${i}`);
     });
     for (const r of ropes) if (r.active) for (const f of r.floats) if (f.alive) T(f.pos, 0.45, () => {
       f.alive = false;
@@ -1030,12 +1327,13 @@ export function createRide(canvas, state, sector, events, opts = {}) {
     }
   }
 
-  function shoot(eye, dir) {
-    let best = 60, hit = null;
+  function shoot(eye, dir, range = 60) {
+    let best = range, hit = null;
     for (const t of targets()) {
       const d = raySphere(eye, dir, t.pos, t.r);
       if (d < best) { best = d; hit = t.fn; }
     }
+    lastHitPoint = add(eye, scale(dir, best));
     for (const u of patches) if (u.active) {
       const t = rayPlaneY(eye, dir, track.at(u.s).p[1] + 0.02);
       if (t < best) {
@@ -1062,6 +1360,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
     }
     const tw = rayPlaneY(eye, dir, track.at(s).p[1]);
     if (tw < best) { best = tw; hit = () => { ripple = add(eye, scale(dir, tw)); rippleTime = time; }; }
+    lastHitPoint = add(eye, scale(dir, best));
     hit?.();
     if (lifeguard.active && lifeguard.lampOn && !lifeguard.gone && Math.abs(lifeguard.s - s) < 55) violate();
     return add(eye, scale(dir, best));
@@ -1175,7 +1474,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
     hullFx = hull.update(dt, { silence: silence > 0, onWash: () => { state.drift = Math.min(100, state.drift + 3); shake = Math.max(shake, 0.25); } });
     const hurtNow = state.health < lastHullHealth - 0.5;
     lastHullHealth = state.health;
-    const rep = overboard || capsize ? { active: false, prompt: '' } : hull.updateRepair(dt, input.patching && !paddling, hurtNow);
+    const rep = overboard || capsize ? { active: false, prompt: '' } : hull.updateRepair(dt, input.patching && !paddling, hurtNow, ['buildup', 'peak'].includes(director.phase));
     repairing = rep.active;
     hullPrompt = rep.prompt;
     if (hull.state.knockAt > 0) {
@@ -1215,9 +1514,10 @@ export function createRide(canvas, state, sector, events, opts = {}) {
       // The raft has weight: steering accelerates it sideways, water drag slows it, currents push it.
       let steer = steerIn;
       if (state.autopilot && Math.abs(steerIn) < 0.1) steer = autopilotSteer(lim);
+      if (state.downed) steer = autopilotSteer(lim); // you're on the floor of the raft; the crew steers
       if (state.autopilot) state.drift = Math.min(100, state.drift + dt * 0.35);
       if (overboard || capsize) steer = 0;
-      const accel = (state.fit === 'handling' ? 15 : 10) * (paddling ? 1.4 : 1);
+      const accel = (state.fit === 'handling' ? 15 : 10) * (paddling ? 1.4 : 1) * settings.steer;
       const current = (sec.current || 0) * Math.sin(s * 0.035 + sec.id);
       // A soft side pulls the raft toward its wall. So does the water sometimes, with nobody steering.
       if (turnDrift > 0) turnDrift -= dt;
@@ -1261,7 +1561,9 @@ export function createRide(canvas, state, sector, events, opts = {}) {
         ripple = track.lateral(s + 1, offset, 0);
         rippleTime = time;
         // Coming down on debris, or coming down soft, tears the rear chamber.
-        if (debrisPool.some((d) => d.active && Math.abs(d.s - s) < 3 && Math.abs(d.lane - offset) < 1.4)) hull.hit('stern', 8, 'landing', 0.7);
+        // Brace before you land and the hull takes it.
+        if (braced) hud.toast('BRACED FOR THE LANDING');
+        else if (debrisPool.some((d) => d.active && Math.abs(d.s - s) < 3 && Math.abs(d.lane - offset) < 1.4)) hull.hit('stern', 8, 'landing', 0.7);
         else if (state.chambers.stern < 40 && random() < 0.4) hull.hit('stern', 5, 'landing', 0.5);
       }
     }
@@ -1296,10 +1598,10 @@ export function createRide(canvas, state, sector, events, opts = {}) {
     const swayOn = settings.sway ? 1 : 0;
     const bob = (Math.sin(time * 2.1) * 0.05 + Math.sin(time * 1.3) * 0.03) * swayOn;
     shake = Math.max(0, shake - dt);
-    const jitter = shake > 0 ? [(Math.random() - 0.5) * shake * 0.3, (Math.random() - 0.5) * shake * 0.3, 0] : [0, 0, 0];
+    const jitter = shake > 0 ? [(Math.random() - 0.5) * shake * 0.3 * settings.camera, (Math.random() - 0.5) * shake * 0.3 * settings.camera, 0] : [0, 0, 0];
     // Sitting down in the water: the camera sinks toward the surface.
     sink = damp(sink, state.sitting ? 0.7 : 0, 1.5, dt);
-    const duck = braced ? 0.5 : 0;
+    const duck = (braced ? 0.5 : 0) + (state.downed ? 0.75 : 0);
     let eye = add(track.lateral(s, offset, 1.35 + bob - sink - duck + jumpY - hullFx.sag), jitter);
     const ahead = track.lateral(s + 10, offset * 0.6, 1.2 + bob * 0.5 - sink * 1.6 - duck + jumpY * 0.6);
     let look = ahead;
@@ -1310,7 +1612,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
       const c = Math.cos(viewYaw), sn = Math.sin(viewYaw);
       look = add(eye, [d[0] * c + d[2] * sn, d[1], -d[0] * sn + d[2] * c]);
     }
-    let roll = (settings.distortion ? (state.passenger.stage >= 5 ? 0.1 : 0) + (state.raft < 40 ? 0.05 : 0) : 0) + hullFx.list * (settings.sway ? 1 : 0.4);
+    let roll = (settings.distortion ? (state.passenger.stage >= 5 ? 0.1 : 0) + (state.raft < 40 ? 0.05 : 0) : 0) + hullFx.list * (settings.sway ? 1 : 0.4) * settings.camera;
     if (overboard) {
       // In the water, behind the raft, looking at it.
       eye = track.lateral(s - overboard.back, overboard.x, 0.25 + bob * 0.6);
@@ -1336,19 +1638,21 @@ export function createRide(canvas, state, sector, events, opts = {}) {
     if (input.touch && input.firing && settings.aimAssist) {
       let bestD = 0.16;
       for (const t of targets()) {
-        const p = project(eye, look, FOV, aspect, t.pos, up);
+        const p = project(eye, look, fov, aspect, t.pos, up);
         if (!p) continue;
         const d = Math.hypot(p[0] - aimNdc[0], p[1] - aimNdc[1]);
         if (d < bestD) { bestD = d; aimNdc = [p[0], p[1]]; }
       }
     }
-    const aimDir = screenRay(eye, look, FOV, aspect, aimNdc[0], aimNdc[1], up);
+    fov = damp(fov, focusing ? FOCUS_FOV : FOV, 9, dt);
+    const aimDir = screenRay(eye, look, fov, aspect, aimNdc[0], aimNdc[1], up);
     hud.crosshair(aimNdc[0], aimNdc[1], false);
 
     placeSegments();
     placeRoom(curRoom || track.nextRoom(s - 2));
     placeRaft(dt, fwd, rgt, bob);
     updateEntities(dt, eye, fwd, aimDir);
+    const coopPrompt = updateCoop(dt, eye, fwd, aimDir, steerIn, sec);
 
     // Holding pool decisions
     let prompt = '';
@@ -1420,6 +1724,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
       return;
     }
     if (state.filters === 0 && state.filter <= 0 && (sec.filter || sec.type === 'drop')) prompt ||= 'NO FILTER · the chlorine is getting in';
+    if (coopPrompt) prompt = coopPrompt;
     if (swimPrompt) prompt = swimPrompt;
     else if (capsize) prompt = 'UNDER THE RAFT · HOLD YOUR BREATH';
     else if (trailGrab) prompt = 'THE UNDERTOW HAS THE TRAILING EDGE · HOLD A or D · counterweight · X look back and shoot the grip';
@@ -1439,18 +1744,23 @@ export function createRide(canvas, state, sector, events, opts = {}) {
       state.visible = false;
       scanTarget = null;
     }
-    hud.scan(scanText);
+    if (!focusing || input.scanning) hud.scan(scanText);
 
     // Blaster
     if (wasPressed('r')) blaster.recharge();
-    const canFire = !braced && !input.locking && !paddling && !repairing && !overboard && !capsize;
+    if (state.downed && state.profile !== 'pulse') state.profile = 'pulse';
+    const canFire = !braced && !(input.locking && state.profile === 'disruptor') && !paddling && !repairing && !overboard && !capsize;
     if (braced && !state.recharging) state.charge = Math.min(state.maxCharge, state.charge + dt * (state.fit === 'capacity' ? 14 : 10));
-    if (blaster.trigger(dt, input.firing && canFire, true)) {
-      const to = shoot(eye, aimDir);
-      blaster.showBeam(blaster.muzzle(eye, look, aimDir), to);
-      sound.accent?.('shot');
-    }
-    if (canFire) updateLocks(dt, eye, look, aimDir);
+    // Profiles: 1–5, Tab or the wheel. The equipped one is always on the HUD.
+    for (const id of PROFILE_ORDER) if (wasPressed(PROFILES[id].key)) selectProfile(id);
+    if (wasPressed('tab') || wasPressed('cycle-')) selectProfile(PROFILE_ORDER[(PROFILE_ORDER.indexOf(state.profile) + (wasPressed('tab') ? 1 : PROFILE_ORDER.length - 1)) % PROFILE_ORDER.length]);
+    if (blaster.trigger(dt, input.firing && canFire && !hookLine, true)) fireProfile(eye, look, aimDir);
+    // Right mouse: the Disruptor acquires a volley; everything else focuses (magnifies) for a precise shot.
+    focusing = input.locking && state.profile !== 'disruptor' && !overboard && !capsize;
+    if (canFire && state.profile === 'disruptor') updateLocks(dt, eye, look, aimDir);
+    else if (locks.length) locks.length = 0;
+    if (wasPressed('z')) shove(eye, fwd);
+    if (wasPressed('b')) ping(eye, aimDir);
     if (wasPressed('f')) burst(eye, aimDir);
     if (wasPressed('h') && state.dressings > 0 && state.health < 100 && !dressing) { dressing = 2.5; state.dressings -= 1; hud.toast('APPLYING A FIELD DRESSING'); }
     if (dressing > 0) { dressing -= dt; events.heal(dt * 16); }
@@ -1465,8 +1775,10 @@ export function createRide(canvas, state, sector, events, opts = {}) {
       if (random() < 0.5) {
         const ex = nj.sec.exits[Math.floor(random() * 2)];
         const who = pick(['DEZ', 'TUBS', 'JUNE', 'MARS'].filter((n) => n !== state.name.toUpperCase()));
-        hud.say('THE CALLER', `(in ${who}'s voice) Take the ${ex.side < 0 ? 'left' : 'right'} gate. ${ex.side < 0 ? 'Left' : 'Right'} is safe. Trust me.`, 'marco');
-        hud.caption(`[${who}'s voice — but ${who} is on the other channel]`);
+        // The Caller borrows a crewmate's words, not their radio. Ping (B) for a radio check to verify.
+        hud.say(`VOICE · ${random() < 0.5 ? 'LEFT' : 'RIGHT'} PASSAGE`, `${who[0] + who.slice(1).toLowerCase()} here. Take the ${ex.side < 0 ? 'left' : 'right'} gate. ${ex.side < 0 ? 'Left' : 'Right'} is safe. Trust me.`, 'voice');
+        callerAt = time;
+        callerWho = who;
       }
     }
     hud.route(routeLines(sec));
@@ -1483,7 +1795,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
     if (quality.skipRender) return;
     renderer.updateParts(parts);
     renderer.render({
-      eye, target: look, up, fov: FOV, time,
+      eye, target: look, up, fov, time,
       waterRipple: ripple, rippleTime: time - rippleTime,
       environment: { pointLights: gatherLights(eye), ambientIntensity: sec.hall ? 0.55 : sec.sky ? 0.7 : 0.28 },
       exposure: (sec.sky ? 0.95 : 1.05) - state.drift * 0.002,
@@ -1506,7 +1818,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
   }
 
   function useFilter(dt) {
-    state.filter -= dt * 2.4;
+    state.filter -= dt * (gear('filtration') ? 1.4 : 2.4);
     if (state.filter > 0) return;
     if (state.filters > 1) {
       state.filters -= 1;
@@ -1533,8 +1845,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
       } else if (state.drift > 60) hud.say('THE ATTENDANT', pick(AMBIENT.drift), 'drift');
       else if (state.drift > 40) hud.say('THE ATTENDANT', pick(AMBIENT.personal).replace('{name}', state.name).replace('{band}', state.band), 'attendant');
       else if (sector.index > 0 && random() < 0.3) {
-        hud.say('???', pick(AMBIENT.marco), 'marco');
-        hud.caption(`[a voice calling — ${random() < 0.5 ? 'left' : 'right'} side passage]`);
+        hud.say(`VOICE · ${random() < 0.5 ? 'LEFT' : 'RIGHT'} SIDE PASSAGE`, pick(AMBIENT.marco), 'voice');
         state.drift = Math.min(100, state.drift + 4);
       } else hud.say('THE ATTENDANT', pick(AMBIENT.attendant), 'attendant');
     }
@@ -1668,6 +1979,171 @@ export function createRide(canvas, state, sector, events, opts = {}) {
     }
   }
 
+  /** Climbers, the tug-of-war, the restrained survivor, Ballast, crew cover, pings, the hook. Returns a prompt. */
+  function updateCoop(dt, eye, fwd, aimDir, steerIn, sec) {
+    let prompt = '';
+    protect = Math.max(0, protect - dt);
+    if (protect > 0) state.protectT = Math.max(state.protectT || 0, protect);
+    shoveCool -= dt;
+    shoveFatigue = Math.max(0, shoveFatigue - dt * 0.6);
+    const base = track.lateral(s + 0.85, offset, 0.1);
+    updateHook(dt, base);
+    // Ping marker
+    pingT -= dt;
+    if (pingT > 0 && pingPos) writeYaw(pingMark.matrix, pinged?.active ? pinged.pos : pingPos, time * 2, 0.6 + Math.sin(time * 8) * 0.05, 0.6, 0.6);
+    else hide(pingMark);
+    // Crew cover fire
+    const busy = paddleT > 0.5 || repairing || !!overboard || !!crewGrab || !!state.downed;
+    crewCover(dt, eye, busy);
+    if (coverBeam > 0 && coverFrom) stretch(crewBeam, coverFrom, coverTo, 0.03);
+    else hide(crewBeam);
+    // A climber: the raft lists toward it. Lean away (hold the other direction), then shove it off.
+    if (climber) {
+      climber.t += dt;
+      if (Math.sign(steerIn) === -climber.side && Math.abs(steerIn) > 0.5) climber.lean += dt;
+      else climber.lean = Math.max(0, climber.lean - dt * 0.4);
+      velX += climber.side * (climber.lean > 1 ? 0.6 : 2.4) * dt;
+      climber.pos = track.lateral(s + 1.1, offset + climber.side * 1.05, 0.55);
+      writeBasis(climberPart.body.matrix, climber.pos, [1, 0, 0], [0, 1, 0], [0, 0, 1], 0.22, 0.6, 0.18);
+      writeYaw(climberPart.head.matrix, add(climber.pos, [0, 0.5, 0]), time, 0.15, 0.17, 0.15);
+      prompt = climber.lean > 1 ? 'IT IS SLIPPING · Z / tap B · SHOVE IT OFF' : `SOMETHING ON THE ${climber.side < 0 ? 'LEFT' : 'RIGHT'} · hold ${climber.side < 0 ? 'D' : 'A'} to counterbalance · Z shove · Scatter`;
+      if (climber.t > 7) {
+        hull.hit(climber.side < 0 ? 'left' : 'right', 10, 'entity', 0.7);
+        damage(10, 'Something climbed into the raft.');
+        hud.caption('[it bites into the side chamber and drops back into the water]');
+        if (climber.lean < 0.5 && random() < 0.4) goOverboard('knocked');
+        climber = null;
+      }
+    } else { hide(climberPart.body); hide(climberPart.head); }
+    // Tug-of-war: hold E to keep the line in the band; shoot the grip; don't pull so hard the line slips.
+    if (crewGrab) {
+      const g = crewGrab;
+      g.t += dt;
+      const pulling = isDown('e');
+      g.tension += (pulling ? 34 : -22) * dt - 6 * dt;
+      if (g.tension > 90) { g.tension = 35; sound.splash(); hud.caption('[too hard — the line slips through your hands]'); }
+      g.tension = clamp(g.tension, 0, 100);
+      if (g.tension < 28) g.low += dt; else g.low = Math.max(0, g.low - dt * 0.5);
+      g.handPos = track.lateral(s + 1.4, offset + g.side * 2.2, 0.05);
+      g.gripPos = add(g.handPos, [0, -0.1, 0]);
+      stretch(tug.line, track.lateral(s + 1.2, offset + g.side * 0.9, 0.5), g.handPos, 0.025);
+      writeYaw(tug.hand.matrix, g.handPos, 0, 0.12, 0.08, 0.16);
+      writeYaw(tug.grip.matrix, add(g.handPos, [g.side * 0.4, -0.05, 0]), time, 0.5, 0.2, 0.45);
+      const band = g.tension >= 28 && g.tension <= 78;
+      prompt = `HOLD E · LINE TENSION ${Math.round(g.tension)} ${band ? '· GOOD' : g.tension < 28 ? '· SLACK — PULL' : '· TOO TIGHT — EASE OFF'} · shoot the grip beside ${g.who.toUpperCase()}`;
+      if (g.hp <= 0) {
+        sound.release(g.side * 0.7);
+        state.crewState[g.who] = 'ok';
+        state.stats.freed += 1;
+        events.score(300, `${g.who.toUpperCase()} PULLED FREE`);
+        hud.say(g.who.toUpperCase(), pick(['Thank you. Thank you. Don\'t let go of that line again, I\'m keeping it.', 'You had me. You actually had me.', 'Okay. Okay. Nobody look at my leg.']), 'crew');
+        setTimeout(() => hud.say('THE ATTENDANT', 'Thank you for returning your passenger to the designated seating area.', 'attendant'), 2200);
+        protect = 3;
+        crewGrab = null;
+      } else if (g.low > 2.6 || g.t > 16) {
+        sound.gurgle();
+        state.crewState[g.who] = 'hurt';
+        state.drift = Math.min(100, state.drift + 15);
+        hud.caption(`[${g.who.toUpperCase()} goes under. The line comes back empty.]`);
+        setTimeout(() => hud.say(g.who.toUpperCase(), 'I\'m — I came up in the other channel. I don\'t know how. I\'m cold. I\'m going to be quiet for a while.', 'crew'), 4000);
+        crewGrab = null;
+      }
+    } else { hide(tug.line); hide(tug.hand); hide(tug.grip); }
+    // The restrained survivor: far away, beside a window. Focus to see it; shoot the restraint.
+    if (restrained) {
+      const r = restrained;
+      const half = Math.min(track.sectionAt(r.s).sec.half, 9);
+      const wall = track.lateral(r.s, r.side * (half - 0.1), 3.6);
+      writeYaw(restrainedPart.window.matrix, add(wall, [0, 0.3, 0]), track.at(r.s).yaw, 1.8, 1.2, 0.05);
+      const body = track.lateral(r.s, r.side * (half - 0.5), r.freed ? -3 : 2.6);
+      writeBasis(restrainedPart.body.matrix, body, [1, 0, 0], [0, 1, 0], [0, 0, 1], 0.22, 0.75, 0.18);
+      r.strapPos = add(body, [0, 0.95, 0]);
+      if (!r.freed) writeYaw(restrainedPart.strap.matrix, r.strapPos, time, 0.6, 0.6, 0.6);
+      else hide(restrainedPart.strap);
+      if (!r.freed && focusing && Math.abs(r.s - s) < 60 && !r.seen) { r.seen = true; hud.caption('[through the focus: a person. Breathing. A strap at the wrist, tied to the window frame.]'); }
+      if (r.s < s - 8) { if (!r.freed) hud.caption('[the window falls behind. Nobody cut the strap.]'); restrained = null; hide(restrainedPart.body); hide(restrainedPart.strap); hide(restrainedPart.window); }
+    } else { hide(restrainedPart.body); hide(restrainedPart.strap); hide(restrainedPart.window); }
+    if (focusing && !input.scanning) {
+      // Focus reads what is in the middle of the view: the Silent Scope moment.
+      let best = 0.06, read = '';
+      for (const f of floaters) if (f.active && f.state === 'floating') {
+        const a = angleTo(eye, aimDir, track.lateral(f.s, f.offset, 0.1));
+        if (a < best) { best = a; read = f.survivor ? 'FOCUS · FLOATER · BREATHING · chest moving · a survivor' : 'FOCUS · FLOATER · NOT BREATHING · it turned toward the light'; }
+      }
+      if (restrained && !restrained.freed && restrained.strapPos && angleTo(eye, aimDir, restrained.strapPos) < 0.05) read = 'FOCUS · RESTRAINT · one shot at the strap';
+      if (ballast && !ballast.done) ballast.anchorPos?.forEach((pos, i) => { if (ballast.anchors[i] > 0 && angleTo(eye, aimDir, pos) < 0.05) read = 'FOCUS · ANCHOR GROWTH · tear it loose (Disruptor)'; });
+      hud.scan(read);
+    }
+    // Ballast: a heavy, defeatable mass anchored across the room. It holds the raft and the water.
+    if (ballast) prompt = updateBallast(dt, eye) || prompt;
+    else { hide(ballastParts.body); hide(ballastParts.core); ballastParts.anchors.forEach(hide); ballastParts.knots.forEach(hide); ballastParts.vests.forEach(hide); }
+    // Gear: the emergency pressure reservoir, once per ride.
+    if (gear('reservoir') && !reservoirUsed && hullFx.lowest < 25) {
+      reservoirUsed = true;
+      const k = CHAMBERS.reduce((a, b) => (state.chambers[a] <= state.chambers[b] ? a : b));
+      state.chambers[k] = Math.min(100, state.chambers[k] + 45);
+      hud.toast(`EMERGENCY RESERVOIR · ${CHAMBER_NAME[k]} +45`);
+      sound.patch();
+    }
+    return prompt;
+  }
+
+  function updateBallast(dt, eye) {
+    const b = ballast;
+    if (b.done) return '';
+    b.t += dt;
+    const c = track.lateral(b.s, b.offset, -0.2);
+    const yaw = track.at(b.s).yaw;
+    const half = Math.min(track.sectionAt(b.s).sec.half, 8);
+    const ends = [track.lateral(b.s - 4, -half, 2.2), track.lateral(b.s + 3, half, 3), track.lateral(b.s + 6, b.offset * 0.5, 0.2)];
+    b.anchorPos = ends.map((e) => add(c, scale(sub(e, c), 0.62)));
+    writeYaw(ballastParts.body.matrix, c, yaw + b.t * 0.1, 2.4, 1.2 + Math.sin(b.t * 1.3) * 0.1, 2.1);
+    b.corePos = add(c, [0, 0.9, 0]);
+    ballastParts.core.material.emission = b.exposed ? Math.max(3 + Math.sin(b.t * 6) * 2, ballastParts.core.material.emission * 0.9) : 0.02;
+    writeYaw(ballastParts.core.matrix, b.corePos, 0, b.exposed ? 0.8 : 0.5, b.exposed ? 0.8 : 0.5, b.exposed ? 0.8 : 0.5);
+    ends.forEach((e, i) => {
+      if (b.anchors[i] > 0) { stretch(ballastParts.anchors[i], c, e, 0.22); writeYaw(ballastParts.knots[i].matrix, b.anchorPos[i], b.t, 0.55, 0.45, 0.5); }
+      else { hide(ballastParts.anchors[i]); hide(ballastParts.knots[i]); }
+    });
+    ballastParts.vests.forEach((v, i) => writeYaw(v.matrix, add(c, [Math.cos(i * 1.7 + b.t * 0.2) * 2.2, 0.4 + (i % 2) * 0.3, Math.sin(i * 1.7 + b.t * 0.2) * 2.2]), i + b.t * 0.3, 0.4, 0.15, 0.3));
+    // It holds the raft in the room and pulls it toward itself.
+    const near = b.s - s;
+    if (near < 18) {
+      held = Math.max(held, 0.2);
+      if (near < 14) s -= (14 - near) * dt * 2;
+      velX += Math.sign(b.offset - offset) * 1.6 * dt;
+      b.surge -= dt;
+      if (b.surge < 1.6 && !b.warn) { b.warn = 1; sound.intake(Math.sign(b.offset - offset) * 0.4); sound.duck(1.6); hud.caption('[the water bulges toward the mass — get out of its lane]'); }
+      if (b.surge <= 0) {
+        b.surge = 6.5 + random() * 2;
+        b.warn = 0;
+        if (Math.abs(offset - b.offset) < 2.2) { damage(12, 'Ballast surged into the raft.', 8, 'bow', 'entity'); shake = 0.9 * settings.camera; }
+        else hud.toast('CLEAR OF THE SURGE');
+        if (random() < 0.6) spawnBloom(b.s - 4, (random() - 0.5) * 6, 0.8);
+      }
+    }
+    if (b.core <= 0) {
+      b.done = true;
+      sound.burstBig();
+      events.score(1000, 'BALLAST SUNK');
+      events.cleared();
+      hud.caption('[it lets go of the walls. The water goes slack. The vests come up one by one.]');
+      setTimeout(() => hud.say('THE ATTENDANT', 'Your party has qualified for the lower attractions.', 'attendant'), 2500);
+      for (const p of [ballastParts.body, ballastParts.core, ...ballastParts.anchors, ...ballastParts.knots, ...ballastParts.vests]) hide(p);
+      give('cell');
+      ballast = null;
+      return '';
+    }
+    if (b.t > 110) {
+      b.done = true;
+      hud.caption('[it lets go, all at once, and sinks out of sight. It isn\'t dead. It is somewhere else now.]');
+      for (const p of [ballastParts.body, ballastParts.core, ...ballastParts.anchors, ...ballastParts.knots, ...ballastParts.vests]) hide(p);
+      ballast = null;
+      return '';
+    }
+    return near < 22 ? (b.exposed ? 'BALLAST IS LOOSE · SHOOT THE CORE' : `BALLAST · tear the anchoring growths loose (${b.anchors.filter((a) => a > 0).length}) · stay out of its lane when the water bulges`) : '';
+  }
+
   /** Scuffs, patches, leak bubbles, the paddle, and the safety line. */
   const CHAMBER_ANGLE = { right: 0, bow: Math.PI / 2, left: Math.PI, stern: -Math.PI / 2 };
   function onLip(base, rgt, fwd, up, chamber, u, r = 1.05, y = 0.24) {
@@ -1750,6 +2226,12 @@ export function createRide(canvas, state, sector, events, opts = {}) {
     if (ramp.active && ramp.s - s < 55 && ramp.s > s && hullFx.hopScale < 0.8) once('softbow', 'JUNE', 'Front\'s soft. We won\'t clear that lip like this. Patch it now or we take the low channel.');
     const nd = track.nextRoom(s, 'pool');
     if (nd?.sec.dock && nd.s0 - s < 60 && nd.s0 > s && (state.raft < 65 || state.leaks.length)) once(`dock${nd.sec.id}`, 'DEZ', nd.sec.dock.kind === 'repair' ? 'Maintenance platform. There\'s a compressor up there. We dock, we come back firm.' : 'We should dock early. Get off the water and get this thing pumped up.');
+    // Banter, only when nothing is happening. It stops the moment someone is grabbed.
+    if (director.phase === 'relax' && !overboard && !crewGrab && !climber && !trailGrab && !state.downed && !saidHull.has('banter') && random() < frameDt * 0.01) {
+      saidHull.add('banter');
+      const lines = BANTER[(sector.index + state.attempt) % BANTER.length].filter(([who]) => who === state.name.toUpperCase() || crewAvailable().includes(who.toLowerCase()));
+      lines.forEach(([who, line], i) => setTimeout(() => { if (!overboard && !crewGrab && !climber && !trailGrab && director.phase === 'relax') hud.say(who, line, 'crew'); }, i * 2600));
+    }
     // Under the flexible floor, during the quiet.
     if (!underFloorUsed && director.phase === 'relax' && sector.index > 0 && random() < frameDt * 0.004) {
       underFloorUsed = true;
@@ -2063,7 +2545,10 @@ export function createRide(canvas, state, sector, events, opts = {}) {
         if (b.pos[1] < track.at(s).p[1] - 1) b.active = false;
       } else b.pos = add(b.pos, add(scale(normalize(toCam), closing * dt), scale(b.drift, dt)));
       b.phase += dt * 3;
-      const pulse = 0.45 + Math.sin(b.phase) * 0.05;
+      // Wind-up: a Bloom about to burst swells and brightens. Readable, so you can answer it.
+      const windup = !b.goal && !b.spitter ? clamp((4.5 - d) / 3.4, 0, 1) : 0;
+      if (windup > 0 && !b.warned) { b.warned = true; sound.breath(soundDir(fx.eye, fx.fwd, b.pos).pan); }
+      const pulse = (0.45 + Math.sin(b.phase * (1 + windup * 3)) * 0.05) * (1 + windup * 0.45);
       const squash = b.stagger > 0 ? 0.75 : 1;
       writeYaw(b.core.matrix, [b.pos[0], b.pos[1] + Math.sin(b.phase * 0.7) * 0.15, b.pos[2]], b.phase * 0.4, pulse / squash, pulse * 0.92 * squash, pulse);
       writeYaw(b.spikes.matrix, b.pos, b.phase, pulse * 2.3, 0.07, 0.07);
@@ -2643,7 +3128,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
     bloomAhead() { return spawnBloom(s + 10, offset * 0.6, 1.2); },
     get locks() { return locks.length; },
   };
-  if (import.meta.env.DEV) window.__ride = { track, hull, puncture: (c, cause = 'scrape') => hull.puncture(c, cause), overboard: () => goOverboard('test'), reset: () => { overboard = null; capsize = null; trailGrab = null; hull.state.capsized = false; }, capsize: () => startCapsize(), get swimming() { return overboard; }, get capsized() { return capsize; }, get grab() { return trailGrab; }, valve, linked, lifeguard, locker, wake, passengerStep, burst: () => burst(fx.eye, fx.fwd), get s() { return s; }, set s(v) { s = v; } };
+  if (import.meta.env.DEV) window.__ride = { track, hull, puncture: (c, cause = 'scrape') => hull.puncture(c, cause), overboard: () => goOverboard('test'), free: () => restrained && !restrained.freed && freeRestrained(), shove: () => shove(fx.eye, fx.fwd), ping: () => ping(fx.eye, fx.fwd), fireAt: (dir) => { fireProfile(fx.eye, fx.look, dir || fx.fwd); return state.profile; }, spawnEnc: (kind, extra = {}) => spawn({ e: { kind, ...extra }, s: s + 10, sec: track.sectionAt(s).sec }), get coop() { return { climber, crewGrab, ballast, restrained, protect, focusing, fov, profile: state.profile, special: state.special }; }, reset: () => { overboard = null; capsize = null; trailGrab = null; hull.state.capsized = false; }, capsize: () => startCapsize(), get swimming() { return overboard; }, get capsized() { return capsize; }, get grab() { return trailGrab; }, valve, linked, lifeguard, locker, wake, passengerStep, burst: () => burst(fx.eye, fx.fwd), get s() { return s; }, set s(v) { s = v; } };
 
   return {
     update,

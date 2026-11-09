@@ -7,10 +7,23 @@ import { box, cylinder, sphere } from '67js';
 import { add, scale, cross, normalize, sub, length, writeBasis, hide, cameraBasis } from './math.js';
 import { sound } from './audio.js';
 
-const FIRE_INTERVAL = 0.11;
 const BEAM_TIME = 0.06;
-const HEAT_PER_SHOT = 5.5;
+
+/**
+ * Four firing profiles and one tool, each with a job. Pulse spends ordinary charge (which always comes back);
+ * the specialist profiles share one reserve, so a long Repeater burst leaves less for a Disruptor emergency.
+ *   damage: multiplier on state.damage · special: reserve per shot · pellets/spread/range: the Scatter cone
+ */
+export const PROFILES = {
+  pulse: { label: 'PULSE', key: '1', interval: 0.13, heat: 5, charge: 1, special: 0, damage: 1, color: [0.85, 1, 0.45], job: 'accurate · switches · weak points · focus magnifies' },
+  repeater: { label: 'REPEATER', key: '2', interval: 0.065, heat: 3.4, charge: 0, special: 1.1, damage: 0.55, color: [1, 0.85, 0.35], job: 'sustained pressure · eats the reserve · heat' },
+  scatter: { label: 'SCATTER', key: '3', interval: 0.8, heat: 16, charge: 0, special: 7, damage: 0.75, pellets: 7, spread: 0.07, range: 12, color: [1, 0.6, 0.3], job: 'close threats · knockback · clears a grip' },
+  disruptor: { label: 'DISRUPTOR', key: '4', interval: 0.9, heat: 20, charge: 0, special: 12, damage: 3, color: [0.75, 0.55, 1], job: 'breaks anchors and linked nodes · interrupts machinery · focus locks a volley' },
+  hook: { label: 'HOOK LINE', key: '5', interval: 1.1, heat: 0, charge: 0, special: 0, damage: 0, range: 16, color: [1, 0.8, 0.25], job: 'catch supplies · pull against a grip · reach · moor' },
+};
+export const PROFILE_ORDER = ['pulse', 'repeater', 'scatter', 'disruptor', 'hook'];
 const BEAM_COLOR = [0.85, 1, 0.45];
+const profileOf = (state) => PROFILES[state.profile] || PROFILES.pulse;
 const SCAN_COLOR = [0.45, 0.85, 1];
 
 export function createBlaster(state) {
@@ -67,6 +80,8 @@ export function createBlaster(state) {
         return false;
       }
       state.heat = Math.max(0, state.heat - dt * (wantsFire ? 10 : 34));
+      // The specialist reserve creeps back on its own, slowly.
+      state.special = Math.min(100, (state.special ?? 60) + dt * (mounted ? 0.7 : 0.4));
       if (mounted && !wantsFire && !state.recharging && state.charge < state.maxCharge) {
         trickle += dt * 5;
         while (trickle >= 1 && state.charge < state.maxCharge) { state.charge += 1; trickle -= 1; }
@@ -80,24 +95,31 @@ export function createBlaster(state) {
         return false;
       }
       if (!wantsFire || cooldown > 0) return false;
-      if (state.charge <= 0) {
+      const P = profileOf(state);
+      if ((P.charge && state.charge <= 0) || (P.special && (state.special ?? 0) < P.special)) {
         cooldown = 0.3;
         sound.empty();
         return false;
       }
-      state.charge -= 1;
-      state.heat += HEAT_PER_SHOT;
-      state.noise = Math.min(100, state.noise + 7);
-      cooldown = FIRE_INTERVAL;
-      kick = 1;
-      sound.fire();
+      state.charge -= P.charge;
+      if (P.special) state.special -= P.special;
+      state.heat += P.heat;
+      state.noise = Math.min(100, state.noise + (P === PROFILES.hook ? 2 : 7));
+      cooldown = P.interval;
+      kick = P === PROFILES.scatter || P === PROFILES.disruptor ? 2.2 : 1;
+      beam.material.emissiveColor = P.color;
+      beam.material.color = P.color;
+      if (P === PROFILES.scatter) sound.scatter?.();
+      else if (P === PROFILES.disruptor) sound.disrupt?.();
+      else if (P === PROFILES.hook) sound.hookThrow?.();
+      else sound.fire();
       state.drift = Math.max(0, state.drift - 0.6);
       if (state.heat >= 100) {
         overheat = 1.6;
         sound.empty();
         state.overheated = true;
       } else state.overheated = false;
-      if (state.charge === 0) recharge();
+      if (state.charge === 0 && P.charge) recharge();
       return true;
     },
     get overheated() {

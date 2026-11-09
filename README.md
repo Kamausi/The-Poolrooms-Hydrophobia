@@ -19,7 +19,6 @@ The game needs a browser with WebGL2. On a machine without a GPU it switches to 
 | Steer (raft) / move (foot) | A / D · WASD | Left stick |
 | Aim / look | Mouse | Right stick |
 | Fire | Left click | Right trigger |
-| Lock-on volley (raft) | Hold right click, sweep, release | Left trigger |
 | Inspection beam | Q (right click on foot) | Y |
 | Hop | Space | A |
 | Brace behind the hull | Ctrl or C | B |
@@ -30,14 +29,21 @@ The game needs a browser with WebGL2. On a machine without a GPU it switches to 
 | Brake (flumes, tubes) | S | — |
 | Paddle (blaster down) · prod on foot | Hold V | L3 (toggle) |
 | Find a leak, patch it, pump it up | Hold G | D-pad down |
+| Blaster profile (Pulse, Repeater, Scatter, Disruptor, Hook) | 1–5, Tab, wheel | D-pad right |
+| Focus / magnify (Disruptor: acquire a volley) | Hold right click | Left trigger |
+| Shove | Z | Tap B |
+| Ping / radio check | B or middle click | D-pad left |
 | Recharge · dressing · Ride Control | R · H · T | D-pad up · Select · — |
 | Holding pools | Shoot an arrow · Space depart · E moor | |
 | Pause and settings | Esc | Start |
+
+Every key can be rebound in Settings; paddle and brace can be toggles; steering sensitivity and camera motion are adjustable.
 
 Touch: left half of the screen moves, right half aims or looks, with buttons for fire, scan, burst, use and boost. Aim assist snaps to targets near your finger.
 
 ## Modes
 - **Campaign 1, "Overflow":** choose Mars, Dez, Tubs or June, then ride eight attractions, from the Welcome Pools to the Rooftop Lagoon. Each is a branching ride ending at a holding pool with an optional dock: restore power, run a compressor, raise the pool, winch a gate, or fetch supplies.
+- **Challenges:** Pump Defence, High Water, Last Departure, Shared Expedition. **Route builder:** write a ride as tokens, ride it, share it as a link.
 - **Endless:** seeded attractions with rising threat and a score. Enter a seed on the menu or open `?seed=1234`; your best depth per seed is kept.
 - The game saves your exact position every few seconds; closing the tab and choosing **Resume** puts you back where you were. Safe Rooms are the checkpoints you return to after dying.
 
@@ -54,7 +60,7 @@ Touch: left half of the screen moves, right half aims or looks, with buttons for
 | `src/sectors.js` | The eight attractions: palettes, rides, maps, rules, voices, graffiti |
 | `src/documents.js` | Found documents for the logbook |
 | `src/crew.js` | The four Drainers, the roll call, and what survives a loop |
-| `src/director.js` | Pacing: relax, warning, build-up, peak, fade, recovery |
+| `src/director.js` | Pacing: relax, warning, build-up, peak, fade, recovery; a pressure budget that counts rescues and repairs |
 | `src/saferoom.js` | The Safe Room scene behind its panel |
 | `src/ui.js` | Safe Room, workbench, route terminal, logbook, keypad, settings |
 | `src/hud.js`, `src/style.css` | The overlay |

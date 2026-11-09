@@ -6,6 +6,7 @@ import '67js/addons/world-material-shader';
 import { VERSION } from '67js';
 import { SECTORS } from './sectors.js';
 import { buildPlan, buildEndlessPlan } from './plans.js';
+import { PRESETS } from './track.js';
 import { createRide } from './ride.js';
 import { createExplore } from './explore.js';
 import { createSafeRoom } from './saferoom.js';
@@ -29,6 +30,8 @@ const freshState = (extra = {}) => ({
   raft: 100, patches: 0, patchKits: 2, chambers: null, leaks: [], hullMarks: [], upgrades: [], logbook: [], power: {}, drained: {}, attempt: 0, guests: 1,
   band: String(1000 + Math.floor(Math.random() * 8999)).padStart(4, '0'), name: 'Mars', crewLine: 0,
   passenger: { stage: 0, t: 0 }, ride: null, sectorKey: 's0', endless: false, seed: 0, sitting: false,
+  stats: { freed: 0, revives: 0, repairs: 0, pressureRepairs: 0, survivors: 0, routes: [], shared: 0, shoves: 0 },
+  gear: [], profile: 'pulse', special: 60, crewState: {}, downed: null, downUsed: false, protectT: 0, challenge: null, custom: null, highWater: false,
   dressings: 1, fit: 'standard', autopilot: false, tags: [], photos: [], strandedSaved: {}, character: 'mars', rescued: 0, recognized: 0, forgotten: [], overrides: 0, sectorScore: 0, pressure: 1, sitT: 0, resolve: 0, memory: null,
   ...extra,
 });
@@ -44,6 +47,8 @@ let lastPosition = null;
 
 // ---------- Sectors ----------
 function sectorAt(index) {
+  // A custom or shared route: one attraction's look, the player's own ride tokens.
+  if (state.custom) return { ...SECTORS[state.custom.base] , index, ride: state.custom.tokens, custom: true, crew: [] };
   if (!state.endless) return { ...SECTORS[index], index };
   // Endless: a seeded attraction per depth, with a random ride and harder threats.
   const r = rng(state.seed * 131 + index * 7919);
@@ -53,7 +58,7 @@ function sectorAt(index) {
 }
 function planFor(sector) {
   const random = rng(5000 + sector.index * 97 + state.attempt * 13 + state.seed * 3);
-  return { items: buildPlan(sector, random, (sector.threat || 1) * (state.pressure || 1)), choices: {} };
+  return { items: buildPlan(sector, random, (sector.threat || 1) * (state.pressure || 1) * (state.highWater ? 1.3 : 1)), choices: {} };
 }
 const keyFor = (index) => `${state.endless ? 'e' : 's'}${index}`;
 
@@ -77,10 +82,30 @@ function clearResume() {
   try { localStorage.removeItem(RESUME_KEY); } catch {}
 }
 
+const pick1 = (list) => list[Math.floor(Math.random() * list.length)];
+
+/** What this expedition did, crediting the pilot, the rescuer and the carrier as well as the best shot. */
+function expeditionRecord() {
+  const st = state.stats || {};
+  const crew = Object.entries(state.crewState || {}).filter(([id]) => !state.forgotten.includes(id)).length + 1;
+  return [
+    'EXPEDITION RECORD',
+    `Crew recovered: ${crew} of 4${state.forgotten.length ? ` (no record: ${state.forgotten.map((id) => crewById(id).name).join(', ')})` : ''}`,
+    `Teammates freed: ${st.freed || 0} · Revives: ${st.revives || 0}`,
+    `Repairs: ${st.repairs || 0}, ${st.pressureRepairs || 0} of them under pressure · Supplies hauled in: ${st.shared || 0}`,
+    `Survivors rescued: ${state.rescued} · Names read back: ${state.recognized}`,
+    `Routes discovered: ${(st.routes || []).length ? st.routes.join(' · ') : 'the main line only'}`,
+    `Entities dispersed: ${state.cleared} · Score: ${Math.round(state.score)}`,
+  ].join('\n');
+}
+
 // ---------- Events from scenes ----------
 const events = {
   damage(n, reason, quiet = false) {
     if (mode !== 'ride' && mode !== 'explore') return;
+    if (n >= 999) state.fatal = true;
+    else if (state.protectT > 0) return; // just rescued or revived: a moment's grace
+    else if (state.downed) { state.downed.bleed -= n * 0.25; state.downed.revive = Math.max(0, state.downed.revive - 1); if (!quiet) sound.hurt(); return; }
     state.health = Math.max(0, state.health - n);
     state.lastHurt = reason;
     if (!quiet) { hud.damage(); sound.hurt(); }
@@ -118,8 +143,58 @@ const events = {
         state.health = 0;
       }
     }
+    state.protectT = Math.max(0, (state.protectT || 0) - dt);
+    // Incapacitated: once per checkpoint, the first fall is not death. Pulse only, from the floor.
+    if (state.health <= 0 && !state.fatal && !state.downed && !state.downUsed && !state.sitting) {
+      const crew = Object.keys(state.crewState || {}).filter((c) => !state.forgotten.includes(c) && state.crewState[c] !== 'hurt');
+      state.downed = { bleed: 30, revive: 0, crew: crew.length ? crew[0] : null, t: 0 };
+      state.downUsed = true;
+      state.health = 1;
+      state.profile = 'pulse';
+      hud.toast(crew.length ? `INCAPACITATED · ${crew[0].toUpperCase()} IS COMING · keep shooting` : 'INCAPACITATED · nobody is coming · HOLD E to get yourself up');
+      if (crew.length) hud.say(crew[0].toUpperCase(), 'You\'re down — stay down, keep shooting, I\'m coming to you!', 'crew');
+      sound.hurt();
+    }
+    if (state.downed) {
+      const d = state.downed;
+      d.t += dt;
+      d.bleed -= dt;
+      // A crewmate gets to you, then takes four seconds. Alone, you hold E for five, and getting hit sets it back.
+      if (d.crew && d.t > 5) d.revive += dt / 4;
+      else if (!d.crew && input.keys.has('e')) d.revive += dt / 5;
+      hud.prompt(d.crew ? (d.t > 5 ? `${d.crew.toUpperCase()} IS PULLING YOU UP ${'▮'.repeat(Math.round(d.revive * 10))}${'▯'.repeat(10 - Math.round(d.revive * 10))} · ${Math.ceil(d.bleed)} s` : `INCAPACITATED · ${d.crew.toUpperCase()} IS ON THE WAY · keep them off you · ${Math.ceil(d.bleed)} s`) : `INCAPACITATED · HOLD E to get yourself up ${'▮'.repeat(Math.round(d.revive * 10))}${'▯'.repeat(10 - Math.round(d.revive * 10))} · ${Math.ceil(d.bleed)} s`);
+      if (d.revive >= 1) {
+        state.downed = null;
+        state.health = 30;
+        state.protectT = 3;
+        state.stats.revives += 1;
+        hud.toast('BACK ON YOUR FEET · NEXT TIME IS THE LAST TIME');
+        if (d.crew) hud.say(d.crew.toUpperCase(), pick1(['Up. Up. I\'ve got you.', 'You owe me a towel. Get up.', 'Don\'t do that again. I mean it.']), 'crew');
+      } else if (d.bleed <= 0) {
+        state.downed = null;
+        state.health = 0;
+        state.fatal = true;
+        state.lastHurt = d.crew ? `${d.crew[0].toUpperCase() + d.crew.slice(1)} didn't get there in time.` : 'You couldn\'t get up, and nobody was coming.';
+      }
+    }
+    // Last Departure: a ride against the clock.
+    if (state.challenge?.kind === 'departure' && mode === 'ride') {
+      state.challenge.left -= dt;
+      if (state.challenge.left <= 0) { state.fatal = true; state.health = 0; state.lastHurt = 'The last departure left without you.'; }
+      else if (!state.downed && !state.sitting) hud.depth(`LAST DEPARTURE · ${Math.ceil(state.challenge.left)} s`);
+    }
     hud.stats(state);
     if (state.health <= 0) die();
+  },
+  /** Challenge finished (Pump Defence, Last Departure). */
+  challengeDone(label) {
+    if (mode !== 'ride' && mode !== 'explore') return;
+    mode = 'end';
+    releaseLock();
+    scene?.dispose();
+    scene = null;
+    hud.show(false);
+    showModal('Challenge complete.', `${label}\n\nSCORE ${Math.round(state.score)} · ENTITIES DISPERSED ${state.cleared}\n\n${expeditionRecord()}`, [['AGAIN ↗', () => { hideModal(); startChallenge(state.challenge.kind); }, true], ['MENU', toMenu]], 'CHALLENGE');
   },
   position(p) {
     lastPosition = p;
@@ -199,7 +274,7 @@ function startRide(opts = {}) {
   hud.show(true);
   hud.sector(sector, opts.resumeS ? 'Choose your gate. Depart with SPACE.' : 'Shoot what moves. Scan what hides. Watch the route.');
   hud.mode('● ON THE RAFT');
-  hud.hint('A/D steer · SPACE hop · CLICK fire · HOLD RIGHT-CLICK lock, release volley · CTRL/C brace · Q scan · F burst · SHIFT boost · S brake · X look back · HOLD V paddle · HOLD G patch · T ride control');
+  hud.hint('A/D steer · SPACE hop · CLICK fire · RIGHT-CLICK focus (Disruptor: lock) · 1–5 / TAB profile · CTRL/C brace · Z shove · B ping · Q scan · F burst · SHIFT boost · HOLD V paddle · HOLD G patch · X look back · T ride control');
   document.body.dataset.mode = 'ride';
   releaseLock();
   swap(() => createRide(canvas, state, sector, events, opts));
@@ -217,7 +292,7 @@ function startExplore(opts = {}) {
   hud.show(true);
   hud.sector(sector, 'Find the power cell. Restore the service gate. Return to the raft.');
   hud.mode('● ON FOOT');
-  hud.hint('WASD move · MOUSE look · CLICK fire · RIGHT-CLICK or Q scan · F burst · E use · H dressing · V paddle (prod, reach, sound the water) · SHIFT run');
+  hud.hint('WASD move · MOUSE look · CLICK fire · 1–5 / TAB profile · RIGHT-CLICK or Q scan · Z shove · B ping · F burst · E use · H dressing · V paddle · SHIFT run');
   document.body.dataset.mode = 'explore';
   swap(() => createExplore(canvas, state, sector, events, opts));
 }
@@ -240,6 +315,16 @@ function enterSafeRoom() {
   if (state.filter <= 0) state.filter = 100;
   state.passenger = { stage: 0, t: 0 };
   state.guests += 1;
+  state.downUsed = false;
+  state.downed = null;
+  state.fatal = false;
+  for (const c of Object.keys(state.crewState || {})) if (state.crewState[c] === 'hurt') state.crewState[c] = 'ok';
+  if (state.challenge?.kind === 'departure') return events.challengeDone('You made the last departure.');
+  if (state.custom) {
+    hud.show(false);
+    mode = 'end';
+    return showModal('Route complete.', `${state.custom.name || 'A custom route'} · ${state.custom.tokens.join(' → ')}\n\n${expeditionRecord()}`, [['RIDE IT AGAIN ↗', () => { hideModal(); startCustom(state.custom); }, true], ['COPY ROUTE LINK', () => navigator.clipboard?.writeText(routeLink(state.custom))], ['MENU', toMenu]], 'CUSTOM ROUTE');
+  }
   hud.show(false);
   hud.clearSpeech();
   hud.prompt('');
@@ -330,7 +415,9 @@ Survived: everyone counted. Remained: you, for now. Changed: the park knows who 
   }[kind];
   showModal(T[0], `${T[1]}
 
-GUESTS CHECKED IN: ${state.guests} · ENTITIES DISPERSED: ${state.cleared} · DOCUMENTS: ${state.logbook.length} · LOOPS: ${mem.loops}`, [['RIDE AGAIN ↗', () => { hideModal(); newCampaign(); }, true], ['MENU', toMenu]], kind === 'loop' ? 'THE LOOP' : kind === 'seal' ? 'SEAL THE DRAIN' : 'COUNT HEADS');
+GUESTS CHECKED IN: ${state.guests} · ENTITIES DISPERSED: ${state.cleared} · DOCUMENTS: ${state.logbook.length} · LOOPS: ${mem.loops}
+
+${expeditionRecord()}`, [['RIDE AGAIN ↗', () => { hideModal(); newCampaign(); }, true], ['MENU', toMenu]], kind === 'loop' ? 'THE LOOP' : kind === 'seal' ? 'SEAL THE DRAIN' : 'COUNT HEADS');
 }
 
 function die() {
@@ -340,6 +427,14 @@ function die() {
   hud.prompt('');
   sound.gurgle();
   clearResume();
+  if (state.challenge || state.custom) {
+    const kind = state.challenge?.kind;
+    showModal('The water took you.', `${state.lastHurt || 'You stopped moving.'}\n\n${expeditionRecord()}`, [
+      ['TRY AGAIN ↗', () => { hideModal(); state.custom ? startCustom(state.custom) : startChallenge(kind); }, true],
+      ['MENU', toMenu],
+    ], state.custom ? 'CUSTOM ROUTE' : 'CHALLENGE');
+    return;
+  }
   if (state.endless) {
     const rec = recordEndless();
     showModal('The water took you.', `${state.lastHurt || 'You stopped moving.'}
@@ -412,13 +507,114 @@ function beginCampaignAs(id, memory) {
   const remembered = memory.loops
     ? `\n\nSomething is different this time. The Pumphouse flood gauge reads lower than it should. There is a note in the raft's locker in your own handwriting.${memory.route ? ' June\'s route from last time is folded inside it.' : ''}`
     : '';
-  showModal('Remain seated.', `You wake in a raft. The water is warm. There is a numbered wristband on your arm: ${state.band}. You don't remember putting it on.
+  const dispatch = `PUMPHOUSE DISPATCH · ROUTE: OVERFLOW (WELCOME POOLS → MAIN DRAIN)
+ASSIGNED CREW: ${CREW.map((c) => c.full).join(' · ')}
+LAST KNOWN MAINTENANCE STATUS: Crew Seven, six weeks overdue. Raft returned empty.
+PHOTO CLIPPED TO THE SHEET: four Drainers at a picnic table by the wave pool. One of them has turned away from the camera. You'll understand it later.
+
+`;
+  showModal('Remain seated.', `${dispatch}You wake in a raft. The water is warm. There is a numbered wristband on your arm: ${state.band}. You don't remember putting it on.
 
 The Arc Blaster is tethered to the seat. The announcements say to remain seated until the unloading station.
 
 You have already passed the unloading station three times. Each time, it was farther underwater.
 
 ${others.join(', ')}: their voices crackle on the radio. The raft split at the junction. They are on the other channel. Count off before every launch. If anyone stops answering, read their name back.${remembered}`, [['ENTER THE FLOW ↗', () => { hideModal(); startRide(); }, true]], `${me.full.toUpperCase()} · WRISTBAND ${state.band} · CHECKED IN`);
+}
+
+/** Challenge variants on the same spaces, signals and controls. */
+const CHALLENGES = {
+  pump: { name: 'Pump Defence', text: 'Hold a maintenance chamber on foot while the pump runs five loud cycles.' },
+  highwater: { name: 'High Water', text: 'Endless, with the water up: more Drift, harder threats, tidal floors permanently flooded.' },
+  departure: { name: 'Last Departure', text: 'Ride one attraction to its Safe Room before the last departure leaves: four minutes.' },
+  shared: { name: 'Shared Expedition', text: 'One seed, one route and objective layout, shared by link. Encounters still answer to how you play.' },
+};
+function startChallenge(kind) {
+  const keep = { character: state.character || 'mars', name: state.name || 'Mars', memory: state.memory };
+  if (kind === 'highwater') {
+    state = freshState({ ...keep, endless: true, highWater: true, seed: Math.floor(Math.random() * 99999) + 1, challenge: { kind } });
+    hud.setPlayer(state.name);
+    beginSector(0);
+    hud.toast('HIGH WATER · the levels are up everywhere');
+    return startRide();
+  }
+  if (kind === 'shared') {
+    const seed = Math.floor(Math.random() * 99999) + 1;
+    navigator.clipboard?.writeText(`${location.origin}${location.pathname}?seed=${seed}`);
+    hud.toast(`SHARED EXPEDITION · SEED ${seed} · LINK COPIED`);
+    return startEndless(seed);
+  }
+  const index = 1 + Math.floor(Math.random() * 6);
+  state = freshState({ ...keep, sectorIndex: index, challenge: kind === 'pump' ? { kind, cycle: 0, t: 0 } : { kind, left: 240 } });
+  hud.setPlayer(state.name);
+  beginSector(index);
+  if (kind === 'pump') return startExplore({ challenge: 'pump' });
+  hud.toast('LAST DEPARTURE · FOUR MINUTES · DOCKS ARE OPTIONAL, TIME IS NOT');
+  startRide();
+}
+
+/** Custom routes: ride tokens anyone can write, share as a link, and ride. */
+const TOKEN_TYPES = new Set([...Object.keys(PRESETS), 'ramp', 'fork', 'junction', 'dock']);
+function parseRoute(text) {
+  const tokens = text.split(/[\s,]+/).map((t) => t.trim()).filter(Boolean);
+  const bad = tokens.filter((t) => !TOKEN_TYPES.has(t.split(':')[0]));
+  if (!tokens.length) return { error: 'An empty route.' };
+  if (bad.length) return { error: `Unknown section${bad.length > 1 ? 's' : ''}: ${bad.join(', ')}` };
+  if (!tokens.some((t) => t.startsWith('dock'))) tokens.push('dock');
+  return { tokens };
+}
+function routeLink(custom) {
+  return `${location.origin}${location.pathname}?route=${encodeURIComponent(custom.tokens.join(' '))}&base=${custom.base}`;
+}
+function startCustom(custom) {
+  state = freshState({ character: state.character || 'mars', name: state.name || 'Mars', memory: state.memory, custom });
+  hud.setPlayer(state.name);
+  beginSector(0);
+  hud.toast(`CUSTOM ROUTE · ${custom.tokens.length} SECTIONS`);
+  startRide();
+}
+function routeBuilder(prefill) {
+  const body = document.createElement('div');
+  const help = document.createElement('p');
+  help.textContent = `Write a ride as sections, in order. Types: ${[...TOKEN_TYPES].join(', ')}. Add features after a colon (lazy:valve,lifeguard · reservoir:ballast · junction:public|overflow · fork:rescue · dock:repair). A dock is added at the end if you leave it out.`;
+  const area = document.createElement('textarea');
+  area.className = 'route-text';
+  area.value = prefill || SECTORS[2].ride.join(' ');
+  const base = document.createElement('select');
+  SECTORS.forEach((sec, i) => { const o = document.createElement('option'); o.value = i; o.textContent = `Look and rules: ${sec.name}`; base.append(o); });
+  base.value = new URLSearchParams(location.search).get('base') || '2';
+  const err = document.createElement('p');
+  err.className = 'mono small';
+  body.append(help, area, base, err);
+  const go = (copy) => {
+    const r = parseRoute(area.value);
+    if (r.error) { err.textContent = r.error; return; }
+    const custom = { tokens: r.tokens, base: Number(base.value), name: 'A shared route' };
+    if (copy) { navigator.clipboard?.writeText(routeLink(custom)); err.textContent = 'Link copied.'; return; }
+    hideModal();
+    begin();
+    startCustom(custom);
+  };
+  showModal('Route builder.', body, [['RIDE IT ↗', () => go(false), true], ['COPY LINK', () => go(true)], ['MENU', toMenu]], 'CUSTOM ROUTES');
+}
+function challengeMenu() {
+  const body = document.createElement('div');
+  const list = document.createElement('div');
+  list.className = 'choices';
+  for (const [id, c] of Object.entries(CHALLENGES)) {
+    const b = document.createElement('button');
+    b.className = 'choice';
+    const n = document.createElement('b'); n.textContent = c.name;
+    const t = document.createElement('span'); t.textContent = c.text;
+    b.append(n, t);
+    b.onclick = () => { hideModal(); begin(); startChallenge(id); };
+    list.append(b);
+  }
+  const versus = document.createElement('p');
+  versus.className = 'mono small';
+  versus.textContent = 'VERSUS (four Drainers against four player-controlled entities) needs the online layer, which is not built yet. Its rules are written down in docs/SYSTEMS_DESIGN.md section 19.';
+  body.append(list, versus);
+  showModal('Challenges.', body, [['ROUTE BUILDER', () => routeBuilder()], ['MENU', toMenu]], 'VARIANTS');
 }
 
 function startEndless(seed) {
@@ -509,6 +705,12 @@ $('continue').onclick = () => {
   startRide();
 };
 $('endless').onclick = () => { begin(); startEndless(Number($('seed').value) || 0); };
+$('challenges').onclick = () => { $('menu').hidden = true; challengeMenu(); };
+$('routes').onclick = () => { $('menu').hidden = true; routeBuilder(); };
+{
+  const shared = new URLSearchParams(location.search).get('route');
+  if (shared) { $('routes').textContent = 'RIDE THE SHARED ROUTE'; $('routes').onclick = () => { $('menu').hidden = true; routeBuilder(shared); }; }
+}
 $('sound').onclick = () => {
   sound.setEnabled(!sound.enabled);
   $('sound').textContent = sound.enabled ? 'SOUND ON' : 'SOUND OFF';
@@ -531,7 +733,7 @@ window.__underflow = {
   get state() { return state; },
   get mode() { return mode; },
   get scene() { return scene; },
-  startExplore, enterSafeRoom, startRide, newCampaign, startEndless, beginSector, events,
+  startExplore, enterSafeRoom, startRide, newCampaign, startEndless, beginSector, events, startChallenge, startCustom, parseRoute, expeditionRecord,
   setState(patch) { Object.assign(state, patch); },
   step(n, dt = 1 / 30) {
     manual = true;

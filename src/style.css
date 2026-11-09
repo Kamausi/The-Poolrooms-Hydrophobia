@@ -164,3 +164,9 @@ body.touch:not([data-mode='ride']) #touch-jump, body.touch:not([data-mode='ride'
 .lido-meter { position: relative; height: 18px; border: 1px solid currentColor; margin: 6px 0; background: linear-gradient(90deg, transparent 42%, rgba(120, 255, 170, 0.25) 42%, rgba(120, 255, 170, 0.25) 58%, transparent 58%); }
 .lido-meter i { position: absolute; top: -3px; width: 4px; height: 22px; margin-left: -2px; background: currentColor; }
 #chambers.warn { color: #ff8a6a; }
+.bindings { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 4px; margin-top: 8px; }
+.bindings p { grid-column: 1 / -1; }
+.bind { font: inherit; font-size: 12px; text-align: left; padding: 4px 8px; background: transparent; color: inherit; border: 1px solid currentColor; opacity: 0.85; cursor: pointer; }
+.route-text { width: 100%; min-height: 90px; font: 13px/1.5 'IBM Plex Mono', monospace; background: rgba(0, 0, 0, 0.25); color: inherit; border: 1px solid currentColor; padding: 8px; margin: 8px 0; box-sizing: border-box; }
+#modal select { font: inherit; background: transparent; color: inherit; border: 1px solid currentColor; padding: 4px; }
+#roster { opacity: 0.85; }

@@ -86,7 +86,7 @@ export const SECTORS = [
   {
     id: 'wave-hall', name: 'THE WAVE HALL', depth: 19,
     tile: '#e8eef0', grout: '#9ab3bd', stain: '#6f8f99', water: '#1f5a6e', fog: '#0f1c22', lamp: '#eaf6ff',
-    ride: ['hall:stairway', 'fork:sluice', 'lazy:valve', 'junction:maintenance|overflow', 'fork:bulkhead', 'ramp', 'dock:winch'],
+    ride: ['hall:stairway,ballast', 'fork:sluice', 'lazy:valve', 'junction:maintenance|overflow', 'fork:bulkhead', 'ramp', 'dock:winch'],
     explore: { lifeguard: 'run', waves: true, dark: 0.25 },
     valve: 'nothing you can see. The hall floods on its own schedule',
     map: [
@@ -113,7 +113,7 @@ export const SECTORS = [
       ['JUNE', 'Every wave leaves something closer to the beach. Something with arms.'],
       ['MARS', 'Don\'t run near the chair. It\'s the only rule it cares about here.'],
     ],
-    graffiti: ['IT COMES IN WITH THE WAVES. IT DOES NOT GO OUT WITH THEM.', 'I counted 4,113 waves. Then I stopped counting. Then they stopped.', 'WALK. DON\'T RUN. IT CAN HEAR YOU RUN.'],
+    graffiti: ['EVERYBODY CAME BACK.', 'IT COMES IN WITH THE WAVES. IT DOES NOT GO OUT WITH THEM.', 'I counted 4,113 waves. Then I stopped counting. Then they stopped.', 'WALK. DON\'T RUN. IT CAN HEAR YOU RUN.'],
   },
   {
     id: 'splash-zone', name: 'THE FAMILY SPLASH ZONE', depth: 23,
@@ -247,7 +247,7 @@ export const SECTORS = [
     id: 'rooftop-lagoon', name: 'THE ROOFTOP LAGOON', depth: 0,
     tile: '#e9eef2', grout: '#a8b8c4', stain: '#7d93a3', water: '#3b8fb0', fog: '#a9c6da', lamp: '#ffffff',
     sky: { top: '#5f9fd6', bottom: '#d7e8f2' }, openSky: true,
-    ride: ['lift', 'lazy:clouds', 'ramp', 'lazy:valve,lifeguard', 'junction:public|overflow', 'lazy:clouds', 'dock:winch'],
+    ride: ['lift', 'lazy:clouds', 'ramp', 'lazy:valve,lifeguard', 'junction:public|overflow', 'reservoir:ballast', 'dock:winch'],
     explore: { lifeguard: 'swim', reflection: true, openSky: true, dark: 0 },
     valve: 'the lagoon\'s south shelf',
     map: [

@@ -1,5 +1,6 @@
 // Overlays: the shared modal, the Safe Room, the logbook, documents, the keypad, settings.
-import { settings, saveSettings, SETTING_LABELS } from './settings.js';
+import { settings, saveSettings, SETTING_LABELS, ACTIONS } from './settings.js';
+import { input, applyBindings } from './input.js';
 import { COMFORTS } from './sectors.js';
 import { ROUTES } from './plans.js';
 import { CREW, crewById, fadingCrew } from './crew.js';
@@ -44,6 +45,15 @@ export const UPGRADES = [
   { id: 'valve', name: 'Valve tool', text: 'Drain a flooded passage by hand from the dock (V).', cost: 2 },
 ];
 /** Raft configurations: handling, protection or capacity, chosen at the workbench. */
+/** Fixed raft footprint: three equipment positions. Fitting happens here and at maintenance docks, never mid-channel. */
+export const RAFT_GEAR = [
+  { id: 'bow', name: 'Reinforced bow housing', text: 'Front-chamber hits do less and rarely open a leak.' },
+  { id: 'hookgear', name: 'Better retrieval gear', text: 'Hook line reaches 24 m and reels in faster.' },
+  { id: 'reservoir', name: 'Emergency pressure reservoir', text: 'Once per ride, the softest chamber gets +45 when one drops below a quarter.' },
+  { id: 'filtration', name: 'Compact filtration unit', text: 'Filters last longer in hazardous water; the Safe Room pump room tops one up.' },
+  { id: 'storage', name: 'Sealed storage', text: 'Carry four charge cells and four dressings instead of three.' },
+];
+export const capOf = (s) => ((s.gear || []).includes('storage') ? 4 : 3);
 export const RAFT_FITS = [
   { id: 'standard', name: 'Standard hull', text: 'Balanced. What Dez built.' },
   { id: 'handling', name: 'Light hull', text: 'Steers faster and hops higher. Thinner.' },
@@ -92,10 +102,10 @@ function lidoGame(state, onSave) {
 
 /** Supplies converted into items. */
 export const RECIPES = [
-  { id: 'cell', name: 'Charge cell', text: 'For the disruption burst.', cost: 2, can: (s) => s.cells < 3, apply: (s) => (s.cells += 1) },
+  { id: 'cell', name: 'Charge cell', text: 'For the disruption burst.', cost: 2, can: (s) => s.cells < capOf(s), apply: (s) => (s.cells += 1) },
   { id: 'filter', name: 'Filter', text: 'Chlorine protection.', cost: 1, can: (s) => s.filters < 3, apply: (s) => { s.filters += 1; if (s.filter <= 0) s.filter = 100; } },
   { id: 'patch', name: 'Field patch kit', text: 'Carried. Hold G on the raft: find the hiss, press it down, pump it up.', cost: 1, can: (s) => (s.patchKits || 0) < 4, apply: (s) => (s.patchKits = (s.patchKits || 0) + 1) },
-  { id: 'medkit', name: 'Field dressing', text: 'Carried. Press H to apply (+40 vitals over a few seconds, no firing while you do).', cost: 2, can: (s) => (s.dressings || 0) < 3, apply: (s) => (s.dressings = (s.dressings || 0) + 1) },
+  { id: 'medkit', name: 'Field dressing', text: 'Carried. Press H to apply (+40 vitals over a few seconds, no firing while you do).', cost: 2, can: (s) => (s.dressings || 0) < capOf(s), apply: (s) => (s.dressings = (s.dressings || 0) + 1) },
 ];
 
 /**
@@ -213,17 +223,30 @@ export function showSafeRoom(state, sector, nextSector, nextPlan, onLeave, onSav
   else body.append(el('p', null, 'The map on the wall marks a room called "Pool 14". None of you remember passing it. The pencil line from it leads here.'));
 
   const wall = el('div', 'graffiti');
-  const REPLIES = ['why not. it\'s warm', 'BECAUSE I SAID SO. — M.', 'who is M', 'it\'s me, you idiot. it\'s always me', 'stop writing on the walls — maintenance', 'maintenance isn\'t real', 'then who keeps painting over this'];
+  const REPLIES = ['Everybody we could remember.', 'why not. it\'s warm', 'BECAUSE I SAID SO. — M.', 'who is M', 'it\'s me, you idiot. it\'s always me', 'stop writing on the walls — maintenance', 'maintenance isn\'t real', 'then who keeps painting over this'];
   (sector.graffiti || []).forEach((line, i) => {
     const p = el('p', null, line);
     p.style.transform = `rotate(${(Math.random() - 0.5) * 5}deg)`;
     wall.append(p);
     // Earlier crews argue with each other, in layers.
-    const reply = el('p', 'reply', `↳ ${REPLIES[(i + sector.index * 2) % REPLIES.length]}`);
+    const reply = el('p', 'reply', `↳ ${line === 'EVERYBODY CAME BACK.' ? REPLIES[0] : REPLIES[1 + ((i + sector.index * 2) % (REPLIES.length - 1))]}`);
     reply.style.transform = `rotate(${(Math.random() - 0.5) * 7}deg)`;
     wall.append(reply);
   });
   if (sector.graffiti?.length) body.append(wall);
+  // The story that runs across the attractions, in objects. Nobody explains it.
+  const STORY = {
+    0: ['A maintenance sheet by the door: four signatures. Four mugs hang on hooks below it. One is still warm.', 'MAINTENANCE SHEET · WELCOME POOLS', 'Four signatures, four mugs, a shift that never ended. The last entry: "Pumps nominal. Everyone accounted for."'],
+    1: ['Pinned over the bench: a note in the raft locker\'s handwriting about an old story. A maze with something at the centre, and a thread to find the way back. Someone has underlined "the way back".', 'THE THREAD', 'Every maze story is the same story: a long corridor, a thing at the centre, and the one rule that matters. Tie the thread at the door. Pay it out behind you. When the corridors start to look like the inside of your own head, follow the line back to the raft and do not look at what is following you. — in your handwriting'],
+    5: ['A staff roster lists three workers on the pump crew. The photograph pinned beside it shows four at the same table, and the fourth is looking at whoever is holding the camera.', 'ROSTER AND PHOTOGRAPH · FILTRATION', 'Roster: three names. Photograph: four people. Nobody on the crew can say who the fourth is, and all of them say they remember her.'],
+    7: ['Scratched under the bench, very small: "I don\'t remember her name. I remember how she knocks."', 'UNDER THE BENCH', '"I don\'t remember her name. I remember how she knocks." Three knocks, from underneath. You have heard them.'],
+  }[sector.index];
+  if (STORY && !sector.endless) {
+    body.append(el('p', null, STORY[0]));
+    if (!state.logbook.some((d) => d.id === `story-${sector.index}`)) state.logbook.push({ id: `story-${sector.index}`, title: STORY[1], text: STORY[2] });
+  }
+  if ([1, 5].includes(sector.index) && !sector.endless) body.append(el('p', null, 'On the wall hangs an old photograph of the reservoir\'s observation gallery, from the day it opened. There is a raft on the water in the photograph. It is yours. The patches are in the same places.'));
+  if (state.stats) body.append(el('p', 'mono small', `TEAMMATES FREED ${state.stats.freed} · REVIVES ${state.stats.revives} · REPAIRS ${state.stats.repairs} (${state.stats.pressureRepairs} under pressure) · SURVIVORS ${state.stats.survivors}`));
 
   // Workbench
   const bench = el('div', 'choices');
@@ -319,6 +342,36 @@ export function showSafeRoom(state, sector, nextSector, nextPlan, onLeave, onSav
     fits.append(b);
   }
   body.append(fits);
+
+  // Equipment positions: three, on a raft that has to fit through the same pipes as before.
+  const gearBox = el('div', 'choices');
+  state.gear ||= [];
+  const gearLabel = el('p', 'mono');
+  gearBox.append(gearLabel);
+  const gearRefresh = () => {
+    gearLabel.textContent = `RAFT FITTINGS · ${state.gear.length}/3 POSITIONS · 3 PARTS EACH · ${state.scrap} PARTS`;
+    gearBox.querySelectorAll('button').forEach((b) => b.refresh());
+  };
+  for (const g of RAFT_GEAR) {
+    const b = el('button', 'choice');
+    const tag = el('i');
+    b.append(el('b', null, g.name), el('span', null, g.text), tag);
+    b.refresh = () => {
+      const on = state.gear.includes(g.id);
+      tag.textContent = on ? 'FITTED · click to remove' : '3 PARTS';
+      b.disabled = !on && (state.gear.length >= 3 || state.scrap < 3);
+    };
+    b.onclick = () => {
+      if (state.gear.includes(g.id)) state.gear = state.gear.filter((x) => x !== g.id);
+      else { state.scrap -= 3; state.gear.push(g.id); }
+      gearRefresh();
+      onSave();
+    };
+    gearBox.append(b);
+  }
+  gearRefresh();
+  body.append(gearBox);
+  if (state.gear.includes('filtration')) { state.filters = Math.min(3, state.filters + 1); }
 
   // The ride photo. The park takes one at the top of every launch.
   const photo = (state.photos || []).filter((ph) => ph.sector === state.sectorKey).pop();
@@ -442,5 +495,40 @@ export function settingsView(onChange) {
   };
   sens.append(document.createTextNode('Look sensitivity'), slider);
   wrap.append(sens);
+  const range = (label, key, min, max) => {
+    const row = el('label');
+    const sl = el('input');
+    Object.assign(sl, { type: 'range', min, max, step: 0.1, value: settings[key] });
+    sl.oninput = () => { settings[key] = Number(sl.value); saveSettings(); };
+    row.append(document.createTextNode(label), sl);
+    wrap.append(row);
+  };
+  range('Steering sensitivity', 'steer', 0.4, 2);
+  range('Camera motion (shake, roll, impacts)', 'camera', 0, 1);
+  // Key bindings: click an action, press a key.
+  const keys = el('div', 'bindings');
+  keys.append(el('p', 'mono', 'KEYS · click, then press a key'));
+  const name = (k) => (k === ' ' ? 'SPACE' : k.toUpperCase());
+  for (const [id, label, def] of ACTIONS) {
+    const b = el('button', 'bind');
+    const show = () => (b.textContent = `${label} · ${name(settings.bindings[id] || def)}`);
+    show();
+    b.onclick = () => {
+      b.textContent = `${label} · press a key…`;
+      input.capture = (k) => {
+        if (k === 'escape') { show(); return; }
+        settings.bindings[id] = k;
+        saveSettings();
+        applyBindings();
+        show();
+      };
+    };
+    keys.append(b);
+  }
+  const reset = el('button', 'bind');
+  reset.textContent = 'Reset all keys';
+  reset.onclick = () => { settings.bindings = {}; saveSettings(); applyBindings(); keys.querySelectorAll('.bind').forEach((x) => x.onclick !== reset.onclick); wrap.replaceWith(settingsView(onChange)); };
+  keys.append(reset);
+  wrap.append(keys);
   return wrap;
 }

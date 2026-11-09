@@ -7,6 +7,8 @@
 // pressure the water starts coming over. state.raft stays the average, for everything that reads one number.
 
 export const CHAMBERS = ['left', 'right', 'bow', 'stern'];
+/** A field patch and a hand pump give basic control; only a compressor fills a chamber. */
+export const FIELD_MAX = 70;
 export const CHAMBER_NAME = { left: 'LEFT SIDE', right: 'RIGHT SIDE', bow: 'FRONT', stern: 'REAR' };
 /** Where each chamber is, relative to the rider: x right, z forward (metres). Used for hiss pan and bubbles. */
 export const CHAMBER_AT = { left: [-0.95, 0.3], right: [0.95, 0.3], bow: [0, 1.5], stern: [0, -0.6] };
@@ -159,18 +161,18 @@ export function createHull(state, { hud, sound, random }) {
    * Field repair: hold to find the hiss, press the patch over it, then pump. Letting go keeps finished steps.
    * blocked: getting hit sets the step back. Returns { active, prompt }.
    */
-  function updateRepair(dt, holdingKey, hurt) {
+  function updateRepair(dt, holdingKey, hurt, underPressure = false) {
     const leak = h.repair && (h.repair.step !== 'locate' || state.leaks.includes(h.repair.leak)) ? h.repair.leak : [...state.leaks].sort((a, b) => state.chambers[a.chamber] - state.chambers[b.chamber])[0];
     if (!leak && !h.repair) {
       if (holdingKey) {
         // Nothing open: the hand pump still tops up the softest chamber.
         const k = CHAMBERS.reduce((a, b) => (state.chambers[a] <= state.chambers[b] ? a : b));
-        if (state.chambers[k] < 100) {
-          state.chambers[k] = Math.min(100, state.chambers[k] + dt * 6);
+        if (state.chambers[k] < FIELD_MAX) {
+          state.chambers[k] = Math.min(FIELD_MAX, state.chambers[k] + dt * 6);
           syncRaft(state);
           return { active: true, prompt: `HAND PUMP · ${CHAMBER_NAME[k]} ${Math.round(state.chambers[k])}%` };
         }
-        return { active: false, prompt: 'THE HULL IS FIRM' };
+        return { active: false, prompt: state.raft < 99 ? `FIELD PUMP TOPS OUT AT ${FIELD_MAX}% · THE COMPRESSOR DOES THE REST` : 'THE HULL IS FIRM' };
       }
       return { active: false, prompt: '' };
     }
@@ -204,11 +206,12 @@ export function createHull(state, { hud, sound, random }) {
       return { active: true, prompt: `PRESSING THE PATCH DOWN · ${Math.round((r.t / 1.4) * 100)}%` };
     }
     // Pump: restore pressure in that chamber.
-    state.chambers[leak.chamber] = Math.min(100, state.chambers[leak.chamber] + dt * (state.leaks.includes(leak) ? 7 : 22));
+    state.chambers[leak.chamber] = Math.min(FIELD_MAX, state.chambers[leak.chamber] + dt * (state.leaks.includes(leak) ? 7 : 22));
     syncRaft(state);
-    if (state.chambers[leak.chamber] >= 99 || (!state.leaks.includes(leak) && r.t > 2.5)) {
+    if (state.chambers[leak.chamber] >= FIELD_MAX - 0.5 || (!state.leaks.includes(leak) && r.t > 2.5)) {
       h.repair = null;
-      hud.toast(`${CHAMBER_NAME[leak.chamber]} FIRM · THE PATCH HOLDS`);
+      if (state.stats) { state.stats.repairs += 1; if (underPressure) state.stats.pressureRepairs += 1; }
+      hud.toast(`${CHAMBER_NAME[leak.chamber]} HOLDING · ${FIELD_MAX}% IS ALL A HAND PUMP GIVES · A COMPRESSOR DOES THE REST`);
       return { active: false, prompt: '' };
     }
     return { active: true, prompt: `PUMPING · ${CHAMBER_NAME[leak.chamber]} ${Math.round(state.chambers[leak.chamber])}%` };
