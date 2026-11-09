@@ -54,7 +54,7 @@ Heavily reinforced, brightly lit chambers that act as hard checkpoints between p
 
 The game runs on 67js (`index.html` + `src/`). The old Three.js prototype is kept at `public/legacy/combat-build-02.html` and linked from the menu.
 
-**Campaign 1, "Overflow":** eight attractions: the Welcome Pools, the Lazy River, the Wave Hall, the Family Splash Zone, the Blacklight Pavilion, the Filtration Works, the Hotel Baths and the Rooftop Lagoon. Each is a branching raft ride, then a holding pool with a dock; you either explore on foot to power the service gate to the Safe Room, force it, or take the bypass with no checkpoint. **Endless mode** strings seeded attractions together with rising threat.
+**Campaign 1, "Overflow":** eight attractions: the Welcome Pools, the Lazy River, the Wave Hall, the Family Splash Zone, the Blacklight Pavilion, the Filtration Works, the Hotel Baths and the Rooftop Lagoon. Each is a branching raft ride, then a holding pool with a dock; you either explore on foot (power a gate, run a compressor, raise the pool, winch a collapsed gate or fetch supplies), force it, or take the bypass with no checkpoint. The raft has four air chambers that puncture, leak and get patched by hand; you paddle still water, and you can go over the side (section 17). **Endless mode** strings seeded attractions together with rising threat.
 
 [SYSTEMS_DESIGN.md](SYSTEMS_DESIGN.md) section 13 lists every system that is implemented, and what is not yet.
 

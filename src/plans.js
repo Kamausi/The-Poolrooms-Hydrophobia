@@ -41,6 +41,17 @@ export function populate(sec, random, threat, features = [], theme = {}) {
     lift: () => {},
     hall: () => { E.push({ at: spot(0.6, 0.9), kind: 'signal' }); },
     loop: () => { E.push({ at: len * 0.5, kind: 'lockerRoom' }); },
+    // The reservoir run: a scrape on the left, a hiss, a grate that Blooms, the Undertow on the trailing edge.
+    reservoir: () => {
+      E.push({ at: len * 0.18, kind: 'hullScrape', side: 'left' });
+      E.push({ at: len * 0.3, kind: 'paddleHorror', what: random() < 0.5 ? 'deep' : 'struck' });
+      E.push({ at: len * 0.42, kind: 'grate', count: 3 + Math.round(threat * 2) });
+      E.push({ at: len * 0.55, kind: 'crewStop' });
+      E.push({ at: len * 0.62, kind: 'paddleHorror', what: 'held' });
+      E.push({ at: len * 0.72, kind: 'trailGrab' });
+      E.push({ at: len * 0.82, kind: 'turnDrift' });
+      E.push({ at: len * 0.92, kind: 'tautLine' });
+    },
   }[sec.type];
   base?.();
   // Movement content: currents to read, gate markers to thread, debris to hop or steer around.
@@ -84,6 +95,15 @@ function shuffle(list, random) {
   }
   return list;
 }
+
+/** What each kind of dock stop asks of you on foot, and what the holding pool's sign says about it. */
+export const DOCK_KINDS = {
+  power: {},
+  repair: { sight: 'A maintenance platform. A compressor, a route diagram, discarded vests.', beacon: 'MAINTENANCE PLATFORM · COMPRESSOR OFFLINE' },
+  water: { sight: 'The high outlet is a metre above the water. A pump house on the deck.', beacon: 'POOL LEVEL LOW · OUTLET UNREACHABLE' },
+  retrieval: { sight: 'A supply container has been knocked onto the platform.', beacon: 'SAFE ROOM BEACON: ACTIVE · SUPPLIES ON THE DECK' },
+  winch: { sight: 'The gate collapsed behind you. A hand winch on the gantry.', beacon: 'SERVICE GATE DOWN · MANUAL WINCH' },
+};
 
 /** What the holding pool shows about its dock, before you commit. */
 function dockInfo(random, index) {
@@ -132,6 +152,8 @@ export function buildPlan(sector, random, threat = 1) {
         { side: 1, route: b, label: ROUTES[b].label, note: ROUTES[b].note, sections: routeSections(b, random, threat, theme) },
       ], { holding: false, junction: true }));
     } else if (type === 'dock') {
+      // dock:repair (a compressor), dock:water (raise the pool), dock:retrieval (a container), dock:winch (a collapsed gate).
+      const kind = rest || 'power';
       items.push(pool([
         {
           side: -1, route: 'bypass', label: 'BYPASS · NO CHECKPOINT', note: 'skip the dock · overflow drop to the next sector',
@@ -141,7 +163,7 @@ export function buildPlan(sector, random, threat = 1) {
           side: 1, route: 'service', label: 'SERVICE GATE · SAFE ROOM', note: 'needs power from the dock level', locked: 'power',
           sections: [populate(section('flume', { length: 60 }), random, threat * 0.7, ['linked', 'signals'], theme), bay()],
         },
-      ], { holding: true, dock: dockInfo(random, i), defaultExit: 0 }));
+      ], { holding: true, dock: { ...dockInfo(random, i), ...DOCK_KINDS[kind], kind }, defaultExit: 0 }));
     } else {
       items.push(populate(section(type, sector.openSky ? { sky: true } : {}), random, threat, features, theme));
     }
@@ -157,6 +179,7 @@ export function buildEndlessPlan(random, depthIndex) {
   const threat = 1 + depthIndex * 0.25;
   const types = ['channel', 'lazy', 'flume', 'tube', 'overflow', 'lift', 'loop'];
   const pick = () => types[Math.floor(random() * types.length)];
-  const tokens = [pick(), `${pick()}:valve`, `junction:${['public', 'maintenance', 'overflow'].sort(() => random() - 0.5).slice(0, 2).join('|')}`, pick(), 'dock'];
+  const kinds = ['power', 'repair', 'water', 'retrieval', 'winch'];
+  const tokens = [pick(), `${pick()}:valve`, `junction:${['public', 'maintenance', 'overflow'].sort(() => random() - 0.5).slice(0, 2).join('|')}`, random() < 0.35 ? 'reservoir' : pick(), `dock:${kinds[Math.floor(random() * kinds.length)]}`];
   return { tokens, threat };
 }

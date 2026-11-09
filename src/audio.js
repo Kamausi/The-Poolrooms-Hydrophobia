@@ -280,4 +280,29 @@ export const sound = {
   gurgle() {
     for (let i = 0; i < 5; i++) tone({ type: 'sine', from: 90 + Math.random() * 80, to: 40, time: 0.18, gain: 0.12, delay: i * 0.11 });
   },
+  /** Air leaving a chamber: thin, high, panned to where the hole is. gain scales with the leak. */
+  hiss(pan = 0, gain = 0.05) {
+    noise({ time: 0.6, gain, freq: 5200 + Math.random() * 1500, q: 2.5, type: 'bandpass', pan });
+  },
+  /** A paddle stroke: the blade going in, then the pull. */
+  stroke(pan = 0) {
+    noise({ time: 0.25, gain: 0.12, freq: 700, q: 0.7, pan });
+    noise({ time: 0.5, gain: 0.06, freq: 300, type: 'lowpass', delay: 0.15, pan });
+  },
+  /** Something knocking on the hull from underneath. */
+  knock(count = 2, pan = 0) {
+    for (let i = 0; i < count; i++) {
+      tone({ type: 'sine', from: 95, to: 60, time: 0.12, gain: 0.25, delay: i * 0.42, pan });
+      noise({ time: 0.08, gain: 0.12, freq: 220, type: 'lowpass', delay: i * 0.42, pan });
+    }
+  },
+  /** Pressing a patch down and pumping the chamber back up. */
+  patch() {
+    noise({ time: 0.3, gain: 0.1, freq: 1800, q: 1.2 });
+    tone({ type: 'triangle', from: 180, to: 260, time: 0.25, gain: 0.06, delay: 0.1 });
+  },
+  scrape(pan = 0) {
+    noise({ time: 0.7, gain: 0.18, freq: 2400, q: 0.6, pan });
+    tone({ type: 'sawtooth', from: 140, to: 90, time: 0.6, gain: 0.03, pan });
+  },
 };

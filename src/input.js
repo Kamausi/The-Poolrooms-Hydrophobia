@@ -9,12 +9,22 @@ export const input = {
   scanHeld: false, // touch SCAN or controller Y
   lockHeld: false, // touch LOCK or controller left trigger
   braceHeld: false, // touch BRACE or controller B
+  paddleHeld: false, // touch PADDLE, or controller L3 (toggles)
+  patchHeld: false, // touch PATCH or controller D-pad down
   pad: false,
   get scanning() {
     return this.scanHeld || this.keys.has('q') || (this.rightHeld && this.context !== 'ride');
   },
   get locking() {
     return this.lockHeld || (this.rightHeld && this.context === 'ride');
+  },
+  /** Hold to paddle: lowers the blaster. One hold is a steady stroke rhythm, never mashing. */
+  get paddling() {
+    return this.paddleHeld || this.keys.has('v');
+  },
+  /** Hold to find a leak, press a patch over it, and pump the chamber back up. */
+  get patching() {
+    return this.patchHeld || this.keys.has('g');
   },
   get bracing() {
     return this.braceHeld || this.keys.has('control') || this.keys.has('c');
@@ -44,6 +54,8 @@ export function initInput(target) {
     input.rightHeld = false;
     input.lockHeld = false;
     input.braceHeld = false;
+    input.paddleHeld = false;
+    input.patchHeld = false;
   });
 
   canvas.addEventListener('mousedown', (e) => {
@@ -152,10 +164,13 @@ function setupTouch() {
   hold('touch-jump', () => { input.pressed.add(' '); input.keys.add(' '); }, () => input.keys.delete(' '));
   hold('touch-brace', () => (input.braceHeld = true), () => (input.braceHeld = false));
   hold('touch-lock', () => (input.lockHeld = true), () => (input.lockHeld = false));
+  hold('touch-paddle', () => (input.paddleHeld = true), () => (input.paddleHeld = false));
+  hold('touch-patch', () => (input.patchHeld = true), () => (input.patchHeld = false));
 }
 
 // Controller (Gamepad API). Left stick steers or moves; right stick aims (raft) or looks (on foot).
-// RT fire · LT lock · A hop · B brace · X use · Y scan · LB burst · RB boost · R3 look back · D-pad up recharge · Start pause
+// RT fire · LT lock · A hop · B brace · X use · Y scan · LB burst · RB boost · R3 look back · L3 paddle (toggle)
+// D-pad up recharge · D-pad down patch · Start pause
 const prev = [];
 const EDGE = { 0: ' ', 2: 'e', 4: 'f', 9: 'escape', 12: 'r', 8: 'h' };
 const HOLD = { 5: 'shift', 11: 'x', 0: ' ' };
@@ -181,6 +196,9 @@ export function pollGamepad(dt) {
   input.lockHeld = b(6) || (pad.buttons[6]?.value || 0) > 0.4;
   input.braceHeld = b(1);
   input.scanHeld = b(3);
+  input.patchHeld = b(13);
+  if (b(10) && !prev[10]) input.paddleHeld = !input.paddleHeld;
+  if (input.firing && input.paddleHeld && input.context === 'ride') input.paddleHeld = false;
   for (const [i, k] of Object.entries(EDGE)) if (b(+i) && !prev[i]) input.pressed.add(k);
   for (const [i, k] of Object.entries(HOLD)) b(+i) ? input.keys.add(k) : prev[i] && input.keys.delete(k);
   pad.buttons.forEach((x, i) => (prev[i] = x.pressed));

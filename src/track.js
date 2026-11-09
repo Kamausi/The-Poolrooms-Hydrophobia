@@ -17,6 +17,8 @@ export const PRESETS = {
   aqueduct: { length: 95, speed: 8.5, half: 2.4, height: 3, wiggle: 0.35, cycles: 1, lamps: 'posts', label: 'SERVICE AQUEDUCT', open: true, aqueduct: true },
   descent: { length: 40, speed: 11, half: 2.4, height: 3.4, wiggle: 0.2, climb: -7.5, lamps: 'normal', label: 'DESCENT CHUTE', brake: true },
   parallel: { length: 115, speed: 6.5, half: 3.2, height: 5, wiggle: 0.2, cycles: 0.5, lamps: 'normal', label: 'TWIN CHANNEL', parallel: true },
+  // Still water: the raft barely moves on its own. Paddle (or let the crew paddle while you shoot).
+  reservoir: { length: 130, speed: 0.7, half: 7.5, height: 9, wiggle: 0.15, cycles: 0.5, lamps: 'sparse', label: 'BLUE RESERVOIR', calm: true, paddle: true, reservoir: true },
   hall: { length: 130, speed: 4.5, half: 9, height: 11, wiggle: 0.12, cycles: 0.5, lamps: 'bright', label: 'POOL HALL', calm: true, hall: true },
 };
 

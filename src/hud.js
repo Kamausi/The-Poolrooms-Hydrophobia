@@ -11,7 +11,7 @@ let last = null; // the run's state, for lines that depend on Drift and the mani
 const CREW_NAMES = ['MARS', 'DEZ', 'TUBS', 'JUNE'];
 const garble = (text, amount) => text.replace(/[A-Z0-9]/g, (c) => (Math.random() < amount ? '·' : c));
 
-const IDS = ['hud', 'sector-name', 'objective', 'score', 'score-wrap', 'cleared', 'depth', 'vitals', 'vitals-bar', 'drift', 'drift-bar', 'charge', 'charge-max', 'charge-state', 'mode', 'crosshair', 'subtitle', 'toast', 'prompt', 'damage', 'driftfx', 'scrap', 'hint', 'band', 'guests', 'route', 'raft', 'filter', 'filters', 'cells', 'heat-bar', 'caption', 'scan', 'raft-panel'];
+const IDS = ['hud', 'sector-name', 'objective', 'score', 'score-wrap', 'cleared', 'depth', 'vitals', 'vitals-bar', 'drift', 'drift-bar', 'charge', 'charge-max', 'charge-state', 'mode', 'crosshair', 'subtitle', 'toast', 'prompt', 'damage', 'driftfx', 'scrap', 'hint', 'band', 'guests', 'route', 'raft', 'chambers', 'filter', 'filters', 'cells', 'heat-bar', 'caption', 'scan', 'raft-panel'];
 
 export function initHud() {
   for (const id of IDS) el[id] = $(id);
@@ -56,6 +56,14 @@ export const hud = {
     el.cells.textContent = '▮'.repeat(state.cells) + '▯'.repeat(Math.max(0, 3 - state.cells)) + ` · DRESSINGS ${state.dressings || 0}`;
     el.raft.textContent = `${Math.ceil(state.raft)}%`;
     el.raft.classList.toggle('warn', state.raft < 40);
+    if (state.chambers) {
+      // Four chambers, each its own gauge: a leak shows as a falling bar on one side, with a dot while it hisses.
+      const bars = (v) => '▮'.repeat(Math.round(v / 25)) + '▯'.repeat(4 - Math.round(v / 25));
+      const leaking = new Set((state.leaks || []).map((l) => l.chamber));
+      const c = state.chambers;
+      el.chambers.textContent = [['L', 'left'], ['R', 'right'], ['F', 'bow'], ['B', 'stern']].map(([k, n]) => `${k}${leaking.has(n) ? '•' : ' '}${bars(c[n])}`).join(' ') + ` · PATCH ×${state.patchKits ?? 0}`;
+      el.chambers.classList.toggle('warn', leaking.size > 0);
+    }
     el.filter.textContent = `${Math.ceil(state.filter)}%`;
     el.filters.textContent = String(state.filters);
     // Drift fades decoration only. Vitals, charge, raft and prompts are instruments: they stay readable.

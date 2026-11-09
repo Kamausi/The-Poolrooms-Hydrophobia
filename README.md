@@ -28,6 +28,8 @@ The game needs a browser with WebGL2. On a machine without a GPU it switches to 
 | Boost / run | Shift | RB |
 | Look back (raft) | Hold X | R3 |
 | Brake (flumes, tubes) | S | — |
+| Paddle (blaster down) · prod on foot | Hold V | L3 (toggle) |
+| Find a leak, patch it, pump it up | Hold G | D-pad down |
 | Recharge · dressing · Ride Control | R · H · T | D-pad up · Select · — |
 | Holding pools | Shoot an arrow · Space depart · E moor | |
 | Pause and settings | Esc | Start |
@@ -35,7 +37,7 @@ The game needs a browser with WebGL2. On a machine without a GPU it switches to 
 Touch: left half of the screen moves, right half aims or looks, with buttons for fire, scan, burst, use and boost. Aim assist snaps to targets near your finger.
 
 ## Modes
-- **Campaign 1, "Overflow":** choose Mars, Dez, Tubs or June, then ride eight attractions, from the Welcome Pools to the Rooftop Lagoon. Each is a branching ride ending at a holding pool with an optional dock.
+- **Campaign 1, "Overflow":** choose Mars, Dez, Tubs or June, then ride eight attractions, from the Welcome Pools to the Rooftop Lagoon. Each is a branching ride ending at a holding pool with an optional dock: restore power, run a compressor, raise the pool, winch a gate, or fetch supplies.
 - **Endless:** seeded attractions with rising threat and a score. Enter a seed on the menu or open `?seed=1234`; your best depth per seed is kept.
 - The game saves your exact position every few seconds; closing the tab and choosing **Resume** puts you back where you were. Safe Rooms are the checkpoints you return to after dying.
 
@@ -45,7 +47,8 @@ Touch: left half of the screen moves, right half aims or looks, with buttons for
 | `src/main.js` | Game flow: campaign, endless, intro, docks, Safe Rooms, death, ending, saving and resuming |
 | `src/track.js` | The slide as data: channel types, holding pools with gated exits, branches |
 | `src/plans.js` | Builds each sector's ride and fills it with encounters |
-| `src/ride.js` | The raft: geometry along the track, targets, entities, the Passenger, gates |
+| `src/ride.js` | The raft: geometry along the track, targets, entities, the Passenger, gates, paddling, overboard |
+| `src/hull.js` | Four air chambers: punctures and their causes, field patches, the compressor, marks that stay |
 | `src/explore.js` | On foot: grid levels and each attraction's rules |
 | `src/blaster.js` | Pulse, inspection beam and disruption burst |
 | `src/sectors.js` | The eight attractions: palettes, rides, maps, rules, voices, graffiti |

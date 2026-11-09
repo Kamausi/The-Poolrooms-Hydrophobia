@@ -15,6 +15,7 @@ import { settings } from './settings.js';
 import { AMBIENT } from './sectors.js';
 import { Track, EXIT_OFFSET, section } from './track.js';
 import { createDirector, AFTERMATH } from './director.js';
+import { createHull, CHAMBERS, CHAMBER_NAME } from './hull.js';
 
 const SEG = 6;
 const SEGMENTS = 28;
@@ -126,6 +127,14 @@ export function createRide(canvas, state, sector, events, opts = {}) {
     panel: P('Maintenance panel', slab, { color: [0.2, 0.22, 0.2], metallic: 0.6, roughness: 0.4, emission: 0.6, emissiveColor: [0.4, 1, 0.6] }),
     patches: [0, 1, 2].map((i) => P(`Raft patch ${i}`, slab, { color: [0.45, 0.45, 0.42], metallic: 0.2, roughness: 0.8 })),
     headlamp: P('Raft headlamp', slab, glow([1, 0.95, 0.85], 8)),
+    // Every scuff and patch the raft has ever had. They stay.
+    marks: Array.from({ length: 9 }, (_, i) => P(`Hull mark ${i}`, slab, { color: [0.45, 0.45, 0.42], metallic: 0.2, roughness: 0.8 })),
+    bubbles: Array.from({ length: 6 }, (_, i) => P(`Leak bubble ${i}`, sphere(8, 6), { color: [0.8, 0.92, 0.95], metallic: 0, roughness: 0.05 })),
+    paddleShaft: P('Paddle shaft', post, { color: [0.55, 0.5, 0.42], metallic: 0.3, roughness: 0.6 }),
+    paddleBlade: P('Paddle blade', slab, { color: [0.9, 0.5, 0.12], metallic: 0, roughness: 0.5 }),
+    line: P('Safety line', slab, { color: [0.95, 0.8, 0.2], metallic: 0, roughness: 0.6 }),
+    handle: P('Grab handle', torus(0.1, 24, 8), glow([1, 0.75, 0.2], 1.2, { color: [1, 0.7, 0.2] })),
+    grip: P('Undertow grip', lumpy, dark([0.004, 0.01, 0.012])),
   };
   const passenger = {
     drips: [0, 1, 2].map((i) => P(`Drip ${i}`, sphere(8, 6), { color: [0.6, 0.8, 0.85], metallic: 0, roughness: 0.1 })),
@@ -308,6 +317,163 @@ export function createRide(canvas, state, sector, events, opts = {}) {
   const director = createDirector(random, { relax: [26, 42], level: sector.index });
   let lastHealth = state.health;
   const setpiece = { active: false, t: 0, step: 0 };
+  // The hull, the paddle, and the water outside the raft.
+  const hull = createHull(state, { hud, sound, random });
+  let hullFx = hull.effects();
+  let paddleT = 0, strokeTimer = 0, strokePhase = 0, bladeHeld = 0;
+  let repairing = false, hullPrompt = '';
+  let lastHullHealth = state.health;
+  let overboard = null; // { t, back, x, line, lineT, onLine, tug, solo }
+  let capsize = null; // { t, said }
+  let trailGrab = null; // the Undertow on the trailing edge: { t, hp, lean }
+  let turnDrift = 0, tautLine = 0, crewStopped = 0;
+  const pendingPaddle = []; // paddle-feedback events waiting for the player to be paddling
+  const saidHull = new Set();
+  let underFloorUsed = false;
+  const crewName = () => pick(['DEZ', 'TUBS', 'JUNE', 'MARS'].filter((n) => n !== state.name.toUpperCase()));
+  const isSolo = () => (state.forgotten || []).length >= 3;
+  const stretch = (part, a, b, w) => {
+    const d = sub(b, a);
+    const L = Math.hypot(d[0], d[1], d[2]) || 1e-3;
+    const y = scale(d, 1 / L);
+    const c = cross(y, UP);
+    const x = Math.hypot(c[0], c[1], c[2]) < 0.05 ? [1, 0, 0] : normalize(c);
+    writeBasis(part.matrix, scale(add(a, b), 0.5), x, y, cross(x, y), w, L, w);
+  };
+
+  /** Over the side. A crewmate throws a line; alone, you swim for the grab handle. Too long in the water is a checkpoint failure. */
+  function goOverboard(cause) {
+    if (overboard || capsize || track.roomAt(s, 4) || state.sitting) return;
+    const solo = isSolo();
+    const side = random() < 0.5 ? -1 : 1;
+    overboard = { t: 0, back: 2.4, x: offset + side * 1.7, line: null, lineT: solo ? Infinity : 2 + random(), onLine: false, tug: 0, tugged: false, solo };
+    sound.splash();
+    shake = 0.9;
+    trailGrab = null;
+    hud.caption(cause === 'dragged' ? '[the trailing edge goes under and takes you with it]' : cause === 'knocked' ? '[it hits you square — you go over the side]' : '[the raft bucks — you go over the side]');
+    if (solo) hud.say(state.name.toUpperCase(), 'Nobody\'s going to throw a line. Swim. The handle. Get the handle.', 'crew');
+    else hud.say(crewName(), 'Overboard! Swim for the handle — line coming!', 'crew');
+    hud.toast('OVERBOARD · W swim · A/D · E grab the handle or the line · SPACE kick free');
+  }
+
+  function updateOverboard(dt, steerIn, lim) {
+    const ob = overboard;
+    ob.t += dt;
+    const swim = clamp(input.move[1] + (isDown('w') || isDown('arrowup') ? 1 : 0), 0, 1);
+    ob.x = clamp(ob.x + steerIn * dt * 2, -lim - 0.4, lim + 0.4);
+    // The raft keeps going; your crew back-paddles to hold it for you.
+    ob.back += (speed - swim * 2.5 - 0.3) * dt;
+    if (ob.onLine) {
+      ob.back -= dt * 3.4;
+      ob.x = damp(ob.x, offset, 2.5, dt);
+    }
+    // Something under the water takes an ankle. Kick.
+    if (!ob.tugged && ob.t > 2.5 && random() < dt * 0.3) {
+      ob.tugged = true;
+      ob.tug = 2.6;
+      sound.gurgle();
+      hud.caption('[something has your ankle — SPACE, kick]');
+    }
+    if (ob.tug > 0) {
+      ob.tug -= dt;
+      ob.back += dt * 1.4;
+      ob.onLine = false;
+      if (wasPressed(' ')) { ob.tug -= 0.7; sound.splash(); }
+    }
+    if (!ob.line && ob.t > ob.lineT) {
+      ob.line = { t: 0, x: ob.x + (random() - 0.5) * 1.4, back: Math.max(1.5, ob.back - 0.5) };
+      sound.splash();
+      hud.say(crewName(), 'LINE! Grab it!', 'crew');
+    }
+    let prompt = ob.tug > 0 ? 'SPACE · KICK FREE' : '';
+    if (ob.line && !ob.onLine) {
+      ob.line.t += dt;
+      const near = Math.abs(ob.x - ob.line.x) < 1.5 && Math.abs(ob.back - ob.line.back) < 2.2;
+      if (near && ob.line.t > 0.4) prompt ||= 'E · GRAB THE LINE';
+      if (near && wasPressed('e') && ob.line.t > 0.4 && ob.tug <= 0) {
+        ob.onLine = true;
+        hud.caption('[the line goes tight — they are pulling you in]');
+      } else if (ob.line.t > 5) {
+        ob.line = null;
+        ob.lineT = ob.t + 2.2;
+        hud.say(crewName(), 'Missed — coiling it — again!', 'crew');
+      }
+    }
+    if (ob.back < 1.4 && Math.abs(ob.x - offset) < 1.4) {
+      prompt = 'E · GRAB THE HANDLE';
+      if (wasPressed('e')) {
+        overboard = null;
+        shake = 0.5;
+        sound.splash();
+        hud.caption(ob.solo ? '[you drag yourself over the side by the handle — alone, shaking]' : '[hands on your vest — you are hauled back in]');
+        if (!ob.solo) setTimeout(() => hud.say('MARS', 'Count off. Four? Four. Good. Don\'t do that again.', 'crew'), 1200);
+        return '';
+      }
+    }
+    // The water wants you to stay in it.
+    state.drift = Math.min(100, state.drift + dt * 4);
+    if (ob.back > 15 || ob.t > 24 || state.drift >= 100) {
+      overboard = null;
+      events.damage(999, ob.solo ? 'You went over the side, and there was nobody left to throw you a line.' : 'You went over the side, and the water kept you.');
+    }
+    return prompt;
+  }
+
+  /** The rare one: the raft turns over. Under the hull the light is wrong; then the crew rights it. Things are lost. */
+  function startCapsize() {
+    if (capsize || hull.state.capsized || track.roomAt(s, 4)) return;
+    hull.state.capsized = true;
+    overboard = null;
+    trailGrab = null;
+    capsize = { t: 0, said: 0 };
+    sound.splash();
+    shake = 1.2;
+    hud.caption('[the soft side folds under — the raft turns over]');
+  }
+
+  function updateCapsize(dt) {
+    const c = capsize;
+    c.t += dt;
+    if (c.t > 0.8 && c.said === 0) { c.said = 1; sound.setMuffle(true); }
+    if (c.t > 1.6 && c.said === 1) { c.said = 2; hud.caption('[under the raft. The light through the hull is the wrong colour.]'); }
+    if (c.t > 2.8 && c.said === 2) { c.said = 3; sound.knock(3); hud.caption('[something pats the hull from below. It is below you, too.]'); }
+    if (c.t > 4.4) {
+      capsize = null;
+      sound.setMuffle(!!track.sectionAt(s).sec.muffle);
+      for (const k of CHAMBERS) state.chambers[k] = Math.max(state.chambers[k], 30);
+      state.charge = 0;
+      const lost = [];
+      if (state.cells > 0) { state.cells -= 1; lost.push('a power cell'); }
+      if (state.filters > 0) { state.filters -= 1; lost.push('a filter'); }
+      if (state.dressings > 0) { state.dressings -= 1; lost.push('a dressing'); }
+      hud.toast(`THE CREW RIGHTED THE RAFT · LOST: ${lost.join(', ') || 'nothing you can name'}`);
+      sound.splash();
+      setTimeout(() => hud.say('MARS', 'Count off! One. Two. Three. Four. … Say it again. Four. We\'re four.', 'crew'), 900);
+      state.drift = Math.min(100, state.drift + 10);
+    }
+  }
+
+  function knockUnderPatch() {
+    hull.state.knockAt = -1;
+    sound.knock(3);
+    shake = Math.max(shake, 0.2);
+    hud.caption('[knock. knock. knock. From underneath — right under the new patch.]');
+    setTimeout(() => hud.say('MARS', 'Nobody answer it.', 'crew'), 1400);
+  }
+
+  /** Things the paddle finds. Only ever while you are paddling, in still water. */
+  function paddleEvent(kind) {
+    if (kind === 'deep') hud.caption('[the paddle goes in up to your shoulder. It doesn\'t find the bottom. The chart says one metre twenty.]');
+    else if (kind === 'held') {
+      bladeHeld = 1.4;
+      velX += 2.2;
+      sound.gurgle();
+      hud.caption('[something holds the blade — then lets go]');
+    } else if (kind === 'struck') {
+      sound.thump(0.6);
+      hud.caption('[the blade hits something soft. It moves away from the raft.]');
+    }
+  }
 
   function hop(power) {
     jumpV = (state.fit === 'handling' ? 5.2 : 4.3) * power;
@@ -540,6 +706,39 @@ export function createRide(canvas, state, sector, events, opts = {}) {
       r.s = at;
       r.floats.forEach((f, j) => Object.assign(f, { alive: true, pos: track.lateral(at, (j - 2) * (half * 0.38), 1.25) }));
       hud.say('DEZ', 'Rope across the channel. Pop the floats!', 'crew');
+    } else if (e.kind === 'hullScrape') {
+      // A ladder rail under the surface: it opens the left chamber.
+      sound.scrape(-0.8);
+      shake = 0.4;
+      hull.puncture(e.side || 'left', 'ladder');
+      setTimeout(() => hud.say('JUNE', 'Left side! There\'s a ladder under the water. There shouldn\'t be a ladder in a reservoir.', 'crew'), 600);
+    } else if (e.kind === 'grate') {
+      hud.caption('[the overflow grate on the wall Blooms]');
+      sound.gurgle();
+      const side = random() < 0.5 ? -1 : 1;
+      for (let k = 0; k < (e.count || 4); k++) spawnBloom(at + 6 + k * 2.5, side * (half - 0.6 - random()), 0.5 + random() * 1.2);
+    } else if (e.kind === 'trailGrab') {
+      if (overboard || capsize) return;
+      trailGrab = { t: 0, hp: 4, lean: 0, pos: null };
+      held = 5;
+      sound.gurgle();
+      hull.hit('stern', 12, 'entity', 0.6);
+      hud.caption('[the Undertow has the trailing edge — the rear of the raft is going under]');
+      hud.say('MARS', 'Weight forward and to a side! Everybody! Shoot the thing on the back!', 'crew');
+    } else if (e.kind === 'crewStop') {
+      if (isSolo()) return;
+      crewStopped = 6;
+      hud.caption('[everyone stopped paddling at once]');
+      setTimeout(() => { hud.say('MARS', 'Don\'t. Listen.', 'crew'); sound.knock(2, -0.3); }, 1800);
+      setTimeout(() => hud.caption('[under the raft — something keeping pace with you]'), 3800);
+    } else if (e.kind === 'turnDrift') {
+      turnDrift = 7;
+      hud.caption('[the raft is turning. Nobody is steering it. The paddles are all straight.]');
+    } else if (e.kind === 'tautLine') {
+      tautLine = 7;
+      hud.caption('[the safety line at the back is pulled tight into the water. Everyone is in the raft. One. Two. Three. Four.]');
+    } else if (e.kind === 'paddleHorror') {
+      pendingPaddle.push(e.what);
     } else if (e.kind === 'undertow') {
       const u = patches.find((x) => !x.active);
       if (!u) return;
@@ -640,11 +839,16 @@ export function createRide(canvas, state, sector, events, opts = {}) {
     }
   }
 
-  function damage(n, reason, raftHit = 0) {
+  /** chamber and cause say where the raft was hit and what did it: it can open a leak, or put you over the side. */
+  function damage(n, reason, raftHit = 0, chamber = null, cause = null) {
     events.damage(n, reason);
     if (raftHit) {
-      state.raft = Math.max(0, state.raft - raftHit);
-      if (state.raft <= 0) events.damage(999, 'The raft came apart under you.');
+      const k = chamber || CHAMBERS[Math.floor(random() * 4)];
+      hull.hit(k, raftHit * 1.2, cause, cause ? 0.22 : 0);
+      const soft = CHAMBERS.filter((c) => state.chambers[c] < 20).length;
+      if (state.raft <= 3) events.damage(999, 'The raft came apart under you.');
+      else if (soft >= 2 && !hull.state.capsized) startCapsize();
+      else if (!braced && cause && state.chambers[k] < 35 && random() < 0.3) goOverboard(cause === 'entity' ? 'knocked' : 'thrown');
     }
     shake = 0.5;
   }
@@ -653,6 +857,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
   function targets() {
     const list = [];
     const T = (pos, r, fn, key = null) => list.push({ pos, r, fn, key });
+    if (trailGrab?.pos) T(trailGrab.pos, 0.6, () => { trailGrab.hp -= 1; sound.hit(); }, 'grip');
     for (const b of blooms) if (b.active && !b.dying) T(b.pos, 0.75, () => {
       b.hp -= state.damage;
       sound.hit();
@@ -914,13 +1119,37 @@ export function createRide(canvas, state, sector, events, opts = {}) {
 
     // Speed
     let target = sec.type === 'pool' ? 3.2 : sec.speed;
-    const boosting = isDown('shift') && !['lift', 'pool', 'bay'].includes(sec.type);
-    const braking = (isDown('s') || isDown('arrowdown')) && !!sec.brake;
+    // Paddling: hold V. The blaster goes down; one steady stroke rhythm, never mashing. S while paddling backstrokes.
+    const wantPaddle = input.paddling && !overboard && !capsize && !state.sitting && sec.type !== 'lift';
+    paddleT = damp(paddleT, wantPaddle ? 1 : 0, 8, dt);
+    const paddling = wantPaddle && paddleT > 0.6;
+    const backstroke = paddling && (isDown('s') || isDown('arrowdown'));
+    const boosting = isDown('shift') && !['lift', 'pool', 'bay'].includes(sec.type) && !sec.paddle;
+    const braking = (isDown('s') || isDown('arrowdown')) && !!sec.brake && !paddling;
     if (boosting) target *= 1.6;
     if (braking) target *= 0.38;
+    if (paddling && !backstroke) target += sec.paddle ? 3.4 : 1;
+    if (backstroke) target = Math.max(0, target - (sec.paddle ? 1.5 : 2.6));
+    // In still water the crew paddles too, so you can shoot. Alone, nobody does. If they all stop at once, listen.
+    if (sec.paddle && !paddling && !isSolo() && crewStopped <= 0) target += 1.6;
+    if (paddling) {
+      strokeTimer -= dt;
+      if (strokeTimer <= 0) {
+        strokeTimer = 1.05;
+        sound.stroke(0.55);
+        if (pendingPaddle.length && sec.paddle && random() < 0.35) paddleEvent(pendingPaddle.shift());
+      }
+      strokePhase = 1 - strokeTimer / 1.05;
+    } else strokeTimer = 0.2;
+    if (bladeHeld > 0) { bladeHeld -= dt; target *= 0.4; }
+    crewStopped = Math.max(0, crewStopped - dt);
+    if (overboard) target = Math.min(target, 1.4);
+    if (capsize) target = Math.min(target, 0.6);
+    target *= hullFx.speedScale;
     if (state.raft < 40) target *= 0.85;
     if (held > 0) target *= 0.3;
     held = Math.max(0, held - dt);
+    if (trailGrab) target *= 0.25;
     holding = null;
     if (curRoom && curRoom.sec.type === 'pool' && (curRoom.sec.holding || state.upgrades.includes('tether')) && !departed.has(curRoom.sec.id)) {
       const left = stopOf(curRoom) - s;
@@ -942,6 +1171,41 @@ export function createRide(canvas, state, sector, events, opts = {}) {
       hud.toast(state.autopilot ? 'RIDE CONTROL IS STEERING · it is very smooth · Drift rises while you let it' : 'YOU HAVE THE RAFT');
     }
     const lim = Math.max(0.5, Math.min(sec.half, 6) - 0.95);
+    // The hull: leaks drain, a soft side lists and pulls, low chambers let the water in.
+    hullFx = hull.update(dt, { silence: silence > 0, onWash: () => { state.drift = Math.min(100, state.drift + 3); shake = Math.max(shake, 0.25); } });
+    const hurtNow = state.health < lastHullHealth - 0.5;
+    lastHullHealth = state.health;
+    const rep = overboard || capsize ? { active: false, prompt: '' } : hull.updateRepair(dt, input.patching && !paddling, hurtNow);
+    repairing = rep.active;
+    hullPrompt = rep.prompt;
+    if (hull.state.knockAt > 0) {
+      hull.state.knockAt += dt;
+      if (hull.state.knockAt > 9 && !holding) knockUnderPatch();
+    }
+    hullLines(sec);
+    let swimPrompt = '';
+    if (overboard) {
+      swimPrompt = updateOverboard(dt, steerIn, lim);
+      offset = damp(offset, 0, 0.6, dt);
+      velX = damp(velX, 0, 2, dt);
+    } else if (capsize) {
+      updateCapsize(dt);
+      velX = damp(velX, 0, 2, dt);
+    } else if (trailGrab) {
+      // The Undertow has the trailing edge. Throw your weight to a side (A or D) and shoot the grip (hold X to look back).
+      trailGrab.t += dt;
+      if (Math.abs(steerIn) > 0.5) trailGrab.lean += dt;
+      else trailGrab.lean = Math.max(0, trailGrab.lean - dt * 0.5);
+      hull.hit('stern', dt * (trailGrab.lean > 0.3 ? 1 : 5), null);
+      if (trailGrab.lean > 2.6 || trailGrab.hp <= 0) {
+        hud.toast(trailGrab.hp <= 0 ? 'SHOT THE GRIP · THE TRAILING EDGE COMES UP' : 'COUNTERWEIGHT · THE TRAILING EDGE COMES UP');
+        trailGrab = null;
+        held = 0;
+      } else if (trailGrab.t > 6) {
+        trailGrab = null;
+        goOverboard('dragged');
+      }
+    }
     if (holding) {
       viewYaw = clamp(viewYaw - steerIn * dt * 1.6, -1.2, 1.2);
       offset = damp(offset, 0, 3, dt);
@@ -952,21 +1216,38 @@ export function createRide(canvas, state, sector, events, opts = {}) {
       let steer = steerIn;
       if (state.autopilot && Math.abs(steerIn) < 0.1) steer = autopilotSteer(lim);
       if (state.autopilot) state.drift = Math.min(100, state.drift + dt * 0.35);
-      const accel = state.fit === 'handling' ? 15 : 10;
+      if (overboard || capsize) steer = 0;
+      const accel = (state.fit === 'handling' ? 15 : 10) * (paddling ? 1.4 : 1);
       const current = (sec.current || 0) * Math.sin(s * 0.035 + sec.id);
-      velX += (steer * accel - velX * 2.6 + current * 2.4 + (state.passenger.stage >= 5 ? 1.2 : 0)) * dt;
+      // A soft side pulls the raft toward its wall. So does the water sometimes, with nobody steering.
+      if (turnDrift > 0) turnDrift -= dt;
+      velX += (steer * accel - velX * 2.6 + current * 2.4 + (state.passenger.stage >= 5 ? 1.2 : 0) + hullFx.pull + (turnDrift > 0 ? 1.6 : 0)) * dt;
+      // Push off: paddling near a wall, the blade shoves the raft away instead of letting it scrape.
+      if (paddling && Math.abs(offset) > lim - 0.45) velX -= Math.sign(offset) * 14 * dt;
       offset += velX * dt;
       if (Math.abs(offset) > lim) {
         if (Math.abs(velX) > 2.4 && jumpY < 0.1) {
-          sound.thump(Math.sign(offset) * 0.6);
-          state.raft = Math.max(0, state.raft - 2);
-          hud.caption('[the raft scrapes the tile]');
+          if (paddling) {
+            sound.stroke(Math.sign(offset) * 0.8);
+            if (!saidHull.has('pushoff')) { saidHull.add('pushoff'); hud.caption('[you push off the tile with the blade]'); }
+          } else {
+            sound.scrape(Math.sign(offset) * 0.7);
+            hull.hit(offset < 0 ? 'left' : 'right', 4, 'scrape', 0.25);
+            hud.caption('[the raft scrapes the tile]');
+            // The same scrape, at the same point, on a different slide.
+            if (state.scrapeMark == null) state.scrapeMark = { f: s / track.length, sector: state.sectorKey };
+          }
         }
         offset = clamp(offset, -lim, lim);
         velX *= -0.25;
       }
+      if (state.scrapeMark && state.scrapeMark.sector !== state.sectorKey && !saidHull.has('echo') && Math.abs(s / track.length - state.scrapeMark.f) < 0.003) {
+        saidHull.add('echo');
+        sound.scrape(-0.6);
+        hud.caption('[that scrape again. The same scrape, at the same point, on a different slide.]');
+      }
       // Hop: Space. Clears low ropes, floating debris and still water; the launch on a ramp.
-      if (wasPressed(' ') && !state.sitting && jumpY <= 0.001 && sec.type !== 'lift' && !curRoom) hop(1);
+      if (wasPressed(' ') && !state.sitting && !overboard && !capsize && jumpY <= 0.001 && sec.type !== 'lift' && !curRoom) hop(hullFx.hopScale);
     }
     if (jumpY > 0 || jumpV > 0) {
       jumpV -= 12 * dt;
@@ -979,10 +1260,13 @@ export function createRide(canvas, state, sector, events, opts = {}) {
         state.noise = Math.min(100, state.noise + 12);
         ripple = track.lateral(s + 1, offset, 0);
         rippleTime = time;
+        // Coming down on debris, or coming down soft, tears the rear chamber.
+        if (debrisPool.some((d) => d.active && Math.abs(d.s - s) < 3 && Math.abs(d.lane - offset) < 1.4)) hull.hit('stern', 8, 'landing', 0.7);
+        else if (state.chambers.stern < 40 && random() < 0.4) hull.hit('stern', 5, 'landing', 0.5);
       }
     }
     // Brace: duck behind the hull. Safer, faster recharge, no firing.
-    const nowBraced = input.bracing && !state.sitting;
+    const nowBraced = input.bracing && !state.sitting && !overboard && !capsize && !paddling;
     if (nowBraced && !braced) braceStart = time;
     braced = nowBraced;
     state.braced = braced;
@@ -1016,7 +1300,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
     // Sitting down in the water: the camera sinks toward the surface.
     sink = damp(sink, state.sitting ? 0.7 : 0, 1.5, dt);
     const duck = braced ? 0.5 : 0;
-    const eye = add(track.lateral(s, offset, 1.35 + bob - sink - duck + jumpY), jitter);
+    let eye = add(track.lateral(s, offset, 1.35 + bob - sink - duck + jumpY - hullFx.sag), jitter);
     const ahead = track.lateral(s + 10, offset * 0.6, 1.2 + bob * 0.5 - sink * 1.6 - duck + jumpY * 0.6);
     let look = ahead;
     // Hold X to look back over the raft at whatever is chasing it.
@@ -1026,10 +1310,25 @@ export function createRide(canvas, state, sector, events, opts = {}) {
       const c = Math.cos(viewYaw), sn = Math.sin(viewYaw);
       look = add(eye, [d[0] * c + d[2] * sn, d[1], -d[0] * sn + d[2] * c]);
     }
-    const roll = settings.distortion ? (state.passenger.stage >= 5 ? 0.1 : 0) + (state.raft < 40 ? 0.05 : 0) : 0;
+    let roll = (settings.distortion ? (state.passenger.stage >= 5 ? 0.1 : 0) + (state.raft < 40 ? 0.05 : 0) : 0) + hullFx.list * (settings.sway ? 1 : 0.4);
+    if (overboard) {
+      // In the water, behind the raft, looking at it.
+      eye = track.lateral(s - overboard.back, overboard.x, 0.25 + bob * 0.6);
+      look = track.lateral(s + 3, offset, 0.5);
+      roll = Math.sin(time * 1.7) * 0.06;
+    }
+    if (capsize) {
+      const c = capsize.t;
+      const under = c > 0.8 && c < 4.4;
+      if (under) {
+        eye = track.lateral(s, offset, -0.7);
+        look = track.lateral(s + 3, offset * 0.8, 0.4);
+      }
+      roll = c < 0.8 ? (c / 0.8) * Math.PI * 0.9 : under ? 0.3 * Math.sin(c * 2) : 0;
+    }
     const fwd = normalize(sub(look, eye));
     const rgt = normalize(cross(fwd, UP));
-    const up = normalize(add(UP, scale(rgt, roll)));
+    const up = normalize(add(scale(UP, Math.cos(roll)), scale(rgt, Math.sin(roll))));
     state.cameraUp = up;
     fx.eye = eye; fx.look = look; fx.fwd = fwd;
     const aspect = canvas.clientWidth / Math.max(1, canvas.clientHeight);
@@ -1060,6 +1359,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
       if (p.dock) lines.push('E · Moor and explore the dock');
       lines.push(`SPACE · Depart through ${chosen.label.split('·')[0].trim()}`);
       lines.push('Shoot an arrow to switch gates · A/D look');
+      if (state.leaks.length) lines.push('G · Patch now, while the water is still');
       const lockedEx = p.exits.findIndex((ex) => ex.locked && !powered());
       if (lockedEx >= 0 && state.overrides > 0) {
         lines.push(`O · Use a maintenance override (${state.overrides})`);
@@ -1090,6 +1390,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
         } else {
           departed.add(p.id);
           sound.gate();
+          if (hull.state.knockAt > 0) hull.state.knockAt = 8.4; // pushing off: whatever is under the patch knocks
           if (chosen.route === 'bypass') hud.say('DEZ', 'Bypass. No Safe Room this time. Hope you\'ve got filters.', 'crew');
         }
       }
@@ -1119,6 +1420,11 @@ export function createRide(canvas, state, sector, events, opts = {}) {
       return;
     }
     if (state.filters === 0 && state.filter <= 0 && (sec.filter || sec.type === 'drop')) prompt ||= 'NO FILTER · the chlorine is getting in';
+    if (swimPrompt) prompt = swimPrompt;
+    else if (capsize) prompt = 'UNDER THE RAFT · HOLD YOUR BREATH';
+    else if (trailGrab) prompt = 'THE UNDERTOW HAS THE TRAILING EDGE · HOLD A or D · counterweight · X look back and shoot the grip';
+    else if (hullPrompt && (repairing || !prompt)) prompt = hullPrompt + (holding && !repairing ? '' : '');
+    else if (paddling) prompt ||= sec.paddle ? 'PADDLING · A/D stroke a side · S backstroke · release to shoot' : 'PADDLING · blaster down';
     const rearCount = blooms.filter((b) => b.active && !b.dying && b.rear && distance(b.pos, eye) < 20).length;
     if (rearCount && !isDown('x')) prompt ||= `BEHIND THE RAFT · ${rearCount} · hold X to turn and shoot`;
 
@@ -1137,18 +1443,18 @@ export function createRide(canvas, state, sector, events, opts = {}) {
 
     // Blaster
     if (wasPressed('r')) blaster.recharge();
-    const canFire = !braced && !input.locking;
+    const canFire = !braced && !input.locking && !paddling && !repairing && !overboard && !capsize;
     if (braced && !state.recharging) state.charge = Math.min(state.maxCharge, state.charge + dt * (state.fit === 'capacity' ? 14 : 10));
     if (blaster.trigger(dt, input.firing && canFire, true)) {
       const to = shoot(eye, aimDir);
       blaster.showBeam(blaster.muzzle(eye, look, aimDir), to);
       sound.accent?.('shot');
     }
-    updateLocks(dt, eye, look, aimDir);
+    if (canFire) updateLocks(dt, eye, look, aimDir);
     if (wasPressed('f')) burst(eye, aimDir);
     if (wasPressed('h') && state.dressings > 0 && state.health < 100 && !dressing) { dressing = 2.5; state.dressings -= 1; hud.toast('APPLYING A FIELD DRESSING'); }
     if (dressing > 0) { dressing -= dt; events.heal(dt * 16); }
-    blaster.place(eye, look, aimDir, bob * 0.3);
+    blaster.place(eye, look, aimDir, bob * 0.3 - Math.max(paddleT, repairing ? 1 : 0, overboard || capsize ? 1.4 : 0) * 0.45);
 
     voices(dt, sec, curRoom);
 
@@ -1326,9 +1632,9 @@ export function createRide(canvas, state, sector, events, opts = {}) {
   }
 
   function placeRaft(dt, fwd, rgt, bob) {
-    const base = add(track.lateral(s + 0.85, offset, 0.08 + jumpY), [0, bob * 0.5, 0]);
-    const upV = cross(rgt, fwd);
-    const list = state.passenger.stage >= 5 ? 0.12 : 0;
+    const base = add(track.lateral(s + 0.85, offset, 0.08 + jumpY - hullFx.sag), [0, bob * 0.5, 0]);
+    const upV = capsize && capsize.t > 0.6 && capsize.t < 4.4 ? scale(cross(rgt, fwd), -1) : cross(rgt, fwd);
+    const list = (state.passenger.stage >= 5 ? 0.12 : 0) + hullFx.list * 1.4;
     const tiltUp = normalize(add(upV, scale(rgt, list)));
     writeBasis(raft.lip.matrix, base, rgt, fwd, tiltUp, 1.05, 1.05, 1);
     const seatPos = add(add(base, scale(fwd, 0.82)), scale(tiltUp, 0.1));
@@ -1339,10 +1645,8 @@ export function createRide(canvas, state, sector, events, opts = {}) {
     else writeBasis(raft.strap.matrix, add(add(seatPos, scale(rgt, 0.5)), scale(tiltUp, 0.3)), rgt, tiltUp, fwd, 0.05, 0.5, 0.06);
     writeBasis(raft.panel.matrix, add(add(base, scale(rgt, -0.8)), scale(fwd, 0.35)), rgt, tiltUp, fwd, 0.22, 0.12, 0.3);
     raft.panel.material.emission = 0.4 + state.upgrades.length * 0.25;
-    raft.patches.forEach((p, i) => {
-      if (i < (state.patches || 0)) writeBasis(p.matrix, add(add(base, scale(rgt, (i - 1) * 0.6)), add(scale(fwd, 0.9 - Math.abs(i - 1) * 0.25), scale(tiltUp, 0.3))), rgt, tiltUp, fwd, 0.22, 0.05, 0.16);
-      else hide(p);
-    });
+    raft.patches.forEach((p) => hide(p));
+    placeHull(dt, base, rgt, fwd, tiltUp);
     if (state.upgrades.includes('headlamp')) writeBasis(raft.headlamp.matrix, add(add(base, scale(fwd, 1.15)), scale(tiltUp, 0.35)), rgt, tiltUp, fwd, 0.18, 0.08, 0.06);
     else hide(raft.headlamp);
     const st = state.passenger.stage;
@@ -1361,6 +1665,97 @@ export function createRide(canvas, state, sector, events, opts = {}) {
     } else {
       hide(passenger.body);
       hide(passenger.head);
+    }
+  }
+
+  /** Scuffs, patches, leak bubbles, the paddle, and the safety line. */
+  const CHAMBER_ANGLE = { right: 0, bow: Math.PI / 2, left: Math.PI, stern: -Math.PI / 2 };
+  function onLip(base, rgt, fwd, up, chamber, u, r = 1.05, y = 0.24) {
+    const a = CHAMBER_ANGLE[chamber] + (u - 0.5) * 1.1;
+    return add(add(add(base, scale(rgt, Math.cos(a) * r)), scale(fwd, Math.sin(a) * r)), scale(up, y));
+  }
+  function placeHull(dt, base, rgt, fwd, up) {
+    const marks = state.hullMarks || [];
+    raft.marks.forEach((m, i) => {
+      const mk = marks[i];
+      if (!mk) return hide(m);
+      const pos = onLip(base, rgt, fwd, up, mk.chamber, mk.u);
+      const a = CHAMBER_ANGLE[mk.chamber] + (mk.u - 0.5) * 1.1;
+      const tangent = normalize(add(scale(rgt, -Math.sin(a)), scale(fwd, Math.cos(a))));
+      const outward = normalize(cross(up, tangent));
+      if (mk.kind === 'patch') {
+        m.material.color = mk.bench ? [0.62, 0.62, 0.56] : [0.42, 0.44, 0.4];
+        // A patch that is lifting shows its corner.
+        const lifting = state.leaks.some((l) => l.cause === 'lifting' && l.chamber === mk.chamber);
+        writeBasis(m.matrix, pos, tangent, up, outward, 0.26, 0.05 + (lifting ? 0.04 * (1 + Math.sin(time * 6)) : 0), 0.18);
+      } else {
+        m.material.color = [0.12, 0.1, 0.08];
+        writeBasis(m.matrix, pos, tangent, up, outward, 0.34, 0.03, 0.05);
+      }
+    });
+    // Bubbles at each open leak, rising from the waterline. That's where the hiss is.
+    const open = state.leaks.filter((l) => state.chambers[l.chamber] > 1).slice(0, 2);
+    raft.bubbles.forEach((b, i) => {
+      const l = open[Math.floor(i / 3)];
+      if (!l) return hide(b);
+      const t = (time * (0.8 + l.rate) + (i % 3) / 3) % 1;
+      const p = onLip(base, rgt, fwd, up, l.chamber, l.u, 1.2 + (i % 3) * 0.04, -0.05 + t * 0.35);
+      const r = 0.03 + (i % 3) * 0.012;
+      writeYaw(b.matrix, p, 0, r, r, r);
+    });
+    // The paddle: blade dips at the right side, pulls back, lifts. One rhythm.
+    if (paddleT > 0.05 && !overboard && !capsize) {
+      const ph = strokePhase;
+      const inWater = ph < 0.65;
+      const fz = inWater ? 0.9 - (ph / 0.65) * 1.5 : -0.6 + ((ph - 0.65) / 0.35) * 1.5;
+      const blade = add(add(add(base, scale(rgt, 1.3)), scale(fwd, fz - 0.85)), scale(up, (inWater ? -0.02 : 0.4) - (1 - paddleT) * 0.8 - (bladeHeld > 0 ? 0.25 : 0)));
+      const hand = add(add(add(base, scale(rgt, 0.45)), scale(fwd, -0.35)), scale(up, 0.95 - (1 - paddleT) * 0.6));
+      stretch(raft.paddleShaft, blade, hand, 0.045);
+      const dir = normalize(sub(hand, blade));
+      const bx = normalize(cross(dir, fwd));
+      writeBasis(raft.paddleBlade.matrix, add(blade, scale(dir, -0.15)), Math.hypot(...bx) > 0.1 ? bx : rgt, dir, fwd, 0.2, 0.45, 0.035);
+    } else {
+      hide(raft.paddleShaft);
+      hide(raft.paddleBlade);
+    }
+    // The handle, the line: thrown to you, or pulled tight into the water with nobody on it.
+    const handlePos = onLip(base, rgt, fwd, up, 'stern', 0.5, 1.1, 0.3);
+    if (overboard) {
+      writeYaw(raft.handle.matrix, handlePos, track.at(s).yaw, 0.22, 0.22, 0.22);
+      const ob = overboard;
+      if (ob.onLine) stretch(raft.line, handlePos, track.lateral(s - ob.back, ob.x, 0.3), 0.025);
+      else if (ob.line) stretch(raft.line, handlePos, track.lateral(s - ob.line.back, ob.line.x, 0.02), 0.025);
+      else hide(raft.line);
+    } else if (tautLine > 0) {
+      tautLine -= dt;
+      hide(raft.handle);
+      stretch(raft.line, handlePos, track.lateral(s - 3.4, offset + 0.6, -1.2), 0.025);
+    } else {
+      hide(raft.handle);
+      hide(raft.line);
+    }
+    if (trailGrab) {
+      const g = onLip(base, rgt, fwd, up, 'stern', 0.5, 1.25, -0.05);
+      trailGrab.pos = g;
+      writeYaw(raft.grip.matrix, g, time * 0.7, 0.55, 0.3 + Math.sin(time * 5) * 0.05, 0.45);
+    } else hide(raft.grip);
+  }
+
+  /** What the crew says about the hull: practical, and about choices. */
+  function hullLines(sec) {
+    const once = (k, who, line) => { if (!saidHull.has(k)) { saidHull.add(k); hud.say(who, line, 'crew'); } };
+    if (state.leaks.length && !repairing) once('firstleak', 'TUBS', 'We\'re losing air. Hold G — find the hiss, press the patch, pump it up. Somebody cover us.');
+    const c = state.chambers;
+    if (Math.min(c.left, c.right) < 45 && Math.max(c.left, c.right) > 70) once('stabilise', 'MARS', `${c.left < c.right ? 'Left' : 'Right'}'s soft and it's dragging us into the wall. Everybody shift ${c.left < c.right ? 'right' : 'left'} — hold against the pull.`);
+    if (ramp.active && ramp.s - s < 55 && ramp.s > s && hullFx.hopScale < 0.8) once('softbow', 'JUNE', 'Front\'s soft. We won\'t clear that lip like this. Patch it now or we take the low channel.');
+    const nd = track.nextRoom(s, 'pool');
+    if (nd?.sec.dock && nd.s0 - s < 60 && nd.s0 > s && (state.raft < 65 || state.leaks.length)) once(`dock${nd.sec.id}`, 'DEZ', nd.sec.dock.kind === 'repair' ? 'Maintenance platform. There\'s a compressor up there. We dock, we come back firm.' : 'We should dock early. Get off the water and get this thing pumped up.');
+    // Under the flexible floor, during the quiet.
+    if (!underFloorUsed && director.phase === 'relax' && sector.index > 0 && random() < frameDt * 0.004) {
+      underFloorUsed = true;
+      shake = Math.max(shake, 0.15);
+      sound.knock(1);
+      hud.caption('[something moves under the floor of the raft — right under your knees — and is gone]');
     }
   }
 
@@ -1677,7 +2072,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
         b.active = false;
         sound.burst();
         const front = !b.rear;
-        damage(braced && front ? (state.fit === 'protection' ? 2 : 4) : 12, b.rear ? 'A Bloom caught the raft from behind.' : 'A Bloom burst against you.', braced && front ? 0 : 3);
+        damage(braced && front ? (state.fit === 'protection' ? 2 : 4) : 12, b.rear ? 'A Bloom caught the raft from behind.' : 'A Bloom burst against you.', braced && front ? 0 : 3, b.rear ? 'stern' : pick(['bow', 'left', 'right']), 'entity');
       } else if (behind(b.pos) && !b.rear) b.active = false;
       else if (b.rear && d > 45) b.active = false;
     }
@@ -1702,7 +2097,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
           sound.accent?.('gate');
         } else {
           sound.splash();
-          damage(18, 'The Lane Rope dragged you through the water.', 12);
+          damage(18, 'The Lane Rope dragged you through the water.', 12, random() < 0.5 ? 'left' : 'right', 'rope');
           state.drift = Math.min(100, state.drift + 12);
         }
       }
@@ -1721,7 +2116,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
         u.grabbed = true;
         held = 3.5;
         sound.gurgle();
-        damage(10, 'The Undertow took hold of the raft.', 8);
+        damage(10, 'The Undertow took hold of the raft.', 8, 'stern', 'entity');
         state.drift = Math.min(100, state.drift + 15);
         for (let k = 0; k < 3; k++) spawnBloom(s + 14 + k * 3, (random() - 0.5) * 4, 0.6 + random() * 2);
       }
@@ -1806,7 +2201,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
         } else {
           held = 2.5;
           sound.gurgle();
-          damage(10, 'A Floater rolled over and held the raft.', 8);
+          damage(10, 'A Floater rolled over and held the raft.', 8, random() < 0.5 ? 'left' : 'right', 'entity');
           hud.caption('[it rolls over — beside the raft]');
         }
       }
@@ -1864,7 +2259,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
           sound.thump();
           shake = 0.5;
           held = Math.max(held, 0.6);
-          damage(6, 'The raft hit floating debris.', 8);
+          damage(6, 'The raft hit floating debris.', 8, 'bow', 'scrape');
         } else if (jumpY >= 0.3) hud.toast('HOPPED THE DEBRIS');
       }
       if (d.s < s - 6) d.active = false;
@@ -1904,7 +2299,10 @@ export function createRide(canvas, state, sector, events, opts = {}) {
         ramp.decided = true;
         const inLane = Math.abs(offset - ramp.lane) < 1.25;
         const committed = time - lastHop < 0.6 || jumpY > 0.05 || speed > track.sectionAt(s).sec.speed * 1.25;
-        if (inLane && committed) {
+        if (inLane && committed && hullFx.hopScale < 0.75) {
+          decideFork(ramp.fork, false, 'SOFT BOW · THE RAFT FOLDS ON THE LIP · LOWER CHANNEL');
+          hull.hit('bow', 6, 'scrape', 0.4);
+        } else if (inLane && committed) {
           decideFork(ramp.fork, true, 'LAUNCH · THE UPPER CHANNEL');
           jumpV = 6.8;
           photoPending = 'THE LAUNCH';
@@ -2245,7 +2643,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
     bloomAhead() { return spawnBloom(s + 10, offset * 0.6, 1.2); },
     get locks() { return locks.length; },
   };
-  if (import.meta.env.DEV) window.__ride = { track, valve, linked, lifeguard, locker, wake, passengerStep, burst: () => burst(fx.eye, fx.fwd), get s() { return s; }, set s(v) { s = v; } };
+  if (import.meta.env.DEV) window.__ride = { track, hull, puncture: (c, cause = 'scrape') => hull.puncture(c, cause), overboard: () => goOverboard('test'), reset: () => { overboard = null; capsize = null; trailGrab = null; hull.state.capsized = false; }, capsize: () => startCapsize(), get swimming() { return overboard; }, get capsized() { return capsize; }, get grab() { return trailGrab; }, valve, linked, lifeguard, locker, wake, passengerStep, burst: () => burst(fx.eye, fx.fwd), get s() { return s; }, set s(v) { s = v; } };
 
   return {
     update,

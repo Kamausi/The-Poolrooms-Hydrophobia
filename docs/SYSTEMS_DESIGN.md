@@ -416,6 +416,48 @@ A broad hall; water piling against the outer wall. Take the launch and you land 
 | Recharge | R | D-pad up | R |
 | Dressing | H | Select | — |
 | Ride Control | T | — | — |
+| Paddle (raft) / prod (foot) | Hold V | L3 toggles | PADDLE |
+| Patch and pump | Hold G | D-pad down | PATCH |
 
 ### Boundaries kept
 Quiet channels stay; manoeuvres are announced (piled water, chevrons, Ride Control's call) and not stacked on a precise shot and a rescue at the same instant; camera motion is restrained (most of the rocking is in the raft and water); a missed launch gives a playable lower route (louder, darker), not a death.
+
+## 17. The raft as a boat: paddles, air, and the water outside it
+
+Reference points: the timing and shared steering of team rafting games, the chamber damage and field repairs of survival rafting, and the man-overboard rescues of co-op river games. The crew stays at four; none of this adds a seat.
+
+### Paddling (implemented)
+Hold **V** (L3 toggles on a controller; PADDLE on touch). The blaster goes down while you paddle: you choose between moving and fighting. One hold is a steady stroke rhythm, so there is nothing to mash. A/D strokes one side and the raft turns harder; S backstrokes. Paddling near a wall pushes off it with the blade instead of scraping the tile. Elsewhere a paddle adds a little speed; in **still water** (the Blue Reservoir section type) it is how you move at all. The pilot has authority: when you shoot instead, the crew paddles for you at a slower pace, and alone, nobody does.
+
+### Air chambers and punctures (implemented: `src/hull.js`)
+Four chambers: left, right, front, rear, each with its own gauge on the HUD (a dot while it hisses). Every leak has a cause you can see and learn to avoid: a broken tile edge on a wall scrape, a submerged ladder, a Bloom or Floater, a rough landing on debris, a lane rope dragging. A leak hisses from its side (panned), bubbles rise at the waterline, and the chamber drains over two to four minutes. Effects are physical: a soft side lists the raft and pulls it into that wall; a soft front or rear can't climb a launch lip (the upper route is lost); under a quarter pressure, water comes over the side; two soft chambers and a hard hit turn the raft over. Every scuff and patch stays visible on the hull, and the bench patches from the Safe Room look different from field patches.
+
+### Field repairs and the compressor (implemented)
+Hold **G**: listen for the hiss, press a patch kit over it, then pump the chamber back up. Getting hit sets the step back; letting go keeps finished steps. With no kits you can only pump against the leak. Kits come from the workbench (1 part), supply containers, and repair docks. The **Safe Room compressor** seals every open hole with a bench patch and refills all four chambers; it is loud, and something knocks back.
+
+### Choices the damage makes
+Patch now (blaster down) or keep shooting; take the upper route or accept the low channel with a soft front; dock early at a repair stop; hold the opposite stick against a soft side's pull. The crew calls these out once each, practically.
+
+### Overboard (implemented)
+A hard hit on a soft chamber when you aren't braced, or the Undertow taking the trailing edge, can put you in the water. The camera drops to the surface behind the raft. Swim (W, A/D), kick free when something takes your ankle (Space), and catch the **line** a crewmate throws or the **grab handle** on the rear (E). Drift rises fast in the water. If your crew has been forgotten from the manifest, nobody throws a line: self-recovery or a clear checkpoint failure after about twenty seconds.
+
+### Capsize (implemented, rare)
+Once per ride at most. The raft turns over; under it, the light through the hull is the wrong colour and something pats the hull from below. The crew rights it: charge is gone, and a cell, a filter or a dressing may be lost.
+
+### Counterweight (implemented)
+When the Undertow grabs the trailing edge, hold a direction to throw your weight against it and shoot the grip (look back with X). Too long and the edge goes under with you on it.
+
+### The paddle on foot (implemented)
+Press V on foot: shove a Bloom back with the blade, hook a part from out of reach, or sound the surface ahead (dry tile, knee-deep water, or deep water where something closes on the blade).
+
+### Exploration stops that restore or reroute the raft (implemented)
+Each dock has a kind (`dock:repair|water|retrieval|winch` in a sector's ride tokens): **repair** (find a compressor fitting; restoring the compressor refills the raft, issues kits, and powers the gate back onto the slide; a route diagram and a pile of eleven discarded vests are on the platform), **water control** (a pump fuse raises the holding pool so the raft can reach the high outlet), **retrieval** (an optional supply container knocked onto the deck, with patch kits, a filter and a cell), and **winch** (the gate collapsed behind the raft; an eight-second hand winch while the swarm comes). Endless mode picks kinds at random.
+
+### The Lido campsite (implemented)
+In the Lido Safe Rooms (sectors 5–7), a bucket toss made from a mop bucket and chair legs: five wooden pieces, a swinging marker, chalk tallies on the wall going back further than anyone has been there. Nothing rides on it.
+
+### Horror on the water (implemented)
+A faint hiss in silence when every gauge reads steady; an old patch lifting at one corner; the raft turning slowly while every paddle is straight; the safety line pulled tight into the water with all four aboard; something moving under the flexible floor; the blade striking something soft that moves away, going in to the shoulder without finding a bottom, or being held for a moment; a familiar scrape repeating at the same point on a different slide; everyone stopping paddling at once to listen; a knock from under a fresh patch as you push off.
+
+### The Blue Reservoir (implemented: Lazy River and Filtration Works)
+Calm water that needs paddling. A scrape on the left side (a ladder that shouldn't be there) and a hiss; patch while steering for the maintenance platform; an overflow grate Blooms; the Undertow catches the trailing edge and the job changes to counterweight; dock. The platform has a compressor, a route diagram, and discarded vests. Restoring the compressor powers the gate back onto the slide; the raft is firm again with fresh patches, and when you push off, something knocks on the new patch from underneath.

@@ -14,6 +14,21 @@ import { settings } from './settings.js';
 import { AMBIENT } from './sectors.js';
 import { documentFor } from './documents.js';
 import { createDirector, AFTERMATH } from './director.js';
+import { compressorRefill } from './hull.js';
+
+/** What the stop is for. Every kind restores or reroutes the raft; every kind opens the way on. */
+const DOCK = {
+  power: { item: 'power cell', sign: 'SERVICE GATE\nCIRCUIT 3', machine: 'SERVICE PANEL', verb: 'restoring the circuit', hold: 5,
+    find: 'Find the power cell. Restore the service gate. Return to the raft.', carry: 'Bring the power cell to the service panel.' },
+  repair: { item: 'compressor fitting', sign: 'COMPRESSOR\nSERVICE AIR · GATE 3', machine: 'COMPRESSOR', verb: 'priming the compressor', hold: 5,
+    find: 'Repair stop. Find a fitting for the compressor: it refills the raft and powers the gate back onto the slide.', carry: 'Fit it to the compressor.' },
+  water: { item: 'pump fuse', sign: 'POOL PUMP\nRAISE LEVEL', machine: 'POOL PUMP', verb: 'raising the holding pool', hold: 5,
+    find: 'Water-control stop. Find the pump fuse and raise the holding pool so the raft can reach the high outlet.', carry: 'Bring the fuse to the pool pump.' },
+  retrieval: { item: 'power cell', sign: 'SERVICE GATE\nCIRCUIT 3', machine: 'SERVICE PANEL', verb: 'restoring the circuit', hold: 5,
+    find: 'Restore the service gate. A supply container fell onto the deck somewhere: worth the detour.', carry: 'Bring the power cell to the service panel.' },
+  winch: { item: 'winch handle', sign: 'GATE WINCH\nHAND OPERATED', machine: 'GATE WINCH', verb: 'winching the gate up', hold: 8,
+    find: 'Winch stop. The gate collapsed behind the raft. Find the winch handle, then winch it up while the crew holds them off.', carry: 'Fit the handle to the winch.' },
+};
 
 const CELL = 4;
 const FOV = 74;
@@ -34,6 +49,9 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
   const key = state.sectorKey;
   const drained = !!state.drained?.[key];
   const powered = () => !!state.power?.[key];
+  const dockItem = (state.ride?.items || []).find((it) => it.type === 'pool' && it.dock);
+  const dockKind = DOCK[dockItem?.dock?.kind] ? dockItem.dock.kind : 'power';
+  const K = DOCK[dockKind];
   const grid = rows.map((row) => [...row]);
   const find = (ch) => {
     const out = [];
@@ -170,7 +188,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
   const panelPos = [sC[0] + sWall[0] * (CELL / 2 - 0.05), 1.4, sC[2] + sWall[1] * (CELL / 2 - 0.05)];
   const panel = P('Service panel', slab, glow([1, 0.15, 0.1], 1.2, { color: [0.4, 0.06, 0.05], metallic: 0.5, roughness: 0.35 }));
   writeYaw(panel.matrix, panelPos, 0, sWall[0] ? 0.12 : 1.6, 2.2, sWall[1] ? 0.12 : 1.6);
-  facing(P('Service sign', plane, { ...signMaterial('SERVICE GATE\nCIRCUIT 3', 'sign', 0.6, 256, 128), doubleSided: true }), add(panelPos, [-sWall[0] * 0.08, 1.6, -sWall[1] * 0.08]), [-sWall[0], 0, -sWall[1]], 1.4, 0.7);
+  facing(P('Service sign', plane, { ...signMaterial(K.sign, 'sign', 0.6, 256, 128), doubleSided: true }), add(panelPos, [-sWall[0] * 0.08, 1.6, -sWall[1] * 0.08]), [-sWall[0], 0, -sWall[1]], 1.4, 0.7);
 
   // Fake shelters: amber beacon, no vent tone.
   const fake = find('F').map(([x, z]) => {
@@ -184,6 +202,14 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
   });
 
   // Pickups and props
+  // A retrieval stop: a supply container knocked onto the deck, as far from the raft as the level allows.
+  let container = null;
+  if (dockKind === 'retrieval') {
+    const spots = find('.').filter(([x, z]) => Math.abs(x - dx0) + Math.abs(z - dz0) > 5);
+    const c = spots.length ? spots[Math.floor(random() * spots.length)] : null;
+    if (c) container = { part: P('Supply container', box(0.08, 2), { color: [0.85, 0.55, 0.12], metallic: 0.3, roughness: 0.5, emission: 0.4, emissiveColor: [1, 0.6, 0.2] }), pos: add(center(...c), [0, 0.45, 0]), taken: false };
+  }
+  let paddleCool = 0;
   const scrap = find('s').map(([x, z], i) => ({ part: P(`Scrap ${i}`, box(0.1, 2), glow([0.6, 1, 0.8], 0.4, { color: [0.55, 0.6, 0.58], metallic: 0.9, roughness: 0.3 })), pos: add(center(x, z), [(random() - 0.5) * 1.5, 0.25 + floorTop(x, z), (random() - 0.5) * 1.5]), taken: false }));
   const lockers = find('h').map(([x, z], i) => {
     const wd = DIRS.find(([dx, dz]) => isWall(x + dx, z + dz)) || [0, 1];
@@ -346,7 +372,13 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
   let healing = 0;
   const pick = (list) => list[Math.floor(random() * list.length)];
   const forwardVec = () => [-Math.sin(player.yaw), 0, -Math.cos(player.yaw)];
-  hud.objective(hasCell ? (powered() ? 'Power restored. Return to the raft.' : 'Bring the power cell to the service panel.') : 'Find the power cell. Restore the service gate. Return to the raft.');
+  hud.objective(hasCell ? (powered() ? 'Done. Return to the raft.' : K.carry) : K.find);
+  if (dockKind === 'repair') {
+    hud.caption('[a maintenance platform: a dead compressor, a route diagram under plastic, a pile of discarded life vests]');
+    setTimeout(() => hud.say('TUBS', 'Vests. Eleven of them. Somebody counted them off and left them here.', 'crew'), 3500);
+  } else if (dockKind === 'water') hud.say('JUNE', 'The outlet\'s too high. Raise the pool, the raft floats up to it. Pump house first.', 'crew');
+  else if (dockKind === 'winch') hud.say('DEZ', 'Gate came down behind us. Winch is manual, and it\'s going to be loud. We hold, you crank.', 'crew');
+  else if (dockKind === 'retrieval') hud.say('JUNE', 'Container fell off a cart up here. Supplies. It\'s a detour. Your call.', 'crew');
   if (find('d').length) hud.say('DEZ', drained ? 'Valve worked. That passage is drained. Walk it dry.' : 'You missed the valve, so that passage is still flooded. Watch the water.', 'crew');
   if (rules.uv) hud.say('DEZ', 'Black light. Hold right-click to scan: the marks only show up in the beam.', 'crew');
   if (rules.currents) hud.say('TUBS', 'Currents. The pump control stops them. Restart it before you board.', 'crew');
@@ -749,13 +781,13 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     if (!hasCell && cellPos) {
       writeYaw(powerCell.matrix, add(cellPos, [0, floorTop(...cellP) + Math.sin(time * 2) * 0.08, 0]), time, 0.18, 0.55, 0.18);
       if (distance(cellPos, [eye[0], cellPos[1], eye[2]]) < 2.3) {
-        ask(2, 'E · Take the power cell');
+        ask(2, `E · Take the ${K.item}`);
         if (wasPressed('e')) {
           hasCell = true;
           sound.pickup();
-          events.score(250, 'POWER CELL RECOVERED');
-          hud.objective('Bring the power cell to the service panel.');
-          hud.say('DEZ', 'That cell fits the service circuit. Find the panel.', 'crew');
+          events.score(250, `${K.item.toUpperCase()} RECOVERED`);
+          hud.objective(K.carry);
+          hud.say('DEZ', `That ${K.item} fits the ${K.machine.toLowerCase()}. Find it.`, 'crew');
           wave(2 + Math.floor(sector.index / 2));
         }
       }
@@ -764,17 +796,17 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     panel.material.emissiveColor = powered() ? [0.35, 1, 0.45] : [1, 0.15, 0.1];
     panel.material.emission = 1 + Math.sin(time * 3) * 0.4;
     if (Math.hypot(panelPos[0] - eye[0], panelPos[2] - eye[2]) < 2.6 && !powered()) {
-      if (!hasCell) ask(1, 'SERVICE PANEL · needs a power cell');
+      if (!hasCell) ask(1, `${K.machine} · needs a ${K.item}`);
       else {
         // Operating the panel takes time and noise: hold E while the swarm comes. Getting hit sets you back.
         if (isDown('e')) {
-          if (!operating) { operating = 0.001; director.crescendo(); hud.caption('[the circuit groans awake — and something answers, everywhere]'); hud.say('DEZ', 'That panel\'s loud. Hold it. Whatever comes, hold it.', 'crew'); }
+          if (!operating) { operating = 0.001; director.crescendo(); hud.caption(dockKind === 'winch' ? '[the winch chain screams on its drum — and something answers, everywhere]' : '[the machine groans awake — and something answers, everywhere]'); hud.say('DEZ', `That ${K.machine.toLowerCase()}\'s loud. Hold it. Whatever comes, hold it.`, 'crew'); }
           operating += dt;
           if (state.health < lastPanelHealth - 0.5) operating = Math.max(0.001, operating - 1.2);
-          ask(4, `HOLD E · restoring the circuit ${Math.min(100, Math.round((operating / 5) * 100))}%`);
-          if (operating >= 5) { operating = 0; restorePower(); }
+          ask(4, `HOLD E · ${K.verb} ${Math.min(100, Math.round((operating / K.hold) * 100))}%`);
+          if (operating >= K.hold) { operating = 0; restorePower(); }
         } else {
-          ask(2, operating ? `HOLD E · restoring the circuit ${Math.round((operating / 5) * 100)}% (paused)` : 'HOLD E · Restore the service circuit (it takes time, and it is loud)');
+          ask(2, operating ? `HOLD E · ${K.verb} ${Math.round((operating / K.hold) * 100)}% (paused)` : `HOLD E · ${K.verb} (it takes time, and it is loud)`);
         }
         lastPanelHealth = state.health;
       }
@@ -798,6 +830,28 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
           return;
         }
       }
+    }
+    if (container && !container.taken) {
+      writeYaw(container.part.matrix, container.pos, 0.4, 1.1, 0.8, 0.7);
+      if (Math.hypot(container.pos[0] - eye[0], container.pos[2] - eye[2]) < 2.4) {
+        ask(2, 'E · Open the supply container');
+        if (wasPressed('e')) {
+          container.taken = true;
+          state.patchKits = (state.patchKits || 0) + 2;
+          state.filters += 1;
+          state.cells = Math.min(3, state.cells + 1);
+          sound.pickup();
+          hud.toast('SUPPLY CONTAINER · +2 PATCH KITS · +1 FILTER · +1 CELL');
+          events.score(150, 'SUPPLIES RETRIEVED');
+          wave(2);
+        }
+      }
+    }
+    // The paddle on foot: V. Reach, prod, push, and test whether a surface is really water.
+    paddleCool -= dt;
+    if (wasPressed('v') && paddleCool <= 0 && !(Math.hypot(raftPos[0] - eye[0], raftPos[2] - eye[2]) < 2.8 && state.upgrades.includes('valve') && find('d').length && !drained)) {
+      paddleCool = 0.6;
+      paddleProd(eye);
     }
     for (const sc of scrap) {
       if (sc.taken) { hide(sc.part); continue; }
@@ -1006,11 +1060,48 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     });
   }
 
+  /** The paddle on foot: knock a Bloom back, hook a part out of reach, or sound the water ahead. */
+  function paddleProd(eye) {
+    const f = forwardVec();
+    const tip = add(eye, scale(f, 2.6));
+    sound.stroke(0);
+    const b = blooms.find((x) => x.active && !x.dying && distance(x.pos, tip) < 1.8);
+    if (b) {
+      b.stagger = 0.8;
+      b.pos = add(b.pos, scale(f, 2.2));
+      hud.caption('[you shove it back with the blade — it gives like wet bread]');
+      return;
+    }
+    const sc = scrap.find((x) => !x.taken && distance(x.pos, tip) < 1.9);
+    if (sc) {
+      sc.pos = [eye[0] + f[0] * 0.6, sc.pos[1], eye[2] + f[2] * 0.6];
+      hud.caption('[you hook it with the blade and drag it in]');
+      return;
+    }
+    const [cx, cz] = cellOf(tip[0], tip[2]);
+    const c = at(cx, cz);
+    if (c === 'x') hud.caption(random() < 0.5 ? '[the blade goes in to the grip. No bottom. Something under there closes on it, and lets go.]' : '[deep water. The paddle finds nothing at all.]');
+    else if (WATERISH.has(c) || (c === 'd' && !drained)) hud.caption(random() < 0.3 ? '[water. Knee deep. Something under the surface moves away from the blade.]' : '[water. Knee deep. You can wade it.]');
+    else if (c === '#') hud.caption('[tile. Solid. The grout is soft.]');
+    else hud.caption('[dry tile. Probably.]');
+  }
+
   function restorePower() {
     (state.power ||= {})[key] = true;
+    // What the raft gets from this stop.
+    if (dockKind === 'repair') {
+      compressorRefill(state);
+      state.patchKits = Math.max(state.patchKits || 0, 2);
+      hud.toast('COMPRESSOR RUNNING · THE RAFT IS FIRM · FRESH PATCH ON EVERY HOLE');
+      if (!state.logbook.some((d) => d.id === `diagram-${key}`)) state.logbook.push({ id: `diagram-${key}`, title: 'ROUTE DIAGRAM · MAINTENANCE PLATFORM', text: 'A laminated diagram of the slide network, water-stained. Someone has drawn the route in grease pencil and counted heads at every dock: 4, 4, 4, 4, 3. The last dock has no number. Underneath, in different handwriting: "the compressor knocks back. Do not answer it."' });
+    } else if (dockKind === 'water') {
+      hud.caption('[the holding pool rises a metre. The high outlet is level with the water now.]');
+    } else if (dockKind === 'winch') {
+      hud.caption('[the collapsed gate comes up on its chain and locks]');
+    }
     sound.door();
     events.score(300, 'CIRCUIT RESTORED');
-    hud.objective('Power restored. The service gate is open. Return to the raft.');
+    hud.objective({ repair: 'The compressor is running and the gate is live. Return to the raft.', water: 'The pool is up. The raft can reach the outlet. Return to it.', winch: 'The gate is up. Return to the raft.' }[dockKind] || 'Power restored. The service gate is open. Return to the raft.');
     hud.say('DEZ', 'Gate\'s live. Lights too. And the pumps. Get back to the raft.', 'crew');
     // Restoring power starts the pumps: something in the deep water wakes up.
     sound.pump();

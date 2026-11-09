@@ -26,7 +26,7 @@ const $ = (id) => document.getElementById(id);
 const freshState = (extra = {}) => ({
   sectorIndex: 0, health: 100, drift: 0, charge: 24, maxCharge: 24, rechargeTime: 1.4, recharging: false,
   heat: 0, noise: 0, overheated: false, damage: 1, score: 0, cleared: 0, scrap: 0, cells: 1, filters: 1, filter: 100,
-  raft: 100, patches: 0, upgrades: [], logbook: [], power: {}, drained: {}, attempt: 0, guests: 1,
+  raft: 100, patches: 0, patchKits: 2, chambers: null, leaks: [], hullMarks: [], upgrades: [], logbook: [], power: {}, drained: {}, attempt: 0, guests: 1,
   band: String(1000 + Math.floor(Math.random() * 8999)).padStart(4, '0'), name: 'Mars', crewLine: 0,
   passenger: { stage: 0, t: 0 }, ride: null, sectorKey: 's0', endless: false, seed: 0, sitting: false,
   dressings: 1, fit: 'standard', autopilot: false, tags: [], photos: [], strandedSaved: {}, character: 'mars', rescued: 0, recognized: 0, forgotten: [], overrides: 0, sectorScore: 0, pressure: 1, sitT: 0, resolve: 0, memory: null,
@@ -199,7 +199,7 @@ function startRide(opts = {}) {
   hud.show(true);
   hud.sector(sector, opts.resumeS ? 'Choose your gate. Depart with SPACE.' : 'Shoot what moves. Scan what hides. Watch the route.');
   hud.mode('● ON THE RAFT');
-  hud.hint('A/D steer · SPACE hop · CLICK fire · HOLD RIGHT-CLICK lock, release volley · CTRL/C brace · Q scan · F burst · SHIFT boost · S brake · X look back · T ride control');
+  hud.hint('A/D steer · SPACE hop · CLICK fire · HOLD RIGHT-CLICK lock, release volley · CTRL/C brace · Q scan · F burst · SHIFT boost · S brake · X look back · HOLD V paddle · HOLD G patch · T ride control');
   document.body.dataset.mode = 'ride';
   releaseLock();
   swap(() => createRide(canvas, state, sector, events, opts));
@@ -217,7 +217,7 @@ function startExplore(opts = {}) {
   hud.show(true);
   hud.sector(sector, 'Find the power cell. Restore the service gate. Return to the raft.');
   hud.mode('● ON FOOT');
-  hud.hint('WASD move · MOUSE look · CLICK fire · RIGHT-CLICK or Q scan · F burst · E use · H dressing · SHIFT run');
+  hud.hint('WASD move · MOUSE look · CLICK fire · RIGHT-CLICK or Q scan · F burst · E use · H dressing · V paddle (prod, reach, sound the water) · SHIFT run');
   document.body.dataset.mode = 'explore';
   swap(() => createExplore(canvas, state, sector, events, opts));
 }

@@ -3,6 +3,7 @@ import { settings, saveSettings, SETTING_LABELS } from './settings.js';
 import { COMFORTS } from './sectors.js';
 import { ROUTES } from './plans.js';
 import { CREW, crewById, fadingCrew } from './crew.js';
+import { ensureHull, compressorRefill, CHAMBER_NAME } from './hull.js';
 
 const $ = (id) => document.getElementById(id);
 const el = (tag, cls, text) => {
@@ -49,11 +50,51 @@ export const RAFT_FITS = [
   { id: 'protection', name: 'Shielded hull', text: 'Bracing blocks almost everything from the front. Heavier.' },
   { id: 'capacity', name: 'Cradle hull', text: '+8 blaster charge and a faster recharge cradle when braced.' },
 ];
+/**
+ * The Lido throwing game: five wooden pieces at a bucket. Stop the swinging marker in the middle.
+ * Nothing rides on it. The chalk tallies on the wall go back further than anyone has been here.
+ */
+function lidoGame(state, onSave) {
+  const wrap = el('div', 'choices lido');
+  wrap.append(el('p', 'mono', 'THE CAMPSITE · BUCKET TOSS'));
+  wrap.append(el('p', null, `Somebody built this out of a mop bucket, chair legs and five pieces of sanded wood. The wall beside it is chalk tally marks, hundreds, in groups of four. Mrs. Vance's best is 4. ${state.lidoBest != null ? `Yours is ${state.lidoBest}.` : 'There is room on the wall for your name.'}`));
+  const meter = el('div', 'lido-meter');
+  const mark = el('i');
+  meter.append(mark);
+  const status = el('p', 'mono', 'PIECES 5 · IN THE BUCKET 0');
+  const btn = el('button', 'choice');
+  btn.append(el('b', null, 'Throw'), el('span', null, 'Throw when the marker is over the bucket.'));
+  let left = 5, made = 0, t = Math.random() * 6, raf = 0;
+  const step = () => {
+    if (!wrap.isConnected && t > 0.5) return;
+    t += 0.035 + (5 - left) * 0.006;
+    mark.style.left = `${50 + Math.sin(t) * 46}%`;
+    raf = requestAnimationFrame(step);
+  };
+  raf = requestAnimationFrame(step);
+  btn.onclick = () => {
+    if (left <= 0) return;
+    left -= 1;
+    const hit = Math.abs(Math.sin(t)) < 0.16;
+    if (hit) made += 1;
+    status.textContent = `PIECES ${left} · IN THE BUCKET ${made}${hit ? ' · CLUNK' : ' · it skids across the tile'}`;
+    if (left === 0) {
+      cancelAnimationFrame(raf);
+      btn.disabled = true;
+      state.lidoBest = Math.max(state.lidoBest ?? 0, made);
+      wrap.append(el('p', null, made >= 4 ? 'Mrs. Vance claps, slowly, with hands that do not open. "Put your mark up, dear. Next to the others."' : made ? 'You chalk your tally up with the others. Somebody has already chalked the same number, in your handwriting, lower on the wall.' : 'Nothing. Mrs. Vance says the bucket moves when you are not looking. She is not joking.'));
+      onSave();
+    }
+  };
+  wrap.append(meter, status, btn);
+  return wrap;
+}
+
 /** Supplies converted into items. */
 export const RECIPES = [
   { id: 'cell', name: 'Charge cell', text: 'For the disruption burst.', cost: 2, can: (s) => s.cells < 3, apply: (s) => (s.cells += 1) },
   { id: 'filter', name: 'Filter', text: 'Chlorine protection.', cost: 1, can: (s) => s.filters < 3, apply: (s) => { s.filters += 1; if (s.filter <= 0) s.filter = 100; } },
-  { id: 'patch', name: 'Raft patch', text: '+35% raft hull. You will see the patch.', cost: 2, can: (s) => s.raft < 100, apply: (s) => { s.raft = Math.min(100, s.raft + 35); s.patches = Math.min(3, (s.patches || 0) + 1); } },
+  { id: 'patch', name: 'Field patch kit', text: 'Carried. Hold G on the raft: find the hiss, press it down, pump it up.', cost: 1, can: (s) => (s.patchKits || 0) < 4, apply: (s) => (s.patchKits = (s.patchKits || 0) + 1) },
   { id: 'medkit', name: 'Field dressing', text: 'Carried. Press H to apply (+40 vitals over a few seconds, no firing while you do).', cost: 2, can: (s) => (s.dressings || 0) < 3, apply: (s) => (s.dressings = (s.dressings || 0) + 1) },
 ];
 
@@ -127,6 +168,27 @@ export function showSafeRoom(state, sector, nextSector, nextPlan, onLeave, onSav
     }
     body.append(vance);
   }
+
+  // The compressor: every chamber back to full, every open hole under a bench patch. The marks stay on the hull.
+  ensureHull(state);
+  const air = el('div', 'choices');
+  const airBtn = el('button', 'choice');
+  const leaks = state.leaks.length;
+  airBtn.append(el('b', null, 'Run the compressor'), el('span', null, `${leaks ? `${leaks} open leak${leaks > 1 ? 's' : ''} (${state.leaks.map((l) => CHAMBER_NAME[l.chamber].toLowerCase()).join(', ')}). ` : ''}Seals and refills all four chambers. It is loud. Through the floor, something answers it.`), el('i', null, `RAFT ${Math.ceil(state.raft)}%`));
+  airBtn.disabled = state.raft >= 99.5 && !leaks;
+  airBtn.onclick = () => {
+    compressorRefill(state);
+    airBtn.disabled = true;
+    airBtn.querySelector('i').textContent = 'RAFT 100%';
+    const marks = state.hullMarks.filter((m) => m.kind === 'patch').length;
+    air.append(el('p', null, `The chambers go hard under your hands. ${marks ? `${marks} patch${marks > 1 ? 'es' : ''} on the hull now, every one of them somebody\'s work. ` : ''}When the compressor cuts out, three knocks come back up through the floor. Nobody mentions it.`));
+    onSave();
+  };
+  air.append(el('p', 'mono', 'COMPRESSOR · SERVICE AIR'), airBtn);
+  body.append(air);
+
+  // The Lido's campsite: a throwing game somebody made out of a bucket and chair legs. Scores in chalk.
+  if (sector.index >= 4 && sector.index <= 6 && !sector.endless) body.append(lidoGame(state, onSave));
 
   // Live details: the room is safe, and still wrong.
   const live = el('div', 'safe-live mono small');

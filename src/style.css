@@ -156,6 +156,11 @@ body[data-mode='ride'] #touch-use { display: none; }
 .graffiti .reply { padding-left: 18px; font-size: 17px; color: #4b5a52 !important; }
 @media (max-width: 640px) { #modal.safe { justify-items: center; } #modal.safe .panel { margin: 60px 0 0; } }
 
-body.touch:not([data-mode='ride']) #touch-jump, body.touch:not([data-mode='ride']) #touch-brace, body.touch:not([data-mode='ride']) #touch-lock { display: none; }
+body.touch:not([data-mode='ride']) #touch-jump, body.touch:not([data-mode='ride']) #touch-brace, body.touch:not([data-mode='ride']) #touch-lock, body.touch:not([data-mode='ride']) #touch-patch { display: none; }
 
 #hint { white-space: normal; text-align: center; width: min(900px, 92vw); line-height: 1.6; }
+
+/* The Lido bucket toss */
+.lido-meter { position: relative; height: 18px; border: 1px solid currentColor; margin: 6px 0; background: linear-gradient(90deg, transparent 42%, rgba(120, 255, 170, 0.25) 42%, rgba(120, 255, 170, 0.25) 58%, transparent 58%); }
+.lido-meter i { position: absolute; top: -3px; width: 4px; height: 22px; margin-left: -2px; background: currentColor; }
+#chambers.warn { color: #ff8a6a; }
