@@ -170,6 +170,17 @@ export function showSafeRoom(state, sector, nextSector, nextPlan, onLeave, onSav
   // Someone pulled out slowly, the way they asked, is sitting on the bench in their wet clothes.
   if (state.towelAsk) {
     body.append(el('p', 'mono', `${state.towelAsk.toUpperCase()}, ON THE BENCH: "Is there a towel? I'm sorry. I'm so cold now. I wasn't cold in there."`));
+    // Borrowed gestures: they are watching how people use their hands, and trying it.
+    const who = state.towelAsk;
+    const gest = el('p', 'mono', '');
+    gest.hidden = true;
+    body.append(gest);
+    body.addEventListener('click', function once(e) {
+      if (!e.target.closest?.('button')) return;
+      body.removeEventListener('click', once);
+      gest.hidden = false;
+      gest.textContent = `You check the blaster out of habit: a turn of the wrist, a pause, one small correction. On the bench, ${who} does the same thing with empty hands. The same pause. The same correction. Then they stop, and look at their hands. "Was that right?"`;
+    });
     state.towelAsk = null;
   }
 

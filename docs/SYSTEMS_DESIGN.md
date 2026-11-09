@@ -567,3 +567,22 @@ The facility maintains itself for people who are becoming something else. Fear h
 - **The Closed Wave Pool benchmark:** an empty lifeguard chair with wet prints going up its ladder; look away for a few seconds and its lamp is on and it is occupied, facing the pool. A wave display advances over flat water. Something crosses under the surface against the waves. From the Safe Room window, four disturbances walk your route again, one waits where you stood still longest, then a fifth follows.
 
 Deaths never raise danger. Tests: `omens.cjs`, `doors.cjs`, `hunt.cjs`, `dread.cjs`. None of this has been checked for whether it is frightening; that needs people (`docs/PRODUCTION.md`).
+
+## 22. The Closed Wave Pool as a level, the helm, and borrowed behaviour (implemented)
+
+**One recognizable place.** The chapter is a wave basin with rooms around it that you keep seeing from new angles: the arrival dock (south), the basin (centre, the short way across, the Undertow in it), the raised maintenance gallery (north and east, dry, with a tiled parapet and rail over the water), the changing-room annex (west: the pressure key, lockers, obstructed sightlines, dormant Blooms at arm's length) and pump control (north, with an observation window onto the gallery). Round tiled columns stand in the basin. The Lifeguard's tower stands in one of two places, different between expeditions.
+
+**The inspection lamp.** This Lifeguard's rule is the lamp: it turns slowly round the basin and lays a pool of light on the floor, the gallery included. Standing in it starts the usual sequence (lamp, head, hand, whistle). You time the gallery between passes, or wade under it.
+
+**The water decision: a safer walk back, or a safer raft.** At pump control the machine states both outcomes before you commit. *Drain the basin into the exit channel*: the water goes, the Undertow with it, and you walk back across dry tile; the raft leaves on the discharge, fast and rough. *Keep it circulating and open the bypass*: the basin stays deep and turns, carrying you sideways as you wade; the raft leaves calm. The result is physical and stays visible all the way back.
+
+**Pump control: overlapping jobs.** Turning the diverter takes twelve seconds. Let go of E and the crewmate posted at the machine keeps it turning, slower, unless a Bloom is on them; another watches the approach, another the window. While attention is on the machine the room gets loud, the service door's handle moves, and past halfway the lamp leaves the tower and comes round. Finish it or reposition: the objective never changes.
+
+**The helm.** One helmsman at a time, named in the raft panel (`HELM · YOU` / `HELM · DEZ`). `Y` hands the helm to a crewmate who is able (not grabbed, hurt or forgotten); they steer for the line and call the jumps while you aim. Steer hard yourself and it is yours again. This is separate from Ride Control (`T`), which is the facility steering and costs composure. Keyboard only so far: no controller binding yet.
+
+**Borrowed behaviour (uncanny).** The facility has learned what people do, less certainly why.
+- *The Lifeguard's rounds.* In the sectors where it sits a chair, it periodically climbs down with a clipboard and inspects the pool ladders: both hands to the rails, a foot on the first rung, its weight onto it, a note. The last ladder was removed; four mounting holes remain. It performs the whole inspection there anyway. On its rounds it only looks where it is going: stay behind it. In front of it, it stops, its head comes round, and you have about two seconds to get out of sight.
+- *The voice with a habit.* Marco's call sometimes has a body: a figure by a far wall performing one of your crew's habits where it makes no sense (Tubs bracing a hand on a raft edge that is not there; June reading a wristband; Dez wiping a tool; Mars turning to count the last person), on an exact two-second loop. Walk up to it and it is gone. It is never an authenticated teammate.
+- *"Was that right?"* A survivor you pulled out slowly sits on the Safe Room bench. The first time you do anything at the sheet, they repeat your blaster check with empty hands, then stop and look at them.
+
+These use the prototype figures (boxes and capsules). The effect the brief describes needs a believable human baseline (faces, hands, clothing contact, authored animation) so that a wrong performance reads as intended and not as unfinished art; that work is not done, and nobody has been asked whether these read as disturbing or as rough. Tests: `level.cjs`, `uncanny.cjs`.

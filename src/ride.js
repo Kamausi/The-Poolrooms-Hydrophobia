@@ -34,7 +34,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
   const tileMat = { color: [1, 1, 1], metallic: 0, roughness: 0.22, map, normalMap: tileNormal(), normalScale: [1, 1], boxMapScale: 0.5 };
   const lampColor = linear(sector.lamp);
   const bandMat = { color: linear(sector.band || '#4d7472'), metallic: 0, roughness: 0.35 };
-  const waterMat = () => ({ tag: 'water', color: linear(sector.water), metallic: 0.55, roughness: 0.08 });
+  const waterMat = () => ({ tag: 'water', color: linear(sector.water), metallic: 0.3, roughness: 0.08, emission: 0.22, emissiveColor: linear(sector.water) }); // rich against the ivory, lit a little from within
   const slab = box(0, 1);
   const ball = sphere(28, 18);
   const lumpy = sphere(7, 5);
@@ -402,6 +402,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
   let ripple = [0, -100, 0];
   let rippleTime = -10;
   let shake = 0;
+  let helmTakeback = 0;
   let nextLine = 6;
   let crewLine = state.crewLine || 0;
   let held = 0; // seconds the raft is held (Undertow / wake)
@@ -861,7 +862,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
   }
 
   /** Ride control: the park steers. It reads the water well and it is very smooth. */
-  function autopilotSteer(lim) {
+  function autopilotSteer(lim, caller = 'RIDE CONTROL') {
     let target = 0;
     const near = (list) => list.filter((x) => x.active && x.s > s && x.s - s < 40).sort((a, b) => a.s - b.s)[0];
     const g = near(gateSets), d = near(debrisPool), k = near(pickups);
@@ -877,7 +878,8 @@ export function createRide(canvas, state, sector, events, opts = {}) {
     const next = Math.min(...jumpables, Infinity);
     if (next - s < speed * 0.45 && next - s > 0 && jumpY === 0 && time - attendantCall > 1.5) {
       attendantCall = time;
-      hud.say('RIDE CONTROL', 'Please brace for the splash.', 'attendant');
+      if (caller === 'RIDE CONTROL') hud.say('RIDE CONTROL', 'Please brace for the splash.', 'attendant');
+      else hud.say(caller, pick(['Hold on — jumping!', 'Brace! Over it!', 'Up we go —']), 'crew');
       hop(1);
     }
     return clamp((target - offset) * 0.9 - velX * 0.35, -1, 1);
@@ -1661,6 +1663,21 @@ export function createRide(canvas, state, sector, events, opts = {}) {
       if (trailGrab) steerIn = 1;
       if (crewGrab) { botE = true; if (crewGrab.tension < 50) input.keys.add('e'); else input.keys.delete('e'); } else if (botE) { botE = false; input.keys.delete('e'); }
     }
+    // The helm: one helmsman at a time, handed over in a moment. A crewmate at the helm steers for the line and
+    // calls the jumps while you aim and shoot. Steer hard yourself and you take it back.
+    const helmFree = (id) => id && state.crewState?.[id] && !['grabbed', 'hurt'].includes(state.crewState[id]) && !(state.forgotten || []).includes(id);
+    if (wasPressed('y') && !state.downed) {
+      if (state.helm) { hud.say(state.helm.toUpperCase(), 'Yours.', 'crew', true); state.helm = null; }
+      else {
+        const id = Object.keys(state.crewState || {}).find(helmFree);
+        if (id) { state.helm = id; hud.say(id.toUpperCase(), pick(['I\'ve got the helm. Shoot.', 'Helm\'s mine. Watch the sides.', 'Got it. Eyes up.']), 'crew', true); }
+        else hud.toast('NOBODY CAN TAKE THE HELM');
+      }
+    }
+    if (state.helm && !helmFree(state.helm)) { hud.toast(`${state.helm.toUpperCase()} LET GO OF THE HELM · YOU HAVE IT`); state.helm = null; }
+    helmTakeback = state.helm && Math.abs(steerIn) > 0.6 ? helmTakeback + dt : 0;
+    if (helmTakeback > 0.35) { hud.say(state.helm.toUpperCase(), 'Okay — yours!', 'crew', true); state.helm = null; helmTakeback = 0; }
+    hud.helm(state.helm ? state.helm.toUpperCase() : state.autopilot ? 'RIDE CONTROL' : 'YOU');
     if (wasPressed('t')) {
       state.autopilot = !state.autopilot;
       hud.toast(state.autopilot ? 'RIDE CONTROL IS STEERING · it is very smooth · Drift rises while you let it' : 'YOU HAVE THE RAFT');
@@ -1710,9 +1727,10 @@ export function createRide(canvas, state, sector, events, opts = {}) {
       viewYaw = damp(viewYaw, 0, 3, dt);
       // The raft has weight: steering accelerates it sideways, water drag slows it, currents push it.
       let steer = steerIn;
-      if (state.autopilot && Math.abs(steerIn) < 0.1) steer = autopilotSteer(lim);
+      if (state.helm) steer = autopilotSteer(lim, state.helm.toUpperCase()) * 0.9;
+      else if (state.autopilot && Math.abs(steerIn) < 0.1) steer = autopilotSteer(lim);
       if (state.downed) steer = autopilotSteer(lim); // you're on the floor of the raft; the crew steers
-      if (state.autopilot) state.drift = Math.min(100, state.drift + dt * 0.35);
+      if (state.autopilot && !state.helm) state.drift = Math.min(100, state.drift + dt * 0.35);
       if (overboard || capsize) steer = 0;
       const accel = (state.fit === 'handling' ? 15 : 10) * (paddling ? 1.4 : 1) * settings.steer;
       const current = (sec.current || 0) * Math.sin(s * 0.035 + sec.id);
@@ -2112,7 +2130,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
       else if (next.sec.type === 'drop') lines.push(`SPILLWAY DROP IN ${d} M · NO CHECKPOINT`);
     }
     // Steady facts (fit, Ride Control piloting) live in the Safe Room and pause; the HUD shows what changes.
-    const stance = [state.autopilot ? '' : 'PILOT: YOU (T)', locks.length ? `LOCKS ${locks.length}` : '', braced ? 'BRACED' : ''].filter(Boolean).join(' · ');
+    const stance = [ locks.length ? `LOCKS ${locks.length}` : '', braced ? 'BRACED' : ''].filter(Boolean).join(' · ');
     if (stance) lines.push(stance);
     if (state.upgrades.includes('depth')) lines.push(`DEPTH SENSOR: ${sec.shallow ? 'SHALLOW · SAFE' : sec.type === 'tube' || sec.type === 'overflow' ? 'DEEP · CONNECTED · DANGER' : 'DEEP'}`);
     return lines;

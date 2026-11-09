@@ -100,8 +100,10 @@ export function poseSeated(f, { p, rgt, fwd, up, upL, side, stroke = 0, duck = 0
 /**
  * Standing or walking on foot. feet: ground point under the figure; yaw: facing; walk: stride phase (radians);
  * pace: 0 standing … 1 running; drop: how far they are lowered (kneeling beside you, waist-deep water).
+ * arms: optional { L, R } hand offsets from the shoulder as [forward, up, outward] in metres, for an authored
+ * gesture (a habit, a check of the tool, a hand braced on something).
  */
-export function poseStanding(f, { feet, yaw, walk = 0, pace = 0, drop = 0 }) {
+export function poseStanding(f, { feet, yaw, walk = 0, pace = 0, drop = 0, arms = null }) {
   const B = f.L.broad;
   const fwd = [Math.sin(yaw), 0, Math.cos(yaw)];
   const rgt = normalize(cross(UP, fwd)); // keeps the basis right-handed, so faces stay outward
@@ -124,7 +126,8 @@ export function poseStanding(f, { feet, yaw, walk = 0, pace = 0, drop = 0 }) {
   for (const [arm, hand, k, ph] of [[f.armL, f.handL, -1, -1], [f.armR, f.handR, 1, 1]]) {
     const shoulder = add(sh, scale(rgt, 0.21 * B * k));
     const reach = drop > 0.3 && k === 1 ? scale(fwd, 0.45) : scale(fwd, swing * ph * 0.8 + 0.06);
-    const hand0 = add(add(add(shoulder, [0, -0.56, 0]), reach), scale(rgt, 0.05 * k));
+    const g = arms?.[k === 1 ? 'R' : 'L'];
+    const hand0 = g ? add(add(add(shoulder, scale(fwd, g[0])), [0, g[1], 0]), scale(rgt, g[2] * k)) : add(add(add(shoulder, [0, -0.56, 0]), reach), scale(rgt, 0.05 * k));
     writeSegment(arm.matrix, shoulder, hand0, 0.05 * B);
     writeBasis(hand.matrix, hand0, rgt, UP, fwd, 0.07, 0.1, 0.08);
   }

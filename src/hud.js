@@ -58,6 +58,12 @@ export const hud = {
     objectiveTimer = 6;
   },
   /** What you are carrying for the crew's objective, shown on your own entry. */
+  /** Who has the helm: one named helmsman at a time. */
+  helm(name) {
+    const t = `HELM · ${name}`;
+    const h = document.getElementById('helm');
+    if (h && h.textContent !== t) h.textContent = t;
+  },
   carry(text) {
     el.carry.textContent = text ? ` · ${text}` : '';
   },
@@ -247,7 +253,7 @@ export const hud = {
     // Optional lines yield while a crewmate is in trouble: the PA, and banter that isn't about the rescue.
     if (crisis && !aboutCrisis(kind, text)) return;
     if (queue.some((q) => q.text === text)) return;
-    queue.push({ speaker, text, kind });
+    queue.push({ speaker, text, kind, force });
   },
   toast(text) {
     el.toast.textContent = text;
@@ -269,7 +275,7 @@ export const hud = {
   /** Hold back announcements and banter for a while; a crewmate may voice what everyone just heard. */
   hush(seconds = 12, who = null, line = null) {
     hushT = Math.max(hushT, seconds);
-    for (let i = queue.length - 1; i >= 0; i--) if (queue[i].kind === 'attendant' || queue[i].kind === 'banter') queue.splice(i, 1);
+    for (let i = queue.length - 1; i >= 0; i--) if (!queue[i].force && (queue[i].kind === 'attendant' || queue[i].kind === 'banter')) queue.splice(i, 1);
     if (who && line) setTimeout(() => this.say(who, line, 'crew'), 1800);
   },
   update(dt) {

@@ -15,7 +15,7 @@ const { open, newCampaign, check, finish } = require('./lib.cjs');
     if (!E.lockers.length) return { none: true };
     const lk = E.lockers[0]; E.occupant.locker = null;
     E.player.pos = [lk.pos[0] + 0.3, 0, lk.pos[2] + 0.3]; u.step(3); u.press('e'); u.step(3); return { opened: lk.opened }; });
-  const sub = await page.evaluate(() => { let t = ''; for (let k = 0; k < 500; k++) { window.__underflow.step(3); t += '  ' + document.getElementById('subtitle').textContent; } return t; });
+  const sub = await page.evaluate(() => { let t = ''; for (let k = 0; k < 1100 && !/0417 has been returned/.test(t); k++) { window.__underflow.setState({ drift: 0, health: 1e6, sitting: false }); if (window.__explore.lifeguard) window.__explore.lifeguard.blind = 1; window.__underflow.step(3); t += '  ' + document.getElementById('subtitle').textContent; } return t; });
   check('the Attendant says Locker 0417 has been returned while you carry its contents', r.none || /Locker 0417 has been returned/.test(sub), JSON.stringify(r) + [...new Set(sub.split('  '))].join('|').slice(0, 600));
 
   // The chapter: a survivor in the water, the chair, the display, the window.
