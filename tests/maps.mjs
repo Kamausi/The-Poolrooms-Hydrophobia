@@ -13,7 +13,7 @@ for (const s of SECTORS) {
     while (q.length) { const [x,z]=q.shift();
       const nb=[[x+1,z],[x-1,z],[x,z+1],[x,z-1]];
       const ti=T.findIndex(([a,b])=>a===x&&b===z); if (ti>=0 && T[ti^1]) nb.push(T[ti^1]);
-      for (const [nx,nz] of nb) { const c=g[nz]?.[nx]; if(!c||c==='#'||c==='x') continue;
+      for (const [nx,nz] of nb) { const c=g[nz]?.[nx]; if(!c||c==='#'||c==='x'||c==='o') continue;
         if (c==='B'&&!open) continue; if (c==='K'&&!open) continue; if (c==='G'&&!open) continue;
         const k=nx+','+nz; if(!seen.has(k)){seen.add(k);q.push([nx,nz]);} } }
     return seen; };

@@ -194,8 +194,11 @@ export function createBlaster(state) {
       writeBasis(housing.matrix, at([0.078, 0.035, 0.17]), x, z, y, 0.05 * G, 0.06 * G, 0.05 * G);
       writeBasis(lens.matrix, at([0.078, 0.035, 0.2]), x, y, z, 0.034 * G, 0.034 * G, 0.012 * G);
       lens.material.emission = scanning ? 6 : 0.05;
+      // Drift in stages: the strap bites into a glove that is filling (30+), the knuckles round off (50+),
+      // and past 55 the hand breathes on its own: slow, even, content, not in time with you.
       const swell = Math.max(0, state.drift - 30) * 0.007;
-      const sw = (k) => 1 + swell * k;
+      const breathe = state.drift > 55 ? 1 + Math.sin(performance.now() / 1000 * 0.75) * Math.min(0.035, (state.drift - 55) * 0.0012) : 1;
+      const sw = (k) => (1 + swell * k) * breathe;
       writeBasis(palm.matrix, at([0.012, -0.1, -0.13]), x, gy, gz, 0.085 * G * sw(1), 0.1 * G * sw(0.6), 0.1 * G * sw(0.8));
       writeBasis(fingers.matrix, at([0.004, -0.118, -0.055]), x, gy, gz, 0.088 * G * sw(1), 0.125 * G * sw(0.5), 0.048 * G * sw(1.2));
       writeBasis(thumb.matrix, at([-0.05, -0.045, -0.07]), x, y, z, 0.03 * G * sw(1), 0.03 * G * sw(1), 0.085 * G * sw(0.6));
@@ -203,7 +206,7 @@ export function createBlaster(state) {
       const gc = [0.13 + pale * 0.45, 0.13 + pale * 0.42, 0.11 + pale * 0.38]; // the glove pales and softens toward skin
       palm.material.color = gc; fingers.material.color = gc; thumb.material.color = gc;
       writeBasis(cuff.matrix, at([0.02, -0.15, -0.27 + swell * 0.05]), x, gz, gy, 0.12 * G * sw(0.4), 0.2 * G, 0.12 * G * sw(0.4));
-      writeBasis(band.matrix, at([0.02, -0.142, -0.2 + swell * 0.05]), x, gz, gy, 0.126 * G * sw(0.4), 0.028 * G, 0.126 * G * sw(0.4));
+      writeBasis(band.matrix, at([0.02, -0.142, -0.2 + swell * 0.05]), x, gz, gy, 0.126 * G * (1 + swell * 0.15), 0.028 * G, 0.126 * G * (1 + swell * 0.15)); // the strap doesn't give: an indentation
       const charge = state.charge / state.maxCharge;
       const hot = state.heat / 100;
       tube.material.emissiveColor = [0.6 + hot * 0.4, 1 - hot * 0.7, 0.55 - hot * 0.45];

@@ -315,21 +315,25 @@ export const REFERENCE_CHAPTER = {
   id: 'closed-wave-pool', name: 'THE CLOSED WAVE POOL', depth: 22, chapter: true,
   tile: '#cdd3cf', grout: '#7a8c8e', stain: '#55696f', water: '#1d4a55', fog: '#08141a', lamp: '#e3e6da', band: '#3f6f86',
   ride: ['channel', 'hall:wavepool,diverter', 'dock:divert'],
-  explore: { lifeguard: null, dark: 0.25 },
+  // One recognizable place: a wave basin with rooms around it you keep seeing from new angles.
+  // West: the changing-room annex (pressure key, lockers, doors, a close Bloom ambush). North and east: the raised
+  // maintenance gallery, a dry route overlooking the basin under the inspection lamp. North: pump control.
+  // Centre: the basin, the short way across, with the Undertow in it. South: the arrival dock. The tower (L) moves.
+  explore: { lifeguard: 'inspect', dark: 0.2, basin: true },
   valve: 'the wave generator',
   map: [
-    '#############',
-    '#D...l....s.#',
-    '#.~~~~~~~~..#',
-    '#.~~~u~~~~.P#',
-    '#.~~~~~~~~..#',
-    '#.xxxxxxxxx.#',
-    '#.....#.....#',
-    '#..h..#..S..#',
-    '#.##.##.##..#',
-    '#~~f~~#.....#',
-    '#~~~~~#..l..#',
-    '#############',
+    '#################',
+    '#h..yyyyyyyyyyyy#',
+    '#.#b.##...S####y#',
+    '#P.#.#........oy#',
+    '#..b..~~~~~~~~~y#',
+    '#.#...~~~~u~~~~y#',
+    '#.h.#.~~L~~~~L~y#',
+    '#l...~~~~~~~~~~y#',
+    '#..#.~~~~~~~~~~y#',
+    '#P...~~~~~~~~~.y#',
+    '#s.......D.....y#',
+    '#################',
   ],
   attendant: {
     start: 'The wave pool is closed for maintenance. Waves begin in zero seconds.',
