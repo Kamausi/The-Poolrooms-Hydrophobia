@@ -8,7 +8,7 @@ import path from 'node:path';
 
 const dir = path.dirname(fileURLToPath(import.meta.url));
 const root = path.dirname(dir);
-const QUICK = ['maps.mjs', 'smoke.cjs', 'chapter.cjs', 'memory.cjs', 'resume.cjs', 'audio.cjs', 'hud.cjs'];
+const QUICK = ['maps.mjs', 'smoke.cjs', 'chapter.cjs', 'memory.cjs', 'resume.cjs', 'audio.cjs', 'hud.cjs', 'omens.cjs'];
 const arg = process.argv[2];
 const list = !arg ? QUICK : arg === 'all' ? [...QUICK, 'balance.cjs'] : [QUICK.concat('balance.cjs').find((f) => f.startsWith(arg)) || arg];
 

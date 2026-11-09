@@ -12,6 +12,11 @@
 // watches everything that demands attention, not only enemies: a rescue, a repair, a hard manoeuvre or a
 // player in the water all count against the pressure budget (busy), so a swarm never lands on top of a rescue.
 // It changes the spacing of peaks, not enemy strength.
+//
+// It tracks two different things. Pressure (intensity) is immediate survival: attacks, grabs, damage, hard
+// steering. Dread is unresolved: unexplained movement, an impossible room, a sound with no source. Dread does
+// not spawn anything. An omen holds the director: no warning, no swarm, while the crew looks, listens and
+// imagines. A quiet room is allowed to stay quiet.
 
 const WARNINGS = [
   '[a pump changes pitch — somewhere close]',
@@ -39,12 +44,21 @@ export function createDirector(random, { relax = [32, 48], level = 0 } = {}) {
     nextUnease: 8 + random() * 8,
     peakFor: 0,
     forced: false,
+    dread: 0,
+    hold: 0, // seconds during which nothing escalates: an omen is playing out
   };
   const pick = (list) => list[Math.floor(random() * list.length)];
 
   return {
     get phase() { return d.phase; },
     get intensity() { return d.intensity; },
+    get dread() { return d.dread; },
+    get holding() { return d.hold > 0; },
+    /** Something unexplained happened: dread rises, and nothing new arrives for a while so it can be noticed. */
+    omen(amount = 0.25, hold = 10) {
+      d.dread = Math.min(1, d.dread + amount);
+      d.hold = Math.max(d.hold, hold);
+    },
     /** The phase in the crew's vocabulary. */
     get label() { return { relax: 'OBSERVATION', warning: 'ANTICIPATION', buildup: 'PRESSURE', peak: 'PRESSURE', fade: 'RESOLUTION', recover: 'RECOVERY' }[d.phase]; },
     /** A crescendo: the players did something loud on purpose (a power panel, a pump). */
@@ -57,6 +71,13 @@ export function createDirector(random, { relax = [32, 48], level = 0 } = {}) {
     /** Report what is happening to the player. Returns actions for the scene to carry out. */
     update(dt, { hurt = 0, enemies = 0, nearby = 0, busy = 0 }) {
       const actions = [];
+      d.dread = Math.max(0, d.dread - dt * 0.012);
+      if (d.hold > 0) {
+        // Held: time passes but nothing escalates. A fight already running is allowed to finish.
+        d.hold -= dt;
+        if (d.phase === 'relax' || d.phase === 'warning') return actions;
+        if (d.phase === 'buildup') { d.nextSpawn = Math.max(d.nextSpawn, 1); }
+      }
       d.t += dt;
       d.intensity = Math.min(1, d.intensity + hurt * 0.025 + nearby * 0.04 * dt);
       if (d.phase === 'relax' || d.phase === 'fade') d.intensity = Math.max(0, d.intensity - dt * 0.08);

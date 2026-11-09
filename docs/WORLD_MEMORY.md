@@ -76,7 +76,7 @@ The creative directive (`DIRECTIVE` in `memory.js`):
 | Room arrangements | Combine approved architecture, machinery and routes | Built for water levels and the extended corridor; a general room generator is not |
 | Environmental records | Notices, attendance discrepancies, graffiti within lore rules | Built (false records, plaques, lockers, notices) |
 | Route consequences | From diversions, repairs, discoveries | Built (in-expedition and between expeditions) |
-| Variations on existing entities | Approved appearances and behaviours, keeping attack rules | Heavier swarms where people died; nothing else yet |
+| Variations on existing entities | Approved appearances and behaviours, keeping attack rules | None yet. Where people died the place leaves evidence (a vest, a warning, a notice, a cache) and is no harder |
 | New entities | A full production pass before play | Not automated, by design |
 | Major revelations and endings | Authored | Authored |
 

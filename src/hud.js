@@ -12,6 +12,8 @@ let hintTimer = 0;
 let objectiveTimer = 0, tickerTimer = 0;
 let crisis = null; // the crewmate in trouble, if any: the HUD makes them impossible to miss
 let lastRoster = '';
+let hushT = 0, lastAttendant = -999, clock = 0;
+const ATTENDANT_GAP = 30; // the PA is rare enough that its arrival changes the room
 const HINT_SECONDS = 7;
 let player = 'MARS';
 let last = null; // the run's state, for lines that depend on Drift and the manifest
@@ -27,7 +29,7 @@ function withBindings(text) {
 }
 /** During a crisis only lines about it get through: anything naming the crewmate, or the rescue's verbs. */
 function aboutCrisis(kind, text) {
-  if (kind === 'attendant') return false;
+  if (kind === 'attendant' || kind === 'banter') return false;
   if (kind !== 'crew') return true; // voices, Drift and Marco are threats in their own right
   return new RegExp(`${crewById(crisis.id).name}|grab|line|grip|pull|hold|shoot|help`, 'i').test(text);
 }
@@ -224,7 +226,7 @@ export const hud = {
     captionTimer = 2.8;
   },
   /** Radio and PA lines. Queued so they never overlap. kind: crew | attendant | marco | drift */
-  say(speaker, text, kind = 'crew') {
+  say(speaker, text, kind = 'crew', force = false) {
     // In callouts Marco is "the Caller", so it never sounds like Mars.
     // Speech the game can't verify reads the same whoever said it: a voice, a place. Only the radio identifies.
     if (kind === 'marco' || kind === 'voice') speaker = speaker.startsWith('VOICE') ? speaker : 'VOICE · NEARBY';
@@ -239,6 +241,9 @@ export const hud = {
       } else if (kind === 'crew') speaker = `${speaker} · RADIO`;
     }
     if (kind === 'attendant' && !speaker.includes('·')) speaker = `${speaker} · PA`;
+    // After a discovery, the next announcement or joke waits: room for someone to say "did you hear that?"
+    if (hushT > 0 && (kind === 'attendant' || kind === 'banter')) return;
+    if (kind === 'attendant' && !force) { if (clock - lastAttendant < ATTENDANT_GAP) return; lastAttendant = clock; }
     // Optional lines yield while a crewmate is in trouble: the PA, and banter that isn't about the rescue.
     if (crisis && !aboutCrisis(kind, text)) return;
     if (queue.some((q) => q.text === text)) return;
@@ -261,7 +266,15 @@ export const hud = {
     speaking = 0;
     el.subtitle.classList.remove('show');
   },
+  /** Hold back announcements and banter for a while; a crewmate may voice what everyone just heard. */
+  hush(seconds = 12, who = null, line = null) {
+    hushT = Math.max(hushT, seconds);
+    for (let i = queue.length - 1; i >= 0; i--) if (queue[i].kind === 'attendant' || queue[i].kind === 'banter') queue.splice(i, 1);
+    if (who && line) setTimeout(() => this.say(who, line, 'crew'), 1800);
+  },
   update(dt) {
+    clock += dt;
+    hushT = Math.max(0, hushT - dt);
     if (objectiveTimer > 0) {
       objectiveTimer -= dt;
       if (objectiveTimer <= 0 && !settings.hudPersistent) el.objective.parentElement.classList.add('compact');

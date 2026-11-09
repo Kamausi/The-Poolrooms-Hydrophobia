@@ -9,7 +9,7 @@ import { signMaterial, quad } from './labels.js';
 import { createCrewFigure, hideCrewFigure, poseSeated, poseProne, VISITOR_LOOK } from './crewfigure.js';
 import { createCallouts } from './callouts.js';
 import { createBlaster, PROFILES, PROFILE_ORDER } from './blaster.js';
-import { input, wasPressed, isDown } from './input.js';
+import { input, wasPressed, isDown, labelForDefaultKey as labelFor } from './input.js';
 import { hud } from './hud.js';
 import { sound } from './audio.js';
 import { quality } from './quality.js';
@@ -139,6 +139,9 @@ export function createRide(canvas, state, sector, events, opts = {}) {
     panel: P('Maintenance panel', slab, { color: [0.2, 0.22, 0.2], metallic: 0.6, roughness: 0.4, emission: 0.6, emissiveColor: [0.4, 1, 0.6] }),
     patches: [0, 1, 2].map((i) => P(`Raft patch ${i}`, slab, { color: [0.45, 0.45, 0.42], metallic: 0.2, roughness: 0.8 })),
     headlamp: P('Raft headlamp', slab, glow([1, 0.95, 0.85], 8)),
+    // Details the crew knows by heart: Dez's repair tape around the tube, June's map under a strap.
+    tape: [0, 1, 2].map((i) => P(`Dez's repair tape ${i}`, torus(0.12, 32, 6), { color: [0.6, 0.55, 0.38], metallic: 0, roughness: 0.75 })),
+    map: P('June\'s map under a strap', box(0.02, 2), { color: [0.82, 0.8, 0.7], metallic: 0, roughness: 0.95 }),
     // Every scuff and patch the raft has ever had. They stay.
     marks: Array.from({ length: 9 }, (_, i) => P(`Hull mark ${i}`, slab, { color: [0.45, 0.45, 0.42], metallic: 0.2, roughness: 0.8 })),
     bubbles: Array.from({ length: 6 }, (_, i) => P(`Leak bubble ${i}`, sphere(8, 6), { color: [0.8, 0.92, 0.95], metallic: 0, roughness: 0.05 })),
@@ -170,7 +173,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
   // Remembered death on the water: a flotation vest caught against the wall at the spot.
   const deathAt = sector.variant?.deathAt?.mode === 'ride' && sector.variant.deathAt.f != null ? sector.variant.deathAt : null;
   const deathVest = P('Vest caught against the wall', box(0.03, 2), { color: linear('#b46a3c'), metallic: 0, roughness: 0.65 });
-  if (sector.variant && Object.keys(sector.variant).some((k) => k !== 'notes') && !opts.resumeS) setTimeout(() => hud.say('THE ATTENDANT', sector.variant.dangerous ? 'Welcome back, guest. We kept your place.' : 'Welcome back, guest. Some improvements have been made since your last visit.', 'attendant'), 2500);
+  if (sector.variant && Object.keys(sector.variant).some((k) => k !== 'notes') && !opts.resumeS) setTimeout(() => hud.say('THE ATTENDANT', sector.variant.dangerous ? 'Welcome back, guest. We kept your place.' : 'Welcome back, guest. Some improvements have been made since your last visit.', 'attendant', true), 2500);
   // Where the raft is going: a faint line of foam, so momentum, currents and a soft side can be read before they bite.
   const traj = Array.from({ length: 7 }, (_, i) => P(`Trajectory ${i}`, slab, glow([0.5, 0.56, 0.55], 0.06, { color: [0.2, 0.24, 0.24], roughness: 0.6 })));
   let sparkT = 0, sparkAt = null;
@@ -188,6 +191,20 @@ export function createRide(canvas, state, sector, events, opts = {}) {
       if (c.id === 'help' && crewAvailable().length) protect = Math.max(protect, 2); // the crew turns to cover you
     },
   });
+
+  // ---------- Omens ----------
+  // Things that happen before anything attacks. Each holds the director (no swarm lands on top of it), hushes
+  // the PA and banter, and sometimes pays off with something real. Players should sometimes be right.
+  const omenParts = {
+    platform: P('Falling maintenance platform', box(0.04, 2), { color: [0.2, 0.22, 0.22], metallic: 0.6, roughness: 0.55 }),
+    pale: P('Under the raft', sphere(7, 5), { color: [0.7, 0.72, 0.66], metallic: 0, roughness: 0.3, alphaMode: 'blend', opacity: 0.7 }),
+    shadow: P('Its shadow', box(0, 1), { color: [0.004, 0.008, 0.01], metallic: 0.2, roughness: 0.6 }),
+    dent: P('Dent in the tube', sphere(10, 6), { color: [0.07, 0.06, 0.03], metallic: 0, roughness: 0.9 }),
+  };
+  let omen = null, omenCool = 40, lastOmen = '', squeakT = 0;
+  // A stretch of lamps that has gone out: dark between edge and far. The edge walks toward the raft as the
+  // lights die, then away from it as they come back.
+  const lightsOut = (segS) => omen?.kind === 'lights' && segS >= omen.edge && segS <= omen.far;
 
   // ---------- Co-op and arcade parts ----------
   const pingMark = P('Ping marker', torus(0.06, 32, 8), glow([0.4, 1, 0.9], 6));
@@ -1282,6 +1299,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
     const list = [];
     const T = (pos, r, fn, key = null) => list.push({ pos, r, fn, key });
     if (trailGrab?.pos) T(trailGrab.pos, 0.6, () => { trailGrab.hp -= shotProfile === 'scatter' ? 2 : 1; sound.hit(); }, 'grip');
+    if (omen?.kind === 'beneath' && omen.revealed && omen.pos) T(omen.pos, 0.7, () => { omen.hp -= 1; sound.hit(); shake = Math.max(shake, 0.2); if (omen.hp <= 0) endBeneath('shot'); }, 'beneath');
     if (wave.divActive && !wave.divDone && wave.divPos) T(wave.divPos, 0.5, () => {
       // One shot, three layers that agree: the relay arcs, the water turns, the crew braces, the sound shifts.
       wave.divDone = true;
@@ -1844,6 +1862,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
     placeRaft(dt, fwd, rgt, bob);
     updateEntities(dt, eye, fwd, aimDir);
     const coopPrompt = updateCoop(dt, eye, fwd, aimDir, steerIn, sec);
+    const omenPrompt = updateOmens(dt, eye, aimDir, sec);
 
     // Holding pool decisions
     let prompt = '';
@@ -1929,6 +1948,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
     }
     if (state.filters === 0 && state.filter <= 0 && (sec.filter || sec.type === 'drop')) prompt ||= 'NO FILTER · the chlorine is getting in';
     if (coopPrompt) prompt = coopPrompt;
+    else if (omenPrompt) prompt = omenPrompt;
     if (swimPrompt) prompt = swimPrompt;
     else if (capsize) prompt = 'UNDER THE RAFT · HOLD YOUR BREATH';
     else if (trailGrab) prompt = 'THE UNDERTOW HAS THE TRAILING EDGE · HOLD A or D · counterweight · X look back and shoot the grip';
@@ -2177,7 +2197,19 @@ export function createRide(canvas, state, sector, events, opts = {}) {
       const radial = normalize(add(scale(rgt, Math.cos(a)), scale(fwd, Math.sin(a))));
       writeBasis(st.matrix, add(add(base, scale(radial, 1.05)), scale(tiltUp, 0.01)), radial, tiltUp, cross(radial, tiltUp), 0.285, 0.275, 0.285);
     });
-    const caseAt = add(add(add(base, scale(rgt, -0.25)), scale(fwd, 0.25)), scale(tiltUp, 0.12));
+    // Dez's tape: three wraps around the tube where it was patched at the first dock, and every dock since.
+    raft.tape.forEach((t, i) => {
+      const a = 2.35 + i * 0.07;
+      const radial = normalize(add(scale(rgt, Math.cos(a)), scale(fwd, Math.sin(a))));
+      writeBasis(t.matrix, add(base, scale(radial, 1.05)), radial, tiltUp, cross(radial, tiltUp), 0.28, 0.27, 0.28);
+    });
+    {
+      // June's map, folded under the strap at the bow: it lifts a little on every impact.
+      const a = (1 / 6) * Math.PI * 2 + 0.3;
+      const radial = normalize(add(scale(rgt, Math.cos(a)), scale(fwd, Math.sin(a))));
+      writeBasis(raft.map.matrix, add(add(base, scale(radial, 1.0)), scale(tiltUp, 0.29 + shake * 0.05)), cross(tiltUp, radial), tiltUp, radial, 0.28, 0.012, 0.2);
+    }
+    const caseAt = add(add(add(add(base, scale(rgt, -0.25)), scale(fwd, 0.25)), scale(tiltUp, 0.12)), scale(rgt, Math.sin(time * 7) * shake * 0.05)); // the case shifts against a boot
     writeBasis(raft.case.matrix, caseAt, rgt, tiltUp, fwd, 0.55, 0.22, 0.32);
     writeBasis(raft.caseStrap.matrix, add(caseAt, scale(tiltUp, 0.01)), rgt, tiltUp, fwd, 0.08, 0.235, 0.33);
     placeCrew(base, rgt, fwd, tiltUp);
@@ -2201,6 +2233,157 @@ export function createRide(canvas, state, sector, events, opts = {}) {
       hide(passenger.body);
       hide(passenger.head);
     }
+  }
+
+  /** Omens on the water: scheduled in the quiet, never on top of a crisis. Returns a prompt while one needs action. */
+  function updateOmens(dt, eye, aimDir, sec) {
+    const calm = director.phase === 'relax' && !curRoomNow() && !overboard && !capsize && !crewGrab && !climber && !trailGrab && !ballast && !state.downed && !dockSeq;
+    if (squeakT > 0 && (squeakT -= dt) <= 0 && calm) { sound.scrape(0); hud.caption('[one rubber squeak, from under the raft. Then nothing]'); director.omen(0.2, 8); }
+    if (!omen) {
+      hide(omenParts.platform); hide(omenParts.pale); hide(omenParts.shadow); hide(omenParts.dent);
+      if (!calm || sec.paddle || sec.type === 'lift') return '';
+      omenCool -= dt;
+      if (omenCool > 0) return '';
+      const pool = ['lights', 'platform', 'footsteps', 'rub', 'beneath'].filter((k) => k !== lastOmen && !(k === 'beneath' && (sector.index === 0 || !crewAvailable().length)) && !(k === 'platform' && sec.half < 2.2));
+      startOmen(pool[Math.floor(random() * pool.length)]);
+      return '';
+    }
+    omen.t += dt;
+    const o = omen;
+    if (o.kind === 'lights') {
+      if (o.stage === 'dying') {
+        const before = Math.floor(o.edge / 8);
+        o.edge -= 13 * dt;
+        if (Math.floor(o.edge / 8) !== before) sound.switchOn();
+        if (o.edge <= s - 2) { o.stage = 'dark'; o.t = 0; o.edge = s - 2; }
+      } else if (o.stage === 'dark') {
+        o.edge = s - 2;
+        if (o.t > 2.8) {
+          // The payoff varies: sometimes nothing, sometimes something was coming with the dark.
+          const r = random();
+          if (r < 0.4) o.outcome = 'nothing';
+          else { o.outcome = 'blooms'; for (let k = 0; k < 2; k++) spawnBloom(s + 11 + k * 3, (random() - 0.5) * Math.min(sec.half, 5), 0.8 + random()); }
+          o.stage = 'returning'; o.t = 0; o.edge = s - 2;
+        }
+      } else {
+        o.edge += 16 * dt;
+        if (o.outcome === 'blooms' && !o.said && o.t > 0.4) { o.said = true; hud.caption('[the lights come back on — and they are already close]'); sound.breath(0); }
+        if (o.edge > o.far) endOmen();
+      }
+      return '';
+    }
+    if (o.kind === 'platform') {
+      const fall = Math.min(1, o.t / 0.45);
+      const at = track.lateral(o.s, o.side * Math.min(sec.half - 0.6, 1.8), 4.2 - fall * 4.3);
+      writeBasis(omenParts.platform.matrix, at, [1, 0, 0], [0, 1, 0], [0, 0, 1], 1.6, 0.08, 2.4);
+      if (fall >= 1 && !o.hit) {
+        o.hit = true;
+        shake = Math.max(shake, 0.7 * settings.camera + 0.2);
+        sound.thump(o.side * 0.7); sound.splash();
+        hud.caption(`[a maintenance platform crashes into the water ${o.side < 0 ? 'left' : 'right'} of the raft — BRACE]`);
+      }
+      // The shock first; the wave a beat later, so bracing and steering can answer it.
+      if (o.hit && !o.wave && o.t > 1.1) {
+        o.wave = true;
+        velX += -o.side * 3.2;
+        if (!braced) { hull.hit(o.side < 0 ? 'right' : 'left', 5, 'scrape', 0.25); damage(4, 'The wave from the platform threw the raft into the wall.', 2, o.side < 0 ? 'right' : 'left', 'impact'); }
+        else hud.caption('[the wave lifts the raft — you were braced]');
+      }
+      if (o.s < s - 6) endOmen();
+      return o.hit && !o.wave ? 'BRACE · the wave is coming' : '';
+    }
+    if (o.kind === 'footsteps') {
+      o.step = (o.step || 0) - dt;
+      if (o.t < 8 && o.step <= 0) { o.step = 60 / Math.max(60, speed * 30); sound.footstep(o.side * 0.5); }
+      if (o.t > 8 && !o.done) {
+        o.done = true;
+        if (lifeguard.active && lifeguard.s > s && lifeguard.s - s < 220) { lifeguard.lampOn = true; hud.caption('[the footsteps stop where the walkway ends. Further along, a lamp is already on — waiting]'); }
+        else if (random() < 0.35) hud.caption('[the footsteps stop. Then one more — ahead of the raft now]');
+        else hud.caption('[the footsteps stop where the walkway ends]');
+      }
+      if (o.t > 11) endOmen();
+      return '';
+    }
+    if (o.kind === 'rub') {
+      o.step = (o.step || 0) - dt;
+      if (o.t < 6 && o.step <= 0) { o.step = 1.1; sound.scrape(o.side * 0.8); }
+      if (o.t > 7) endOmen();
+      return '';
+    }
+    if (o.kind === 'beneath') return updateBeneath(dt, eye, aimDir, sec);
+    return '';
+  }
+  function curRoomNow() { return !!track.roomAt(s); }
+  function startOmen(kind) {
+    lastOmen = kind;
+    omen = { kind, t: 0, side: random() < 0.5 ? -1 : 1 };
+    const who = (crewAvailable()[0] || state.name).toUpperCase();
+    director.omen(0.3, kind === 'beneath' ? 30 : 14);
+    if (kind === 'lights') {
+      Object.assign(omen, { stage: 'dying', far: s + 60, edge: s + 60 });
+      hud.hush(14, who, 'Lights. Watch the lights.');
+      hud.caption('[the lights ahead are going out — one bank at a time — toward you]');
+    } else if (kind === 'platform') {
+      omen.s = s + 9;
+      hud.hush(10);
+    } else if (kind === 'footsteps') {
+      hud.hush(14, who, 'Did you hear that? Up there.');
+      hud.caption(`[footsteps on the walkway above — ${omen.side < 0 ? 'left' : 'right'} — keeping pace with the raft]`);
+    } else if (kind === 'rub') {
+      hud.hush(12, who, 'That\'s us. That\'s our sound. Over there.');
+      hud.caption(`[the raft's rub against the wall — the same sound, through the ${omen.side < 0 ? 'left' : 'right'} wall, from an empty channel, keeping pace]`);
+    } else if (kind === 'beneath') {
+      const victim = crewAvailable()[0];
+      Object.assign(omen, { victim, hp: 2, braceT: 0, edgeT: 0, revealed: false, step: 0 });
+      hud.hush(20);
+      hud.caption('[wet rubber, rubbing against porcelain — under the raft. The floor is much too far down to touch]');
+    }
+  }
+  function endOmen() {
+    omen = null;
+    omenCool = 50 + random() * 40;
+  }
+  /** Something beneath the raft: rubbing, a list, a dent from underneath; brace and make for the shallows, or shoot it. */
+  function updateBeneath(dt, eye, aimDir, sec) {
+    const o = omen;
+    o.step -= dt;
+    if (o.step <= 0) { o.step = 1.3; sound.scrape(0); }
+    const lim = Math.max(0.5, Math.min(sec.half, 6) - 0.95);
+    o.pos = track.lateral(s + 0.9, offset + o.side * 0.3, -1.4);
+    // It travels at exactly the raft's speed. Its shadow is far larger than the part you can see.
+    writeYaw(omenParts.pale.matrix, o.pos, track.at(s).yaw, 0.32, 0.12, 0.55);
+    writeYaw(omenParts.shadow.matrix, track.lateral(s + 0.9, offset + o.side * 0.3, -2.2), track.at(s).yaw, 2.6, 0.01, 3.4);
+    if (o.t > 3) {
+      // The raft lists toward an occupied seat; the tube dents inward from underneath.
+      velX += o.side * 0.5 * dt;
+      writeYaw(omenParts.dent.matrix, track.lateral(s + 0.85, offset + o.side * 1.0, 0.16), 0, 0.22, 0.06, 0.3);
+      if (!o.listed) { o.listed = true; hud.caption(`[the raft lists toward ${o.victim ? o.victim.toUpperCase() + '\'s' : 'your'} seat — the tube dents inward, from underneath]`); hud.say(o.victim?.toUpperCase() || state.name.toUpperCase(), 'Something\'s pushing up under me. Someone look over the side.', 'crew'); }
+    }
+    // Look over the side with the inspection beam: aim low and scan.
+    if (!o.revealed && input.scanning && aimDir[1] < -0.25) {
+      o.revealed = true;
+      hud.caption('[the beam finds it: pale, moving at exactly your speed. Its shadow is much larger than it is]');
+      events.ledger?.('behaviours', 'Under the raft: a pale shape at the raft\'s speed; its shadow far larger than the shape');
+    }
+    if (braced) o.braceT += dt;
+    if (Math.abs(offset) > lim - 0.35) o.edgeT += dt;
+    if (o.braceT > 1.5 && o.edgeT > 2.5) { endBeneath('shallows'); return ''; }
+    // Before a grab: the tube compresses, the ropes tighten, water rises over the inside edge.
+    if (o.t > 15 && !o.warned) { o.warned = true; shake = Math.max(shake, 0.35); sound.intake(o.side * 0.6); hud.caption('[the tube folds in — the ropes go tight — water over the inside edge]'); }
+    if (o.t > 18) {
+      // It takes someone. The ordinary rescue rules apply from here.
+      endBeneath('grab');
+      spawn({ e: { kind: 'crewGrab' }, s: s + 1, sec });
+      return '';
+    }
+    return o.t > 3 ? `UNDER THE RAFT · [${labelFor('q')}] beam over the side · BRACE and steer for the shallow edge · or shoot it` : '';
+  }
+  function endBeneath(how) {
+    hide(omenParts.pale); hide(omenParts.shadow); hide(omenParts.dent);
+    if (how === 'shallows') hud.caption('[the spillway floor comes up under you — the rubbing stops. It let go]');
+    if (how === 'shot') hud.caption('[it flinches away from the beam and the shots, down into the shadow]');
+    if (how !== 'grab') { director.omen(0, 40); squeakT = 90 + random() * 60; } // a real recovery stretch; much later, one squeak
+    endOmen();
   }
 
   /** Climbers, the tug-of-war, the restrained survivor, Ballast, crew cover, pings, the hook. Returns a prompt. */
@@ -2541,7 +2724,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
     if (director.phase === 'relax' && !overboard && !crewGrab && !climber && !trailGrab && !state.downed && !saidHull.has('banter') && random() < frameDt * 0.01) {
       saidHull.add('banter');
       const lines = BANTER[(sector.index + state.attempt) % BANTER.length].filter(([who]) => who === state.name.toUpperCase() || crewAvailable().includes(who.toLowerCase()));
-      lines.forEach(([who, line], i) => setTimeout(() => { if (!overboard && !crewGrab && !climber && !trailGrab && director.phase === 'relax') hud.say(who, line, 'crew'); }, i * 2600));
+      lines.forEach(([who, line], i) => setTimeout(() => { if (!overboard && !crewGrab && !climber && !trailGrab && director.phase === 'relax') hud.say(who, line, 'banter'); }, i * 2600));
     }
     // Under the flexible floor, during the quiet.
     if (!underFloorUsed && director.phase === 'relax' && sector.index > 0 && random() < frameDt * 0.004) {
@@ -2619,15 +2802,16 @@ export function createRide(canvas, state, sector, events, opts = {}) {
       const lampOn = sec.sky ? false : sec.lamps === 'posts' ? n % 2 === 0 : sec.lamps === 'none' ? false : sec.lamps === 'bright' ? true : sec.lamps === 'normal' || sec.lamps === 'flicker' ? n % 2 === 0 : sec.lamps === 'sparse' ? n % 3 === 0 : !!sec.lit && n % 2 === 0;
       if (lampOn && sec.lamps === 'posts') {
         put(seg.lamp, -(half + 0.3), 1.6, 0.25, 0.25, 0.25);
-        seg.lamp.material.emission = 9;
-        seg.flickerDark = false;
+        seg.lamp.material.emission = lightsOut(seg.s) ? 0.02 : 9;
+        seg.flickerDark = lightsOut(seg.s);
         seg.lampPos = add(add(B.a.p, scale(B.right, -(half + 0.3))), scale(B.y, 1.6));
       } else if (lampOn) {
         put(seg.lamp, 0, H - 0.02, 1.5, 0.06, 0.5);
         const f = hash(n);
         const flick = sec.lamps === 'flicker' ? (Math.sin(time * 23 + f * 70) > 0.2 ? 0.1 : 1) : f > 0.85 ? (Math.sin(time * 37 + f * 90) > 0.6 ? 0.15 : 1) : 1;
-        seg.lamp.material.emission = 9 * flick;
-        seg.flickerDark = flick < 0.5;
+        const out = lightsOut(seg.s);
+        seg.lamp.material.emission = 9 * flick * (out ? 0.002 : 1);
+        seg.flickerDark = flick < 0.5 || out;
         seg.lampPos = add(B.a.p, scale(B.y, H - 0.4));
       } else {
         hide(seg.lamp);
@@ -3491,7 +3675,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
     bloomAhead() { return spawnBloom(s + 10, offset * 0.6, 1.2); },
     get locks() { return locks.length; },
   };
-  if (import.meta.env.DEV) window.__ride = { parts, get eye() { return fx.eye; }, track, hull, puncture: (c, cause = 'scrape') => hull.puncture(c, cause), overboard: () => goOverboard('test'), free: () => restrained && !restrained.freed && freeRestrained(), shove: () => shove(fx.eye, fx.fwd), ping: () => ping(fx.eye, fx.fwd), fireAt: (dir) => { fireProfile(fx.eye, fx.look, dir || fx.fwd); return state.profile; }, hitTarget: (key) => { const t = targets().find((x) => x.key === key); if (t) { shotProfile = state.profile; t.fn(); } return !!t; }, get wave() { return wave; }, set bot(v) { devBot = v; }, spawnEnc: (kind, extra = {}) => spawn({ e: { kind, ...extra }, s: s + 10, sec: track.sectionAt(s).sec }), get coop() { return { climber, crewGrab, ballast, restrained, protect, focusing, fov, profile: state.profile, special: state.special }; }, reset: () => { overboard = null; capsize = null; trailGrab = null; hull.state.capsized = false; }, capsize: () => startCapsize(), get swimming() { return overboard; }, get capsized() { return capsize; }, get grab() { return trailGrab; }, valve, linked, lifeguard, locker, wake, passengerStep, burst: () => burst(fx.eye, fx.fwd), get s() { return s; }, set s(v) { s = v; } };
+  if (import.meta.env.DEV) window.__ride = { parts, omen: (k) => startOmen(k), get omenState() { return omen; }, get director() { return director; }, get eye() { return fx.eye; }, track, hull, puncture: (c, cause = 'scrape') => hull.puncture(c, cause), overboard: () => goOverboard('test'), free: () => restrained && !restrained.freed && freeRestrained(), shove: () => shove(fx.eye, fx.fwd), ping: () => ping(fx.eye, fx.fwd), fireAt: (dir) => { fireProfile(fx.eye, fx.look, dir || fx.fwd); return state.profile; }, hitTarget: (key) => { const t = targets().find((x) => x.key === key); if (t) { shotProfile = state.profile; t.fn(); } return !!t; }, get wave() { return wave; }, set bot(v) { devBot = v; }, spawnEnc: (kind, extra = {}) => spawn({ e: { kind, ...extra }, s: s + 10, sec: track.sectionAt(s).sec }), get coop() { return { climber, crewGrab, ballast, restrained, protect, focusing, fov, profile: state.profile, special: state.special }; }, reset: () => { overboard = null; capsize = null; trailGrab = null; hull.state.capsized = false; }, capsize: () => startCapsize(), get swimming() { return overboard; }, get capsized() { return capsize; }, get grab() { return trailGrab; }, valve, linked, lifeguard, locker, wake, passengerStep, burst: () => burst(fx.eye, fx.fwd), get s() { return s; }, set s(v) { s = v; } };
 
   return {
     update,
