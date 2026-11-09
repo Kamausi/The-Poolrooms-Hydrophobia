@@ -33,8 +33,8 @@ export function createBlaster(state) {
   const tube = { name: 'Blaster tube', geometry: cylinder(24, 0.1, 2), matrix: new Float32Array(16), material: { color: [0.8, 1, 0.8], metallic: 0, roughness: 0.2, emission: 2.5, emissiveColor: [0.6, 1, 0.55] } };
   const barrel = { name: 'Blaster barrel', geometry: cylinder(24, 0.05, 2), matrix: new Float32Array(16), material: { color: [0.05, 0.06, 0.06], metallic: 0.8, roughness: 0.3 } };
   const lens = { name: 'Inspection lens', geometry: sphere(12, 8), matrix: new Float32Array(16), material: mat([0.3, 0.6, 0.8], 0.4, SCAN_COLOR) };
-  const flash = { name: 'Muzzle flash', geometry: sphere(16, 10), matrix: new Float32Array(16), material: mat(BEAM_COLOR, 12) };
-  const beam = { name: 'Arc beam', geometry: box(0, 1), matrix: new Float32Array(16), material: mat(BEAM_COLOR, 14) };
+  const flash = { name: 'Muzzle flash', geometry: sphere(16, 10), matrix: new Float32Array(16), material: mat(BEAM_COLOR, 4.5) }; // restrained: bloom makes it big
+  const beam = { name: 'Arc beam', geometry: box(0, 1), matrix: new Float32Array(16), material: mat(BEAM_COLOR, 8) };
   const scanBeam = { name: 'Inspection beam', geometry: box(0, 1), matrix: new Float32Array(16), material: mat(SCAN_COLOR, 3) };
   const burstShell = { name: 'Disruption burst', geometry: sphere(24, 16), matrix: new Float32Array(16), material: { ...mat([0.7, 0.9, 1], 6, [0.7, 0.9, 1]), alphaMode: 'blend', opacity: 0.35, doubleSided: true } };
   // The hand you see all game: a work glove and a wet sleeve cuff. Drift shows here first: the glove swells,
@@ -182,7 +182,7 @@ export function createBlaster(state) {
       tube.material.emissiveColor = [0.6 + hot * 0.4, 1 - hot * 0.7, 0.55 - hot * 0.45];
       tube.material.emission = overheat > 0 ? 0.3 + Math.random() : state.recharging ? 0.6 + Math.random() * 0.8 : 0.4 + charge * 2.6;
       if (beamTimer > 0) {
-        writeBasis(flash.matrix, at([0, 0, 0.38]), x, y, z, 0.045, 0.045, 0.045);
+        writeBasis(flash.matrix, at([0, 0, 0.38]), x, y, z, 0.03, 0.03, 0.03);
         stretch(beam, beamFrom, beamTo, 0.018);
       } else {
         hide(flash);

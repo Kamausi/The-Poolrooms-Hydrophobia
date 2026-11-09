@@ -2282,9 +2282,11 @@ export function createRide(canvas, state, sector, events, opts = {}) {
     if (wave.active) {
       const half = Math.min(track.sectionAt(wave.s).sec.half, 9);
       facing(wave.sign, track.lateral(wave.s, -(half - 0.1), 4.2), track.right(wave.s), 3.2, 1.4);
-      writeYaw(wave.exit.matrix, track.lateral(wave.s + 30, 0, -0.6), track.at(wave.s + 30).yaw, 2.2, 0.02, 1.2);
-      writeBasis(wave.exitSign.matrix, track.lateral(wave.s + 30, 0, -0.55), [1, 0, 0], [0, 0, 1], [0, 1, 0], 0.9, 0.34, 1);
-      writeYaw(wave.liquid.matrix, track.lateral(wave.s + 30, 0, -0.27), track.at(wave.s + 30).yaw, 3, 0.5, 2.4);
+      writeYaw(wave.exit.matrix, track.lateral(wave.s + 30, 0, 0.004), track.at(wave.s + 30).yaw, 2.2, 0.02, 1.2);
+      // The sign lies just above the channel's opaque water plane, and a thin layer of real (refracting) water
+      // lies over it, so it is seen through water rather than painted on it.
+      writeBasis(wave.exitSign.matrix, track.lateral(wave.s + 30, 0, 0.012), [1, 0, 0], [0, 0, 1], [0, 1, 0], 0.9, 0.34, 1);
+      writeYaw(wave.liquid.matrix, track.lateral(wave.s + 30, 0, 0.06), track.at(wave.s + 30).yaw, 3.2, 0.1, 2.6);
       if (!wave.said && wave.s - s < 25) { wave.said = true; hud.caption('[the wave display reads 00:00. The water is perfectly still. Below the surface: a lit exit sign]'); }
       if (wave.s < s - 60) { wave.active = false; hide(wave.sign); hide(wave.exit); hide(wave.exitSign); hide(wave.liquid); }
     } else { hide(wave.sign); hide(wave.exit); hide(wave.exitSign); hide(wave.liquid); }
