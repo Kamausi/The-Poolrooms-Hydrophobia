@@ -137,6 +137,15 @@ const events = {
   },
   cleared() { state.cleared += 1; },
   tick(dt) {
+    // The crew notices Drift before the meter says much: the hand first, then the way you're breathing.
+    const stage = state.drift >= 72 ? 3 : state.drift >= 55 ? 2 : state.drift >= 38 ? 1 : 0;
+    if (state.drift < 20) state.driftTold = 0;
+    if (stage > (state.driftTold || 0) && !state.sitting) {
+      state.driftTold = stage;
+      const friend = CREW.filter((c) => c.id !== state.character && !state.forgotten.includes(c.id))[stage % 2];
+      const line = [null, 'Your glove. The strap\'s cutting in. When did it get tight?', 'You\'re breathing slow. Really slow. Like you\'re asleep. Talk to me.', 'Look at me. Not the water. Me. What\'s my name?'][stage];
+      if (friend) hud.say(friend.name.toUpperCase(), line, 'crew', true);
+    }
     // Full Drift: you sit down in the warm water. Space or firing pulls you back.
     // Solo rule: nobody is physically there to pull you up. You get one clear way out (hold SPACE while
     // a crewmate talks you back on the radio) and one clear failure (fifteen seconds and you have stayed).
@@ -170,6 +179,7 @@ const events = {
       state.namedRescues = (state.namedRescues || 0) + 1;
       (state.pendingVisitors ||= []).push(v);
       (state.visitorsThisRun ||= []).push(v.name);
+      if (state.towelAsk === 'the one from the water') state.towelAsk = v.name;
       hud.toast(`${v.name.toUpperCase()} · SAFE ONCE YOU REACH A SAFE ROOM`);
       // A facility machine greets them by a name nobody has given it yet.
       setTimeout(() => hud.caption(`[a turnstile somewhere chimes: "WELCOME BACK, ${v.name.toUpperCase()}." They never told anyone their name]`), 2600);
@@ -259,10 +269,18 @@ const events = {
       if (mod && ex && !ex.modded) {
         ex.modded = mod;
         const r = rng(4242 + state.sectorIndex * 7 + state.attempt);
-        ex.sections = mod === 'drained'
-          ? [populate(section('channel', { length: 75, half: 2.6, shallow: true, lamps: 'sparse', label: state.custom?.chapter ? 'THE EXPOSED EXIT' : 'EXPOSED OUTLET' }), r, 0.5, ['cache', 'cache']), bay()]
-          : [populate(section('overflow', { length: 75, half: 2.6, label: state.custom?.chapter ? 'THE WAVES' : 'FLOODED OUTLET' }), r, 1.4, ['wake']), bay()];
-        hud.toast(mod === 'drained' ? 'THE WAY OUT IS THE ONE YOU EXPOSED' : 'THE WAY OUT IS THE ONE YOU FLOODED');
+        if (state.custom?.chapter) {
+          // The Closed Wave Pool's trade: a dry walk back bought a rough discharge; the bypass bought a calm exit.
+          ex.sections = mod === 'drained'
+            ? [populate(section('overflow', { length: 90, half: 2.4, label: 'THE DISCHARGE' }), r, 1.5, ['wake']), bay()]
+            : [populate(section('channel', { length: 90, half: 3, lamps: 'sparse', label: 'THE BYPASS' }), r, 0.45, ['cache']), bay()];
+          hud.toast(mod === 'drained' ? 'THE BASIN IS POURING OUT AHEAD OF YOU · HOLD ON' : 'THE BYPASS IS CALM · TIME TO AIM');
+        } else {
+          ex.sections = mod === 'drained'
+            ? [populate(section('channel', { length: 75, half: 2.6, shallow: true, lamps: 'sparse', label: 'EXPOSED OUTLET' }), r, 0.5, ['cache', 'cache']), bay()]
+            : [populate(section('overflow', { length: 75, half: 2.6, label: 'FLOODED OUTLET' }), r, 1.4, ['wake']), bay()];
+          hud.toast(mod === 'drained' ? 'THE WAY OUT IS THE ONE YOU EXPOSED' : 'THE WAY OUT IS THE ONE YOU FLOODED');
+        }
       }
     }
     startRide({ resumeS: state.ridePosition?.s, departed: state.ridePosition?.departed });
@@ -358,6 +376,13 @@ function startExplore(opts = {}) {
   swap(() => createExplore(canvas, state, sector, events, opts));
 }
 
+/** The Closed Wave Pool, from the Safe Room window: what follows you is your own route, walked again. */
+function windowAftermath(drained) {
+  const where = state.hesitation?.near || 'the pool edge';
+  const crossing = drained ? 'four sets of wet footprints come across the dry tiles' : 'four disturbances cross the pool under the surface';
+  return `You watch for a while. Then ${crossing}, along the exact route you took. One stops at ${where}, where you stood still the longest, and stays there a moment, the way you did. Then they go on. A minute later a fifth comes, alone, following the four.`;
+}
+
 function enterSafeRoom() {
   $('menu').hidden = true;
   mode = 'safe';
@@ -388,7 +413,7 @@ function enterSafeRoom() {
     hud.show(false);
     mode = 'end';
     const drained = state.routeMod?.[state.sectorKey] === 'drained';
-    return showModal('The Closed Wave Pool.', `The bulkhead closes. The pumps are loud, the floor is dry. Through the glass, ${drained ? 'the wave pool is drained to its tiles: the lit exit sign stands in an empty basin, pointing at a wall' : 'the wave pool is running at last, every wave arriving at a beach nobody is on'}.\n\nOn the wall, a maintenance photograph of this room. It was taken from somewhere beneath the floor.\n\n${expeditionRecord()}`, [['PLAY THE CHAPTER AGAIN ↗', () => { hideModal(); startCustom({ chapter: true, tokens: REFERENCE_CHAPTER.ride, base: 0 }); }, true], ['MENU', toMenu]], 'REFERENCE CHAPTER');
+    return showModal('The Closed Wave Pool.', `The bulkhead closes. The pumps are loud, the floor is dry. Through the glass, ${drained ? 'the wave pool is drained to its tiles: the lit exit sign stands in an empty basin, pointing at a wall' : 'the wave pool is running at last, every wave arriving at a beach nobody is on'}.\n\n${windowAftermath(drained)}\n\nOn the wall, a maintenance photograph of this room. It was taken from somewhere beneath the floor.\n\n${expeditionRecord()}`, [['PLAY THE CHAPTER AGAIN ↗', () => { hideModal(); startCustom({ chapter: true, tokens: REFERENCE_CHAPTER.ride, base: 0 }); }, true], ['MENU', toMenu]], 'REFERENCE CHAPTER');
   }
   if (state.custom) {
     hud.show(false);

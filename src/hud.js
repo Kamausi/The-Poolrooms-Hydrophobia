@@ -242,7 +242,7 @@ export const hud = {
     }
     if (kind === 'attendant' && !speaker.includes('·')) speaker = `${speaker} · PA`;
     // After a discovery, the next announcement or joke waits: room for someone to say "did you hear that?"
-    if (hushT > 0 && (kind === 'attendant' || kind === 'banter')) return;
+    if (hushT > 0 && !force && (kind === 'attendant' || kind === 'banter')) return;
     if (kind === 'attendant' && !force) { if (clock - lastAttendant < ATTENDANT_GAP) return; lastAttendant = clock; }
     // Optional lines yield while a crewmate is in trouble: the PA, and banter that isn't about the rescue.
     if (crisis && !aboutCrisis(kind, text)) return;

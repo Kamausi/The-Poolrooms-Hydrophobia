@@ -167,6 +167,11 @@ export function showSafeRoom(state, sector, nextSector, nextPlan, onLeave, onSav
     roll.append(el('p', null, `${c.full} · "Here."`));
   }
   body.append(roll);
+  // Someone pulled out slowly, the way they asked, is sitting on the bench in their wet clothes.
+  if (state.towelAsk) {
+    body.append(el('p', 'mono', `${state.towelAsk.toUpperCase()}, ON THE BENCH: "Is there a towel? I'm sorry. I'm so cold now. I wasn't cold in there."`));
+    state.towelAsk = null;
+  }
 
   // The maintenance sheet: three numbered sections, read like an inspection form. Supplies, the raft and its
   // equipment, the next route. Transactions say exactly what changes; the room supplies the atmosphere.
