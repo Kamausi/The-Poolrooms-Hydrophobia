@@ -8,6 +8,8 @@ const { open, newCampaign, check, finish } = require('./lib.cjs');
     u.step(2); const shown = document.getElementById('hint').classList.contains('show');
     for (let k = 0; k < 9; k++) u.step(60);
     return { menuHidden: document.getElementById('menu').hidden, shown, faded: !document.getElementById('hint').classList.contains('show') }; });
+  const tex = await page.evaluate(async () => { const t = await import('/src/textures.js'); await t.texturesReady; return { tile: !!t.tileNormal()?.image, plate: !!t.plateNormal()?.image }; });
+  check('normal maps build (tile relief and CC0 diamond plate)', tex.tile && tex.plate, JSON.stringify(tex));
   check('in play: menu hidden, controls shown then faded', hud.menuHidden && hud.shown && hud.faded, JSON.stringify(hud));
   for (let i = 0; i < 8; i++) {
     const r = await page.evaluate((i) => {

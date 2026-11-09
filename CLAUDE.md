@@ -13,7 +13,7 @@ A first-person cooperative horror rail-shooter and explorer set in the Poolrooms
 | `src/memory.js` | The facility's memory between expeditions (see `docs/WORLD_MEMORY.md`) |
 | `src/sectors.js`, `src/plans.js`, `src/track.js` | Content as data: attractions, track plans, track geometry |
 | `src/ui.js`, `src/hud.js`, `src/input.js`, `src/settings.js` | Menus, HUD, input and bindings, settings |
-| `src/audio.js` | All sound, synthesised with Web Audio |
+| `src/audio.js`, `src/samples.js` | Sound: recorded files in `public/audio/` (credited in `docs/CREDITS.md`) with synthesis as the fallback |
 | `docs/` | Design, art direction, production standard, memory contract, tool notes, decisions |
 | `tests/` | Headless tests (`tests/README.md`) |
 | `public/legacy/` | The original prototype. Do not edit |

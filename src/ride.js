@@ -4,7 +4,7 @@
 // entity here is a pool of parts that are moved, recoloured or hidden.
 import { Renderer67, box, sphere, cylinder, torus } from '67js';
 import { dot, writeYaw, writeBasis, writeSegment, hide, add, sub, scale, normalize, clamp, damp, rng, screenRay, raySphere, rayPlaneY, linear, cross, display, project, angleTo, soundDir, distance } from './math.js';
-import { tileTexture } from './textures.js';
+import { tileTexture, tileNormal } from './textures.js';
 import { signMaterial, quad } from './labels.js';
 import { createCrewFigure, hideCrewFigure, poseSeated, poseProne, VISITOR_LOOK } from './crewfigure.js';
 import { createBlaster, PROFILES, PROFILE_ORDER } from './blaster.js';
@@ -30,7 +30,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
   const track = new Track(plan.items, plan.choices);
   const random = rng(1000 + sector.index * 31 + state.attempt * 7 + (state.seed || 0));
   const map = tileTexture(sector);
-  const tileMat = { color: [1, 1, 1], metallic: 0, roughness: 0.22, map, boxMapScale: 0.5 };
+  const tileMat = { color: [1, 1, 1], metallic: 0, roughness: 0.22, map, normalMap: tileNormal(), normalScale: [1, 1], boxMapScale: 0.5 };
   const lampColor = linear(sector.lamp);
   const bandMat = { color: linear(sector.band || '#4d7472'), metallic: 0, roughness: 0.35 };
   const waterMat = () => ({ tag: 'water', color: linear(sector.water), metallic: 0.55, roughness: 0.08 });

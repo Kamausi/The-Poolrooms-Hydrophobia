@@ -3,7 +3,7 @@
 // bay), then return to the moored raft. Each attraction adds its own rules (see sectors.js).
 import { Renderer67, box, sphere, cylinder, torus } from '67js';
 import { writeYaw, writeBasis, writeSegment, hide, add, sub, scale, normalize, clamp, damp, rng, raySphere, rayPlaneY, linear, distance, cross, display, angleTo, soundDir } from './math.js';
-import { tileTexture } from './textures.js';
+import { tileTexture, tileNormal } from './textures.js';
 import { signMaterial, quad } from './labels.js';
 import { createBlaster, PROFILES, PROFILE_ORDER } from './blaster.js';
 import { createCrewFigure, hideCrewFigure, poseStanding, poseProne, VISITOR_LOOK } from './crewfigure.js';
@@ -115,7 +115,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
 
   // ---------- Parts ----------
   const map = tileTexture(sector);
-  const tileMat = { color: [1, 1, 1], metallic: 0, roughness: 0.22, map, boxMapScale: 0.5 };
+  const tileMat = { color: [1, 1, 1], metallic: 0, roughness: 0.22, map, normalMap: tileNormal(), normalScale: [1, 1], boxMapScale: 0.5 };
   const lampColor = linear(sector.lamp);
   const slab = box(0, 1);
   const ball = sphere(28, 18);

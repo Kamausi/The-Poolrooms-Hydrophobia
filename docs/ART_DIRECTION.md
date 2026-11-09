@@ -67,7 +67,7 @@ The Blacklight Pavilion keeps its violet; the Rooftop Lagoon's sky is overcast.
 
 ## Architecture and surfaces (built: `src/textures.js`, `src/ride.js`)
 
-Square tile grids with batch variation (a few tiles from a different firing), grout darkened where moisture never leaves, hairline cracks and drip stains. A faded waterline band runs along every channel wall; now and then it continues at the wrong height. The normal pattern is established before it is broken. Things you interact with look like fittings, not game objects: signal targets are lit rings on dark wall plates, and gate markers are worn safety-yellow channel buoys with a black band and a small lamp.
+Square tile grids with batch variation (a few tiles from a different firing), grout darkened where moisture never leaves, hairline cracks and drip stains. The tiles have relief: recessed grout, bevelled edges that catch the lamps, each tile set very slightly off true, and a faint glaze wear from a CC0 detail map. The Safe Room floor is diamond plate. A faded waterline band runs along every channel wall; now and then it continues at the wrong height. The normal pattern is established before it is broken. Things you interact with look like fittings, not game objects: signal targets are lit rings on dark wall plates, and gate markers are worn safety-yellow channel buoys with a black band and a small lamp.
 
 ## The tool in your hand (built: `src/blaster.js`)
 

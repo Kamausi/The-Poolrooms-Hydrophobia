@@ -5,7 +5,7 @@
 import { Renderer67, box, cylinder, sphere } from '67js';
 import { writeYaw, writeBasis, linear, display } from './math.js';
 import { createCrewFigure, poseStanding, poseSeated } from './crewfigure.js';
-import { tileTexture } from './textures.js';
+import { tileTexture, tileNormal, plateNormal } from './textures.js';
 import { signMaterial, quad } from './labels.js';
 import { quality } from './quality.js';
 import { settings } from './settings.js';
@@ -20,8 +20,10 @@ export function createSafeRoom(canvas, sector, opts = {}) {
   };
   const slab = box(0, 1);
   // Dry and matte: higher roughness than anything out on the water.
-  const white = { color: [0.86, 0.85, 0.8], metallic: 0, roughness: 0.75, map: tileTexture({ ...sector, id: 'safe-room', tile: '#d8d8ca', grout: '#8a8a7c', stain: '#6e6e62', depth: 99 }), boxMapScale: 0.5 };
+  const white = { color: [0.86, 0.85, 0.8], metallic: 0, roughness: 0.75, map: tileTexture({ ...sector, id: 'safe-room', tile: '#d8d8ca', grout: '#8a8a7c', stain: '#6e6e62', depth: 99 }), normalMap: tileNormal(), normalScale: [0.8, 0.8], boxMapScale: 0.5 };
+  const plate = plateNormal();
   const metal = { color: [0.16, 0.18, 0.18], metallic: 0.5, roughness: 0.7 }; // dark matte machinery
+  const grating = plate ? { ...metal, normalMap: plate, normalScale: [1, 1], boxMapScale: 0.8 } : metal; // diamond plate underfoot
   const green = { color: [0.36, 0.5, 0.38], metallic: 0, roughness: 0.6, emission: 0.6, emissiveColor: [0.52, 0.67, 0.54] };
   const put = (name, mat, pos, size, yaw = 0) => {
     const p = P(name, slab, mat);
@@ -29,7 +31,7 @@ export function createSafeRoom(canvas, sector, opts = {}) {
     return p;
   };
   // The pump room: 10 x 4 x 8, door behind the camera, window in front.
-  put('Floor grating', metal, [0, -0.1, 0], [10, 0.2, 8]);
+  put('Floor grating', grating, [0, -0.1, 0], [10, 0.2, 8]);
   put('Ceiling', white, [0, 4.1, 0], [10, 0.2, 8]);
   put('Wall L', white, [-5.1, 2, 0], [0.2, 4, 8]);
   put('Wall R', white, [5.1, 2, 0], [0.2, 4, 8]);

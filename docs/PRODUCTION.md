@@ -31,7 +31,7 @@ Verified headlessly end to end: arrival, diverter, landing bonus, docking sequen
 | Characters and creatures | Complete models, animation, reactions, voice | Convincing in chaos | One procedural crew figure (headwear silhouettes, arms, legs, a stride from real movement) seated, walking and in the Safe Room; folded Blooms with strands; a climber that hauls itself aboard (all procedural). **No authored skeletal animation, finished models or voice yet** |
 | Cooperation | Players and AI reliably help, travel, fight, finish objectives | Works with 1 human + 3 bots, mixed, 4 humans | AI crew covers, revives (abstracted), follows your trail, rides with you. **No online play** |
 | Campaign design | Distinct objectives, route choices, escalation, payoffs | Players distinguish sectors by what they did | Eight sectors + reference chapter, dock kinds, route consequences |
-| Sound and presentation | Water, architecture, machinery, voices, music, UI as one identity | Players understand events without prompts | Synthesised audio language, per-space reverb, ducking under warnings; **no recorded audio or voice** |
+| Sound and presentation | Water, architecture, machinery, voices, music, UI as one identity | Players understand events without prompts | Recorded beds (water, machinery, vent, underwater, Drift) and recorded one-shots from the Oculus Audio Pack (CC BY 4.0) over a synthesised language, per-space reverb, ducking under warnings. The recordings decode in the test browser; **nobody has listened to the mix, and there is no recorded voice** |
 | Technical reliability | Stable frame delivery, controlled loading, dependable saves, consistent state | Measurements on representative hardware | Frame-time overlay, 30 FPS profile, graphics-reset recovery, periodic position resume. **No hardware measurements yet; resume not interruption-tested around pickups, docking, machinery or incapacitation** |
 | Usability | Onboarding, full controller support, settings, accessibility, recovery from interruptions | Someone new can start, learn, leave and resume unaided | First-time tips, keyboard and controller rebinding, controller menu navigation, toggles, text size, damage assist, high contrast, camera motion, captions, resume. **Controller support is implemented but untested with a physical controller** |
 
@@ -140,7 +140,7 @@ Each area needs a named quality owner, even when one person covers several: game
 ## Not built, and why
 
 - **Finished art:** skinned, animated crew and creatures, a modelled architectural kit, authored textures. Needs artists and assets; the code is ready to host them (67js glTF).
-- **Recorded sound and voice performances.** Needs a sound team and actors; the game uses synthesised audio and text.
+- **Voice performances and a mixed soundtrack.** Recorded effects come from a free library (see `CREDITS.md`); voices are text, and the music is synthesised. The mix has not been listened to.
 - **Online four-player play** and its state agreement (who has the cell, who sees the grab, pilot handoff on disconnect). Needs a server and netcode; the single-player AI crew stands in.
 - **Water refraction in the channels, surface foam simulation, condensation.** 67js's `liquid` material refracts and is used once (the wave pool's exit); it is not used for channel water, where its cost and look are unmeasured.
 - **Human playtests and hardware measurements.** Need people and devices; the log and overlay are there for them.

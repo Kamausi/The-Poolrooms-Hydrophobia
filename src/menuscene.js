@@ -3,7 +3,7 @@
 // green exit sign is reflected in the water. There is no sign above it.
 import { Renderer67, box, torus } from '67js';
 import { writeYaw, writeBasis, linear, display } from './math.js';
-import { tileTexture } from './textures.js';
+import { tileTexture, tileNormal } from './textures.js';
 import { signMaterial, quad } from './labels.js';
 import { quality } from './quality.js';
 import { settings } from './settings.js';
@@ -17,7 +17,7 @@ export function createMenuScene(canvas) {
     return p;
   };
   const slab = box(0, 1);
-  const tile = { color: [0.85, 0.84, 0.78], metallic: 0, roughness: 0.3, map: tileTexture({ id: 'menu', tile: '#d6d2b6', grout: '#7c7a5c', stain: '#5e5a36', depth: 3 }), boxMapScale: 0.5 };
+  const tile = { color: [0.85, 0.84, 0.78], metallic: 0, roughness: 0.3, map: tileTexture({ id: 'menu', tile: '#d6d2b6', grout: '#7c7a5c', stain: '#5e5a36', depth: 3 }), normalMap: tileNormal(), normalScale: [1, 1], boxMapScale: 0.5 };
   const put = (name, mat, pos, size) => writeYaw(P(name, slab, mat).matrix, pos, 0, size[0], size[1], size[2]);
   const W = 3.4, H = 2.5, LEN = 70;
   put('Floor', tile, [0, -0.45, -LEN / 2], [W, 0.2, LEN]);

@@ -1,5 +1,7 @@
 // Procedural tile textures, drawn once per sector on a 2D canvas.
 import { rng } from './math.js';
+import dripDetailUrl from './assets/normal-0000.webp?inline';
+import plateUrl from './assets/normal-0008.webp?inline';
 
 const cache = new Map();
 
@@ -72,4 +74,93 @@ export function tileTexture(sector) {
   const texture = { image: canvas, colorSpace: 'srgb' };
   cache.set(sector.id, texture);
   return texture;
+}
+
+// ---------- Normal maps ----------
+// The CC0 detail normals come from @pmndrs/assets (normals 0000 and 0008), resized to 256 px and inlined so the
+// single-file build carries them. They load in the background; a map built before they arrive is rebuilt with
+// them the next time a scene asks.
+
+const images = {};
+/** Resolves once both CC0 detail images have decoded (or failed); scenes built earlier use what is ready. */
+export const texturesReady = typeof Image === 'undefined' ? Promise.resolve() : Promise.all([['drip', dripDetailUrl], ['plate', plateUrl]].map(([k, url]) => new Promise((done) => {
+  const im = new Image();
+  im.onload = () => { images[k] = im; done(); };
+  im.onerror = () => done();
+  im.src = url;
+})));
+const pixelsOf = (im, size) => {
+  const c = document.createElement('canvas');
+  c.width = c.height = size;
+  const g = c.getContext('2d');
+  // Tile the source across the canvas (the detail repeats several times per tile sheet).
+  const n = Math.max(1, Math.round(size / im.width));
+  for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) g.drawImage(im, x * size / n, y * size / n, size / n, size / n);
+  return g.getImageData(0, 0, size, size).data;
+};
+
+let tileNormalCache = null;
+/**
+ * The tile sheet's relief, aligned with tileTexture's grid (8 × 8 tiles, 3 px of grout each side): recessed
+ * grout, bevelled tile edges, each tile set very slightly off true, and a fine CC0 surface detail for wear.
+ */
+export function tileNormal() {
+  const withDetail = !!images.drip;
+  if (tileNormalCache && (tileNormalCache.detail || !withDetail)) return tileNormalCache.texture;
+  const size = 512, tiles = 8, step = size / tiles;
+  const random = rng(4242);
+  const tilt = Array.from({ length: tiles * tiles }, () => [(random() - 0.5) * 0.16, (random() - 0.5) * 0.16]);
+  const h = new Float32Array(size * size);
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      const tx = Math.floor(x / step), ty = Math.floor(y / step);
+      const lx = x - tx * step, ly = y - ty * step;
+      const edge = Math.min(lx, ly, step - 1 - lx, step - 1 - ly) - 3; // distance inside the tile face
+      let v = edge < 0 ? 0 : Math.min(1, 0.35 + edge / 5);
+      if (edge >= 0) {
+        const [ax, ay] = tilt[ty * tiles + tx];
+        v += ax * (lx / step - 0.5) + ay * (ly / step - 0.5);
+      }
+      h[y * size + x] = v;
+    }
+  }
+  const detail = withDetail ? pixelsOf(images.drip, size) : null;
+  const canvas = document.createElement('canvas');
+  canvas.width = canvas.height = size;
+  const g = canvas.getContext('2d');
+  const out = g.createImageData(size, size);
+  const k = 2.2; // relief strength
+  const at = (x, y) => h[((y + size) % size) * size + ((x + size) % size)];
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      let nx = (at(x - 1, y) - at(x + 1, y)) * k, ny = (at(x, y - 1) - at(x, y + 1)) * k, nz = 1;
+      if (detail) {
+        // Whiteout blend: add the detail's slopes, multiply the up components. Kept faint: glaze, not stone.
+        const i = (y * size + x) * 4;
+        const dx = detail[i] / 127.5 - 1, dy = detail[i + 1] / 127.5 - 1, dz = detail[i + 2] / 127.5 - 1;
+        nx += dx * 0.35; ny += dy * 0.35; nz *= Math.max(0.2, dz);
+      }
+      const l = Math.hypot(nx, ny, nz) || 1;
+      const o = (y * size + x) * 4;
+      out.data[o] = (nx / l * 0.5 + 0.5) * 255;
+      out.data[o + 1] = (ny / l * 0.5 + 0.5) * 255;
+      out.data[o + 2] = (nz / l * 0.5 + 0.5) * 255;
+      out.data[o + 3] = 255;
+    }
+  }
+  g.putImageData(out, 0, 0);
+  tileNormalCache = { detail: withDetail, texture: { image: canvas, colorSpace: 'linear' } };
+  return tileNormalCache.texture;
+}
+
+let plateCache = null;
+/** Diamond plate (CC0) for floor grating and machine housings; null until the image has loaded. */
+export function plateNormal() {
+  if (plateCache) return plateCache;
+  if (!images.plate) return null;
+  const c = document.createElement('canvas');
+  c.width = c.height = 256;
+  c.getContext('2d').drawImage(images.plate, 0, 0);
+  plateCache = { image: c, colorSpace: 'linear' };
+  return plateCache;
 }

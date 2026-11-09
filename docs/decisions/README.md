@@ -5,6 +5,7 @@ Short records of choices that shape the code: what was decided, why, and what wo
 | # | Decision |
 |---|---|
 | [0001](0001-engine.md) | Stay on 67js until a measured bottleneck says otherwise |
-| [0002](0002-synthesised-audio.md) | All sound is synthesised until there is a sound team |
+| [0002](0002-synthesised-audio.md) | All sound is synthesised until there is a sound team (superseded by 0005) |
 | [0003](0003-rule-based-authoring.md) | Between-expedition authoring is deterministic and rule-based, not generated live |
 | [0004](0004-ai-crew-before-netcode.md) | Single player with an AI crew before online play |
+| [0005](0005-recorded-sound.md) | Recorded sound where a free recording fits, synthesis everywhere else |

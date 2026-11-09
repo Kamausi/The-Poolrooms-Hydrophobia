@@ -32,3 +32,14 @@ The credit also appears on the main menu.
 | `chains` (the winch) | CHAINMvmt_ChainsCreepy_OS_01 |
 | `sting` (the disruption burst) | DSGNImpt_ImpactCreepyReverb_OS_01–02 |
 | `gear`, `ui-confirm`, `ui-back` | CLOTHMvmt_MovementWithGear_OS_01–02, UIClick_MetalConfirm_OS_01, UIClick_MetalBack_OS_01 |
+
+## Normal maps: @pmndrs/assets (CC0 1.0)
+
+From the npm package `@pmndrs/assets` 1.7.0 (CC0 1.0, public domain; no credit required, given anyway). Two of its normal maps, resized to 256 px:
+
+| In the game | Source | Where |
+|---|---|---|
+| `src/assets/normal-0000.webp` | `normals/0000` (fine drips and bumps) | Blended faintly into the tile relief as glaze wear |
+| `src/assets/normal-0008.webp` | `normals/0008` (diamond plate) | The Safe Room's floor grating |
+
+The tile relief itself (recessed grout, bevelled edges, tiles set slightly off true) is generated in `src/textures.js` from the same grid as the tile colour texture.
