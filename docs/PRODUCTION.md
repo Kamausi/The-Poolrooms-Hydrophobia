@@ -61,6 +61,7 @@ Each part of the game was captured headlessly at 1280×720 (high quality, softwa
 | Subtitles landed mid-screen on short landscape screens | Short-screen layout |
 | Figures in the water were a white cylinder and a ball | The shared figure, face down in a vest with arms spread |
 | Raft straps stood up from the tube as black square loops | Flat bands wrapped around the tube |
+| The Lifeguard was a cylinder and a ball, hidden behind its own warning lamp | Square shoulders, arms hanging straight and too long, legs off the tower seat; the cycle lamp on an arm beside the seat, dimmer |
 
 The DEV `step()` hook now also advances the Safe Room and the menu, so captures show what a player sees. These are software renders of single frames. Motion, GPU rendering and how any of it feels to a person are still unchecked.
 

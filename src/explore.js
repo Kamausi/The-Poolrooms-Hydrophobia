@@ -2,7 +2,7 @@
 // The goal: carry the power cell to the service panel (which opens the gate to the Safe Room's arrival
 // bay), then return to the moored raft. Each attraction adds its own rules (see sectors.js).
 import { Renderer67, box, sphere, cylinder, torus } from '67js';
-import { writeYaw, writeBasis, hide, add, sub, scale, normalize, clamp, damp, rng, raySphere, rayPlaneY, linear, distance, cross, display, angleTo, soundDir } from './math.js';
+import { writeYaw, writeBasis, writeSegment, hide, add, sub, scale, normalize, clamp, damp, rng, raySphere, rayPlaneY, linear, distance, cross, display, angleTo, soundDir } from './math.js';
 import { tileTexture } from './textures.js';
 import { signMaterial, quad } from './labels.js';
 import { createBlaster, PROFILES, PROFILE_ORDER } from './blaster.js';
@@ -477,6 +477,9 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     body: P('Lifeguard', cylinder(20, 0.3, 3), { color: linear('#9a5a50'), metallic: 0, roughness: 0.85 }), // a faded red uniform
     head: P('Lifeguard head', ball, { color: [0.78, 0.76, 0.7], metallic: 0, roughness: 0.6 }),
     hands: [0, 1].map((k) => P(`Lifeguard hand ${k}`, sphere(10, 8), { color: [0.85, 0.84, 0.8], metallic: 0, roughness: 0.5 })),
+    shoulders: P('Lifeguard shoulders', box(0.2, 3), { color: linear('#9a5a50'), metallic: 0, roughness: 0.85 }),
+    arms: [0, 1].map((k) => P(`Lifeguard arm ${k}`, cylinder(10, 0.3, 2), { color: linear('#9a5a50'), metallic: 0, roughness: 0.85 })),
+    legs2: [0, 1].map((k) => P(`Lifeguard leg ${k}`, cylinder(10, 0.3, 2), { color: linear('#3c3a36'), metallic: 0, roughness: 0.85 })),
     cord: P('Whistle cord', slab, glow(linear('#c45a50'), 0.6, { color: linear('#c45a50') })),
     glasses: P('Lifeguard glasses', slab, { color: [0.01, 0.01, 0.01], metallic: 1, roughness: 0.05 }),
     lamp: P('Cycle lamp', ball, glow([1, 0.2, 0.1], 8)),
@@ -1837,16 +1840,33 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     L.cooldown = Math.max(0, (L.cooldown || 0) - dt);
     // 'swim': the lamp is the maintenance cycle (lit = no swimming). 'fire': the warning lamp.
     L.lampOn = !L.stopped && L.rule !== 'run' && Math.floor(time / (L.rule === 'swim' ? 6 : 4)) % 2 === 0;
-    writeYaw(L.lamp.matrix, add(b, [0, 4.6, 0]), 0, 0.3, 0.3, 0.3);
-    L.lamp.material.emission = L.lampOn ? 9 : 0.05;
+    // The cycle lamp hangs on an arm beside the seat, so it never sits in front of the figure.
+    writeYaw(L.lamp.matrix, add(b, [0.75, 3.35, 0]), 0, 0.16, 0.16, 0.16);
+    L.lamp.material.emission = L.lampOn ? 5 : 0.05;
     const pos = L.state === 'watching' ? add(b, [0, 3.75, 0]) : L.pos;
     const head = add(pos, [0, L.state === 'watching' ? 1.55 : 2.1, 0]);
     const watch = Math.atan2(eye[0] - head[0], eye[2] - head[2]);
-    writeYaw(L.body.matrix, add(pos, [0, L.state === 'watching' ? 0.7 : 1.1, 0]), watch, 0.17, L.state === 'watching' ? 1.4 : 2.1, 0.13);
+    const up = L.state === 'watching';
+    // Torso only; legs below it. Too tall standing, and the arms too long either way.
+    writeYaw(L.body.matrix, add(pos, [0, up ? 0.95 : 1.55, 0]), watch, 0.17, up ? 0.8 : 0.85, 0.13);
     writeYaw(L.head.matrix, head, watch, 0.17, 0.24, 0.17);
     // Unnaturally rigid: arms straight down, pale hands, one whistle cord. The posture reads before the face.
     const sideV = [Math.cos(watch), 0, -Math.sin(watch)];
     L.hands.forEach((h, k) => writeYaw(h.matrix, add(pos, add(scale(sideV, (k ? 1 : -1) * 0.24), [0, L.state === 'watching' ? 0.25 : 0.55, 0])), watch, 0.06, 0.09, 0.06));
+    const shY = up ? 1.33 : 1.95;
+    writeYaw(L.shoulders.matrix, add(pos, [0, shY, 0]), watch, 0.48, 0.1, 0.2);
+    const fwdV = [Math.sin(watch), 0, Math.cos(watch)];
+    L.arms.forEach((a, k) => {
+      const sgn = k ? 1 : -1;
+      writeSegment(a.matrix, add(pos, add(scale(sideV, sgn * 0.24), [0, shY - 0.03, 0])), add(pos, add(scale(sideV, sgn * 0.24), [0, (up ? 0.25 : 0.55) + 0.08, 0])), 0.045);
+    });
+    L.legs2.forEach((g, k) => {
+      const sgn = k ? 1 : -1;
+      const hip = add(pos, add(scale(sideV, sgn * 0.09), [0, up ? 0.58 : 1.15, 0]));
+      // Seated on the tower, the legs hang off the front of the seat; standing, they are straight and long.
+      const foot = up ? add(add(hip, scale(fwdV, 0.42)), [0, -0.75, 0]) : add(pos, add(scale(sideV, sgn * 0.1), [0, 0.05, 0]));
+      writeSegment(g.matrix, hip, foot, 0.07);
+    });
     writeYaw(L.cord.matrix, add(head, [Math.sin(watch) * 0.12, -0.42, Math.cos(watch) * 0.12]), watch, 0.012, 0.5, 0.012);
     writeYaw(L.glasses.matrix, add(head, [Math.sin(watch) * 0.13, 0.03, Math.cos(watch) * 0.13]), watch, 0.3, 0.06, 0.04);
     const sees = distance(b, player.pos) < 20 && lineOfSight(b, player.pos) && L.blind <= 0;
