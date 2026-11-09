@@ -2797,6 +2797,11 @@ export function createRide(canvas, state, sector, events, opts = {}) {
 
   // ---------- Entities per frame ----------
   function updateEntities(dt, eye, fwd, aimDir) {
+    // The raft's gauge trembles while something grips it; a crewmate in trouble gets a marker at that edge.
+    hud.carry('');
+    state.hullStrain = !!(climber || crewGrab || (restrained && !restrained.freed) || ballast);
+    if (crewGrab) hud.help(crewGrab.side || 1, crewGrab.who);
+    else hud.help(0);
     // The building, recorded: now and then something large moves far off; at high Drift, whispers.
     ambientT = (ambientT ?? 20) - dt;
     if (ambientT <= 0) {
@@ -3063,7 +3068,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
           gateStreak += 1;
           events.score(40 * gateStreak, `GATE ×${gateStreak}`);
           sound.accent?.('gate');
-          if (gateStreak === 3) { hud.toast('CLEAN LINE · +1 PART'); state.scrap += 1; }
+          if (gateStreak === 3) { hud.ticker('CLEAN LINE · +1 PART'); state.scrap += 1; }
         } else gateStreak = 0;
       }
       if (g.s < s - 6) g.active = false;

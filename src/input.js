@@ -58,6 +58,7 @@ export function initInput(target) {
   addEventListener('keydown', (e) => {
     if (input.capture) { e.preventDefault(); input.capture(e.key.toLowerCase()); input.capture = null; return; }
     const raw = e.key.toLowerCase();
+    input.pad = false; // prompts follow the device you last touched
     if ([' ', 'arrowup', 'arrowdown', 'control', 'tab'].includes(raw)) e.preventDefault();
     const k = logical(raw);
     if (!k) return;
@@ -290,4 +291,21 @@ export function pollGamepad(dt) {
   for (const [i, k] of Object.entries(EDGE)) if (b(+i) && !prev[i]) input.pressed.add(k);
   for (const [i, k] of Object.entries(HOLD)) b(+i) ? input.keys.add(k) : prev[i] && input.keys.delete(k);
   pad.buttons.forEach((x, i) => (prev[i] = x.pressed));
+}
+
+/** The label of whatever the player has bound to an action, on the device they are using: "E", "SPACE", "X". */
+export function bindingLabel(id) {
+  if (input.pad) {
+    const pa = PAD_ACTIONS.find(([a]) => a === id);
+    if (pa) return PAD_NAMES[settings.padBindings?.[id] ?? pa[2]];
+  }
+  const def = ACTIONS.find(([a]) => a === id)?.[2];
+  const k = settings.bindings?.[id] || def || id;
+  return { ' ': 'SPACE', shift: 'SHIFT', tab: 'TAB', control: 'CTRL', escape: 'ESC' }[k] || k.toUpperCase();
+}
+
+/** The same label, found from an action's default key (the letter written into older prompt text). */
+export function labelForDefaultKey(key) {
+  const a = ACTIONS.find(([, , def]) => def === key.toLowerCase());
+  return a ? bindingLabel(a[0]) : key;
 }

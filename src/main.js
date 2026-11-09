@@ -132,7 +132,7 @@ const events = {
   score(n, label) {
     state.score += n;
     state.sectorScore += n;
-    if (label) hud.toast(state.endless ? `+${n} · ${label}` : label);
+    if (label) hud.ticker(state.endless ? `+${n} · ${label}` : label);
   },
   cleared() { state.cleared += 1; },
   tick(dt) {

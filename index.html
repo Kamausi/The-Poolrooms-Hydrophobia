@@ -59,38 +59,58 @@
 
   <p id="perf" class="mono small" hidden></p>
   <section id="hud" hidden>
+    <!-- Upper left: where you are and what to do. Prominent when it changes, compact after. -->
     <div class="hud-tl">
       <p id="sector-name" class="mono"></p>
       <p id="objective"></p>
       <span class="rule"></span>
     </div>
-    <div class="hud-tr">
+    <!-- Upper right: the facility's own readouts. These can lie; the crew's status never does. -->
+    <div class="hud-tr facility">
       <p class="mono" id="band">WRISTBAND 0000</p>
       <p class="mono small" id="guests">GUESTS CHECKED IN: 1</p>
-      <p class="mono small" id="roster"></p>
       <p id="score-wrap" hidden><span class="mono small">SIGNAL SCORE</span><br /><span id="score" class="big">00000</span></p>
       <p id="cleared" class="mono small"></p>
       <p id="depth" class="mono small accent"></p>
       <div id="route" class="route mono small"></div>
     </div>
+    <!-- Upper centre: one urgent shared event, only when there is one. -->
+    <p id="urgent" class="mono" hidden></p>
+    <p id="helpmark" class="mono" hidden></p>
+    <!-- Lower left: the crew, then you. -->
     <div class="hud-bl">
-      <p class="mono">VITALS</p>
-      <p id="vitals" class="big">100</p>
-      <div class="bar"><i id="vitals-bar"></i></div>
-      <p class="mono drift-label">DRIFT <span id="drift">0</span></p>
-      <div class="bar drift"><i id="drift-bar"></i></div>
-      <p id="mode" class="mono small"></p>
+      <div id="roster" class="roster mono"></div>
+      <div class="player">
+        <p class="who mono"><b id="player-name">YOU</b><span id="carry"></span></p>
+        <div class="vital-row"><p id="vitals" class="big">100</p><div class="bar"><i id="vitals-bar"></i></div></div>
+        <div class="vital-row drift-row"><p class="mono drift-label">DRIFT <span id="drift">0</span></p><div class="bar drift"><i id="drift-bar"></i></div></div>
+        <p id="mode" class="mono small"></p>
+      </div>
     </div>
+    <!-- Lower right: equipment. The raft's gauge shows while aboard. -->
     <div class="hud-br">
       <div class="raft-panel mono small" id="raft-panel">
-        <p>RAFT <b id="raft">100%</b></p>
-        <p id="chambers">L ▮▮▮▮ · R ▮▮▮▮ · F ▮▮▮▮ · B ▮▮▮▮</p>
-        <p>FILTER <b id="filter">100%</b> ×<b id="filters">1</b></p>
-        <p>CELLS <b id="cells">▮▯▯</b> · <b id="scrap">0 PARTS</b></p>
+        <svg class="gauge" viewBox="0 0 64 40" aria-hidden="true"><path class="dial" d="M6 36 A26 26 0 0 1 58 36" /><path class="redline" d="M6 36 A26 26 0 0 1 11.6 20" /><line id="needle" x1="32" y1="36" x2="32" y2="13" /><circle cx="32" cy="36" r="2.6" /></svg>
+        <div class="raft-read">
+          <p>RAFT PRESSURE <b id="raft">100%</b></p>
+          <p id="chambers">L ▮▮▮▮ · R ▮▮▮▮ · F ▮▮▮▮ · B ▮▮▮▮</p>
+          <p>FILTER <b id="filter">100%</b></p>
+        </div>
       </div>
-      <p id="charge-state" class="mono">ARC BLASTER / MK.II</p>
-      <p><span id="charge" class="big">24</span> <span id="charge-max" class="mono">/ 24</span></p>
-      <div class="bar heat"><i id="heat-bar"></i></div>
+      <div class="equip">
+        <p id="charge-state" class="mono">ARC BLASTER / MK.II</p>
+        <p class="charge-row"><span id="charge" class="big">24</span> <span id="charge-max" class="mono">/ 24</span></p>
+        <div class="bar heat"><i id="heat-bar"></i></div>
+        <p id="ticker" class="mono small"></p>
+      </div>
+      <!-- Quick-use items in fixed places: an empty slot stays where it was. -->
+      <div id="slots" class="slots mono">
+        <div class="slot" data-slot="dressing"><i></i><b>DRESSING</b><span></span></div>
+        <div class="slot" data-slot="filter"><i></i><b>FILTER</b><span id="filters">1</span></div>
+        <div class="slot" data-slot="cell"><i></i><b>CELL</b><span id="cells">0</span></div>
+        <div class="slot" data-slot="patch"><i></i><b>PATCH</b><span></span></div>
+      </div>
+      <p id="scrap" class="mono small parts">0 PARTS</p>
     </div>
     <p id="caption" class="mono"></p>
     <p id="scan" class="mono small"></p>

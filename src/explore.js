@@ -1326,6 +1326,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
   }
 
   function updateFollowers(dt) {
+    hud.carry(hasCell ? `CARRYING ${K.item.toUpperCase()}` : '');
     crewShotT -= dt;
     if (crewShotT <= 0) hide(crewShot);
     for (const f of followers) {

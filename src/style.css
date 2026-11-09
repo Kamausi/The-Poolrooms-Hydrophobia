@@ -305,3 +305,123 @@ body.contrast #crosshair { border-width: 3px; }
   #toast { top: 16%; }
   .hud-tl #objective, .hud-tr #guests, .hud-tr #band { display: none; }
 }
+
+/* ===================================================================================================
+   INTERFACE SYSTEM · aging aquatic-facility equipment used in an emergency
+   Dark enamel panels, ivory lettering, inspection labels, a pressure gauge, small rectangular lamps.
+   Accents keep one meaning each: safety yellow = attention/pending, coral = critical, green = recovery,
+   violet = inspection/anomaly. Warning TEXT stays ivory (≈10:1 on petrol); coral is the strip, border
+   or symbol (≈3.5:1 on its own, so it never carries words alone).
+   Functional text is sized for the couch: about 26 px rendered at 1080p, scaled by --hud-scale.
+   =================================================================================================== */
+:root { --hud-scale: 1; --u: calc(clamp(13px, 1.36vw, 26px) * var(--hud-scale) * var(--text-scale)); --fog: 0; }
+.hud-tl, .hud-tr, .hud-bl, .hud-br { font-size: var(--u); }
+.hud-bl .mono, .hud-br .mono { font-size: calc(var(--u) * 0.72); letter-spacing: 0.08em; }
+.hud-bl .small, .hud-br .small, .hud-tr .small { font-size: calc(var(--u) * 0.62); }
+
+/* Upper left: prominent when the objective changes, one line afterwards. */
+.hud-tl { max-width: min(560px, 44vw); transition: opacity 0.4s; }
+.hud-tl #sector-name { font-size: calc(var(--u) * 0.62); color: var(--fluor); }
+.hud-tl #objective { font-size: calc(var(--u) * 0.95); line-height: 1.4; transition: font-size 0.4s; }
+.hud-tl.compact #objective { font-size: calc(var(--u) * 0.7); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; opacity: 0.85; }
+.hud-tl.compact .rule { opacity: 0; }
+
+/* Upper right: the facility's readouts, smaller and quieter than anything the crew relies on. */
+.hud-tr.facility { font-size: calc(var(--u) * 0.6); opacity: 0.85; }
+.hud-tr.facility .mono { font-size: calc(var(--u) * 0.58); }
+#band { filter: blur(calc(var(--fog) * 0.6px)); }
+
+/* Lower left: three teammates above your own entry. */
+.hud-bl { width: auto; min-width: 230px; bottom: 44px; }
+.roster { display: grid; gap: 3px; margin-bottom: 14px; }
+.mate { display: grid; grid-template-columns: 1.2em auto 1fr; gap: 0 0.6em; align-items: baseline; margin: 0; padding: 2px 8px 2px 6px; border-left: 3px solid var(--teal); background: #080d1066; color: var(--porcelain); transition: transform 0.2s, background 0.2s; transform-origin: left center; }
+.mate i { font-style: normal; color: var(--green); }
+.mate b { font-weight: 500; letter-spacing: 0.12em; }
+.mate span { color: var(--porcelain); font-size: 0.9em; }
+.mate.s-hurt { border-left-color: var(--safety); } .mate.s-hurt i { color: var(--safety); }
+.mate.s-down, .mate.s-grabbed { border-left-color: var(--coral); background: #080d10cc; transform: scale(1.22); margin: 4px 0; box-shadow: inset 0 0 0 1px #c45a5099; }
+.mate.s-down i, .mate.s-grabbed i { color: var(--coral); }
+.mate.s-gone { opacity: 0.5; }
+.player { padding: 8px 10px 6px; background: #080d1088; border-left: 3px solid var(--porcelain); }
+.player .who { margin: 0 0 2px; color: var(--porcelain); }
+.player .who b { font-weight: 500; letter-spacing: 0.14em; }
+.player .who span { color: var(--safety); }
+.vital-row { display: grid; grid-template-columns: auto 1fr; gap: 10px; align-items: center; }
+.vital-row #vitals { font-size: calc(var(--u) * 1.7); line-height: 1; margin: 0; }
+.vital-row .bar { margin: 0; height: 4px; min-width: 120px; }
+.drift-row { margin-top: 4px; }
+.drift-row .drift-label { margin: 0; color: var(--drift); }
+
+/* Lower right: equipment on a petrol panel. */
+.hud-br { bottom: 44px; display: grid; justify-items: end; gap: 8px; }
+.raft-panel { display: none; grid-template-columns: auto auto; gap: 10px; align-items: center; padding: 6px 10px; background: #112b31cc; border: 1px solid #4d747288; border-radius: 3px; margin: 0; }
+body.aboard .raft-panel { display: grid; }
+.raft-read p { margin: 1px 0; text-align: right; }
+.gauge { width: calc(var(--u) * 3.2); height: auto; }
+.gauge .dial { fill: none; stroke: #d8d8ca66; stroke-width: 2.5; }
+.gauge .redline { fill: none; stroke: var(--coral); stroke-width: 3.5; }
+.gauge line { stroke: var(--porcelain); stroke-width: 2; stroke-linecap: round; }
+.gauge circle { fill: var(--porcelain); }
+#chambers.warn { color: var(--porcelain); border-right: 3px solid var(--coral); padding-right: 6px; }
+.raft-panel b.warn { color: var(--porcelain); text-decoration: underline 2px var(--coral); }
+.equip { position: relative; text-align: right; padding: 6px 10px 6px 14px; background: #112b31cc; border: 1px solid #4d747288; border-radius: 3px; overflow: hidden; }
+.equip #charge-state { margin: 0; color: var(--fluor); }
+.charge-row { margin: 0; }
+.charge-row #charge { font-size: calc(var(--u) * 1.9); line-height: 1; }
+.equip .bar.heat { width: 100%; min-width: 140px; margin: 4px 0 0; }
+/* Moisture behind the display glass as Drift rises. Behind the numbers, never over them. */
+.equip::before { content: ''; position: absolute; inset: 0; z-index: -1; opacity: var(--fog); background: radial-gradient(circle at 20% 30%, #d8d8ca22 0 2px, transparent 3px) 0 0 / 11px 13px, radial-gradient(circle at 70% 60%, #d8d8ca1a 0 1.5px, transparent 2.5px) 0 0 / 7px 9px, linear-gradient(#d8d8ca10, #d8d8ca06); }
+#ticker { margin: 4px 0 0; color: var(--fluor); opacity: 0; transition: opacity 0.4s; min-height: 1em; }
+#ticker.show { opacity: 1; }
+.slots { display: grid; grid-template-columns: repeat(4, auto); gap: 4px; }
+.slot { display: grid; grid-template-rows: auto auto auto; justify-items: center; min-width: calc(var(--u) * 3.1); padding: 4px 6px; background: #112b31cc; border: 1px solid #4d747288; border-radius: 2px; }
+.slot i { font-style: normal; font-size: 0.85em; color: var(--fluor); border: 1px solid #aaa88166; padding: 0 4px; border-radius: 2px; }
+.slot b { font-weight: 500; font-size: 0.78em; letter-spacing: 0.1em; color: #d8d8caaa; margin-top: 2px; }
+.slot span { font-size: 1.05em; color: var(--porcelain); }
+.slot.empty { opacity: 0.45; }
+.parts { margin: 0; color: #d8d8caaa; }
+
+/* Upper centre: the one urgent event. Ivory words, coral frame and lamp. */
+#urgent { position: absolute; left: 50%; top: 14%; transform: translateX(-50%); margin: 0; padding: 8px 18px 8px 14px; font-size: calc(var(--u) * 0.85); color: var(--porcelain); background: #080d10e6; border: 1px solid var(--coral); border-left: 6px solid var(--coral); letter-spacing: 0.14em; }
+#urgent::after { content: ''; display: inline-block; width: 10px; height: 6px; margin-left: 12px; background: var(--coral); vertical-align: middle; animation: lamp 0.9s steps(1) infinite; }
+@keyframes lamp { 50% { opacity: 0.25; } }
+#helpmark { position: absolute; top: 46%; margin: 0; padding: 6px 12px; font-size: calc(var(--u) * 0.8); color: var(--porcelain); background: #080d10e6; border: 1px solid var(--coral); letter-spacing: 0.12em; }
+#helpmark.left { left: 1.5%; border-left: 6px solid var(--coral); }
+#helpmark.right { right: 1.5%; border-right: 6px solid var(--coral); }
+#urgent[hidden], #helpmark[hidden] { display: none; }
+
+/* Reticle: ivory with a dark outline. Shape carries the state; colour only supports it. */
+#crosshair { width: 22px; height: 22px; border-radius: 50%; transition: width 0.12s, height 0.12s, border-radius 0.12s; --p: 0; }
+#crosshair::before, #crosshair::after { content: ''; position: absolute; inset: -6px; pointer-events: none; opacity: 0; transition: opacity 0.12s; }
+/* Interactive: open brackets. */
+#crosshair.interact { border-color: transparent; box-shadow: none; }
+#crosshair.interact::before { opacity: 1; border: 2px solid var(--porcelain); border-top-color: transparent; border-bottom-color: transparent; border-radius: 2px; filter: drop-shadow(0 0 1px #080d10) drop-shadow(0 0 1px #080d10); }
+/* Lock ready: a square frame with corner ticks. */
+#crosshair.lock { border-radius: 2px; transform: translate(-50%, -50%) rotate(45deg); border-color: var(--violet); }
+/* Held action: a progress arc. */
+#crosshair.holding::after { opacity: 1; border-radius: 50%; background: conic-gradient(var(--porcelain) calc(var(--p) * 360deg), #d8d8ca22 0); -webkit-mask: radial-gradient(circle, transparent 58%, #000 60%); mask: radial-gradient(circle, transparent 58%, #000 60%); }
+/* A brief impact mark when a shot connects. */
+#crosshair.hit { animation: impact 0.2s ease-out; }
+@keyframes impact { from { box-shadow: 0 0 0 1px #080d10cc, 0 0 0 6px #d8d8ca88; transform: translate(-50%, -50%) scale(1.35); } }
+
+/* Subtitles: a dedicated band with optional backing; the source label names who (or what) is speaking. */
+body.subtitle-backing #subtitle.show { background: #080d10d9; padding: 8px 16px; }
+#subtitle { font-size: calc(clamp(17px, 1.45vw, 30px) * var(--text-scale)); }
+
+/* Persistent HUD: nothing compacts. */
+body.hud-persistent .hud-tl.compact #objective { font-size: calc(var(--u) * 0.95); white-space: normal; opacity: 1; }
+
+/* During a crisis, everything not about the crewmate steps back. */
+body.crisis .hud-tr.facility, body.crisis .hud-tl.compact { opacity: 0.45; }
+
+@media (max-width: 760px) {
+  .hud-bl, .hud-br { bottom: 120px; }
+  .roster { gap: 1px; }
+  .slots { grid-template-columns: repeat(2, auto); }
+}
+@media (max-height: 480px) {
+  .hud-bl, .hud-br { bottom: 8px; }
+  .roster { display: none; }
+  body.crisis .roster { display: grid; }
+  .raft-read p:not(:first-child) { display: none; }
+}

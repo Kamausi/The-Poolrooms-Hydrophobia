@@ -522,7 +522,10 @@ export function showKeypad(code, onSuccess, onClose) {
 /** Settings that change the page itself: text size and contrast. */
 export function applyDisplaySettings() {
   document.documentElement.style.setProperty('--text-scale', String(settings.textScale || 1));
+  document.documentElement.style.setProperty('--hud-scale', String(settings.hudScale || 1));
   document.body.classList.toggle('contrast', !!settings.highContrast);
+  document.body.classList.toggle('hud-persistent', !!settings.hudPersistent);
+  document.body.classList.toggle('subtitle-backing', !!settings.subtitleBacking);
 }
 
 export function settingsView(onChange) {
