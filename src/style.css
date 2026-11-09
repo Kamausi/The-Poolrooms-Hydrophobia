@@ -425,3 +425,31 @@ body.crisis .hud-tr.facility, body.crisis .hud-tl.compact { opacity: 0.45; }
   body.crisis .roster { display: grid; }
   .raft-read p:not(:first-child) { display: none; }
 }
+
+/* ---------- Main menu: the first room ----------
+   A vertical list of enamel plates. The selected plate is filled ivory; focus moves at once and a short
+   description follows it. The room behind does the unsettling; the entries never move. */
+.menu-list { display: grid; gap: 6px; max-width: min(520px, 92vw); margin: 26px 0 10px; }
+.menu-list[hidden] { display: none; }
+.menu-item { display: grid; gap: 2px; text-align: left; padding: 12px 18px; background: #080d10b3; color: var(--porcelain); border: 1px solid var(--line); border-left: 3px solid var(--teal); border-radius: 3px; cursor: pointer; font: inherit; }
+.menu-item b { font: 500 calc(clamp(13px, 1.05vw, 21px) * var(--text-scale)) 'IBM Plex Mono', monospace; letter-spacing: 0.16em; }
+.menu-item span { font-size: calc(clamp(11px, 0.82vw, 16px) * var(--text-scale)); color: var(--fluor); white-space: pre-line; letter-spacing: 0.06em; }
+.menu-item:hover, .menu-item:focus-visible, .menu-item:focus { outline: none; background: var(--porcelain); color: var(--drain); border-color: var(--porcelain); }
+.menu-item:focus span, .menu-item:hover span { color: #112b31; }
+.menu-item.back { opacity: 0.8; }
+.menu-list .seed-row { margin: 0; display: grid; grid-template-columns: 1fr auto; gap: 6px; }
+.menu-desc { min-height: 3em; max-width: min(520px, 92vw); color: #d8d8cacc; font-size: calc(clamp(13px, 0.95vw, 19px) * var(--text-scale)); border-left: 2px solid #4d747288; padding-left: 12px; }
+.menu-foot { position: absolute; left: 6%; bottom: 3vh; color: #93978a99; }
+#menu { padding-top: 10vh; }
+#menu .intro { max-width: 34em; }
+.menu-item[hidden] { display: none; }
+#menu { padding-top: 6vh; }
+#menu h1.title { font-size: clamp(54px, 7.4vw, 132px); margin: 8px 0 4px; }
+#menu .tagline { margin-bottom: 10px; }
+#menu .intro { font-size: calc(clamp(13px, 0.98vw, 20px) * var(--text-scale)); margin: 0 0 6px; }
+#menu .description { margin: 0; }
+.menu-list { margin: 16px 0 8px; gap: 5px; }
+.menu-item { padding: 9px 16px; }
+.menu-desc { min-height: 2.6em; margin: 4px 0 0; }
+@media (max-height: 760px) { #menu .description { display: none; } #menu .eyebrow { margin: 0; } }
+#menu { padding-top: max(8vh, 72px); }

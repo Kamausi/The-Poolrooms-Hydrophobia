@@ -426,6 +426,9 @@ export const sound = {
     if (rec('creature', { gain: 0.2, rate: 0.72, vary: 0.1, pan })) return;
     noise({ time: 0.5, gain: 0.07, freq: 500, q: 1.2, pan });
   },
+  /** Menu: a short mechanical click as the selection moves, a heavier one to confirm. */
+  uiMove() { if (!rec('switch', { gain: 0.16, rate: 1.3 })) tone({ type: 'square', from: 1200, to: 1200, time: 0.015, gain: 0.02 }); },
+  uiConfirm() { if (!rec('ui-confirm', { gain: 0.3 })) tone({ type: 'square', from: 700, to: 500, time: 0.05, gain: 0.04 }); },
   /** Mechanical cues with recordings: a valve wheel, a lever, a small switch. Fall back to a tick. */
   valve(pan = 0) { if (!rec('valve', { gain: 0.5, pan })) tone({ type: 'square', from: 300, to: 260, time: 0.12, gain: 0.05, pan }); },
   lever(pan = 0) { if (!rec('lever', { gain: 0.5, pan })) tone({ type: 'square', from: 180, to: 120, time: 0.15, gain: 0.06, pan }); },

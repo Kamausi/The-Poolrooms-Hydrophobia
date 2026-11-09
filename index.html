@@ -30,22 +30,29 @@
     <h1 class="wordmark title" data-text="UNDERFLOW">UNDERFLOW</h1>
     <p class="tagline">The water only goes deeper.</p>
     <p class="intro">The park is still running. The pumps work, the towels are warm, the announcements play. Nobody is here. The guest counter changes when you are alone.</p>
-    <p class="description">Crew Seven went down six weeks ago. Their raft came back up the slide empty, four life vests folded on the seat. Ride the slide. Shoot what moves in the water. Get off at the docks, find the power, and reach the Safe Rooms before the chlorine, or the calm, gets to you.</p>
-    <div class="launch">
-      <button id="start" class="primary">ENTER THE FLOW ↗</button>
-      <button id="continue" hidden>CONTINUE FROM CHECKPOINT</button>
+    <p class="description">Crew Seven went down six weeks ago. Their raft came back up the slide empty, four life vests folded on the seat.</p>
+    <nav class="menu-list" aria-label="Main menu">
+      <button id="continue" class="menu-item" data-desc="Pick up the expedition where the facility last saw you." hidden><b>CONTINUE EXPEDITION</b><span id="continue-sub" class="mono"></span></button>
+      <button id="start-exp" class="menu-item" data-desc="Go down the slide: the campaign, the reference chapter, endless mode, challenges and shared routes."><b>START EXPEDITION</b></button>
+      <button id="records-btn" class="menu-item" data-desc="What the crew has witnessed, what the facility claims, and your best endless runs."><b>EXPEDITION RECORDS</b></button>
+      <button id="settings-btn" class="menu-item" data-desc="Controls, interface, audio, camera and effects, assistance, display."><b>SETTINGS</b></button>
+      <button id="credits-btn" class="menu-item" data-desc="Who made the sounds and textures this facility borrows."><b>CREDITS</b></button>
+    </nav>
+    <nav class="menu-list sub" id="start-menu" aria-label="Start expedition" hidden>
+      <button id="start" class="menu-item" data-desc="The campaign: eight attractions, Safe Rooms between them, the crew split at the junction."><b>NEW CAMPAIGN</b></button>
+      <button id="chapter" class="menu-item" data-desc="One finished chapter, 12–18 minutes: an empty wave pool and a sign under the water."><b>REFERENCE CHAPTER · THE CLOSED WAVE POOL</b></button>
+      <div class="seed-row"><button id="endless" class="menu-item" data-desc="Generated attractions, deeper each time. The same seed builds the same facility."><b>ENDLESS MODE</b></button><input id="seed" inputmode="numeric" placeholder="seed (optional)" aria-label="Endless seed" /></div>
+      <button id="challenges" class="menu-item" data-desc="Short rules-bound rides with their own conditions."><b>CHALLENGES</b></button>
+      <button id="routes" class="menu-item" data-desc="Write a route of channels, pools and drops, or ride one someone shared."><b>ROUTE BUILDER</b></button>
+      <button id="start-back" class="menu-item back" data-desc="Back to the main menu."><b>BACK</b></button>
+    </nav>
+    <p id="menu-desc" class="menu-desc" aria-live="polite"></p>
+    <span id="records" class="mono small" hidden></span>
     </div>
-    <div class="seed-row">
-      <button id="endless">ENDLESS MODE</button>
-      <input id="seed" inputmode="numeric" placeholder="seed (optional)" aria-label="Endless seed" />
-      <span id="records" class="mono small"></span>
-    </div>
-    <div class="seed-row">
-      <button id="challenges">CHALLENGES</button>
-      <button id="routes">ROUTE BUILDER</button>
-      <button id="chapter">REFERENCE CHAPTER · THE CLOSED WAVE POOL</button>
-    </div>
-    </div>
+    <p class="mono small menu-foot"><span id="engine">RENDERED WITH 67JS</span></p>
+  </section>
+
+  <template id="controls-ref">
     <dl class="controls">
       <dt>RAFT</dt><dd>A/D steer · Space hop · click fire · right-click focus (Disruptor: lock, release for a volley) · 1–5, Tab or wheel: blaster profile · Ctrl/C brace · Z shove · B ping / radio check · V paddle · G patch · Shift boost · S brake · X look back · T Ride Control</dd>
       <dt>POOLS</dt><dd>Shoot an arrow to switch gates · Space depart · E moor at a dock · A/D look around</dd>
@@ -53,10 +60,7 @@
       <dt>BLASTER</dt><dd>Q (or right-click on foot): inspection beam · F: disruption burst (uses a charge cell) · R recharge · H dressing · controllers supported</dd>
       <dt>ALWAYS</dt><dd>Esc pause and settings · Space to snap out of Drift</dd>
     </dl>
-    <p class="mono small"><span id="engine">RENDERED WITH 67JS</span> · <a href="/legacy/combat-build-02.html">Play the old Three.js combat build</a></p>
-    <p class="mono small credits">Sound: "Oculus Audio Pack 01" by Oculus VR, LLC (<a href="https://developers.meta.com/vr/downloads/package/oculus-audio-pack-1/" target="_blank" rel="noopener">source</a>), <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener">CC BY 4.0</a>, edited: trimmed, made mono, loops crossfaded.</p>
-  </section>
-
+  </template>
   <p id="perf" class="mono small" hidden></p>
   <section id="hud" hidden>
     <!-- Upper left: where you are and what to do. Prominent when it changes, compact after. -->

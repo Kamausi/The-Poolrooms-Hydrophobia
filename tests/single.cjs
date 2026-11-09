@@ -7,7 +7,7 @@ const { check, finish } = require('./lib.cjs');
   const page = await browser.newPage({ viewport: { width: 960, height: 540 } });
   const errors = []; page.on('pageerror', (e) => errors.push(e.message));
   await page.goto('file://' + path.resolve(__dirname, '../dist/UNDERFLOW.html') + '?quality=low'); await page.waitForTimeout(1500);
-  await page.click('#start'); await page.waitForTimeout(300);
+  await page.click('#start-exp'); await page.click('#start'); await page.waitForTimeout(300);
   await page.evaluate(() => document.querySelector('#modal-body .choice').click()); await page.click('#modal-actions button'); await page.waitForTimeout(3000);
   const hud = await page.evaluate(() => document.getElementById('chambers')?.textContent || '');
   check('the single file starts a ride', hud.length > 0, hud.slice(0, 40));

@@ -3,7 +3,7 @@
 const { open, check, finish } = require('./lib.cjs');
 (async () => {
   const { browser, page, errors } = await open({ width: 800, height: 450 });
-  await page.click('#start'); // starting the game creates the audio context, which starts the loads
+  await page.click('#start-exp'); await page.click('#start'); // starting the game creates the audio context, which starts the loads
   await page.waitForTimeout(4000);
   const r = await page.evaluate(async () => {
     const m = await (await fetch('/audio/manifest.json')).json();

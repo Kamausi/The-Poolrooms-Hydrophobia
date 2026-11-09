@@ -728,16 +728,69 @@ function toMenu() {
   refreshMenu();
 }
 
+/** Where a saved expedition stands, from the actual save: never a hint of what is ahead. */
+function saveSummary() {
+  const res = loadJSON(RESUME_KEY), save = loadJSON(SAVE_KEY);
+  const st = res?.state || save;
+  if (!st) return '';
+  const sec = st.custom?.chapter ? REFERENCE_CHAPTER : SECTORS[st.sectorIndex];
+  const name = sec ? sec.name.replace(/^THE /, 'The ').replace(/\b([A-Z])([A-Z]+)/g, (_, a, b) => a + b.toLowerCase()) : `Depth ${(st.sectorIndex || 0) + 1}`;
+  const where = res ? (res.position?.mode === 'explore' ? 'On foot at the dock' : 'On the raft') : 'Last checkpoint: the Safe Room before it';
+  const crewHere = (st.regrouped || st.sectorIndex > 0) ? 1 + Object.entries(st.crewState || {}).filter(([id, c]) => !(st.forgotten || []).includes(id) && c !== 'grabbed').length : 1;
+  return `${name} · ${where}\n${st.name || 'Mars'} · Crew present: ${crewHere}`;
+}
+
 function refreshMenu() {
   $('continue').hidden = !loadJSON(RESUME_KEY) && !loadJSON(SAVE_KEY);
-  const res = loadJSON(RESUME_KEY);
-  $('continue').textContent = res ? 'RESUME WHERE YOU LEFT OFF' : 'CONTINUE FROM THE LAST SAFE ROOM';
+  $('continue-sub').textContent = saveSummary();
+  showMenuList('main');
   const seedParam = new URLSearchParams(location.search).get('seed');
   if (seedParam) $('seed').value = seedParam;
   const recs = loadJSON(RECORD_KEY) || {};
   const best = Object.entries(recs).sort((a, b) => b[1].depth - a[1].depth)[0];
   $('records').textContent = best ? `Best endless run: seed ${best[0]}, depth ${best[1].depth}, score ${best[1].score}.` : '';
 }
+
+/** The main list or the Start Expedition list; focus moves at once, a description follows the selection. */
+function showMenuList(which) {
+  $('start-menu').hidden = which !== 'start';
+  document.querySelector('.menu-list:not(.sub)').hidden = which === 'start';
+  const first = (which === 'start' ? $('start-menu') : document.querySelector('.menu-list:not(.sub)')).querySelector('button:not([hidden])');
+  first?.focus({ preventScroll: true });
+  $('menu-desc').textContent = first?.dataset.desc || '';
+}
+for (const b of document.querySelectorAll('.menu-item')) {
+  const select = () => { if ($('menu-desc').textContent !== b.dataset.desc) { $('menu-desc').textContent = b.dataset.desc || ''; sound.uiMove(); } };
+  b.addEventListener('focus', select);
+  b.addEventListener('mouseenter', () => b.focus({ preventScroll: true }));
+  b.addEventListener('click', () => { sound.unlock(); sound.uiConfirm(); });
+}
+$('start-exp').onclick = () => showMenuList('start');
+$('start-back').onclick = () => showMenuList('main');
+const menuPanel = (title, body) => showModal(title, body, [['BACK', () => { hideModal(); $('menu').hidden = false; }, true]], 'PUMPHOUSE DISPATCH');
+$('records-btn').onclick = () => {
+  const body = document.createElement('div');
+  body.append(ledgerView());
+  const rec = document.createElement('p');
+  rec.className = 'mono small';
+  rec.textContent = $('records').textContent || 'No endless runs recorded.';
+  body.append(rec);
+  menuPanel('Expedition records', body);
+};
+$('settings-btn').onclick = () => {
+  const body = document.createElement('div');
+  body.append(settingsView(), $('controls-ref').content.cloneNode(true));
+  menuPanel('Settings', body);
+};
+$('credits-btn').onclick = () => {
+  const body = document.createElement('div');
+  body.innerHTML = `<p>UNDERFLOW. Rendered with <b>67js</b> (MIT).</p>
+<p><b>Sound:</b> "Oculus Audio Pack 01" by Oculus VR, LLC (<a href="https://developers.meta.com/vr/downloads/package/oculus-audio-pack-1/" target="_blank" rel="noopener">source</a>), licensed under <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener">CC BY 4.0</a>. Edited: trimmed, made mono, loops crossfaded.</p>
+<p><b>Surface detail:</b> normal maps from @pmndrs/assets, CC0 1.0.</p>
+<p><b>Type:</b> Barlow Condensed, IBM Plex Sans and Mono, Caveat, Reenie Beanie, Shadows Into Light, Nanum Pen Script (SIL Open Font License).</p>
+<p class="mono small">The full list, with every file and what was changed, is in docs/CREDITS.md.</p>`;
+  menuPanel('Credits', body);
+};
 
 function setPaused(on) {
   if (mode !== 'ride' && mode !== 'explore') return;
@@ -777,6 +830,7 @@ function frame(now) {
   pollGamepad(dt);
   input.context = mode === 'explore' ? 'explore' : 'ride';
   if ($('modal').hidden && (wasPressed('escape') || wasPressed('p')) && now - pausedAt > 250) setPaused(!paused);
+  if (mode === 'menu' && $('modal').hidden && !$('start-menu').hidden && wasPressed('escape')) showMenuList('main');
   if (scene && !paused && !manual && (mode === 'ride' || mode === 'explore' || mode === 'safe' || mode === 'menu')) scene.update(dt);
   if (!paused && (mode === 'ride' || mode === 'explore')) sound.music(state.directorPhase || 'relax', state.drift);
   $('modal').classList.toggle('safe', mode === 'safe');

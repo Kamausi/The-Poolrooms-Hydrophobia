@@ -4,7 +4,7 @@ const { open, check, finish } = require('./lib.cjs');
 (async () => {
   const { browser, page, errors } = await open({ width: 1280, height: 720 });
   check('menu offers the reference chapter', await page.evaluate(() => !!document.getElementById('chapter')));
-  await page.click('#chapter'); await page.waitForTimeout(500);
+  await page.click('#start-exp'); await page.click('#chapter'); await page.waitForTimeout(500);
   const U = (f) => page.evaluate(f);
   let r = await U(() => { const u = window.__underflow, R = window.__ride; let k = 0; for (; k < 200; k++) { u.setState({ drift: 0, sitting: false, health: 1e6 }); u.step(10); if (R.wave.active && R.wave.s - R.s < 22) break; } return { wave: R.wave.active }; });
   check('arrival at the wave pool', r.wave);
