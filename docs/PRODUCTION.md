@@ -86,7 +86,17 @@ Two fixes came out of it:
 - Primary tier: stable 60 FPS (16.7 ms). Constrained tier: a deliberate 30 FPS profile (33.3 ms), selectable in Settings.
 - Measure the slow tail, not averages: the overlay (Settings → Performance overlay) shows average, 95th and 99th percentile frame time, the count of frames over 1.5× budget, and JS heap where the browser reports it. The playtest log stores a sample every minute.
 - Reliability: the scene saves its position every ~3 seconds; pausing, quitting, hiding the tab and a graphics-device reset each capture the position immediately before saving, then offer a reload-and-resume. Resume rebuilds the scene from a limited set of values (raft distance and departed pools, or position, facing and whether you carry the item). It is a periodic position resume, not an exact restoration of everything in flight.
-- **Not yet measured:** representative hardware. Headless software rendering (the only thing available to automated tests here) says nothing about a GPU or phone.
+- **Measured: CPU simulation cost per frame**, with rendering excluded, on the build machine's CPU:
+
+  | Attraction | Raft median / p95 | On foot median / p95 |
+  |---|---|---|
+  | Welcome Pools | 1.10 / 1.90 ms | 0.14 / 0.31 ms |
+  | Wave Hall | 1.15 / 1.73 ms | 0.20 / 0.50 ms |
+  | Filtration Works | 1.17 / 2.08 ms | 0.10 / 0.36 ms |
+  | Rooftop Lagoon | 1.13 / 1.73 ms | 0.11 / 0.47 ms |
+
+  That is under 15% of a 16.7 ms frame even on a CPU several times slower. Profiling shows the cost concentrated in the raft's per-frame update (geometry placement along the track, entity updates), with no single hot spot worth optimizing yet.
+- **Not yet measured:** GPU cost on representative hardware. Headless software rendering (the only thing available to automated tests here) says nothing about a GPU or phone.
 - Engine: 67js `@codepawlhq/67js@0.16.0` (package.json). Its documented glTF skeletal animation, morph targets, animation layers and IK are the route to finished characters; none is used yet because there are no character assets. Evaluate them with a representative scene (animated crew, enemies, water, lights, effects, sound, UI) before any engine decision. Engine or language changes should answer a measured bottleneck.
 - Budgets to track separately as content arrives: program code, downloaded assets, assets in memory, GPU memory, CPU simulation, rendering, network.
 
