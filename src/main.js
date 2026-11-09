@@ -243,6 +243,13 @@ const events = {
       if (dock && i >= 0) state.ride.choices[dock.id] = i;
       // What the crew did on foot rewrites the way out: a flooded outlet or an exposed one.
       if (!state.endless && !state.custom && !(state.memDone ||= {})[`r${state.sectorKey}`]) { state.memDone[`r${state.sectorKey}`] = true; recordSector(state.sectorKey, 'restored'); }
+      // The Welcome Pools: the restored circulation's marked outlet runs back through the hall you passed.
+      const exW = dock?.exits[i];
+      if (state.sectorIndex === 0 && !state.endless && !state.custom && exW && !exW.looped) {
+        exW.looped = true;
+        const r0 = rng(777 + state.attempt);
+        exW.sections = [section('channel', { length: 30, half: 2.6, label: 'CIRCULATION OUTLET' }), populate(section('hall', { length: 80, label: 'THE POOL HALL (AGAIN)' }), r0, 0.4, ['deja']), ...exW.sections];
+      }
       const mod = state.routeMod?.[state.sectorKey];
       if (mod && !state.endless && !state.custom && !state.memDone[`m${state.sectorKey}`]) { state.memDone[`m${state.sectorKey}`] = true; recordSector(state.sectorKey, mod); }
       const ex = dock?.exits[i];

@@ -1102,6 +1102,11 @@ export function createRide(canvas, state, sector, events, opts = {}) {
       hud.say('THE ATTENDANT', 'The service corridor has been extended to accommodate your return.', 'attendant');
       setTimeout(() => hud.say(crewName(), 'This was a corridor. Last time this was a corridor. It\'s a pool hall now. It\'s running.', 'crew'), 4000);
       events.ledger?.('changes', `${sector.name}: the service corridor became a working pool hall`);
+    } else if (e.kind === 'deja') {
+      // The Yellow Channel's lesson: the marked outlet returns you to a room you already passed.
+      hud.caption('[the circulation outlet opens into the pool hall. The same chairs, facing the same wall. The stairway is on the other side now.]');
+      setTimeout(() => hud.say(crewName(), 'We were here. We were HERE. The sign said outlet. It\'s a loop. The whole circuit is a loop.', 'crew'), 3000);
+      events.ledger?.('changes', `${sector.name}: the circulation outlet returns to the pool hall`);
     } else if (e.kind === 'wavesign') {
       Object.assign(wave, { active: true, s: at + 40 });
       sound.duck(2);

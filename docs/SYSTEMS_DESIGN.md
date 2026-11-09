@@ -545,3 +545,8 @@ Campaigns open with a Pumphouse dispatch sheet (route, crew, last maintenance st
 
 ### Reference notes
 Redbeet's *Raft* and *Raft Survival Simulator* (published on the Nintendo eShop by GAMETOTOP.CC) are separate titles. Steam Workshop custom campaigns are a *Left 4 Dead 2* feature. Melee fatigue was added to the original *Left 4 Dead*'s Versus mode in a 2009 update, not as a universal rule. The Backrooms Wiki has several canons; UNDERFLOW keeps its own continuity (Drift, the Attendant, the Pumphouse, the Lido and its own entities) rather than importing a roster.
+
+## 20. Sector problems: the Yellow Channel loop and the Last Drain surge (implemented)
+
+- **Welcome Pools (the Yellow Channel):** restoring the circulation opens the service gate. Its marked outlet, "CIRCULATION OUTLET", runs back into the pool hall you already passed: the same chairs facing the same wall, the stairway now on the other side. The crew works out that the whole circuit is a loop.
+- **Filtration Works (the Last Drain):** starting the compressor triggers a pressure surge. Someone has to stay at the mechanism for twenty seconds while the swarm comes; leaving stalls it. Hold it, and the escape route stays exposed and shallow. Board before it passes, and the line lets go and the way out floods behind you.

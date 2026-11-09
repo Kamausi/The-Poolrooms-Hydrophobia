@@ -221,6 +221,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
   }
   let paddleCool = 0;
   let deathCache = null;
+  let surge = null;
   const facility = facilityMem;
 
   // ---------- Exploration pass: puzzles, architecture, the thread, the crew ----------
@@ -1014,6 +1015,11 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
         }
       }
       ask(2, powered() ? 'E · Board the raft (service gate open)' : 'E · Board the raft (no power: bypass only)');
+      if (wasPressed('e') && surge && !surge.done) {
+        // Leaving before the surge passes: the line goes, and the way out floods behind you.
+        (state.routeMod ||= {})[key] = 'flooded';
+        hud.caption('[behind you the line lets go. The way out is flooding.]');
+      }
       if (wasPressed('e') && juneEvent.state === 'sitting') {
         // Leaving her there. The count closes over her.
         juneEvent.state = 'left';
@@ -1462,6 +1468,18 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
       const L = Math.hypot(d[0], d[2]) || 0.01;
       writeYaw(part.matrix, [(a[0] + b[0]) / 2, Math.max(a[1], b[1]), (a[2] + b[2]) / 2], Math.atan2(d[0], d[2]), 0.03, 0.02, L);
     });
+    if (surge && !surge.done) {
+      const near = Math.hypot(panelPos[0] - player.pos[0], panelPos[2] - player.pos[2]) < 9;
+      if (near) surge.t += dt;
+      hud.objective(`SURGE · keep the mechanism running ${Math.min(100, Math.round((surge.t / surge.need) * 100))}%${near ? '' : ' · STALLING — get back to it'}`);
+      if (surge.t >= surge.need) {
+        surge.done = true;
+        (state.routeMod ||= {})[key] = 'drained';
+        hud.toast('THE LINE HOLDS · THE ESCAPE ROUTE IS SECURE');
+        hud.objective('The surge passed. Return to the raft.');
+        events.ledger?.('machinery', 'Filtration Works: the compressor surges; hold the valve through it');
+      }
+    }
     // Pump Defence: the chamber must be held. The pump stalls without you.
     if (pumpChallenge) {
       const nearPump = Math.hypot(panelPos[0] - player.pos[0], panelPos[2] - player.pos[2]) < 12;
@@ -1514,6 +1532,13 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
   }
 
   function restorePower() {
+    // The Last Drain's problem (Filtration Works): starting the compressor triggers a surge. Keep the mechanism
+    // running through it and the escape route holds; walk away and the way out floods.
+    if (sector.id === 'filtration-works' && dockKind === 'repair' && !surge) {
+      surge = { t: 0, need: 20, done: false };
+      director.crescendo();
+      hud.say('DEZ', 'Pressure surge — it\'s going to blow the line. Somebody stays on this valve for twenty seconds or the way out floods.', 'crew');
+    }
     vapour = 40;
     events.ledger?.('machinery', `${K.machine}: ${K.verb}`);
     hud.caption('[the pump coughs out trapped vapour — chlorine, thick, around the machine. Get clear or use a filter]');

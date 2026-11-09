@@ -46,6 +46,41 @@ Verified headlessly end to end: arrival, diverter, landing bonus, docking sequen
 - **Raft readability:** a faint foam line ahead shows where momentum, current and a soft chamber are taking you, only when something is moving you.
 - **Room acoustics:** tiled corridors ring, halls and reservoirs are long, tubes are dull, the Safe Room is dry.
 
+## Balance, measured with a competent-player bot
+
+A DEV-only bot (`window.__ride.bot = true`) stands in for a competent player: it aims at the nearest Bloom, fires, patches when nothing is close, swims back after going overboard, leans away from climbers and shoves them off, keeps a line taut, shoots Ballast's anchors and core, and uses dressings when hurt. It does not brace, look back or dodge on purpose. Each attraction is ridden from a fresh, full-health crew to the dock.
+
+| Measurement | Before tuning | After |
+|---|---|---|
+| Attractions reached at the dock | 5 of 8 (deaths: overboard in the first channel of the Welcome Pools, Ballast, Blooms from behind) | 8 of 8 |
+| Lowest health on the way | 1–18 | 33–62, except Filtration Works (1) |
+| Raft at the dock | 67–94% | 66–94% |
+
+Tuning that got there:
+- No climbers or crewmate grabs in the first attraction; a climber only takes you overboard if that side is already soft.
+- The crew's covering fire takes what is chasing the raft first.
+- Rear Bloom hits do 7 damage (was 12) and front hits 10 (was 12).
+- Ballast surges for 8 (was 12) and lets go after 75 s (was 110); Ride Control steers out of its lane before it surges.
+- The crew patches a long-running leak in the quiet, with a kit.
+
+Filtration Works stays the hardest. A bot is not a person: this replaces guessing, not playtesting.
+
+## Resume, interruption-tested
+
+Verified by automated test:
+
+| Interrupted | After resume |
+|---|---|
+| Mid-docking | Back in the holding pool |
+| Mid-machine | Still carrying the item; the hold completes |
+| Incapacitated | Still down; the crew revives you |
+| After pickups on foot | Nothing is handed out twice (parts, lockers, containers, caches, valve progress, the June event) |
+| On the raft | Nothing behind the resume point fires |
+
+Two fixes came out of it:
+- A fall always incapacitates first, even while you sit in the water.
+- A survived fatal hit can no longer turn the next fall into instant death.
+
 ## Performance targets and measurement
 
 - Primary tier: stable 60 FPS (16.7 ms). Constrained tier: a deliberate 30 FPS profile (33.3 ms), selectable in Settings.
