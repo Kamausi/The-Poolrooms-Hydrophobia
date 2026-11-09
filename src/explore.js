@@ -365,7 +365,8 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
 
   // ---------- Entities ----------
   const blooms = Array.from({ length: 16 }, (_, i) => ({
-    core: P(`Bloom ${i}`, ball, glow([1, 0.22, 0.08], 2, { color: [0.35, 0.03, 0.03], roughness: 0.55 })),
+    core: P(`Bloom ${i}`, ball, { color: [0.62, 0.66, 0.6], metallic: 0, roughness: 0.15, emission: 0.02, emissiveColor: [0.77, 0.35, 0.31], alphaMode: 'blend', opacity: 0.62 }),
+    heart: P(`Bloom heart ${i}`, sphere(12, 8), glow(linear('#c45a50'), 2, { color: [0.35, 0.06, 0.05] })),
     spikes: P(`Bloom spikes ${i}`, slab, dark([0.12, 0.02, 0.02])),
     active: false, pos: [0, 0, 0], hp: 2, phase: 0, dying: 0,
   }));
@@ -381,8 +382,10 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     base: center(...towerCell),
     legs: [P('Tower leg A', cylinder(12, 0, 1), { color: [0.92, 0.92, 0.9], metallic: 0, roughness: 0.4 }), P('Tower leg B', cylinder(12, 0, 1), { color: [0.92, 0.92, 0.9], metallic: 0, roughness: 0.4 })],
     seat: P('Tower seat', slab, { color: [0.92, 0.92, 0.9], metallic: 0, roughness: 0.4 }),
-    body: P('Lifeguard', cylinder(20, 0.3, 3), { color: [0.82, 0.55, 0.45], metallic: 0, roughness: 0.75 }),
-    head: P('Lifeguard head', ball, { color: [0.8, 0.55, 0.45], metallic: 0, roughness: 0.7 }),
+    body: P('Lifeguard', cylinder(20, 0.3, 3), { color: linear('#9a5a50'), metallic: 0, roughness: 0.85 }), // a faded red uniform
+    head: P('Lifeguard head', ball, { color: [0.78, 0.76, 0.7], metallic: 0, roughness: 0.6 }),
+    hands: [0, 1].map((k) => P(`Lifeguard hand ${k}`, sphere(10, 8), { color: [0.85, 0.84, 0.8], metallic: 0, roughness: 0.5 })),
+    cord: P('Whistle cord', slab, glow(linear('#c45a50'), 0.6, { color: linear('#c45a50') })),
     glasses: P('Lifeguard glasses', slab, { color: [0.01, 0.01, 0.01], metallic: 1, roughness: 0.05 }),
     lamp: P('Cycle lamp', ball, glow([1, 0.2, 0.1], 8)),
     breaker: P('Cycle breaker', slab, glow([1, 0.75, 0.2], 2)),
@@ -416,7 +419,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
   const renderer = new Renderer67(canvas, parts, {
     ground: false, world: true, hdr: true, ...quality.renderer,
     environment: {
-      keyIntensity: rules.openSky ? 1 : 0.04, fillIntensity: rules.openSky ? 0.6 : 0.1, ambientIntensity: rules.openSky ? 0.7 : rules.uv ? 0.08 : 0.3,
+      keyIntensity: rules.openSky ? 1 : 0.04, fillIntensity: rules.openSky ? 0.6 : 0.1, ambientIntensity: rules.openSky ? 0.7 : rules.uv ? 0.08 : 0.2,
       fogColor: linear(sector.fog), fogDensity: rules.openSky ? 0.005 : 0.05 + sector.index * 0.006,
       skyTop: display(sky ? sky.top : sector.fog), skyBottom: display(sky ? sky.bottom : sector.fog), lightDirection: [0.4, 1, 0.3],
     },
@@ -1523,7 +1526,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
 
   function gatherLights(eye) {
     const out = lamps.filter((l) => l.on).map((l) => ({ l, d: distance(l.pos, eye) })).sort((a, b) => a.d - b.d).slice(0, quality.lights)
-      .map(({ l }) => ({ position: l.pos, color: lampColor, intensity: 6 * l.level, radius: 0.4, range: 14 }));
+      .map(({ l }) => ({ position: l.pos, color: lampColor, intensity: 8 * l.level, radius: 0.4, range: 10 })); // bleached under the fixture, dark between
     if (lifeguard && lifeguard.lampOn) out.push({ position: add(lifeguard.base, [0, 4.6, 0]), color: lifeguard.rule === 'swim' ? [1, 0.25, 0.12] : [1, 0.9, 0.7], intensity: 9, radius: 0.3, range: 16 });
     if (rules.uv) out.push({ position: [eye[0], 3.5, eye[2]], color: [0.5, 0.25, 1], intensity: 3, radius: 1, range: 12 });
     return out;
@@ -1531,12 +1534,13 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
 
   function updateBlooms(dt, eye) {
     for (const b of blooms) {
-      if (!b.active) { hide(b.core); hide(b.spikes); continue; }
+      if (!b.active) { hide(b.core); hide(b.spikes); hide(b.heart); continue; }
       if (b.dying) {
         b.dying += dt;
         const k = 1 + b.dying * 6;
-        writeYaw(b.core.matrix, b.pos, 0, 0.45 * k, 0.45 * k, 0.45 * k);
-        b.core.material.emission = Math.max(0.02, 6 - b.dying * 30);
+        writeYaw(b.core.matrix, b.pos, 0, 0.45 * k, 0.25 * k, 0.45 * k);
+        writeYaw(b.heart.matrix, b.pos, 0, 0.2 * k, 0.2 * k, 0.2 * k);
+        b.heart.material.emission = Math.max(0.02, 6 - b.dying * 30);
         hide(b.spikes);
         if (b.dying > 0.18) b.active = false;
         continue;
@@ -1562,7 +1566,8 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
       const squash = b.stagger > 0 ? 0.75 : 1;
       writeYaw(b.core.matrix, [b.pos[0], b.pos[1] + Math.sin(b.phase * 0.7) * 0.12, b.pos[2]], b.phase * 0.4, pulse / squash, pulse * 0.92 * squash, pulse);
       writeYaw(b.spikes.matrix, b.pos, b.phase, pulse * 2.3, 0.07, 0.07);
-      b.core.material.emission = b.flash > 0 ? 9 : 1.6 + Math.sin(b.phase * 2) * 0.8;
+      writeYaw(b.heart.matrix, [b.pos[0], b.pos[1] + Math.sin(b.phase * 0.7) * 0.12, b.pos[2]], 0, pulse * 0.42, pulse * 0.42, pulse * 0.42);
+      b.heart.material.emission = b.flash > 0 ? 9 : 1.4 + Math.sin(b.phase * 2) * 0.6;
       if (d < 1) {
         b.active = false;
         sound.burst();
@@ -1636,6 +1641,10 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     const watch = Math.atan2(eye[0] - head[0], eye[2] - head[2]);
     writeYaw(L.body.matrix, add(pos, [0, L.state === 'watching' ? 0.7 : 1.1, 0]), watch, 0.17, L.state === 'watching' ? 1.4 : 2.1, 0.13);
     writeYaw(L.head.matrix, head, watch, 0.17, 0.24, 0.17);
+    // Unnaturally rigid: arms straight down, pale hands, one whistle cord. The posture reads before the face.
+    const sideV = [Math.cos(watch), 0, -Math.sin(watch)];
+    L.hands.forEach((h, k) => writeYaw(h.matrix, add(pos, add(scale(sideV, (k ? 1 : -1) * 0.24), [0, L.state === 'watching' ? 0.25 : 0.55, 0])), watch, 0.06, 0.09, 0.06));
+    writeYaw(L.cord.matrix, add(head, [Math.sin(watch) * 0.12, -0.42, Math.cos(watch) * 0.12]), watch, 0.012, 0.5, 0.012);
     writeYaw(L.glasses.matrix, add(head, [Math.sin(watch) * 0.13, 0.03, Math.cos(watch) * 0.13]), watch, 0.3, 0.06, 0.04);
     const sees = distance(b, player.pos) < 20 && lineOfSight(b, player.pos) && L.blind <= 0;
     L.calm += dt;

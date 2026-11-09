@@ -29,6 +29,34 @@ export function tileTexture(sector) {
       g.fillRect(x * step + 5, y * step + 5, step - 10, 3);
     }
   }
+  // Batch variation: a few tiles from a different firing, slightly greener or yellower.
+  for (let i = 0; i < 7; i++) {
+    const x = Math.floor(random() * tiles), y = Math.floor(random() * tiles);
+    g.globalAlpha = 0.1 + random() * 0.08;
+    g.fillStyle = random() < 0.5 ? '#9a9a6a' : '#6f8a7c';
+    g.fillRect(x * step + 3, y * step + 3, step - 6, step - 6);
+  }
+  // Grout darkened where the moisture never leaves, in patches.
+  for (let i = 0; i < 4; i++) {
+    const cx = random() * size, cy = random() * size, r = 40 + random() * 70;
+    const grad = g.createRadialGradient(cx, cy, 0, cx, cy, r);
+    grad.addColorStop(0, sector.stain);
+    grad.addColorStop(1, 'transparent');
+    g.globalAlpha = 0.18;
+    g.fillStyle = grad;
+    g.fillRect(cx - r, cy - r, r * 2, r * 2);
+  }
+  // Hairline cracks.
+  g.strokeStyle = sector.stain;
+  g.lineWidth = 1;
+  for (let i = 0; i < 5; i++) {
+    g.globalAlpha = 0.35;
+    g.beginPath();
+    let x = random() * size, y = random() * size;
+    g.moveTo(x, y);
+    for (let k = 0; k < 4; k++) { x += (random() - 0.5) * 40; y += random() * 30; g.lineTo(x, y); }
+    g.stroke();
+  }
   // Drip stains running down from the top.
   g.fillStyle = sector.stain;
   for (let i = 0; i < 9; i++) {

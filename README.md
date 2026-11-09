@@ -62,6 +62,7 @@ Touch: left half of the screen moves, right half aims or looks, with buttons for
 | `src/crew.js` | The four Drainers, the roll call, and what survives a loop |
 | `src/director.js` | Pacing: relax, warning, build-up, peak, fade, recovery; a pressure budget that counts rescues and repairs |
 | `src/saferoom.js` | The Safe Room scene behind its panel |
+| `src/menuscene.js` | The main-menu corridor behind the title |
 | `src/ui.js` | Safe Room, workbench, route terminal, logbook, keypad, settings |
 | `src/hud.js`, `src/style.css` | The overlay |
 | `src/audio.js` | Synthesized, stereo-panned sound |
@@ -72,4 +73,5 @@ The first prototype (a single minified Three.js file) is kept at `public/legacy/
 ## Design
 - [docs/GAME_DESIGN.md](docs/GAME_DESIGN.md): concept, mechanics, architecture and what's built so far
 - [docs/SYSTEMS_DESIGN.md](docs/SYSTEMS_DESIGN.md): how raft, water, exploration and Safe Rooms connect; roadmap
+- [docs/ART_DIRECTION.md](docs/ART_DIRECTION.md): palette, type, lighting, sectors, crew and entity look, interface, main menu
 - [docs/STORY_AND_LORE.md](docs/STORY_AND_LORE.md): setting, characters, entities, endings and story decisions

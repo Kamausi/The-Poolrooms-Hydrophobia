@@ -170,3 +170,104 @@ body.touch:not([data-mode='ride']) #touch-jump, body.touch:not([data-mode='ride'
 .route-text { width: 100%; min-height: 90px; font: 13px/1.5 'IBM Plex Mono', monospace; background: rgba(0, 0, 0, 0.25); color: inherit; border: 1px solid currentColor; padding: 8px; margin: 8px 0; box-sizing: border-box; }
 #modal select { font: inherit; background: transparent; color: inherit; border: 1px solid currentColor; padding: 4px; }
 #roster { opacity: 0.85; }
+
+/* ===================================================================================================
+   ART DIRECTION · stale institutional beauty
+   Dead porcelain, stale fluorescent, faded pool teal, deep water, drain black, worn safety yellow.
+   Accents are small and mean something: warning coral = danger, checkpoint green = safe/recovery,
+   blacklight violet = anomaly. Type: Barlow Condensed (wordmark, facility signage), IBM Plex Sans
+   (reading), IBM Plex Mono (short readings and records), authored hands for graffiti.
+   =================================================================================================== */
+:root {
+  --porcelain: #d8d8ca;
+  --fluor: #aaa881;
+  --teal: #4d7472;
+  --deep: #112b31;
+  --drain: #080d10;
+  --safety: #b19a50;
+  --coral: #c45a50;
+  --green: #86aa8a;
+  --violet: #a78cde;
+  --ink: var(--porcelain);
+  --muted: #93978a;
+  --accent: var(--porcelain);
+  --signal: var(--green);
+  --danger: var(--coral);
+  --drift: #8fb3b8;
+  --bg: var(--drain);
+  --panel: #0e2328f0;
+  --line: #4d747266;
+  font-family: 'IBM Plex Sans', system-ui, sans-serif;
+  font-size: clamp(14px, 1.02vw, 22px);
+}
+body { background: var(--drain); }
+.mono { font-family: 'IBM Plex Mono', monospace; letter-spacing: 0.1em; font-size: clamp(11px, 0.84vw, 17px); }
+.small { font-size: clamp(10px, 0.76vw, 15px); }
+.big { font-family: 'Barlow Condensed', 'Arial Narrow', sans-serif; font-weight: 600; letter-spacing: 0.02em; }
+
+/* The wordmark: tall condensed capitals in dirty ivory, a thin waterline across the lower third,
+   and the letters below it displaced as if seen through water. Readable first; the wrongness second. */
+.wordmark { position: relative; display: inline-block; font-family: 'Barlow Condensed', 'Arial Narrow', sans-serif; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; color: transparent; background: linear-gradient(var(--porcelain) 0 66%, transparent 66%); -webkit-background-clip: text; background-clip: text; }
+.wordmark::after { content: attr(data-text); position: absolute; left: 0; top: 0; color: #d8d8ca99; clip-path: inset(66% 0 0 0); transform: translate(0.035em, 0.03em) skewX(-3deg) scaleY(1.04); filter: blur(0.5px); pointer-events: none; }
+.wordmark::before { content: ''; position: absolute; left: -3%; right: -3%; top: 66%; height: max(1px, 0.03em); background: var(--teal); box-shadow: 0 0 6px #4d747299; }
+.brand.wordmark { font-size: clamp(18px, 1.3vw, 26px); letter-spacing: 0.12em; }
+h1.title { font-size: clamp(64px, 9.5vw, 156px); line-height: 1; margin: 14px 0 6px; letter-spacing: 0.08em; }
+.tagline { font-family: 'Barlow Condensed', sans-serif; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; color: var(--fluor); font-size: clamp(18px, 1.6vw, 30px); margin: 0 0 18px; }
+.eyebrow, .eyebrow span { color: var(--fluor); }
+.eyebrow span { background: var(--fluor); }
+h2 { font-family: 'Barlow Condensed', sans-serif; font-weight: 600; letter-spacing: 0.04em; color: var(--porcelain); }
+
+/* The menu: most of the screen is the room behind it. */
+#menu { background: linear-gradient(90deg, #080d10f2 0%, #080d10d8 34%, #080d1040 58%, transparent 75%); padding: 14vh 6% 6vh; }
+.menu-panel { max-width: min(600px, 92vw); }
+.intro { font-size: clamp(15px, 1.1vw, 22px); color: var(--porcelain); }
+.description { font-size: clamp(13px, 0.9vw, 18px); color: var(--muted); }
+.controls { color: var(--muted); font-size: clamp(11px, 0.8vw, 16px); }
+button.primary { background: var(--porcelain); color: var(--drain); border-color: var(--porcelain); }
+.launch button, .actions button, .seed-row button { border: 1px solid var(--line); background: #080d1099; color: var(--porcelain); padding: 12px 18px; font: 500 clamp(11px, 0.8vw, 16px) 'IBM Plex Mono', monospace; letter-spacing: 0.12em; border-radius: 2px; }
+.launch button.primary { border-color: var(--porcelain); background: var(--porcelain); color: var(--drain); }
+
+/* HUD: facility instrumentation, read like a modern game. */
+#objective { font-size: clamp(15px, 1.15vw, 22px); color: var(--porcelain); }
+#subtitle { font-size: clamp(17px, 1.35vw, 28px); color: var(--porcelain); text-shadow: 0 1px 8px #000, 0 0 2px #000; }
+#subtitle b { font: 500 clamp(11px, 0.8vw, 16px) 'IBM Plex Mono', monospace; letter-spacing: 0.16em; color: var(--fluor); }
+#subtitle.attendant { color: #e6e1c6; }
+#subtitle.attendant b { color: var(--safety); }
+#subtitle.marco, #subtitle.voice { color: var(--drift); letter-spacing: 0.04em; }
+#subtitle.marco b, #subtitle.voice b { color: var(--drift); }
+#caption { font: clamp(12px, 0.9vw, 18px) 'IBM Plex Mono', monospace; color: var(--porcelain); background: #080d10cc; border-left: 2px solid var(--teal); }
+#prompt { background: #080d10d9; border: 1px solid var(--line); font-size: clamp(12px, 0.9vw, 18px); }
+#toast { color: var(--porcelain); font-size: clamp(12px, 0.9vw, 18px); }
+#scan { color: var(--violet); }
+.bar { background: #d8d8ca1f; }
+.bar.heat i { background: var(--safety); }
+.raft-panel b.warn, #chambers.warn { color: var(--coral); }
+#roster { color: var(--porcelain); }
+.route p:first-child { color: var(--fluor); }
+/* A reticle that reads on dark water and on pale tile alike. */
+#crosshair { border: 1.5px solid var(--porcelain); box-shadow: 0 0 0 1px #080d10cc, inset 0 0 0 1px #080d10aa; }
+#crosshair i { background: var(--porcelain); box-shadow: 0 0 0 1px #080d10; }
+@keyframes hit { from { border-color: var(--coral); transform: translate(-50%, -50%) scale(1.5); } }
+#damage { box-shadow: inset 0 0 160px 40px #c45a5099; }
+#driftfx { background: radial-gradient(circle at 50% 50%, transparent 30%, #4d747233 70%, #8fb3b855); }
+
+/* Panels, choices, Safe Room */
+.panel { background: var(--panel); border: 1px solid var(--line); }
+.panel p { color: #cfd0c2; font-size: clamp(14px, 1vw, 20px); }
+.choice { background: #080d1066; border: 1px solid var(--line); }
+.choice b { font-size: clamp(13px, 0.95vw, 19px); color: var(--porcelain); }
+.choice span { font-size: clamp(12px, 0.85vw, 17px); }
+.choice i { color: var(--fluor); }
+.choice.selected { border-color: var(--green); background: #86aa8a14; }
+#modal.safe .panel { background: #0e2328ee; border-top: 3px solid var(--green); }
+.terminal { background: #080d10; border: 1px solid #86aa8a55; color: var(--green); }
+.logbook h3 { color: var(--fluor); }
+
+/* Graffiti: authored hands. The same people write in the same hands across every Safe Room. */
+.graffiti { background: #d8d8ca; color: #1d2422; font-size: clamp(20px, 1.5vw, 30px); }
+.graffiti p { font-family: 'Shadows Into Light', cursive; }
+.graffiti p.hand-m { font-family: 'Caveat', cursive; color: #5a1f18 !important; }
+.graffiti p.hand-a { font-family: 'Reenie Beanie', cursive; font-size: 1.15em; }
+.graffiti p.hand-b { font-family: 'Nanum Pen Script', cursive; font-size: 1.1em; }
+.graffiti p.hand-c { font-family: 'Shadows Into Light', cursive; }
+.graffiti p.hand-maint { font-family: 'IBM Plex Mono', monospace; font-size: 0.6em; letter-spacing: 0.08em; color: #4d7472 !important; }

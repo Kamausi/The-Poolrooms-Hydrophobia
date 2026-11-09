@@ -1,8 +1,11 @@
-// The Safe Room, rendered behind its overlay: a loud pump room with hard light, and through reinforced
-// glass, an enormous empty pool hall. Unsettling, and genuinely safe.
+// The Safe Room, rendered behind its overlay: a loud pump room with dry, matte surfaces, neutral-warm task
+// light, checkpoint-green strips and signs that people actually live here. Through reinforced glass, an
+// enormous empty pool hall in deep water and stale light. Finite, dry, occupied, understandable — and the
+// window is still wrong.
 import { Renderer67, box, cylinder, sphere } from '67js';
 import { writeYaw, writeBasis, linear, display } from './math.js';
 import { tileTexture } from './textures.js';
+import { signMaterial, quad } from './labels.js';
 import { quality } from './quality.js';
 import { settings } from './settings.js';
 import { sound } from './audio.js';
@@ -15,8 +18,10 @@ export function createSafeRoom(canvas, sector) {
     return p;
   };
   const slab = box(0, 1);
-  const white = { color: [0.85, 0.88, 0.86], metallic: 0, roughness: 0.35, map: tileTexture({ ...sector, id: 'safe-room', tile: '#e9efe9', grout: '#9aa59f', stain: '#7d8a83', depth: 99 }), boxMapScale: 0.5 };
-  const metal = { color: [0.3, 0.34, 0.33], metallic: 0.8, roughness: 0.35 };
+  // Dry and matte: higher roughness than anything out on the water.
+  const white = { color: [0.86, 0.85, 0.8], metallic: 0, roughness: 0.75, map: tileTexture({ ...sector, id: 'safe-room', tile: '#d8d8ca', grout: '#8a8a7c', stain: '#6e6e62', depth: 99 }), boxMapScale: 0.5 };
+  const metal = { color: [0.16, 0.18, 0.18], metallic: 0.5, roughness: 0.7 }; // dark matte machinery
+  const green = { color: [0.36, 0.5, 0.38], metallic: 0, roughness: 0.6, emission: 0.6, emissiveColor: [0.52, 0.67, 0.54] };
   const put = (name, mat, pos, size, yaw = 0) => {
     const p = P(name, slab, mat);
     writeYaw(p.matrix, pos, yaw, size[0], size[1], size[2]);
@@ -37,7 +42,7 @@ export function createSafeRoom(canvas, sector) {
   put('Window frame', metal, [0, 3.1, -4.05], [5.2, 0.1, 0.12]);
   // Pumps: big, loud, vibrating.
   const pumps = [-3.2, 3.2].map((x, i) => {
-    const p = P(`Pump ${i}`, cylinder(32, 0.05, 2), { color: [0.25, 0.45, 0.32], metallic: 0.7, roughness: 0.4 });
+    const p = P(`Pump ${i}`, cylinder(32, 0.05, 2), { color: [0.13, 0.16, 0.16], metallic: 0.45, roughness: 0.7 });
     return { p, x };
   });
   // A pipe run along the ceiling: a cylinder laid on its side (local Y mapped to world X).
@@ -46,7 +51,18 @@ export function createSafeRoom(canvas, sector) {
   put('Terminal', { color: [0.05, 0.1, 0.06], metallic: 0, roughness: 0.4, emission: 1.6, emissiveColor: [0.4, 1, 0.5] }, [3.6, 1.6, 3.95], [1.2, 0.8, 0.06]);
   put('Bench', { color: [0.35, 0.37, 0.36], metallic: 0.5, roughness: 0.5 }, [0, 0.45, 3.2], [3, 0.1, 0.6]);
   put('Socks', { color: [0.9, 0.9, 0.88], metallic: 0, roughness: 0.9 }, [0.6, 0.53, 3.2], [0.35, 0.06, 0.2]);
-  const lamps = [-3, 0, 3].map((x, i) => put(`Lamp ${i}`, { color: [1, 1, 1], metallic: 0, roughness: 1, emission: 14, emissiveColor: [0.92, 1, 1] }, [x, 3.98, 0], [1.8, 0.05, 0.5]));
+  const lamps = [-3, 0, 3].map((x, i) => put(`Lamp ${i}`, { color: [1, 1, 1], metallic: 0, roughness: 1, emission: 12, emissiveColor: [1, 0.93, 0.82] }, [x, 3.98, 0], [1.8, 0.05, 0.5]));
+  // Checkpoint-green identification strips at hand height, and the sign over the bulkhead.
+  for (const [n, pos, size] of [['L', [-4.98, 1.1, 0], [0.04, 0.12, 8]], ['R', [4.98, 1.1, 0], [0.04, 0.12, 8]], ['Back', [0, 1.1, 3.98], [10, 0.12, 0.04]]]) put(`Green strip ${n}`, green, pos, size);
+  const sign = P('Safe Room sign', quad(), { ...signMaterial('SAFE ROOM ▼', 'safe', 1.2, 512, 128), doubleSided: true });
+  writeBasis(sign.matrix, [0, 3.5, -3.97], [1, 0, 0], [0, 1, 0], [0, 0, 1], 2.4, 0.6, 1);
+  // Habitation: mugs on the bench, a radio, towels, a camp cot, a kettle on a pump housing.
+  put('Shelf', metal, [-4.35, 1.0, -3.2], [1.3, 0.06, 0.45]);
+  [0, 1, 2, 3].forEach((i) => put(`Mug ${i}`, { color: [[0.7, 0.62, 0.36], [0.62, 0.32, 0.26], [0.85, 0.84, 0.78], [0.3, 0.42, 0.5]][i], metallic: 0, roughness: 0.5 }, [-4.8 + i * 0.28, 1.1, -3.2], [0.12, 0.14, 0.12]));
+  put('Radio', { color: [0.12, 0.12, 0.11], metallic: 0.3, roughness: 0.6, emission: 0.5, emissiveColor: [0.5, 0.7, 0.5] }, [-3.85, 1.15, -3.2], [0.4, 0.24, 0.18]);
+  put('Towels', { color: [0.82, 0.8, 0.72], metallic: 0, roughness: 0.95 }, [0.6, 0.55, 3.2], [0.5, 0.12, 0.35]);
+  put('Cot', { color: [0.3, 0.36, 0.28], metallic: 0, roughness: 0.9 }, [4.4, 0.4, -2.8], [0.8, 0.12, 1.8]);
+  put('Kettle', { color: [0.55, 0.55, 0.52], metallic: 0.7, roughness: 0.4 }, [-3.2, 2.35, -1.5], [0.25, 0.25, 0.25]);
   const beacon = P('Beacon', sphere(16, 10), { color: [0.3, 1, 0.5], metallic: 0, roughness: 1, emission: 6, emissiveColor: [0.3, 1, 0.5] }, writeYaw(new Float32Array(16), [0, 3.6, 3.9], 0, 0.2, 0.2, 0.2));
   // Beyond the glass: an enormous empty pool hall, dim, perfectly still.
   const pool = { tag: 'water', color: linear(sector.water), metallic: 0.55, roughness: 0.05 };
@@ -61,7 +77,7 @@ export function createSafeRoom(canvas, sector) {
   for (const p of parts) if (p.matrix[15] === 0) writeYaw(p.matrix, [0, -500, 0], 0, 1e-4, 1e-4, 1e-4);
   const renderer = new Renderer67(canvas, parts, {
     ground: false, world: true, hdr: true, ...quality.renderer,
-    environment: { keyIntensity: 0.05, fillIntensity: 0.3, ambientIntensity: 0.5, fogColor: linear('#0d1512'), fogDensity: 0.012, skyTop: display('#0d1512'), skyBottom: display('#0d1512') },
+    environment: { keyIntensity: 0.05, fillIntensity: 0.3, ambientIntensity: 0.45, fogColor: linear('#080d10'), fogDensity: 0.014, skyTop: display('#080d10'), skyBottom: display('#080d10') },
   });
   renderer.resize();
   sound.pumpRoom(true);
@@ -85,9 +101,9 @@ export function createSafeRoom(canvas, sector) {
       renderer.updateParts(parts);
       renderer.render({
         eye, target, fov: 68, time,
-        environment: { pointLights: [[-3, 3.6, 0], [0, 3.6, 0], [3, 3.6, 0]].map((position) => ({ position, color: [0.92, 1, 1], intensity: 9, radius: 0.5, range: 12 })).concat([{ position: [0, 12, -30], color: linear(sector.lamp), intensity: 420, radius: 3, range: 140 }, { position: [-25, 12, -70], color: linear(sector.lamp), intensity: 300, radius: 3, range: 140 }]) },
+        environment: { pointLights: [[-3, 3.6, 0], [0, 3.6, 0], [3, 3.6, 0]].map((position) => ({ position, color: [1, 0.92, 0.8], intensity: 9, radius: 0.5, range: 12 })).concat([{ position: [0, 12, -30], color: linear(sector.lamp), intensity: 420, radius: 3, range: 140 }, { position: [-25, 12, -70], color: linear(sector.lamp), intensity: 300, radius: 3, range: 140 }]) },
         exposure: 1.1,
-        effects: { bloom: { strength: quality.bloom * 0.6, threshold: 1.2, radius: 1.2 }, vignette: 0.25, grain: settings.grain ? 0.03 : 0, contrast: 1.08, saturation: 0.85, temperature: -0.08 },
+        effects: { bloom: { strength: quality.bloom * 0.6, threshold: 1.2, radius: 1.2 }, vignette: 0.22, grain: settings.grain ? 0.02 : 0, contrast: 1.05, saturation: 0.82, temperature: 0.04 },
       });
     },
     resize: () => renderer.resize(),

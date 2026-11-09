@@ -117,6 +117,12 @@ export function showSafeRoom(state, sector, nextSector, nextPlan, onLeave, onSav
   const comfort = COMFORTS[(state.guests + state.sectorIndex) % COMFORTS.length];
   body.append(el('p', null, `The bulkhead seals behind you. The vent hums. The lights are too bright for anything that lives in the water. ${comfort}`));
   body.append(el('p', 'mono', `CHECKPOINT CONFIRMED · DRIFT RESET · RAFT CLEANSED · GUESTS CHECKED IN: ${state.guests}`));
+  // The first Safe Room: the crew regroups. From here they ride in your raft.
+  if (!state.regrouped && !state.endless) {
+    state.regrouped = true;
+    body.append(el('p', null, 'The others are already here: soaked, arguing about the junction, alive. Tubs has the kettle on a pump housing. From here, the four of you ride one raft.'));
+  }
+  body.append(el('p', 'mono small', `PUMPHOUSE COUNTER · GUESTS ADMITTED: 04 · GUESTS RETURNED: ${String(Math.max(1, 4 - (state.forgotten || []).length - 1)).padStart(2, '0')} · DISCREPANCY: NONE`));
   // Recovery you can see: hard floor, moving air, a record that says you are here.
   if (state.arrivalDrift > 65) body.append(el('p', null, `When you came in, your name on the manifest was a smudge and the door took two tries to notice you. Under the hard white light the letters come back: ${crewById(state.character).full.toUpperCase()}. Your wristband reads ${state.band} again.`));
 
@@ -225,11 +231,14 @@ export function showSafeRoom(state, sector, nextSector, nextPlan, onLeave, onSav
   const wall = el('div', 'graffiti');
   const REPLIES = ['Everybody we could remember.', 'why not. it\'s warm', 'BECAUSE I SAID SO. — M.', 'who is M', 'it\'s me, you idiot. it\'s always me', 'stop writing on the walls — maintenance', 'maintenance isn\'t real', 'then who keeps painting over this'];
   (sector.graffiti || []).forEach((line, i) => {
-    const p = el('p', null, line);
+    // Each writer has a hand, and keeps it: M. always writes in the same hand; maintenance types.
+    const handOf = (t) => (/— M\.|it's me, you idiot|BECAUSE I SAID/.test(t) ? 'hand-m' : /maintenance/i.test(t) ? 'hand-maint' : ['hand-a', 'hand-b', 'hand-c'][[...t].reduce((h, c) => (h * 31 + c.charCodeAt(0)) % 997, 7) % 3]);
+    const p = el('p', handOf(line), line);
     p.style.transform = `rotate(${(Math.random() - 0.5) * 5}deg)`;
     wall.append(p);
     // Earlier crews argue with each other, in layers.
-    const reply = el('p', 'reply', `↳ ${line === 'EVERYBODY CAME BACK.' ? REPLIES[0] : REPLIES[1 + ((i + sector.index * 2) % (REPLIES.length - 1))]}`);
+    const replyText = line === 'EVERYBODY CAME BACK.' ? REPLIES[0] : REPLIES[1 + ((i + sector.index * 2) % (REPLIES.length - 1))];
+    const reply = el('p', `reply ${handOf(replyText)}`, `↳ ${line === 'EVERYBODY CAME BACK.' ? REPLIES[0] : REPLIES[1 + ((i + sector.index * 2) % (REPLIES.length - 1))]}`);
     reply.style.transform = `rotate(${(Math.random() - 0.5) * 7}deg)`;
     wall.append(reply);
   });

@@ -31,6 +31,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
   const map = tileTexture(sector);
   const tileMat = { color: [1, 1, 1], metallic: 0, roughness: 0.22, map, boxMapScale: 0.5 };
   const lampColor = linear(sector.lamp);
+  const bandMat = { color: linear(sector.band || '#4d7472'), metallic: 0, roughness: 0.35 };
   const waterMat = () => ({ tag: 'water', color: linear(sector.water), metallic: 0.55, roughness: 0.08 });
   const slab = box(0, 1);
   const ball = sphere(28, 18);
@@ -79,6 +80,8 @@ export function createRide(canvas, state, sector, events, opts = {}) {
       farWater: P(`Twin water ${i}`, slab, waterMat()), farWall: P(`Twin wall ${i}`, slab, tileMat),
       post: P(`Aqueduct post ${i}`, cylinder(12, 0, 1), { color: [0.3, 0.32, 0.3], metallic: 0.7, roughness: 0.4 }),
       rules: P(`Pool rules ${i}`, plane, { ...signMaterial('POOL RULES\nNO RUNNING · NO DIVING\nNO GUESTS AFTER CLOSING', 'rule', 0.5, 512, 220), doubleSided: true }),
+      // The faded waterline band every pool has. Sometimes it runs at the wrong height.
+      bandL: P(`Band L${i}`, slab, bandMat), bandR: P(`Band R${i}`, slab, bandMat),
     });
   }
 
@@ -115,6 +118,8 @@ export function createRide(canvas, state, sector, events, opts = {}) {
       if (r.dock) set.info = P(`Dock info ${r.id}`, plane, { ...signMaterial(`DOCK\n${r.dock.beacon}\n${r.dock.sight}`, 'safe', 0.8, 640, 240), doubleSided: true });
     } else if (r.type === 'bay') {
       set.info = P(`Bay sign ${r.id}`, plane, { ...signMaterial('SAFE ROOM\nARRIVAL BAY · PRESSURE SEALED', 'safe', 1.2, 512, 200), doubleSided: true });
+      // The lettering is ordinary. The information is wrong.
+      set.count = P(`Bay count ${r.id}`, plane, { ...signMaterial('GUESTS ADMITTED: 04\nGUESTS RETURNED: 03\nDISCREPANCY: NONE', 'count', 1.1, 512, 220), doubleSided: true });
     }
     roomSigns.set(r.id, set);
   }
@@ -122,7 +127,11 @@ export function createRide(canvas, state, sector, events, opts = {}) {
 
   // ---------- The raft ----------
   const raft = {
-    lip: P('Raft', torus(0.26, 48, 16), { color: [0.55, 0.2, 0.08], metallic: 0, roughness: 0.45 }),
+    lip: P('Raft', torus(0.26, 48, 16), { color: linear('#b19a50'), metallic: 0, roughness: 0.55 }), // worn safety yellow, damp, patched
+    rope: P('Raft rope', torus(0.025, 64, 6), { color: [0.42, 0.33, 0.2], metallic: 0, roughness: 0.9 }),
+    straps: [0, 1, 2, 3, 4, 5].map((i) => P(`Raft strap ${i}`, slab, { color: [0.06, 0.07, 0.07], metallic: 0.1, roughness: 0.7 })),
+    case: P('Supply case', box(0.04, 2), { color: [0.62, 0.63, 0.6], metallic: 0.5, roughness: 0.45 }),
+    caseStrap: P('Supply case strap', slab, { color: [0.06, 0.07, 0.07], metallic: 0.1, roughness: 0.7 }),
     seat: P('Opposite seat', box(0.2, 3), { color: [0.07, 0.12, 0.2], metallic: 0, roughness: 0.8 }),
     strap: P('Seat restraint', slab, { color: [0.12, 0.12, 0.13], metallic: 0.3, roughness: 0.6 }),
     panel: P('Maintenance panel', slab, { color: [0.2, 0.22, 0.2], metallic: 0.6, roughness: 0.4, emission: 0.6, emissiveColor: [0.4, 1, 0.6] }),
@@ -149,6 +158,38 @@ export function createRide(canvas, state, sector, events, opts = {}) {
   const crewBeam = P('Crew cover fire', slab, glow([0.6, 1, 0.8], 10));
   const hookRope = P('Hook line', slab, { color: [0.95, 0.8, 0.2], metallic: 0, roughness: 0.6 });
   const hookHead = P('Hook', torus(0.05, 18, 6), { color: [0.6, 0.6, 0.6], metallic: 0.9, roughness: 0.3 });
+  // The crew in the raft (after they regroup at the first Safe Room). Distinct silhouettes, the only warm colours.
+  const CREW_LOOK = {
+    mars: { jacket: '#3a4a5c', vest: '#b19a50', tall: 1, broad: 1 },
+    dez: { jacket: '#22324a', vest: '#9a8445', tall: 1.02, broad: 0.95 },
+    tubs: { jacket: '#8a8278', vest: '#a8823a', tall: 1.05, broad: 1.3 },
+    june: { jacket: '#c9c6b8', vest: '#b46a3c', tall: 1.08, broad: 0.85, coat: true },
+  };
+  const crewFigs = ['mars', 'dez', 'tubs', 'june'].map((id) => ({
+    id,
+    body: P(`Crew ${id}`, cylinder(14, 0.4, 2), { color: linear(CREW_LOOK[id].jacket), metallic: 0, roughness: 0.75 }),
+    vest: P(`Crew vest ${id}`, box(0.08, 2), { color: linear(CREW_LOOK[id].vest), metallic: 0, roughness: 0.6 }),
+    head: P(`Crew head ${id}`, sphere(14, 10), { color: [0.62, 0.48, 0.38], metallic: 0, roughness: 0.6 }),
+  }));
+  const SEATS = [[-1.0, 1.55], [1.02, 1.35], [-1.08, 0.25]]; // on the gunwales, out of the line of fire
+  function placeCrew(base, rgt, fwd, up) {
+    const aboard = (state.regrouped || state.sectorIndex > 0) && !state.endless ? Object.keys(state.crewState).filter((c) => !(state.forgotten || []).includes(c) && state.crewState[c] !== 'grabbed') : [];
+    let seat = 0;
+    for (const f of crewFigs) {
+      const on = aboard.includes(f.id) && seat < SEATS.length && !(capsize && capsize.t > 0.6 && capsize.t < 4.4);
+      if (!on) { hide(f.body); hide(f.vest); hide(f.head); continue; }
+      const L = CREW_LOOK[f.id];
+      const [x, z] = SEATS[seat++];
+      const hurt = state.crewState[f.id] === 'hurt';
+      const duckC = braced || hurt ? 0.25 : 0;
+      const sway = Math.sin(time * 1.3 + seat) * 0.03 + (paddleT > 0.5 ? Math.sin(strokePhase * Math.PI * 2) * 0.06 : 0);
+      const p = add(add(add(base, scale(rgt, x + sway)), scale(fwd, z)), scale(up, 0.12));
+      const h = 0.5 * L.tall - duckC; // seated low on the tube
+      writeBasis(f.body.matrix, add(p, scale(up, h / 2)), rgt, up, fwd, 0.2 * L.broad, h * (L.coat ? 1.05 : 1), 0.17 * L.broad);
+      writeBasis(f.vest.matrix, add(p, scale(up, h * 0.62)), rgt, up, fwd, 0.44 * L.broad, 0.3, 0.38 * L.broad);
+      writeBasis(f.head.matrix, add(p, scale(up, h + 0.11)), rgt, up, fwd, 0.1, 0.12, 0.1);
+    }
+  }
   const climberPart = { body: P('Climber', cylinder(12, 0.3, 2), { color: [0.82, 0.84, 0.8], metallic: 0, roughness: 0.35 }), head: P('Climber head', sphere(12, 8), { color: [0.85, 0.86, 0.82], metallic: 0, roughness: 0.3 }) };
   const tug = { line: P('Tug line', slab, { color: [0.95, 0.8, 0.2], metallic: 0, roughness: 0.6 }), hand: P('Hand in the water', sphere(10, 8), { color: [0.85, 0.75, 0.68], metallic: 0, roughness: 0.4 }), grip: P('Grip on the crewmate', lumpy, dark([0.004, 0.01, 0.012])) };
   const restrainedPart = { body: P('Restrained figure', cylinder(12, 0.3, 2), { color: [0.75, 0.7, 0.62], metallic: 0, roughness: 0.6 }), strap: P('Restraint', torus(0.08, 24, 8), glow([1, 0.4, 0.2], 2.5)), window: P('Observation window', slab, glow([0.8, 0.9, 1], 1.4)) };
@@ -162,7 +203,8 @@ export function createRide(canvas, state, sector, events, opts = {}) {
 
   // ---------- Entities ----------
   const blooms = Array.from({ length: 20 }, (_, i) => ({
-    core: P(`Bloom ${i}`, ball, glow([1, 0.22, 0.08], 2.2, { color: [0.35, 0.03, 0.03], roughness: 0.55 })),
+    core: P(`Bloom ${i}`, ball, { color: [0.62, 0.66, 0.6], metallic: 0, roughness: 0.15, emission: 0.02, emissiveColor: [0.77, 0.35, 0.31], alphaMode: 'blend', opacity: 0.62 }),
+    heart: P(`Bloom heart ${i}`, sphere(12, 8), glow(linear('#c45a50'), 2.2, { color: [0.35, 0.06, 0.05] })),
     spikes: P(`Bloom spikes ${i}`, slab, dark([0.12, 0.02, 0.02])),
     active: false, pos: [0, 0, 0], hp: 2, phase: 0, dying: 0, drift: [0, 0, 0],
   }));
@@ -283,8 +325,8 @@ export function createRide(canvas, state, sector, events, opts = {}) {
   const renderer = new Renderer67(canvas, parts, {
     ground: false, world: true, hdr: true, ...quality.renderer,
     environment: {
-      keyIntensity: sky ? 1 : 0.05, fillIntensity: sky ? 0.6 : 0.12, ambientIntensity: sky ? 0.7 : 0.28,
-      fogColor: linear(sector.fog), fogDensity: sky ? 0.004 : 0.03 + sector.index * 0.004,
+      keyIntensity: sky ? 1 : 0.05, fillIntensity: sky ? 0.6 : 0.12, ambientIntensity: sky ? 0.7 : 0.16,
+      fogColor: linear(sector.fog), fogDensity: sky ? 0.004 : 0.036 + sector.index * 0.004,
       skyTop: display(sky ? sky.top : sector.fog), skyBottom: display(sky ? sky.bottom : sector.fog),
       lightDirection: [0.4, 1, 0.3],
     },
@@ -361,6 +403,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
   let pingT = 0, pingPos = null, pinged = null;
   let callerAt = -100, callerWho = null;
   let reservoirUsed = false;
+  let lampSag = 1, lampSagT = 0; // machinery loading pulls the lights down for a moment
   state.profile ||= 'pulse';
   state.special ??= 60;
   state.stats ||= { freed: 0, revives: 0, repairs: 0, pressureRepairs: 0, survivors: 0, routes: [], shared: 0, shoves: 0 };
@@ -656,6 +699,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
     target.flash = 0.12;
     target.stagger = 0.3;
     if (target.hp <= 0) { target.dying = 0.001; sound.burst(); events.cleared(); }
+    if (!((state.regrouped || state.sectorIndex > 0) && !state.endless) && !state.endless) return; // still on the other channel
     coverFrom = track.lateral(s + 1.6, offset - 0.7, 1.15);
     coverTo = [...target.pos];
     coverBeam = 0.08;
@@ -799,7 +843,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
     for (const a of director.update(dt, { hurt, enemies: live.length, nearby, busy })) {
       if (a.type === 'unease' || a.type === 'warn') {
         hud.caption(a.caption);
-        if (a.type === 'warn') sound.pump(0);
+        if (a.type === 'warn') { sound.pump(0); lampSagT = 0.9; }
         else if (random() < 0.5) sound.splash();
       } else if (a.type === 'spawn' && !curRoom && sec.type !== 'lift') {
         // Groups arrive from more than one direction: ahead, from the wall grates, and behind the raft.
@@ -892,8 +936,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
     if (!b) return;
     const spitter = sector.index >= 1 && atS > s && random() < 0.2;
     Object.assign(b, { active: true, hp: 2 + (sector.index > 3 ? 1 : 0) + (spitter ? 1 : 0), dying: 0, phase: random() * 6, pos: track.lateral(atS, off, y), drift: [(random() - 0.5) * 0.8, 0, 0], rear: atS < s, stagger: 0, flash: 0, retreat: false, spitter, spit: 2 + random() * 2, goal: null });
-    b.core.material.color = spitter ? [0.25, 0.03, 0.3] : [0.35, 0.03, 0.03];
-    b.core.material.emissiveColor = spitter ? [0.8, 0.3, 1] : [1, 0.22, 0.08];
+    b.heart.material.emissiveColor = spitter ? linear('#a78cde') : linear('#c45a50');
     return b;
   }
 
@@ -1797,7 +1840,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
     renderer.render({
       eye, target: look, up, fov, time,
       waterRipple: ripple, rippleTime: time - rippleTime,
-      environment: { pointLights: gatherLights(eye), ambientIntensity: sec.hall ? 0.55 : sec.sky ? 0.7 : 0.28 },
+      environment: { pointLights: gatherLights(eye), ambientIntensity: (sec.hall ? 0.5 : sec.sky ? 0.7 : 0.16) * (0.6 + lampSag * 0.4) },
       exposure: (sec.sky ? 0.95 : 1.05) - state.drift * 0.002,
       effects: {
         bloom: { strength: quality.bloom, threshold: 1, radius: 1.3 },
@@ -1957,6 +2000,16 @@ export function createRide(canvas, state, sector, events, opts = {}) {
     writeBasis(raft.panel.matrix, add(add(base, scale(rgt, -0.8)), scale(fwd, 0.35)), rgt, tiltUp, fwd, 0.22, 0.12, 0.3);
     raft.panel.material.emission = 0.4 + state.upgrades.length * 0.25;
     raft.patches.forEach((p) => hide(p));
+    writeBasis(raft.rope.matrix, add(base, scale(tiltUp, 0.08)), rgt, fwd, tiltUp, 1.06, 1.06, 1);
+    raft.straps.forEach((st, i) => {
+      const a = (i / raft.straps.length) * Math.PI * 2 + 0.3;
+      const tangent = normalize(add(scale(rgt, -Math.sin(a)), scale(fwd, Math.cos(a))));
+      writeBasis(st.matrix, add(add(add(base, scale(rgt, Math.cos(a) * 1.05)), scale(fwd, Math.sin(a) * 1.05)), scale(tiltUp, 0.05)), tangent, tiltUp, cross(tiltUp, tangent), 0.08, 0.56, 0.56);
+    });
+    const caseAt = add(add(add(base, scale(rgt, -0.25)), scale(fwd, 0.25)), scale(tiltUp, 0.12));
+    writeBasis(raft.case.matrix, caseAt, rgt, tiltUp, fwd, 0.55, 0.22, 0.32);
+    writeBasis(raft.caseStrap.matrix, add(caseAt, scale(tiltUp, 0.01)), rgt, tiltUp, fwd, 0.08, 0.235, 0.33);
+    placeCrew(base, rgt, fwd, tiltUp);
     placeHull(dt, base, rgt, fwd, tiltUp);
     if (state.upgrades.includes('headlamp')) writeBasis(raft.headlamp.matrix, add(add(base, scale(fwd, 1.15)), scale(tiltUp, 0.35)), rgt, tiltUp, fwd, 0.18, 0.08, 0.06);
     else hide(raft.headlamp);
@@ -1983,6 +2036,8 @@ export function createRide(canvas, state, sector, events, opts = {}) {
   function updateCoop(dt, eye, fwd, aimDir, steerIn, sec) {
     let prompt = '';
     protect = Math.max(0, protect - dt);
+    lampSagT = Math.max(0, lampSagT - dt);
+    lampSag = lampSagT > 0 ? 0.45 + Math.abs(Math.sin(time * 31)) * 0.2 : damp(lampSag, 1, 3, dt);
     if (protect > 0) state.protectT = Math.max(state.protectT || 0, protect);
     shoveCool -= dt;
     shoveFatigue = Math.max(0, shoveFatigue - dt * 0.6);
@@ -2258,7 +2313,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
 
   const TWIN_KEYS = ['glass', 'farWater', 'farWall', 'post'];
   const HALL_KEYS = ['deckL', 'deckR', 'chairL', 'chairR', 'backL', 'backR', 'upperWin', 'slide', 'bigWin', 'farRaft', 'marker', 'rules'];
-  const SEG_KEYS = ['left', 'right', 'ceiling', 'floor', 'water', 'belt', 'lamp', 'rib', 'winL', 'winR', 'figure', 'debris', ...HALL_KEYS, ...TWIN_KEYS];
+  const SEG_KEYS = ['bandL', 'bandR', 'left', 'right', 'ceiling', 'floor', 'water', 'belt', 'lamp', 'rib', 'winL', 'winR', 'figure', 'debris', ...HALL_KEYS, ...TWIN_KEYS];
   function placeSegments() {
     for (const seg of segments) {
       while (seg.s + SEG < s - SEG) seg.s += SEGMENTS * SEG;
@@ -2289,6 +2344,11 @@ export function createRide(canvas, state, sector, events, opts = {}) {
         put(seg.right, half + 0.3, H / 2 - 0.6, 0.6, H + 1.2, L);
         hide(seg.glass); hide(seg.farWater); hide(seg.farWall);
       }
+      if (!open && !sec.hall) {
+        const wrong = hash(n + 0.5) > 0.94 ? 0.7 : 0; // a band continuing at the wrong height
+        put(seg.bandL, -(half + 0.005), 0.95 + wrong, 0.02, 0.16, L);
+        if (sec.parallel) hide(seg.bandR); else put(seg.bandR, half + 0.005, 0.95, 0.02, 0.16, L);
+      } else { hide(seg.bandL); hide(seg.bandR); }
       if (sec.aqueduct && n % 2 === 0) put(seg.post, -(half + 0.3), -6, 0.3, 12, 0.3); else hide(seg.post);
       if (open) hide(seg.ceiling);
       else put(seg.ceiling, 0, H + 0.3, half * 2 + 1.8, 0.6, L);
@@ -2387,6 +2447,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
     for (const set of roomSigns.values()) {
       for (const ex of set.exits || []) hide(ex);
       if (set.info) hide(set.info);
+      if (set.count) hide(set.count);
     }
     if (!r || r.sec.type === 'drop' || s < r.s0 - 140) {
       for (const p of roomParts()) hide(p);
@@ -2467,6 +2528,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
       room.beacon.material.emission = 5 + Math.sin(time * 3) * 2;
       put(room.platform, L - 2.5, 0, 0.2, 4, 0.4, 4);
       if (signs.info) facing(signs.info, F.at(L - 0.1, -(Hf / 2 + 0.8), 2.6), toRaft, 3.4, 1.3);
+      if (signs.count) facing(signs.count, F.at(L - 0.1, Hf / 2 + 0.8, 2.6), toRaft, 2.6, 1.1);
       for (const x of [...room.gates, ...room.arrows.flatMap((a) => [a.shaft, a.headA, a.headB]), ...room.stub.flatMap((x) => [x.left, x.right, x.ceiling, x.water]), room.tether, room.lampPost, room.figure]) hide(x);
     }
   }
@@ -2475,7 +2537,9 @@ export function createRide(canvas, state, sector, events, opts = {}) {
     const lights = [];
     for (const seg of segments) if (seg.lampPos) {
       const tall = seg.lampPos[1] - track.at(seg.s).p[1] > 7;
-      lights.push({ position: seg.lampPos, color: lampColor, intensity: (tall ? 16 : 7) * (seg.lamp.material.emission / 9), radius: 0.4, range: tall ? 26 : 16, d: distance(seg.lampPos, eye) });
+      const sec2 = track.sectionAt(seg.s).sec;
+      const col = sec2.reservoir ? [0.85, 0.95, 1] : lampColor; // the reservoir's cold white
+      lights.push({ position: seg.lampPos, color: col, intensity: (tall ? 18 : 9.5) * (seg.lamp.material.emission / 9) * lampSag, radius: 0.4, range: tall ? 22 : 10.5, d: distance(seg.lampPos, eye) });
     }
     const r = track.nextRoom(s - 2);
     if (r && r.sec.type !== 'drop' && !r.sec.sky && s > r.s0 - 60) {
@@ -2503,12 +2567,13 @@ export function createRide(canvas, state, sector, events, opts = {}) {
     };
     const closeRate = state.visible ? 1.35 : 1;
     for (const b of blooms) {
-      if (!b.active) { hide(b.core); hide(b.spikes); continue; }
+      if (!b.active) { hide(b.core); hide(b.spikes); hide(b.heart); continue; }
       if (b.dying) {
         b.dying += dt;
         const k = 1 + b.dying * 6;
-        writeYaw(b.core.matrix, b.pos, 0, 0.45 * k, 0.45 * k, 0.45 * k);
-        b.core.material.emission = Math.max(0.02, 6 - b.dying * 30);
+        writeYaw(b.core.matrix, b.pos, 0, 0.45 * k, 0.25 * k, 0.45 * k); // collapsing into folds
+        writeYaw(b.heart.matrix, b.pos, 0, 0.2 * k, 0.2 * k, 0.2 * k);
+        b.heart.material.emission = Math.max(0.02, 6 - b.dying * 30);
         hide(b.spikes);
         if (b.dying > 0.18) b.active = false;
         continue;
@@ -2552,7 +2617,8 @@ export function createRide(canvas, state, sector, events, opts = {}) {
       const squash = b.stagger > 0 ? 0.75 : 1;
       writeYaw(b.core.matrix, [b.pos[0], b.pos[1] + Math.sin(b.phase * 0.7) * 0.15, b.pos[2]], b.phase * 0.4, pulse / squash, pulse * 0.92 * squash, pulse);
       writeYaw(b.spikes.matrix, b.pos, b.phase, pulse * 2.3, 0.07, 0.07);
-      b.core.material.emission = b.flash > 0 ? 9 : 1.6 + Math.sin(b.phase * 2) * 0.8;
+      writeYaw(b.heart.matrix, [b.pos[0], b.pos[1] + Math.sin(b.phase * 0.7) * 0.15, b.pos[2]], 0, pulse * 0.42, pulse * 0.42, pulse * 0.42);
+      b.heart.material.emission = b.flash > 0 ? 9 : (1.4 + Math.sin(b.phase * 2) * 0.6) * (1 + windup * 2.5);
       if (d < 1.1 && !b.goal) {
         b.active = false;
         sound.burst();

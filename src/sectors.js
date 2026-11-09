@@ -21,7 +21,7 @@
 export const SECTORS = [
   {
     id: 'welcome-pools', name: 'THE WELCOME POOLS', depth: 8,
-    tile: '#e3d9a6', grout: '#98905a', stain: '#7a6a2e', water: '#2d4a3a', fog: '#1d2414', lamp: '#fff1c4',
+    tile: '#d6d2b6', grout: '#8c8962', stain: '#6c673c', water: '#3b5c58', fog: '#10150f', lamp: '#d8d6a6', band: '#557a86',
     ride: ['channel:unloading', 'ramp', 'lazy:valve', 'junction:public|maintenance', 'hall:stairway,setpiece', 'dock'],
     explore: { lifeguard: null, dark: 0.2 },
     valve: 'the flooded passage across the middle of the changing rooms',
@@ -53,7 +53,7 @@ export const SECTORS = [
   },
   {
     id: 'lazy-river', name: 'THE LAZY RIVER', depth: 14,
-    tile: '#d8e6dc', grout: '#8fa79a', stain: '#5f7d70', water: '#2a5f60', fog: '#13211f', lamp: '#f4fff2',
+    tile: '#cdd2c2', grout: '#7c8a7a', stain: '#526157', water: '#2c5859', fog: '#0b1514', lamp: '#d9dcbf', band: '#4d7472',
     ride: ['lazy:distantRaft', 'ramp:hall,stranded,crate', 'loop:silent', 'fork:rescue', 'lazy:valve,lifeguard', 'junction:public|overflow', 'parallel', 'reservoir', 'dock:repair'],
     explore: { lifeguard: 'swim', dark: 0.35 },
     valve: 'the river crossing into the island kiosk',
@@ -85,7 +85,7 @@ export const SECTORS = [
   },
   {
     id: 'wave-hall', name: 'THE WAVE HALL', depth: 19,
-    tile: '#e8eef0', grout: '#9ab3bd', stain: '#6f8f99', water: '#1f5a6e', fog: '#0f1c22', lamp: '#eaf6ff',
+    tile: '#cbd4d2', grout: '#7d9194', stain: '#566e78', water: '#1c4853', fog: '#09161a', lamp: '#e1eaec', band: '#3f6f86',
     ride: ['hall:stairway,ballast', 'fork:sluice', 'lazy:valve', 'junction:maintenance|overflow', 'fork:bulkhead', 'ramp', 'dock:winch'],
     explore: { lifeguard: 'run', waves: true, dark: 0.25 },
     valve: 'nothing you can see. The hall floods on its own schedule',
@@ -117,7 +117,7 @@ export const SECTORS = [
   },
   {
     id: 'splash-zone', name: 'THE FAMILY SPLASH ZONE', depth: 23,
-    tile: '#f1f1e6', grout: '#c9a3a0', stain: '#9a6f6a', water: '#3a7a8a', fog: '#1b1c20', lamp: '#fffaf0',
+    tile: '#d8d6c8', grout: '#a28c84', stain: '#7a5e56', water: '#35646b', fog: '#111315', lamp: '#e2dec6', band: '#8a5a52',
     ride: ['channel:blooms', 'ramp', 'lazy:valve,anomaly', 'junction:public|maintenance', 'lift', 'dock:retrieval'],
     explore: { lifeguard: 'fire', jets: true, dark: 0.2 },
     valve: 'the paddling pool around the play tower',
@@ -149,7 +149,7 @@ export const SECTORS = [
   },
   {
     id: 'blacklight-pavilion', name: 'THE BLACKLIGHT PAVILION', depth: 29,
-    tile: '#2a2140', grout: '#120c1f', stain: '#08050f', water: '#160b33', fog: '#06030c', lamp: '#b48cff',
+    tile: '#2a2140', grout: '#120c1f', stain: '#08050f', water: '#160b33', fog: '#06030c', lamp: '#a78cde', band: '#a78cde',
     ride: ['tube:uv', 'channel:uv,linked', 'lazy:valve,uv', 'junction:maintenance|public', 'fork:bulkhead', 'dock:water'],
     explore: { lifeguard: null, uv: true, dark: 0.55, keypad: true },
     valve: 'the pool under the mural',
@@ -181,7 +181,7 @@ export const SECTORS = [
   },
   {
     id: 'filtration-works', name: 'THE FILTRATION WORKS', depth: 35,
-    tile: '#a7b0a8', grout: '#4d5650', stain: '#2c332e', water: '#22403a', fog: '#0b0f0d', lamp: '#e8f0d8',
+    tile: '#cfcab8', grout: '#3a3c38', stain: '#262826', water: '#14282c', fog: '#07090a', lamp: '#dedac9', band: '#c45a50',
     ride: ['tube:bar', 'fork:sluice', 'overflow:valve', 'junction:maintenance|overflow', 'flume', 'reservoir', 'dock:repair'],
     explore: { lifeguard: null, currents: true, bridge: true, dark: 0.35 },
     valve: 'the overflow channel by the pump hall',
@@ -213,7 +213,7 @@ export const SECTORS = [
   },
   {
     id: 'hotel-baths', name: 'THE HOTEL BATHS', depth: 41,
-    tile: '#c9b8a0', grout: '#6a5a46', stain: '#3d3226', water: '#2a3f45', fog: '#0f0c0a', lamp: '#ffe2b8',
+    tile: '#c6b9a0', grout: '#5e5240', stain: '#3a2f22', water: '#1f363b', fog: '#0b0a08', lamp: '#e4d5b0', band: '#4d7472',
     ride: ['channel', 'loop', 'lazy:valve', 'junction:public|maintenance', 'parallel', 'lift', 'dock:water'],
     explore: { lifeguard: 'run', loops: true, dark: 0.4 },
     valve: 'the bath in room 2',
@@ -245,8 +245,8 @@ export const SECTORS = [
   },
   {
     id: 'rooftop-lagoon', name: 'THE ROOFTOP LAGOON', depth: 0,
-    tile: '#e9eef2', grout: '#a8b8c4', stain: '#7d93a3', water: '#3b8fb0', fog: '#a9c6da', lamp: '#ffffff',
-    sky: { top: '#5f9fd6', bottom: '#d7e8f2' }, openSky: true,
+    tile: '#dcdfd8', grout: '#a3b0b7', stain: '#7a8c97', water: '#3b7c8f', fog: '#a7b8bf', lamp: '#f2f2ea', band: '#4d7472',
+    sky: { top: '#7f9eb0', bottom: '#d3dad6' }, openSky: true,
     ride: ['lift', 'lazy:clouds', 'ramp', 'lazy:valve,lifeguard', 'junction:public|overflow', 'reservoir:ballast', 'dock:winch'],
     explore: { lifeguard: 'swim', reflection: true, openSky: true, dark: 0 },
     valve: 'the lagoon\'s south shelf',

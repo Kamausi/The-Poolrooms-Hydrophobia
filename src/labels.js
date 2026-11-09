@@ -15,13 +15,16 @@ export function labelTexture(text, style = 'sign', width = 512, height = 128) {
   canvas.height = height;
   const g = canvas.getContext('2d');
   const palette = {
-    sign: ['#14211b', '#e9efd8', '#3b4a3f'],
-    rule: ['#f2f0e8', '#a3241a', '#a3241a'],
-    depth: ['#dfe6e2', '#1f3a52', '#9fb0a8'],
-    uv: ['#06020c', '#d29bff', '#3a1660'],
-    safe: ['#0d3a1c', '#b8ffcb', '#2f8f4f'],
-    amber: ['#2a1d05', '#ffcf5a', '#7a5a12'],
-  }[style] || ['#14211b', '#e9efd8', '#3b4a3f'];
+    // The UNDERFLOW palette: dead porcelain, faded pool teal, deep water, worn safety yellow, warning coral,
+    // checkpoint green and blacklight violet. Official, credible lettering; the information is what is wrong.
+    sign: ['#112b31', '#d8d8ca', '#4d7472'],
+    rule: ['#d8d8ca', '#c45a50', '#c45a50'],
+    depth: ['#d8d8ca', '#2c4f5c', '#aaa881'],
+    uv: ['#080d10', '#a78cde', '#3a2a60'],
+    safe: ['#1d3a28', '#d8eedb', '#86aa8a'],
+    amber: ['#1a1608', '#b19a50', '#6d5f2c'],
+    count: ['#080d10', '#d8d8ca', '#4d7472'],
+  }[style] || ['#112b31', '#d8d8ca', '#4d7472'];
   g.fillStyle = palette[0];
   g.fillRect(0, 0, width, height);
   g.strokeStyle = palette[2];
@@ -32,11 +35,12 @@ export function labelTexture(text, style = 'sign', width = 512, height = 128) {
   g.textBaseline = 'middle';
   const lines = String(text).split('\n');
   let size = height / (lines.length + 0.6);
-  g.font = `700 ${size}px "Barlow Condensed", "Arial Narrow", Impact, sans-serif`;
+  const face = style === 'count' || style === 'depth' ? '500 SIZEpx "IBM Plex Mono", monospace' : '500 SIZEpx "Barlow Condensed", "Arial Narrow", Impact, sans-serif';
+  g.font = face.replace('SIZE', size);
   const widest = Math.max(...lines.map((l) => g.measureText(l).width));
   if (widest > width * 0.9) {
     size *= (width * 0.9) / widest;
-    g.font = `700 ${size}px "Barlow Condensed", "Arial Narrow", Impact, sans-serif`;
+    g.font = face.replace('SIZE', size);
   }
   lines.forEach((line, i) => g.fillText(line, width / 2, height / 2 + (i - (lines.length - 1) / 2) * size * 1.05));
   const texture = { image: canvas, colorSpace: 'srgb' };

@@ -10,6 +10,7 @@ import { PRESETS } from './track.js';
 import { createRide } from './ride.js';
 import { createExplore } from './explore.js';
 import { createSafeRoom } from './saferoom.js';
+import { createMenuScene } from './menuscene.js';
 import { initInput, input, endFrame, releaseLock, wasPressed, pollGamepad } from './input.js';
 import { initHud, hud } from './hud.js';
 import { sound } from './audio.js';
@@ -646,6 +647,7 @@ function toMenu() {
   releaseLock();
   document.body.dataset.mode = 'menu';
   $('menu').hidden = false;
+  swap(() => createMenuScene(canvas));
   refreshMenu();
 }
 
@@ -679,7 +681,7 @@ function frame(now) {
   pollGamepad(dt);
   input.context = mode === 'explore' ? 'explore' : 'ride';
   if ($('modal').hidden && (wasPressed('escape') || wasPressed('p')) && now - pausedAt > 250) setPaused(!paused);
-  if (scene && !paused && !manual && (mode === 'ride' || mode === 'explore' || mode === 'safe')) scene.update(dt);
+  if (scene && !paused && !manual && (mode === 'ride' || mode === 'explore' || mode === 'safe' || mode === 'menu')) scene.update(dt);
   if (!paused && (mode === 'ride' || mode === 'explore')) sound.music(state.directorPhase || 'relax', state.drift);
   $('modal').classList.toggle('safe', mode === 'safe');
   endFrame();
@@ -691,6 +693,7 @@ initInput(canvas);
 initHud();
 $('engine').textContent = `RENDERED WITH 67JS ${VERSION}${quality.low ? ' · LIGHT MODE' : ''}`;
 refreshMenu();
+swap(() => createMenuScene(canvas));
 const begin = () => { sound.unlock(); sound.startHum(); $('menu').hidden = true; };
 $('start').onclick = () => { begin(); newCampaign(); };
 $('continue').onclick = () => {
