@@ -162,6 +162,7 @@ const events = {
       }
     }
     state.protectT = Math.max(0, (state.protectT || 0) - dt);
+    if (state.fatal && state.health > 0 && !state.downed) state.fatal = false; // only ever true on the way to death
     // Everyone brought back gets a name at once; it becomes a lasting fact at the next Safe Room.
     while ((state.namedRescues || 0) < state.rescued) {
       const v = nameVisitor(state.sectorKey, (state.pendingVisitors || []).length);
@@ -171,7 +172,8 @@ const events = {
       hud.toast(`${v.name.toUpperCase()} · SAFE ONCE YOU REACH A SAFE ROOM`);
     }
     // Incapacitated: once per checkpoint, the first fall is not death. Pulse only, from the floor.
-    if (state.health <= 0 && !state.fatal && !state.downed && !state.downUsed && !state.sitting) {
+    if (state.health <= 0 && !state.fatal && !state.downed && !state.downUsed) {
+      state.sitting = false; // a fall wakes you out of the warm water
       const crew = Object.keys(state.crewState || {}).filter((c) => !state.forgotten.includes(c) && state.crewState[c] !== 'hurt');
       state.downed = { bleed: 30, revive: 0, crew: crew.length ? crew[0] : null, t: 0 };
       state.downUsed = true;
