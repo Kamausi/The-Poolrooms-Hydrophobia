@@ -453,3 +453,15 @@ body.crisis .hud-tr.facility, body.crisis .hud-tl.compact { opacity: 0.45; }
 .menu-desc { min-height: 2.6em; margin: 4px 0 0; }
 @media (max-height: 760px) { #menu .description { display: none; } #menu .eyebrow { margin: 0; } }
 #menu { padding-top: max(8vh, 72px); }
+
+/* Safe Room maintenance sheet: an inspection form with numbered sections. */
+.sheet { display: grid; gap: 14px; margin: 18px 0; }
+.sheet-sec { border-top: 1px solid #4d747288; padding-top: 8px; }
+.sheet-head { margin: 0 0 6px; font: 500 calc(clamp(11px, 0.85vw, 16px) * var(--text-scale)) 'IBM Plex Mono', monospace; letter-spacing: 0.18em; color: var(--fluor); }
+.choice .deal { color: var(--porcelain); letter-spacing: 0.04em; }
+.unknown { color: #93978a; font-style: italic; }
+.receipt { color: var(--fluor); border-left: 2px solid var(--safety); padding-left: 8px; }
+/* Journal and pause tabs */
+.tabs { display: flex; gap: 4px; flex-wrap: wrap; margin: 6px 0 12px; }
+.tab { font: 500 calc(clamp(11px, 0.8vw, 15px) * var(--text-scale)) 'IBM Plex Mono', monospace; letter-spacing: 0.12em; padding: 7px 12px; background: #080d1099; color: var(--porcelain); border: 1px solid var(--line); border-bottom: 2px solid transparent; cursor: pointer; }
+.tab.on, .tab:focus { border-bottom-color: var(--porcelain); background: #112b31; outline: none; }

@@ -1,7 +1,7 @@
 // Overlays: the shared modal, the Safe Room, the logbook, documents, the keypad, settings.
 import { settings, saveSettings, SETTING_LABELS, ACTIONS } from './settings.js';
 import { input, applyBindings, PAD_ACTIONS, PAD_NAMES } from './input.js';
-import { COMFORTS } from './sectors.js';
+import { COMFORTS, SECTORS } from './sectors.js';
 import { ROUTES } from './plans.js';
 import { CREW, crewById, fadingCrew } from './crew.js';
 import { ensureHull, compressorRefill, CHAMBER_NAME } from './hull.js';
@@ -167,6 +167,15 @@ export function showSafeRoom(state, sector, nextSector, nextPlan, onLeave, onSav
   }
   body.append(roll);
 
+  // The maintenance sheet: three numbered sections, read like an inspection form. Supplies, the raft and its
+  // equipment, the next route. Transactions say exactly what changes; the room supplies the atmosphere.
+  const sheet = el('div', 'sheet');
+  const section = (n, title) => { const sec = el('section', 'sheet-sec'); sec.append(el('h3', 'sheet-head', `${n} · ${title}`)); sheet.append(sec); return sec; };
+  const s1 = section('1', 'SUPPLIES');
+  const s2 = section('2', 'RAFT AND EQUIPMENT');
+  const s3 = section('3', 'NEXT ROUTE');
+  body.append(sheet);
+
   // Playing well earns access, and carries you deeper.
   if (access.earned) body.append(el('p', 'mono', `SIGNAL RATING ${access.sectorScore} · MAINTENANCE OVERRIDE ISSUED (${state.overrides} held · press O at a locked gate) · FULL ROUTE DATA · NEXT SECTOR ROUTED DEEPER`));
   else if (access.sectorScore != null) body.append(el('p', 'mono', `SIGNAL RATING ${access.sectorScore} · 1200 earns an override and full route data`));
@@ -199,12 +208,14 @@ export function showSafeRoom(state, sector, nextSector, nextPlan, onLeave, onSav
     compressorRefill(state);
     airBtn.disabled = true;
     airBtn.querySelector('i').textContent = 'RAFT 100%';
+    // The receipt the compressor prints is dated the day before the crew arrived.
+    air.append(el('p', 'mono small receipt', `REPAIR RECEIPT · COMPRESSOR, ${sector.name} · WORK SIGNED ${state.name.toUpperCase()} · DATED THE DAY BEFORE YOU ARRIVED`));
     const marks = state.hullMarks.filter((m) => m.kind === 'patch').length;
     air.append(el('p', null, `The chambers go hard under your hands. ${marks ? `${marks} patch${marks > 1 ? 'es' : ''} on the hull now, every one of them somebody\'s work. ` : ''}When the compressor cuts out, three knocks come back up through the floor. Nobody mentions it.`));
     onSave();
   };
   air.append(el('p', 'mono', 'COMPRESSOR · SERVICE AIR'), airBtn);
-  body.append(air);
+  s2.append(air);
 
   // The Lido's campsite: a throwing game somebody made out of a bucket and chair legs. Scores in chalk.
   if (sector.index >= 4 && sector.index <= 6 && !sector.endless) body.append(lidoGame(state, onSave));
@@ -282,14 +293,24 @@ export function showSafeRoom(state, sector, nextSector, nextPlan, onLeave, onSav
   const bench = el('div', 'choices');
   const partsLabel = el('p', 'mono');
   bench.append(partsLabel);
+  const modsBox = el('div', 'choices');
   const refresh = () => {
-    partsLabel.textContent = `WORKBENCH · ${state.scrap} PARTS · VITALS ${Math.ceil(state.health)} · RAFT ${Math.ceil(state.raft)}% · CELLS ${state.cells} · FILTERS ${state.filters}`;
+    partsLabel.textContent = `WORKBENCH · ${state.scrap} PART${state.scrap === 1 ? '' : 'S'} ON THE BENCH`;
     bench.querySelectorAll('button').forEach((b) => b.refresh());
+    modsBox.querySelectorAll('button').forEach((b) => b.refresh());
   };
+  // How many of each the crew is carrying, for the transaction line.
+  const HELD = { cell: 'cells', filter: 'filters', patch: 'patchKits', medkit: 'dressings' };
   for (const r of RECIPES) {
     const b = el('button', 'choice');
-    b.append(el('b', null, r.name), el('span', null, r.text), el('i', null, `${r.cost} PARTS`));
-    b.refresh = () => (b.disabled = state.scrap < r.cost || !r.can(state));
+    const deal = el('span', 'deal mono');
+    b.append(el('b', null, r.name), deal, el('span', null, r.text), el('i', null, 'MAKE'));
+    b.refresh = () => {
+      const have = state[HELD[r.id]] || 0;
+      const can = r.can(state);
+      deal.textContent = can ? `Carrying: ${have} → ${have + 1} · Cost: ${r.cost} part${r.cost > 1 ? 's' : ''}` : `Carrying: ${have} · full`;
+      b.disabled = state.scrap < r.cost || !can;
+    };
     b.onclick = () => {
       state.scrap -= r.cost;
       r.apply(state);
@@ -299,7 +320,7 @@ export function showSafeRoom(state, sector, nextSector, nextPlan, onLeave, onSav
     bench.append(b);
   }
   const mods = el('p', 'mono', 'EQUIPMENT · CAPABILITY MODIFICATIONS');
-  bench.append(mods);
+  modsBox.append(mods);
   for (const u of UPGRADES) {
     const b = el('button', 'choice');
     const tag = el('i');
@@ -315,9 +336,9 @@ export function showSafeRoom(state, sector, nextSector, nextPlan, onLeave, onSav
       refresh();
       onSave();
     };
-    bench.append(b);
+    modsBox.append(b);
   }
-  body.append(bench);
+  s1.append(bench);
 
   // Route terminal: partial information about the next routes.
   if (nextSector && nextPlan) {
@@ -335,14 +356,17 @@ export function showSafeRoom(state, sector, nextSector, nextPlan, onLeave, onSav
     if (junction) junction.exits.forEach((ex) => lines.push(`${ex.side < 0 ? '◀' : '▶'} ${ROUTES[ex.route].label.padEnd(18)} ${status(ex.route)}`));
     if (dock) lines.push(`DOCK · ${dock.dock.beacon}${dock.dock.figure ? ' · OCCUPANCY READING IRREGULAR' : ''}`);
     lines.push(`GUESTS CHECKED IN: ${state.guests}`);
+    // The terminal is already printing the arrival before the raft has left.
+    lines.push('', `ARRIVAL CONFIRMED · ${nextSector.name} · PARTY OF ${1 + Object.keys(state.crewState || {}).length - (state.forgotten || []).length} · ALL GUESTS ACCOUNTED FOR`);
     term.textContent = lines.join('\n');
-    body.append(el('p', 'mono', 'DISPATCH · PRESET THE FIRST JUNCTION'));
-    body.append(term);
+    s3.append(el('p', 'mono', 'DISPATCH · PRESET THE FIRST JUNCTION'));
+    s3.append(term);
     if (junction) {
       const routes = el('div', 'choices');
       junction.exits.forEach((ex, i) => {
         const b = el('button', `choice route${(nextPlan.choices[junction.id] ?? 0) === i ? ' selected' : ''}`);
-        b.append(el('b', null, `${ex.side < 0 ? '◀ LEFT' : 'RIGHT ▶'} · ${ex.label}`), el('span', null, ex.note));
+        // What is known, then what is not: an undiscovered encounter stays unknown.
+        b.append(el('b', null, `${ex.side < 0 ? '◀ LEFT' : 'RIGHT ▶'} · ${ex.label}`), el('span', null, full || state.memory?.route ? ex.note : 'Known: the channel continues.'), el('span', 'mono small unknown', 'Last inspected: record unavailable'));
         b.onclick = () => {
           nextPlan.choices[junction.id] = i;
           routes.querySelectorAll('.route').forEach((x) => x.classList.remove('selected'));
@@ -351,9 +375,9 @@ export function showSafeRoom(state, sector, nextSector, nextPlan, onLeave, onSav
         };
         routes.append(b);
       });
-      body.append(routes);
+      s3.append(routes);
     }
-  }
+  } else s3.append(el('p', 'mono small', 'NO FURTHER ROUTES ON FILE.'));
 
   // Raft fit: one configuration at a time, chosen here, not juggled during a fight.
   const fits = el('div', 'choices');
@@ -371,7 +395,7 @@ export function showSafeRoom(state, sector, nextSector, nextPlan, onLeave, onSav
     };
     fits.append(b);
   }
-  body.append(fits);
+  s2.append(fits);
 
   // Equipment positions: three, on a raft that has to fit through the same pipes as before.
   const gearBox = el('div', 'choices');
@@ -400,7 +424,7 @@ export function showSafeRoom(state, sector, nextSector, nextPlan, onLeave, onSav
     gearBox.append(b);
   }
   gearRefresh();
-  body.append(gearBox);
+  s2.append(gearBox, modsBox);
   if (state.gear.includes('filtration')) { state.filters = Math.min(3, state.filters + 1); }
 
   // The ride photo. The park takes one at the top of every launch.
@@ -474,6 +498,54 @@ export function logbookView(state) {
     list.append(a);
   }
   wrap.append(list);
+  return wrap;
+}
+
+/**
+ * The journal, in three parts kept apart so contradictions can be compared: what the crew witnessed, what the
+ * facility's documents claim, and the route as surveyed (with what may have changed since).
+ */
+export function journalView(state) {
+  const wrap = el('div', 'journal');
+  const tabs = el('div', 'tabs');
+  const pane = el('div', 'tab-pane');
+  const facilityRecords = () => {
+    const box = el('div');
+    box.append(logbookView(state));
+    if (facility.visitors.length) {
+      box.append(el('p', 'mono', 'FACILITY RECORDS ABOUT PEOPLE YOU BROUGHT BACK'));
+      for (const v of facility.visitors.slice(-4)) box.append(el('p', 'mono small', falseRecord(v, SECTORS[Number(String(v.sector).replace(/\D/g, '')) || 0]?.name || 'THE PUMPHOUSE')));
+    }
+    return box;
+  };
+  const routeMap = () => {
+    const box = el('div', 'logbook');
+    box.append(el('p', 'mono', 'ROUTE MAP · AS SURVEYED BY THE CREW'));
+    SECTORS.forEach((sec, i) => {
+      const a = el('article');
+      const mem = facility.sectors[`s${i}`];
+      let status;
+      if (state.endless) status = 'Endless mode: no survey kept';
+      else if (i < state.sectorIndex) status = 'SURVEYED';
+      else if (i === state.sectorIndex) status = 'YOU ARE HERE';
+      else if (i === state.sectorIndex + 1) status = 'NEXT · known only as far as the dock';
+      else status = 'NOT SURVEYED';
+      a.append(el('h3', null, `${String(i + 1).padStart(2, '0')} · ${sec.name}`), el('p', null, status));
+      // The map can stay accurate while the place changes.
+      if (mem?.water && i <= state.sectorIndex) a.append(el('p', 'mono small unknown', `Survey may be out of date: the water was left ${mem.water} on a previous expedition`));
+      if (mem?.deaths && i <= state.sectorIndex) a.append(el('p', 'mono small unknown', 'Marked by an earlier crew: DON\'T STAY HERE'));
+      box.append(a);
+    });
+    return box;
+  };
+  const TABS = [['CREW OBSERVATIONS', ledgerView], ['FACILITY RECORDS', facilityRecords], ['ROUTE MAP', routeMap]];
+  TABS.forEach(([label, make], i) => {
+    const t = el('button', 'tab', label);
+    t.onclick = () => { tabs.querySelectorAll('.tab').forEach((x) => x.classList.remove('on')); t.classList.add('on'); pane.replaceChildren(make()); };
+    tabs.append(t);
+    if (i === 0) { t.classList.add('on'); pane.append(make()); }
+  });
+  wrap.append(tabs, pane);
   return wrap;
 }
 

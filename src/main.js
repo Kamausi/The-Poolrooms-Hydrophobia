@@ -20,7 +20,8 @@ import { rng } from './math.js';
 import { playlog, createFrameStats } from './playlog.js';
 import { facility, recordSector, recordDeath, note, nameVisitor, commitVisitors, authorExpedition, saveFacility } from './memory.js';
 import { settings } from './settings.js';
-import { showModal, hideModal, applyDisplaySettings, ledgerView, showSafeRoom, showDocument, showKeypad, settingsView, logbookView } from './ui.js';
+import { showModal, hideModal, applyDisplaySettings, ledgerView, showSafeRoom, showDocument, showKeypad, settingsView, logbookView, journalView } from './ui.js';
+const el2 = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text) e.textContent = text; return e; };
 import { CREW, crewById, loadLoops, saveLoop } from './crew.js';
 
 const SAVE_KEY = 'underflow-save-v2';
@@ -170,6 +171,8 @@ const events = {
       (state.pendingVisitors ||= []).push(v);
       (state.visitorsThisRun ||= []).push(v.name);
       hud.toast(`${v.name.toUpperCase()} · SAFE ONCE YOU REACH A SAFE ROOM`);
+      // A facility machine greets them by a name nobody has given it yet.
+      setTimeout(() => hud.caption(`[a turnstile somewhere chimes: "WELCOME BACK, ${v.name.toUpperCase()}." They never told anyone their name]`), 2600);
     }
     // Incapacitated: once per checkpoint, the first fall is not death. Pulse only, from the floor.
     if (state.health <= 0 && !state.fatal && !state.downed && !state.downUsed) {
@@ -806,7 +809,13 @@ function setPaused(on) {
     copy.textContent = 'COPY PLAYTEST LOG';
     copy.className = 'bind';
     copy.onclick = () => { navigator.clipboard?.writeText(playlog.export()); copy.textContent = 'COPIED · paste it to whoever runs the playtest'; };
-    box.replaceChildren(settingsView(), logbookView(state), ledgerView(), copy);
+    // Pause: the journal first, settings on their own tab. Pausing actually stops the danger in single player.
+    const views = el2('div', 'tabs');
+    const pane = el2('div', 'tab-pane');
+    const show = (which) => { views.querySelectorAll('.tab').forEach((t) => t.classList.toggle('on', t.dataset.v === which)); pane.replaceChildren(which === 'journal' ? journalView(state) : settingsView()); if (which === 'settings') pane.append(copy); };
+    for (const [v, label] of [['journal', 'JOURNAL'], ['settings', 'SETTINGS']]) { const t = el2('button', 'tab', label); t.dataset.v = v; t.onclick = () => show(v); views.append(t); }
+    box.replaceChildren(views, pane);
+    show('journal');
   }
 }
 
