@@ -694,7 +694,7 @@ function resume(data) {
   state = { ...freshState(), ...data.state };
   hud.setPlayer(state.name);
   const p = data.position;
-  if (p.mode === 'explore') startExplore({ pos: p.pos, yaw: p.yaw, hasCell: p.hasCell });
+  if (p.mode === 'explore') startExplore({ pos: p.pos, yaw: p.yaw, hasCell: p.hasCell, restore: p.taken });
   else startRide({ resumeS: p.s, departed: p.departed });
   hud.toast('RESUMED WHERE YOU LEFT OFF');
 }

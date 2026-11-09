@@ -3,7 +3,7 @@
 // the arrival bay) have their own parts. A 67js renderer keeps the part list it was built with, so every
 // entity here is a pool of parts that are moved, recoloured or hidden.
 import { Renderer67, box, sphere, cylinder, torus } from '67js';
-import { writeYaw, writeBasis, hide, add, sub, scale, normalize, clamp, damp, rng, screenRay, raySphere, rayPlaneY, linear, cross, display, project, angleTo, soundDir, distance } from './math.js';
+import { dot, writeYaw, writeBasis, hide, add, sub, scale, normalize, clamp, damp, rng, screenRay, raySphere, rayPlaneY, linear, cross, display, project, angleTo, soundDir, distance } from './math.js';
 import { tileTexture } from './textures.js';
 import { signMaterial, quad } from './labels.js';
 import { createBlaster, PROFILES, PROFILE_ORDER } from './blaster.js';
@@ -357,6 +357,9 @@ export function createRide(canvas, state, sector, events, opts = {}) {
 
   // ---------- Ride state ----------
   let s = opts.resumeS ?? 3;
+  // Resuming: everything behind the raft already happened. Without this, every scrape, grab and climber
+  // behind the resume point would fire at once.
+  if (opts.resumeS) for (const enc of track.encounters) if (enc.s < opts.resumeS - 5) enc.e.done = true;
   for (const enc of track.encounters) if (enc.s < s - 1) enc.e.done = true;
   let speed = opts.resumeS ? 0 : 6;
   let offset = 0;
@@ -449,7 +452,8 @@ export function createRide(canvas, state, sector, events, opts = {}) {
     if (overboard || capsize || track.roomAt(s, 4) || state.sitting) return;
     const solo = isSolo();
     const side = random() < 0.5 ? -1 : 1;
-    overboard = { t: 0, back: 2.4, x: offset + side * 1.7, line: null, lineT: solo ? Infinity : 2 + random(), onLine: false, tug: 0, tugged: false, solo };
+    overboard = { t: 0, back: 2.4, x: offset + side * 1.7, line: null, lineT: solo ? Infinity : 2 + random(), onLine: false, tug: 0, tugged: false, solo, cause, chambers: { ...state.chambers } };
+    events.log?.('overboard', { cause, s: Math.round(s), sector: state.sectorKey });
     sound.splash();
     shake = 0.9;
     trailGrab = null;
@@ -462,7 +466,8 @@ export function createRide(canvas, state, sector, events, opts = {}) {
   function updateOverboard(dt, steerIn, lim) {
     const ob = overboard;
     ob.t += dt;
-    const swim = clamp(input.move[1] + (isDown('w') || isDown('arrowup') ? 1 : 0), 0, 1);
+    const swim = devBot ? 1 : clamp(input.move[1] + (isDown('w') || isDown('arrowup') ? 1 : 0), 0, 1);
+    if (devBot) { if (ob.tug > 0 && random() < 0.3) input.pressed.add(' '); if ((ob.line && ob.line.t > 0.5) || ob.back < 1.5) input.pressed.add('e'); }
     ob.x = clamp(ob.x + steerIn * dt * 2, -lim - 0.4, lim + 0.4);
     // The raft keeps going; your crew back-paddles to hold it for you.
     ob.back = Math.max(0.6, ob.back + (speed - swim * 2.5 - 0.3) * dt); // you can reach the stern, not swim through the raft
@@ -784,6 +789,8 @@ export function createRide(canvas, state, sector, events, opts = {}) {
    * surface ripples, foam and debris change direction, the raft starts pulling, the sound shifts, the crew braces.
    */
   let flowT = 0;
+  let devBot = false, botE = false;
+  let crewPatchT = 0;
   let dockSeq = null;
   function reverseFlow(dir, caption) {
     const sec = track.sectionAt(s).sec;
@@ -1602,7 +1609,13 @@ export function createRide(canvas, state, sector, events, opts = {}) {
     s = Math.min(track.length - 0.5, s + speed * dt);
 
     // Dodge, or look around while held in a pool.
-    const steerIn = clamp((isDown('a') || isDown('arrowleft') ? -1 : 0) + (isDown('d') || isDown('arrowright') ? 1 : 0) + input.move[0], -1, 1);
+    let steerIn = clamp((isDown('a') || isDown('arrowleft') ? -1 : 0) + (isDown('d') || isDown('arrowright') ? 1 : 0) + input.move[0], -1, 1);
+    // Test bot: leans away from a climber and shoves it off, counterweights a grip, keeps the line in the band.
+    if (devBot) {
+      if (climber) { steerIn = -climber.side; if (climber.lean > 1.1) input.pressed.add('z'); }
+      if (trailGrab) steerIn = 1;
+      if (crewGrab) { botE = true; if (crewGrab.tension < 50) input.keys.add('e'); else input.keys.delete('e'); } else if (botE) { botE = false; input.keys.delete('e'); }
+    }
     if (wasPressed('t')) {
       state.autopilot = !state.autopilot;
       hud.toast(state.autopilot ? 'RIDE CONTROL IS STEERING · it is very smooth · Drift rises while you let it' : 'YOU HAVE THE RAFT');
@@ -1612,7 +1625,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
     hullFx = hull.update(dt, { silence: silence > 0, onWash: () => { state.drift = Math.min(100, state.drift + 3); shake = Math.max(shake, 0.25); } });
     const hurtNow = state.health < lastHullHealth - 0.5;
     lastHullHealth = state.health;
-    const rep = overboard || capsize ? { active: false, prompt: '' } : hull.updateRepair(dt, input.patching && !paddling, hurtNow, ['buildup', 'peak'].includes(director.phase));
+    const rep = overboard || capsize ? { active: false, prompt: '' } : hull.updateRepair(dt, (input.patching || (devBot && state.leaks.length > 0 && !blooms.some((b) => b.active && !b.dying && distance(b.pos, fx.eye) < 18))) && !paddling, hurtNow, ['buildup', 'peak'].includes(director.phase));
     repairing = rep.active;
     hullPrompt = rep.prompt;
     if (hull.state.knockAt > 0) {
@@ -1785,7 +1798,13 @@ export function createRide(canvas, state, sector, events, opts = {}) {
       }
     }
     fov = damp(fov, focusing ? FOCUS_FOV : FOV, 9, dt);
-    const aimDir = screenRay(eye, look, fov, aspect, aimNdc[0], aimNdc[1], up);
+    let aimDir = screenRay(eye, look, fov, aspect, aimNdc[0], aimNdc[1], up);
+    // Test bot (DEV only): aims at the nearest Bloom like a competent player, so balance can be measured.
+    let botFire = false;
+    if (devBot) {
+      const t = blooms.filter((b) => b.active && !b.dying && distance(b.pos, eye) < 30 && dot(sub(b.pos, eye), fwd) > 0).sort((a, b) => distance(a.pos, eye) - distance(b.pos, eye))[0];
+      if (t) { aimDir = normalize(sub(add(t.pos, [0, -0.25, 0]), eye)); botFire = true; }
+    }
     hud.crosshair(aimNdc[0], aimNdc[1], false);
 
     placeSegments();
@@ -1907,7 +1926,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
     // Profiles: 1–5, Tab or the wheel. The equipped one is always on the HUD.
     for (const id of PROFILE_ORDER) if (wasPressed(PROFILES[id].key)) selectProfile(id);
     if (wasPressed('tab') || wasPressed('cycle-')) selectProfile(PROFILE_ORDER[(PROFILE_ORDER.indexOf(state.profile) + (wasPressed('tab') ? 1 : PROFILE_ORDER.length - 1)) % PROFILE_ORDER.length]);
-    if (blaster.trigger(dt, input.firing && canFire && !hookLine, true)) fireProfile(eye, look, aimDir);
+    if (blaster.trigger(dt, (input.firing || botFire) && canFire && !hookLine, true)) fireProfile(eye, look, aimDir);
     // Right mouse: the Disruptor acquires a volley; everything else focuses (magnifies) for a precise shot.
     focusing = input.locking && state.profile !== 'disruptor' && !overboard && !capsize;
     if (canFire && state.profile === 'disruptor') updateLocks(dt, eye, look, aimDir);
@@ -2178,7 +2197,8 @@ export function createRide(canvas, state, sector, events, opts = {}) {
         hull.hit(climber.side < 0 ? 'left' : 'right', 10, 'entity', 0.7);
         damage(10, 'Something climbed into the raft.');
         hud.caption('[it bites into the side chamber and drops back into the water]');
-        if (climber.lean < 0.5 && random() < 0.4) goOverboard('knocked');
+        // It only takes you with it if that side is already soft.
+        if (climber.lean < 0.5 && state.chambers[climber.side < 0 ? 'left' : 'right'] < 50 && random() < 0.4) goOverboard('knocked');
         climber = null;
       }
     } else { hide(climberPart.body); hide(climberPart.head); }
@@ -2439,6 +2459,22 @@ export function createRide(canvas, state, sector, events, opts = {}) {
     if (ramp.active && ramp.s - s < 55 && ramp.s > s && hullFx.hopScale < 0.8) once('softbow', 'JUNE', 'Front\'s soft. We won\'t clear that lip like this. Patch it now or we take the low channel.');
     const nd = track.nextRoom(s, 'pool');
     if (nd?.sec.dock && nd.s0 - s < 60 && nd.s0 > s && (state.raft < 65 || state.leaks.length)) once(`dock${nd.sec.id}`, 'DEZ', nd.sec.dock.kind === 'repair' ? 'Maintenance platform. There\'s a compressor up there. We dock, we come back firm.' : 'We should dock early. Get off the water and get this thing pumped up.');
+    // The crew patches too: in the quiet, with a kit, a leak that has been hissing for a while gets fixed by
+    // whoever is nearest it. They tell you; it costs the kit; it gives basic control, not full pressure.
+    crewPatchT -= frameDt;
+    const crewAboard = (state.regrouped || state.sectorIndex > 0) && !state.endless ? crewAvailable() : [];
+    const oldLeak = state.leaks.find((l) => l.t > 18);
+    if (oldLeak && crewAboard.length && state.patchKits > 0 && director.phase === 'relax' && !repairing && !overboard && !crewGrab && crewPatchT <= 0) {
+      crewPatchT = 20;
+      const who = crewAboard[Math.floor(random() * crewAboard.length)].toUpperCase();
+      state.patchKits -= 1;
+      state.leaks = state.leaks.filter((l) => l !== oldLeak);
+      state.hullMarks.push({ chamber: oldLeak.chamber, kind: 'patch', u: oldLeak.u, cause: oldLeak.cause });
+      state.chambers[oldLeak.chamber] = Math.max(state.chambers[oldLeak.chamber], 55);
+      sound.patch();
+      hud.say(who, `Got the ${CHAMBER_NAME[oldLeak.chamber].toLowerCase()} — patched. It'll hold till a compressor. That was a kit.`, 'crew');
+      state.stats.repairs += 1;
+    }
     // Banter, only when nothing is happening. It stops the moment someone is grabbed.
     if (director.phase === 'relax' && !overboard && !crewGrab && !climber && !trailGrab && !state.downed && !saidHull.has('banter') && random() < frameDt * 0.01) {
       saidHull.add('banter');
@@ -3357,7 +3393,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
     bloomAhead() { return spawnBloom(s + 10, offset * 0.6, 1.2); },
     get locks() { return locks.length; },
   };
-  if (import.meta.env.DEV) window.__ride = { track, hull, puncture: (c, cause = 'scrape') => hull.puncture(c, cause), overboard: () => goOverboard('test'), free: () => restrained && !restrained.freed && freeRestrained(), shove: () => shove(fx.eye, fx.fwd), ping: () => ping(fx.eye, fx.fwd), fireAt: (dir) => { fireProfile(fx.eye, fx.look, dir || fx.fwd); return state.profile; }, hitTarget: (key) => { const t = targets().find((x) => x.key === key); if (t) { shotProfile = state.profile; t.fn(); } return !!t; }, get wave() { return wave; }, spawnEnc: (kind, extra = {}) => spawn({ e: { kind, ...extra }, s: s + 10, sec: track.sectionAt(s).sec }), get coop() { return { climber, crewGrab, ballast, restrained, protect, focusing, fov, profile: state.profile, special: state.special }; }, reset: () => { overboard = null; capsize = null; trailGrab = null; hull.state.capsized = false; }, capsize: () => startCapsize(), get swimming() { return overboard; }, get capsized() { return capsize; }, get grab() { return trailGrab; }, valve, linked, lifeguard, locker, wake, passengerStep, burst: () => burst(fx.eye, fx.fwd), get s() { return s; }, set s(v) { s = v; } };
+  if (import.meta.env.DEV) window.__ride = { track, hull, puncture: (c, cause = 'scrape') => hull.puncture(c, cause), overboard: () => goOverboard('test'), free: () => restrained && !restrained.freed && freeRestrained(), shove: () => shove(fx.eye, fx.fwd), ping: () => ping(fx.eye, fx.fwd), fireAt: (dir) => { fireProfile(fx.eye, fx.look, dir || fx.fwd); return state.profile; }, hitTarget: (key) => { const t = targets().find((x) => x.key === key); if (t) { shotProfile = state.profile; t.fn(); } return !!t; }, get wave() { return wave; }, set bot(v) { devBot = v; }, spawnEnc: (kind, extra = {}) => spawn({ e: { kind, ...extra }, s: s + 10, sec: track.sectionAt(s).sec }), get coop() { return { climber, crewGrab, ballast, restrained, protect, focusing, fov, profile: state.profile, special: state.special }; }, reset: () => { overboard = null; capsize = null; trailGrab = null; hull.state.capsized = false; }, capsize: () => startCapsize(), get swimming() { return overboard; }, get capsized() { return capsize; }, get grab() { return trailGrab; }, valve, linked, lifeguard, locker, wake, passengerStep, burst: () => burst(fx.eye, fx.fwd), get s() { return s; }, set s(v) { s = v; } };
 
   return {
     update,

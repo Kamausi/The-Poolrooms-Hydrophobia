@@ -66,8 +66,10 @@ export function populate(sec, random, threat, features = [], theme = {}) {
   }
   if (sec.type === 'parallel') E.push({ at: 4, kind: 'crewRaft' });
   // Arm's-length and rescue encounters: one dominant problem each.
-  if (['flume', 'overflow', 'channel'].includes(sec.type) && threat > 0.9 && random() < 0.35) E.push({ at: spot(0.3, 0.7), kind: 'climber' });
-  if (['overflow', 'tube'].includes(sec.type) && threat > 0.9 && random() < 0.4) E.push({ at: spot(0.25, 0.6), kind: 'crewGrab' });
+  // Not in the first attraction: arm's-length encounters arrive once the basics are learned.
+  const learned = theme.level == null || theme.level >= 1;
+  if (learned && ['flume', 'overflow', 'channel'].includes(sec.type) && threat > 0.9 && random() < 0.35) E.push({ at: spot(0.3, 0.7), kind: 'climber' });
+  if (learned && ['overflow', 'tube'].includes(sec.type) && threat > 0.9 && random() < 0.4) E.push({ at: spot(0.25, 0.6), kind: 'crewGrab' });
   if (sec.type === 'reservoir' || (sec.type === 'hall' && random() < 0.5)) E.push({ at: len * 0.05, kind: 'restrained' });
   for (const f of features) {
     if (f === 'valve') E.push({ at: spot(0.35, 0.6), kind: 'valve', covered: theme.grout && random() < 0.5 });
@@ -130,7 +132,7 @@ function dockInfo(random, index) {
  * Returns the item list for a Track.
  */
 export function buildPlan(sector, random, threat = 1) {
-  const theme = { grout: sector.id === 'filtration-works' || sector.id === 'hotel-baths' };
+  const theme = { grout: sector.id === 'filtration-works' || sector.id === 'hotel-baths', level: sector.endless ? null : sector.index };
   const items = [];
   sector.ride.forEach((token, i) => {
     const [type, rest = ''] = token.split(':');

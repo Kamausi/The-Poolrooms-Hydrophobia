@@ -1260,7 +1260,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     saveTimer -= dt;
     if (saveTimer <= 0) {
       saveTimer = 3;
-      events.position({ mode: 'explore', pos: [...player.pos], yaw: player.yaw, hasCell });
+      events.position({ mode: 'explore', pos: [...player.pos], yaw: player.yaw, hasCell, taken: takenState() });
     }
     events.tick(dt);
 
@@ -1476,6 +1476,15 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
       }
       hud.objective(`PUMP DEFENCE · cycle ${pumpChallenge.cycle + 1}/5 · ${Math.round((pumpChallenge.t / 28) * 100)}%${nearPump ? '' : ' · STALLED — get back to the pump'}`);
     }
+  }
+
+  /** What has been picked up, opened or solved here, so a resume cannot hand out the same supplies twice. */
+  function takenState() {
+    return {
+      scrap: scrap.map((x, i) => (x.taken ? i : -1)).filter((i) => i >= 0),
+      lockers: lockers.map((x, i) => (x.opened ? i : -1)).filter((i) => i >= 0),
+      container: !!container?.taken, cache: !!deathCache?.taken, june: juneEvent.state, valves: valveStep,
+    };
   }
 
   /** The paddle on foot: knock a Bloom back, hook a part out of reach, or sound the water ahead. */
@@ -1935,6 +1944,17 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     clouds.forEach((c, i) => writeYaw(c.part.matrix, [c.base[0] + cycle * 3, c.base[1], c.base[2]], 0, 30 + hash(i, 4) * 30, 4 + hash(i, 5) * 4, 14 + hash(i, 6) * 14));
   }
 
+  // Resuming: restore what was already taken, opened or solved.
+  if (opts.restore) {
+    const r = opts.restore;
+    for (const i of r.scrap || []) if (scrap[i]) scrap[i].taken = true;
+    for (const i of r.lockers || []) if (lockers[i]) lockers[i].opened = true;
+    if (r.container && container) container.taken = true;
+    if (r.cache && deathCache) { deathCache.taken = true; hide(deathCache.part); }
+    if (r.june && r.june !== 'waiting') juneEvent.state = r.june === 'sitting' ? 'waiting' : r.june;
+    for (let i = 0; i < (r.valves || 0); i++) { const v = pumpValves.find((x) => x.id === valveOrder[i]); if (v) v.open = true; }
+    valveStep = r.valves || 0;
+  }
   if (import.meta.env.DEV) window.__explore = { followers, get dockKind() { return dockKind; }, get valves() { return { order: valveOrder, step: valveStep, list: pumpValves }; }, june: juneEvent, thread, get clock() { return clock; }, stagnant, player, center, undertow, lifeguard, cellPos, panelPos, raftPos, code, find, floaters, restorePower };
 
   return {
@@ -1942,6 +1962,6 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     resize: () => renderer.resize(),
     dispose: () => renderer.dispose(),
     /** Where the player is right now, for an immediate resume save. */
-    snapshot: () => ({ mode: 'explore', pos: [...player.pos], yaw: player.yaw, hasCell }),
+    snapshot: () => ({ mode: 'explore', pos: [...player.pos], yaw: player.yaw, hasCell, taken: takenState() }),
   };
 }
