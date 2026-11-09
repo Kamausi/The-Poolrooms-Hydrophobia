@@ -19,6 +19,9 @@ Checked from the build container: GitHub (raw files and read-only clones of publ
 | Meta Open Sound instruments (piano, nylon and steel guitar) | CC0 1.0 | Not used yet. A detuned upright piano is a candidate for the Safe Room radio |
 | `@pmndrs/assets` HDRIs (hall, lobby, warehouse…) | CC0 1.0 | Not used: 67js's environment lighting is set from parameters here, and the facility's light is meant to be its own fixtures |
 | Kenney's CC0 packs mirrored on GitHub (for example shorepine/kenney) | CC0 | Not fetched: the session could not attach those repositories. Kenney's furniture and prop kits would fit the Safe Room |
+| three.js example assets (github.com/mrdoob/three.js `examples/`) | Per file | Checked, not used yet: `pool.glb` ("The Night Pool" by syntheticplants, CC BY 4.0, 786 KB); Mixamo characters `Xbot.glb` (idle, walk, run, sneak), `Soldier.glb`, `Michelle.glb` (2–3 MB, Mixamo terms: free for use in games). These are candidates for animated crew once 67js's glTF skinning is wired in |
+
+Assets that need a download by hand (blocked hosts or sign-in) are listed, with checked licences, links and sizes, in `docs/ASSET_REQUESTS.md`.
 
 See `docs/CREDITS.md` for exact credits and what was changed.
 
