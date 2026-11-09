@@ -260,7 +260,8 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
   })() : null;
   // Every depth marker says 1.2 metres. Including the one by the shaft with no bottom.
   const shafts = find('x').slice(0, 2);
-  for (const [x, z] of shafts) facing(P('Depth 1.2', plane, { ...signMaterial('1.2 M', 'depth', 0.8, 256, 128), doubleSided: true }), add(center(x, z), [0, 0.05, 0]), [0, 1, 0], 0.8, 0.4);
+  // Laid flat at the edge of the shaft (a flat basis: the wall-facing helper has no 'up' for a floor sign).
+  for (const [x, z] of shafts) writeBasis(P('Depth 1.2', plane, { ...signMaterial('1.2 M', 'depth', 0.8, 256, 128), doubleSided: true }).matrix, add(center(x, z), [0, 0.06, CELL * 0.3]), [1, 0, 0], [0, 0, -1], [0, 1, 0], 0.8, 0.4, 1);
   // June in the water: the defining moment. After a fight, she sits down in the warm water and looks relieved.
   const juneCan = sector.index >= 4 && state.character !== 'june' && !(state.forgotten || []).includes('june') && !sector.custom;
   const juneParts = { body: P('June, sitting', cylinder(12, 0.3, 2), { color: [0.25, 0.4, 0.6], metallic: 0, roughness: 0.6 }), head: P('June head', sphere(12, 8), { color: [0.75, 0.62, 0.52], metallic: 0, roughness: 0.4 }) };
