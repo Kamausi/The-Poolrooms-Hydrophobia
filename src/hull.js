@@ -120,7 +120,8 @@ export function createHull(state, { hud, sound, random }) {
   function update(dt, { silence = false, onWash } = {}) {
     for (const l of state.leaks) {
       l.t += dt;
-      state.chambers[l.chamber] = Math.max(0, state.chambers[l.chamber] - l.rate * dt);
+      // A holed chamber settles at the water's pressure: soft, useless, but a leak alone never sinks the raft.
+      if (state.chambers[l.chamber] > 12) state.chambers[l.chamber] = Math.max(12, state.chambers[l.chamber] - l.rate * dt);
     }
     syncRaft(state);
     h.hissTimer -= dt;
