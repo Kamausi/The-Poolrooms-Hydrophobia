@@ -33,7 +33,7 @@ function aboutCrisis(kind, text) {
 }
 const garble = (text, amount) => text.replace(/[A-Z0-9]/g, (c) => (Math.random() < amount ? '·' : c));
 
-const IDS = ['player-name', 'carry', 'urgent', 'helpmark', 'slots', 'needle', 'ticker', 'hud', 'sector-name', 'objective', 'score', 'score-wrap', 'cleared', 'depth', 'vitals', 'vitals-bar', 'drift', 'drift-bar', 'charge', 'charge-max', 'charge-state', 'mode', 'crosshair', 'subtitle', 'toast', 'prompt', 'damage', 'driftfx', 'scrap', 'hint', 'band', 'guests', 'route', 'raft', 'chambers', 'roster', 'filter', 'filters', 'cells', 'heat-bar', 'caption', 'scan', 'raft-panel'];
+const IDS = ['callouts', 'player-name', 'carry', 'urgent', 'helpmark', 'slots', 'needle', 'ticker', 'hud', 'sector-name', 'objective', 'score', 'score-wrap', 'cleared', 'depth', 'vitals', 'vitals-bar', 'drift', 'drift-bar', 'charge', 'charge-max', 'charge-state', 'mode', 'crosshair', 'subtitle', 'toast', 'prompt', 'damage', 'driftfx', 'scrap', 'hint', 'band', 'guests', 'route', 'raft', 'chambers', 'roster', 'filter', 'filters', 'cells', 'heat-bar', 'caption', 'scan', 'raft-panel'];
 
 export function initHud() {
   for (const id of IDS) el[id] = $(id);
@@ -65,6 +65,13 @@ export const hud = {
     if (!side) return;
     el.helpmark.className = `mono ${side < 0 ? 'left' : 'right'}`;
     el.helpmark.textContent = side < 0 ? `◀ ${who.toUpperCase()}` : `${who.toUpperCase()} ▶`;
+  },
+  /** The callout strip while Ping is held: labels and the one selected; null closes it. */
+  callouts(labels, selected = 0) {
+    el.callouts.hidden = !labels;
+    if (!labels) return;
+    if (el.callouts.childElementCount !== labels.length) el.callouts.replaceChildren(...labels.map((t) => { const b = document.createElement('span'); b.textContent = t; return b; }));
+    [...el.callouts.children].forEach((c, i) => c.classList.toggle('on', i === selected));
   },
   /** Routine score lines go to a small ticker by the equipment, never across the middle of the screen. */
   ticker(text) {

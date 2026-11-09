@@ -7,6 +7,7 @@ import { dot, writeYaw, writeBasis, writeSegment, hide, add, sub, scale, normali
 import { tileTexture, tileNormal } from './textures.js';
 import { signMaterial, quad } from './labels.js';
 import { createCrewFigure, hideCrewFigure, poseSeated, poseProne, VISITOR_LOOK } from './crewfigure.js';
+import { createCallouts } from './callouts.js';
 import { createBlaster, PROFILES, PROFILE_ORDER } from './blaster.js';
 import { input, wasPressed, isDown } from './input.js';
 import { hud } from './hud.js';
@@ -175,6 +176,18 @@ export function createRide(canvas, state, sector, events, opts = {}) {
   let sparkT = 0, sparkAt = null;
   let ambientT = null;
   let reticleTick = 0, hoverTarget = false;
+  // Tap Ping to mark or radio-check; hold for the callout strip.
+  const callouts = createCallouts({
+    step: 0.16,
+    ping: () => ping(fx.eye, fx.aim || fx.fwd),
+    call: (c) => {
+      ping(fx.eye, fx.aim || fx.fwd);
+      hud.say(state.name.toUpperCase(), c.line, 'crew');
+      const who = crewAvailable()[0];
+      if (who) setTimeout(() => hud.say(who.toUpperCase(), c.reply[Math.floor(random() * c.reply.length)], 'crew'), 900);
+      if (c.id === 'help' && crewAvailable().length) protect = Math.max(protect, 2); // the crew turns to cover you
+    },
+  });
 
   // ---------- Co-op and arcade parts ----------
   const pingMark = P('Ping marker', torus(0.06, 32, 8), glow([0.4, 1, 0.9], 6));
@@ -1957,7 +1970,8 @@ export function createRide(canvas, state, sector, events, opts = {}) {
     const holdP = repairing && rr ? Math.min(1, rr.t / (rr.step === 'locate' ? 0.8 : rr.step === 'patch' ? 1.4 : 2)) : crewGrab && isDown('e') ? crewGrab.tension / 100 : dockSeq ? Math.min(1, dockSeq.t / 1.2) : 0;
     hud.reticle({ interact: hoverTarget, lock: locks.length > 0, progress: holdP });
     if (wasPressed('z')) shove(eye, fwd);
-    if (wasPressed('b')) ping(eye, aimDir);
+    fx.aim = aimDir;
+    callouts.update(dt, input.aim[0]);
     if (wasPressed('f')) burst(eye, aimDir);
     if (wasPressed('h') && state.dressings > 0 && state.health < 100 && !dressing) { dressing = 2.5; state.dressings -= 1; hud.toast('APPLYING A FIELD DRESSING'); }
     if (dressing > 0) { dressing -= dt; events.heal(dt * 16); }

@@ -9,7 +9,7 @@ Headless Chromium (software GL, `?quality=low`) driving the game through its DEV
 | `chapter.cjs` | The Closed Wave Pool end to end | ~1 min |
 | `memory.cjs` | Rescues commit at Safe Rooms; the next expedition is authored from memory; false records; the ledger stays clean | ~1 min |
 | `resume.cjs` | Nothing handed out twice on foot; nothing behind the resume point fires on the raft | <1 min |
-| `hud.cjs` | A grabbed teammate gets a roster entry, banner and edge marker that clear when safe; prompts name the current binding; the reticle opens into brackets at something usable | <1 min |
+| `hud.cjs` | A grabbed teammate gets a roster entry, banner and edge marker that clear when safe; prompts name the current binding; the reticle opens into brackets at something usable; held Ping opens six callouts; the Safe Room is a three-part sheet with transactions and a premature arrival line; settings come in six categories with a preview; the journal has three tabs | ~1 min |
 | `audio.cjs` | Every recorded sound in `public/audio/manifest.json` loads and decodes | <1 min |
 | `balance.cjs` | The competent-player bot reaches every dock; reports lowest health and raft condition | several min |
 | `single.cjs` | `dist/UNDERFLOW.html` opens from disk, starts and carries its recorded sound (run `npm run build:single` first) | <1 min |

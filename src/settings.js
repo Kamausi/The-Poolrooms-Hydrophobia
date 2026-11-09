@@ -20,6 +20,8 @@ const DEFAULTS = {
   tips: true, // first-time contextual tips
   perfOverlay: false, // frame-time overlay: average, 95th and 99th percentile, slow frames
   fpsCap: 0, // 0 = display rate (60 FPS tier); 30 = the constrained 30 FPS profile
+  volEffects: 1, volMusic: 0.8, volAmbience: 1, // per-category volume
+  flashReduce: false, // dimmer damage flash and muzzle flash
   hudScale: 1, // HUD size, separate from text size
   subtitleBacking: true, // a dark band behind subtitles
   hudPersistent: false, // keep the objective, roster and controls at full size instead of letting them settle
@@ -47,6 +49,7 @@ export const SETTING_LABELS = {
   highContrast: 'High contrast (opaque panels, heavier reticle)',
   tips: 'First-time tips',
   perfOverlay: 'Performance overlay (frame times)',
+  flashReduce: 'Reduce flashes (damage and muzzle)',
   subtitleBacking: 'Subtitle backing (dark band behind speech)',
   hudPersistent: 'Persistent HUD (contextual information never compacts or fades)',
 };

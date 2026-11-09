@@ -1,6 +1,7 @@
 // Sound: recorded where a recording exists (samples.js, the Oculus Audio Pack), synthesised everywhere else and
 // as the fallback while recordings load. Beds (water, machinery, the vent, underwater, the drone) follow the space.
 import { loadSamples, playSample, createBed, hasSample } from './samples.js';
+import { settings } from './settings.js';
 
 let ctx = null;
 let master = null;
@@ -10,7 +11,7 @@ let enabled = true;
 let muffle = null;
 let bus = null; // everything except the hum goes through here, so tubes can muffle it
 let verb = null, verbGain = null, space = null;
-let bedBus = null;
+let bedBus = null, musicVol = null;
 const beds = {};
 const bedLevel = {}; // what each bed should be at; applied once its recording has loaded
 const SPACES = { tile: [1.3, 0.28, 3.2], hall: [3.4, 0.38, 2.2], tube: [0.5, 0.2, 6], room: [0.9, 0.22, 3.6], dry: [0.25, 0.05, 6], reservoir: [4.5, 0.42, 1.8] };
@@ -46,11 +47,21 @@ function ensure() {
   // Beds skip the reverb (they are already recorded in a room) but go dull with everything else.
   bedBus = ctx.createGain();
   bedBus.connect(muffle);
+  musicVol = ctx.createGain();
+  musicVol.connect(muffle);
+  applyVolumes();
   loadSamples(ctx);
   setInterval(applyBeds, 500);
   return ctx;
 }
 
+/** Player volumes per category: effects (one-shots and speech cues), music, ambience (the beds). */
+function applyVolumes() {
+  if (!ctx) return;
+  bus.gain.value = settings.volEffects ?? 1;
+  if (musicVol) musicVol.gain.value = settings.volMusic ?? 1;
+  if (bedBus) bedBus.gain.value = settings.volAmbience ?? 1;
+}
 function applyBeds() {
   if (!ctx) return;
   for (const [name, level] of Object.entries(bedLevel)) {
@@ -138,7 +149,7 @@ function musicBus() {
   music.filter.frequency.value = 6000;
   music.bus = ctx.createGain();
   music.bus.gain.value = 0.9;
-  music.bus.connect(music.filter).connect(muffle);
+  music.bus.connect(music.filter).connect(musicVol || muffle);
   const pad = ctx.createGain();
   pad.gain.value = 0;
   [220, 330, 440].forEach((f) => { const o = ctx.createOscillator(); o.type = 'sine'; o.frequency.value = f; o.connect(pad); o.start(); });
@@ -178,6 +189,7 @@ export const sound = {
     if (master) master.gain.value = on ? 0.55 : 0;
     applyBeds();
   },
+  setVolumes() { applyVolumes(); },
   get enabled() {
     return enabled;
   },

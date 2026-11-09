@@ -286,8 +286,9 @@ export function pollGamepad(dt) {
   input.patchHeld = b(M.patch);
   if (b(M.paddle) && !prev[M.paddle]) input.paddleHeld = !input.paddleHeld;
   if (input.firing && input.paddleHeld && input.context === 'ride') input.paddleHeld = false;
-  const EDGE = { [M.hop]: ' ', [M.use]: 'e', [M.burst]: 'f', 9: 'escape', [M.recharge]: 'r', [M.dressing]: 'h', [M.ping]: 'b', [M.cycle]: 'tab' };
-  const HOLD = { [M.boost]: 'shift', [M.lookback]: 'x', [M.hop]: ' ' };
+  const EDGE = { [M.hop]: ' ', [M.use]: 'e', [M.burst]: 'f', 9: 'escape', [M.recharge]: 'r', [M.dressing]: 'h', [M.cycle]: 'tab' };
+  // Ping is held, not pressed: a tap pings, a hold opens the callout strip.
+  const HOLD = { [M.boost]: 'shift', [M.lookback]: 'x', [M.hop]: ' ', [M.ping]: 'b' };
   for (const [i, k] of Object.entries(EDGE)) if (b(+i) && !prev[i]) input.pressed.add(k);
   for (const [i, k] of Object.entries(HOLD)) b(+i) ? input.keys.add(k) : prev[i] && input.keys.delete(k);
   pad.buttons.forEach((x, i) => (prev[i] = x.pressed));

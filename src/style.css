@@ -465,3 +465,27 @@ body.crisis .hud-tr.facility, body.crisis .hud-tl.compact { opacity: 0.45; }
 .tabs { display: flex; gap: 4px; flex-wrap: wrap; margin: 6px 0 12px; }
 .tab { font: 500 calc(clamp(11px, 0.8vw, 15px) * var(--text-scale)) 'IBM Plex Mono', monospace; letter-spacing: 0.12em; padding: 7px 12px; background: #080d1099; color: var(--porcelain); border: 1px solid var(--line); border-bottom: 2px solid transparent; cursor: pointer; }
 .tab.on, .tab:focus { border-bottom-color: var(--porcelain); background: #112b31; outline: none; }
+
+/* Callout strip: held Ping. Stamped labels in a row above the subtitles; the chosen one is filled. */
+.callouts { position: absolute; left: 50%; bottom: 24%; transform: translateX(-50%); display: flex; gap: 4px; padding: 6px; background: #080d10e6; border: 1px solid var(--line); border-radius: 3px; font-size: calc(var(--u) * 0.6); }
+.callouts[hidden] { display: none; }
+.callouts span { padding: 6px 10px; border: 1px solid #4d747288; color: var(--porcelain); letter-spacing: 0.12em; white-space: nowrap; }
+.callouts span.on { background: var(--porcelain); color: var(--drain); border-color: var(--porcelain); }
+
+/* Settings: six categories, and a live preview of subtitles, captions and HUD size. */
+.settings-group { border-top: 1px solid #4d747266; padding-top: 8px; display: grid; gap: 8px; }
+.settings-preview { display: grid; gap: 6px; justify-items: start; padding: 10px; background: #050806; border: 1px dashed #4d747288; }
+.prev-sub { margin: 0; font-size: calc(clamp(17px, 1.45vw, 30px) * var(--text-scale)); color: var(--porcelain); }
+.prev-sub b { display: block; font: 500 calc(clamp(11px, 0.8vw, 16px) * var(--text-scale)) 'IBM Plex Mono', monospace; letter-spacing: 0.16em; color: var(--fluor); }
+.prev-sub.backed { background: #080d10d9; padding: 6px 12px; }
+.prev-cap { margin: 0; font-size: calc(clamp(12px, 0.9vw, 18px) * var(--text-scale)); color: #c9d4d2; }
+.settings-preview .slot { font-size: calc(var(--u) * 0.72); }
+body.contrast .settings-preview { border-color: var(--porcelain); }
+/* Flash reduction: damage and muzzle flashes are dimmer and shorter. */
+body.flash-reduce #damage { box-shadow: inset 0 0 120px 20px #c45a5044; }
+.pause-note { color: var(--porcelain); border-left: 4px solid var(--safety); padding: 6px 10px; background: #080d10; }
+/* Native controls in the facility's colours, so nothing reads as a browser default. */
+.settings input[type='range'], .settings input[type='checkbox'] { accent-color: var(--porcelain); }
+.settings input[type='range'] { min-width: 140px; }
+.settings select, #modal select { background: #112b31; color: var(--porcelain); border: 1px solid var(--line); padding: 6px 8px; font: inherit; border-radius: 2px; }
+.settings label { min-height: 28px; }

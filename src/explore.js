@@ -7,6 +7,7 @@ import { tileTexture, tileNormal } from './textures.js';
 import { signMaterial, quad } from './labels.js';
 import { createBlaster, PROFILES, PROFILE_ORDER } from './blaster.js';
 import { createCrewFigure, hideCrewFigure, poseStanding, poseProne, VISITOR_LOOK } from './crewfigure.js';
+import { createCallouts } from './callouts.js';
 import { input, wasPressed, isDown, requestLock } from './input.js';
 import { hud } from './hud.js';
 import { sound } from './audio.js';
@@ -1251,7 +1252,8 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
       state.damage = base;
     }
     if (wasPressed('z')) shoveFoot(eye, dir);
-    if (wasPressed('b')) pingFoot(eye, dir);
+    callouts.update(dt, -player.yaw);
+    lastAim = [eye, dir];
     updateFootExtras(dt, eye, dir, ask);
     if (wasPressed('f')) burst(eye);
     blaster.place(eye, target, dir, swayY * 0.4);
@@ -1311,7 +1313,18 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
   }
 
   /** Ping: mark a spot for the crew; with a recent unverified voice, it is a radio check. */
-  function pingFoot(eye, dir) {
+  let lastAim = null;
+  const callouts = createCallouts({
+    step: 0.12,
+    ping: () => lastAim && pingFoot(...lastAim),
+    call: (c) => {
+      if (lastAim) pingFoot(...lastAim, true);
+      hud.say(state.name.toUpperCase(), c.line, 'crew');
+      const crew = Object.keys(state.crewState || {}).filter((x) => !(state.forgotten || []).includes(x) && state.crewState[x] !== 'hurt');
+      if (crew.length) setTimeout(() => hud.say(crew[0].toUpperCase(), pick(c.reply), 'crew'), 900);
+    },
+  });
+  function pingFoot(eye, dir, quiet = false) {
     sound.ping();
     pingT = 4;
     const t = rayWorld(eye, dir);
@@ -1323,7 +1336,8 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
       else hud.say(crew[0]?.toUpperCase() || state.name.toUpperCase(), `${callerWho} isn't on the radio. Whatever that was, it wasn't ${callerWho}.`, 'crew');
       hud.caption('[radio check: that voice was not on the radio]');
       callerAt = -100;
-    } else if (crew.length) hud.say(crew[0].toUpperCase(), pick(['Marked.', 'Seen. Go.', 'I see it. Careful.']), 'crew');
+    } else if (quiet) return;
+    else if (crew.length) hud.say(crew[0].toUpperCase(), pick(['Marked.', 'Seen. Go.', 'I see it. Careful.']), 'crew');
     else hud.caption('[radio check: static]');
   }
 

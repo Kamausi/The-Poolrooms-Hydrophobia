@@ -712,7 +712,8 @@ function resume(data) {
   const p = data.position;
   if (p.mode === 'explore') startExplore({ pos: p.pos, yaw: p.yaw, hasCell: p.hasCell, restore: p.taken });
   else startRide({ resumeS: p.s, departed: p.departed });
-  hud.toast('RESUMED WHERE YOU LEFT OFF');
+  hud.toast(`RESUMED · ${p.mode === 'explore' ? 'ON FOOT AT THE DOCK' : 'ON THE RAFT'}`);
+  state.protectT = Math.max(state.protectT || 0, 2.5); // a moment to get your hands back on the controls
 }
 
 function toMenu() {
@@ -801,7 +802,10 @@ function setPaused(on) {
   paused = on;
   pausedAt = performance.now();
   $('paused').hidden = !on;
-  if (!on) hud.reshowHint();
+  if (!on) {
+    hud.reshowHint();
+    state.protectT = Math.max(state.protectT || 0, 1.2); // leaving the pause menu: a beat before danger resumes
+  }
   if (on) {
     releaseLock();
     const box = $('pause-extra');
@@ -896,6 +900,18 @@ document.addEventListener('visibilitychange', () => {
   if (document.hidden) { saveResume(); setPaused(true); }
 });
 addEventListener('pagehide', saveResume);
+// Losing focus pauses (single player: pausing really stops the danger). A controller that disconnects pauses
+// too, and says so, so the player isn't left steering with nothing.
+addEventListener('blur', () => { if ((mode === 'ride' || mode === 'explore') && !paused && !manual) { saveResume(); setPaused(true); } });
+addEventListener('gamepaddisconnected', () => {
+  if ((mode === 'ride' || mode === 'explore') && !manual) {
+    if (!paused) setPaused(true);
+    const note = document.createElement('p');
+    note.className = 'mono pause-note';
+    note.textContent = 'CONTROLLER DISCONNECTED · reconnect it, or carry on with keyboard and mouse. The expedition is paused.';
+    $('pause-extra').prepend(note);
+  }
+});
 requestAnimationFrame(frame);
 
 // For automated checks.

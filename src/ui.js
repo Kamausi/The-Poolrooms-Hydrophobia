@@ -1,5 +1,6 @@
 // Overlays: the shared modal, the Safe Room, the logbook, documents, the keypad, settings.
 import { settings, saveSettings, SETTING_LABELS, ACTIONS } from './settings.js';
+import { sound } from './audio.js';
 import { input, applyBindings, PAD_ACTIONS, PAD_NAMES } from './input.js';
 import { COMFORTS, SECTORS } from './sectors.js';
 import { ROUTES } from './plans.js';
@@ -598,44 +599,68 @@ export function applyDisplaySettings() {
   document.body.classList.toggle('contrast', !!settings.highContrast);
   document.body.classList.toggle('hud-persistent', !!settings.hudPersistent);
   document.body.classList.toggle('subtitle-backing', !!settings.subtitleBacking);
+  document.body.classList.toggle('flash-reduce', !!settings.flashReduce);
 }
 
 export function settingsView(onChange) {
   const wrap = el('div', 'settings');
-  for (const [key, label] of Object.entries(SETTING_LABELS)) {
+  // Six categories, in the order a player looks for them. Each control saves at once.
+  const group = (title) => { const g = el('section', 'settings-group'); g.append(el('h3', 'sheet-head', title)); wrap.append(g); return g; };
+  const check = (g, key) => {
     const row = el('label');
     const box = el('input');
     box.type = 'checkbox';
     box.checked = !!settings[key];
-    box.onchange = () => {
-      settings[key] = box.checked;
-      saveSettings();
-      applyDisplaySettings();
-      onChange?.();
-    };
-    row.append(box, document.createTextNode(label));
-    wrap.append(row);
-  }
-  const sens = el('label');
-  const slider = el('input');
-  Object.assign(slider, { type: 'range', min: 0.3, max: 2.5, step: 0.1, value: settings.sensitivity });
-  slider.oninput = () => {
-    settings.sensitivity = Number(slider.value);
-    saveSettings();
+    box.onchange = () => { settings[key] = box.checked; saveSettings(); applyDisplaySettings(); preview?.refresh(); onChange?.(); };
+    row.append(box, document.createTextNode(SETTING_LABELS[key] || key));
+    g.append(row);
   };
-  sens.append(document.createTextNode('Look sensitivity'), slider);
-  wrap.append(sens);
-  const range = (label, key, min, max) => {
+  const range = (g, label, key, min, max, step = 0.1, after) => {
     const row = el('label');
     const sl = el('input');
-    Object.assign(sl, { type: 'range', min, max, step: 0.1, value: settings[key] });
-    sl.oninput = () => { settings[key] = Number(sl.value); saveSettings(); applyDisplaySettings(); };
+    Object.assign(sl, { type: 'range', min, max, step, value: settings[key] ?? 1 });
+    sl.oninput = () => { settings[key] = Number(sl.value); saveSettings(); applyDisplaySettings(); after?.(); preview?.refresh(); };
     row.append(document.createTextNode(label), sl);
-    wrap.append(row);
+    g.append(row);
   };
-  range('Steering sensitivity', 'steer', 0.4, 2);
-  range('Text size', 'textScale', 0.85, 1.6);
-  range('Incoming damage (assist)', 'damageAssist', 0.3, 1);
+  let preview = null;
+
+  const controls = group('CONTROLS');
+  range(controls, 'Look sensitivity', 'sensitivity', 0.3, 2.5);
+  range(controls, 'Steering sensitivity', 'steer', 0.4, 2);
+  check(controls, 'paddleToggle');
+  check(controls, 'braceToggle');
+
+  const iface = group('INTERFACE');
+  range(iface, 'Text size', 'textScale', 0.85, 1.6);
+  range(iface, 'HUD size', 'hudScale', 0.8, 1.4);
+  for (const k of ['subtitleBacking', 'highContrast', 'hudPersistent', 'captions', 'tips']) check(iface, k);
+  // Live preview: a subtitle and a quick-use slot, drawn with the current settings.
+  preview = el('div', 'settings-preview');
+  const sub = el('p', 'prev-sub');
+  sub.append(el('b', null, 'JUNE · RADIO'), el('span', null, '"The gate is open. Come back."'));
+  const cap = el('p', 'prev-cap mono', '[Wet footsteps behind you]');
+  const slot = el('div', 'slot');
+  slot.append(el('i', null, 'H'), el('b', null, 'DRESSING'), el('span', null, '×2'));
+  preview.append(sub, cap, slot);
+  preview.refresh = () => { sub.classList.toggle('backed', !!settings.subtitleBacking); cap.hidden = !settings.captions; };
+  preview.refresh();
+  iface.append(preview);
+
+  const audio = group('AUDIO');
+  range(audio, 'Effects volume', 'volEffects', 0, 1, 0.05, () => sound.setVolumes());
+  range(audio, 'Music volume', 'volMusic', 0, 1, 0.05, () => sound.setVolumes());
+  range(audio, 'Ambience volume (water, machinery)', 'volAmbience', 0, 1, 0.05, () => sound.setVolumes());
+
+  const cam = group('CAMERA AND EFFECTS');
+  range(cam, 'Camera motion (shake, roll, impacts)', 'camera', 0, 1);
+  for (const k of ['sway', 'distortion', 'grain', 'flashReduce']) check(cam, k);
+
+  const assist = group('GAMEPLAY ASSISTANCE');
+  range(assist, 'Incoming damage (assist)', 'damageAssist', 0.3, 1);
+  check(assist, 'aimAssist');
+
+  const display = group('DISPLAY');
   {
     const row = el('label');
     const sel = el('select');
@@ -643,9 +668,9 @@ export function settingsView(onChange) {
     sel.value = String(settings.fpsCap || 0);
     sel.onchange = () => { settings.fpsCap = Number(sel.value); saveSettings(); };
     row.append(sel);
-    wrap.append(row);
+    display.append(row);
   }
-  range('Camera motion (shake, roll, impacts)', 'camera', 0, 1);
+  check(display, 'perfOverlay');
   // Key bindings: click an action, press a key.
   const keys = el('div', 'bindings');
   keys.append(el('p', 'mono', 'KEYS · click, then press a key'));
@@ -670,7 +695,7 @@ export function settingsView(onChange) {
   reset.textContent = 'Reset all keys';
   reset.onclick = () => { settings.bindings = {}; saveSettings(); applyBindings(); keys.querySelectorAll('.bind').forEach((x) => x.onclick !== reset.onclick); wrap.replaceWith(settingsView(onChange)); };
   keys.append(reset);
-  wrap.append(keys);
+  controls.append(keys);
   // Controller buttons: choose an action, press a button.
   const pads = el('div', 'bindings');
   pads.append(el('p', 'mono', 'CONTROLLER · choose, then press a button'));
@@ -688,6 +713,6 @@ export function settingsView(onChange) {
   padReset.textContent = 'Reset controller buttons';
   padReset.onclick = () => { settings.padBindings = {}; saveSettings(); wrap.replaceWith(settingsView(onChange)); };
   pads.append(padReset);
-  wrap.append(pads);
+  controls.append(pads);
   return wrap;
 }

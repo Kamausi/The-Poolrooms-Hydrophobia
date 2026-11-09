@@ -6,6 +6,7 @@
 import { box, cylinder, sphere } from '67js';
 import { add, scale, cross, normalize, sub, length, writeBasis, hide, cameraBasis } from './math.js';
 import { sound } from './audio.js';
+import { settings } from './settings.js';
 
 const BEAM_TIME = 0.06;
 
@@ -208,6 +209,8 @@ export function createBlaster(state) {
       tube.material.emissiveColor = [0.6 + hot * 0.4, 1 - hot * 0.7, 0.55 - hot * 0.45];
       tube.material.emission = overheat > 0 ? 0.3 + Math.random() : state.recharging ? 0.4 + Math.random() * 0.6 : 0.25 + charge * 1.3;
       if (beamTimer > 0) {
+        flash.material.emission = settings.flashReduce ? 1.8 : 4.5;
+        beam.material.emission = settings.flashReduce ? 3.5 : 8;
         writeBasis(flash.matrix, at([0, 0, 0.38]), x, y, z, 0.03, 0.03, 0.03);
         stretch(beam, beamFrom, beamTo, 0.018);
       } else {
