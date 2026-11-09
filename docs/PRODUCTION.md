@@ -59,6 +59,8 @@ Each part of the game was captured headlessly at 1280×720 (high quality, softwa
 | A gate marker bloomed into a glowing egg beside the raft; signal targets were 1.1 m hoops floating in the air | Channel buoys with a lamp; lit rings on wall plates (hit areas unchanged) |
 | The foam line ahead read as road markings; the guide thread on foot ran into the lens | Fainter foam flecks further ahead; the thread stops short of your feet |
 | Subtitles landed mid-screen on short landscape screens | Short-screen layout |
+| Figures in the water were a white cylinder and a ball | The shared figure, face down in a vest with arms spread |
+| Raft straps stood up from the tube as black square loops | Flat bands wrapped around the tube |
 
 The DEV `step()` hook now also advances the Safe Room and the menu, so captures show what a player sees. These are software renders of single frames. Motion, GPU rendering and how any of it feels to a person are still unchecked.
 

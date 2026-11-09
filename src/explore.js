@@ -6,7 +6,7 @@ import { writeYaw, writeBasis, hide, add, sub, scale, normalize, clamp, damp, rn
 import { tileTexture } from './textures.js';
 import { signMaterial, quad } from './labels.js';
 import { createBlaster, PROFILES, PROFILE_ORDER } from './blaster.js';
-import { createCrewFigure, hideCrewFigure, poseStanding } from './crewfigure.js';
+import { createCrewFigure, hideCrewFigure, poseStanding, poseProne, VISITOR_LOOK } from './crewfigure.js';
 import { input, wasPressed, isDown, requestLock } from './input.js';
 import { hud } from './hud.js';
 import { sound } from './audio.js';
@@ -485,8 +485,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     pos: null, state: 'watching', violations: 0, calm: 0, blind: 0, stopped: false, lostSight: 0, lampOn: false, breakerPos: null,
   } : null;
   const floaters = find('f').map(([x, z], i) => ({
-    body: P(`Floater ${i}`, cylinder(14, 0.45, 2), { color: [0.82, 0.84, 0.8], metallic: 0, roughness: 0.25 }),
-    head: P(`Floater head ${i}`, sphere(14, 10), { color: [0.85, 0.86, 0.82], metallic: 0, roughness: 0.2 }),
+    fig: createCrewFigure(P, 'visitor', ` floater ${i}`, VISITOR_LOOK),
     eyes: P(`Floater eyes ${i}`, slab, glow([0.7, 0.9, 1], 0.02)),
     cell: [x, z], pos: center(x, z), survivor: random() < 0.4, state: 'floating', hp: 3, holdT: 0,
   }));
@@ -1892,12 +1891,11 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
 
   function updateFloaters(dt, eye) {
     for (const f of floaters) {
-      if (f.state === 'gone') { hide(f.body); hide(f.head); hide(f.eyes); continue; }
+      if (f.state === 'gone') { hideCrewFigure(f.fig); hide(f.eyes); continue; }
       const p = [f.pos[0], surface(...f.cell) + 0.08 + Math.sin(time + f.cell[0]) * 0.02, f.pos[2]];
-      writeBasis(f.body.matrix, p, [1, 0, 0], [0, 0, -1], UP, 0.24, 0.75, 0.16);
-      writeYaw(f.head.matrix, add(p, [0, 0.02, -0.85]), 0, 0.17, 0.12, 0.2);
+      poseProne(f.fig, { at: add(p, [0, -0.04, -0.3]), dir: [0, 0, -1], drift: time + f.cell[0] });
       if (f.state === 'revealed' || f.state === 'holding') {
-        writeYaw(f.eyes.matrix, add(p, [0, 0.14, -0.9]), 0, 0.14, 0.02, 0.05);
+        writeYaw(f.eyes.matrix, add(p, [0, 0.08, -0.74]), 0, 0.12, 0.02, 0.04); // at the face, turned up out of the water
         f.eyes.material.emission = 3;
       } else hide(f.eyes);
       const d = Math.hypot(p[0] - eye[0], p[2] - eye[2]);

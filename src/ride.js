@@ -6,7 +6,7 @@ import { Renderer67, box, sphere, cylinder, torus } from '67js';
 import { dot, writeYaw, writeBasis, writeSegment, hide, add, sub, scale, normalize, clamp, damp, rng, screenRay, raySphere, rayPlaneY, linear, cross, display, project, angleTo, soundDir, distance } from './math.js';
 import { tileTexture } from './textures.js';
 import { signMaterial, quad } from './labels.js';
-import { createCrewFigure, hideCrewFigure, poseSeated } from './crewfigure.js';
+import { createCrewFigure, hideCrewFigure, poseSeated, poseProne, VISITOR_LOOK } from './crewfigure.js';
 import { createBlaster, PROFILES, PROFILE_ORDER } from './blaster.js';
 import { input, wasPressed, isDown } from './input.js';
 import { hud } from './hud.js';
@@ -130,7 +130,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
   const raft = {
     lip: P('Raft', torus(0.26, 48, 16), { color: linear('#b19a50'), metallic: 0, roughness: 0.55 }), // worn safety yellow, damp, patched
     rope: P('Raft rope', torus(0.025, 64, 6), { color: [0.42, 0.33, 0.2], metallic: 0, roughness: 0.9 }),
-    straps: [0, 1, 2, 3, 4, 5].map((i) => P(`Raft strap ${i}`, slab, { color: [0.06, 0.07, 0.07], metallic: 0.1, roughness: 0.7 })),
+    straps: [0, 1, 2, 3, 4, 5].map((i) => P(`Raft strap ${i}`, torus(0.09, 32, 6), { color: [0.06, 0.07, 0.07], metallic: 0.1, roughness: 0.7 })),
     case: P('Supply case', box(0.04, 2), { color: [0.62, 0.63, 0.6], metallic: 0.5, roughness: 0.45 }),
     caseStrap: P('Supply case strap', slab, { color: [0.06, 0.07, 0.07], metallic: 0.1, roughness: 0.7 }),
     seat: P('Opposite seat', box(0.2, 3), { color: [0.07, 0.12, 0.2], metallic: 0, roughness: 0.8 }),
@@ -171,7 +171,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
   const deathVest = P('Vest caught against the wall', box(0.03, 2), { color: linear('#b46a3c'), metallic: 0, roughness: 0.65 });
   if (sector.variant && Object.keys(sector.variant).some((k) => k !== 'notes') && !opts.resumeS) setTimeout(() => hud.say('THE ATTENDANT', sector.variant.dangerous ? 'Welcome back, guest. We kept your place.' : 'Welcome back, guest. Some improvements have been made since your last visit.', 'attendant'), 2500);
   // Where the raft is going: a faint line of foam, so momentum, currents and a soft side can be read before they bite.
-  const traj = Array.from({ length: 7 }, (_, i) => P(`Trajectory ${i}`, slab, glow([0.55, 0.62, 0.6], 0.12, { color: [0.4, 0.46, 0.45], roughness: 0.3 })));
+  const traj = Array.from({ length: 7 }, (_, i) => P(`Trajectory ${i}`, slab, glow([0.5, 0.56, 0.55], 0.06, { color: [0.2, 0.24, 0.24], roughness: 0.6 })));
   let sparkT = 0, sparkAt = null;
 
   // ---------- Co-op and arcade parts ----------
@@ -298,8 +298,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
   const clouds = Array.from({ length: 14 }, (_, i) => ({ part: P(`Cloud ${i}`, box(0.4, 3), { tag: 'unlit', color: [0.97, 0.98, 1], metallic: 0, roughness: 1 }), base: [0, 0, 0] }));
   const towers = Array.from({ length: 7 }, (_, i) => P(`Tower ${i}`, slab, tileMat));
   const floaters = Array.from({ length: 2 }, (_, i) => ({
-    body: P(`River floater ${i}`, cylinder(14, 0.45, 2), { color: [0.82, 0.84, 0.8], metallic: 0, roughness: 0.25 }),
-    head: P(`River floater head ${i}`, sphere(14, 10), { color: [0.85, 0.86, 0.82], metallic: 0, roughness: 0.2 }),
+    fig: createCrewFigure(P, 'visitor', ` floater ${i}`, VISITOR_LOOK),
     active: false, s: 0, offset: 0, survivor: true, state: 'floating', hp: 2,
   }));
   // ---------- Raft movement content ----------
@@ -2152,8 +2151,9 @@ export function createRide(canvas, state, sector, events, opts = {}) {
     writeBasis(raft.rope.matrix, add(base, scale(tiltUp, 0.08)), rgt, fwd, tiltUp, 1.06, 1.06, 1);
     raft.straps.forEach((st, i) => {
       const a = (i / raft.straps.length) * Math.PI * 2 + 0.3;
-      const tangent = normalize(add(scale(rgt, -Math.sin(a)), scale(fwd, Math.cos(a))));
-      writeBasis(st.matrix, add(add(add(base, scale(rgt, Math.cos(a) * 1.05)), scale(fwd, Math.sin(a) * 1.05)), scale(tiltUp, 0.05)), tangent, tiltUp, cross(tiltUp, tangent), 0.08, 0.56, 0.56);
+      // A flat band wrapped around the tube's cross-section, not a loop standing up from it.
+      const radial = normalize(add(scale(rgt, Math.cos(a)), scale(fwd, Math.sin(a))));
+      writeBasis(st.matrix, add(add(base, scale(radial, 1.05)), scale(tiltUp, 0.01)), radial, tiltUp, cross(radial, tiltUp), 0.285, 0.275, 0.285);
     });
     const caseAt = add(add(add(base, scale(rgt, -0.25)), scale(fwd, 0.25)), scale(tiltUp, 0.12));
     writeBasis(raft.case.matrix, caseAt, rgt, tiltUp, fwd, 0.55, 0.22, 0.32);
@@ -2331,7 +2331,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
         for (let k = 0; k < 4; k++) { v += (-v * 2.6 + (sec0.bias || 0) * 2.4 + hullFx.pull) * 0.06; x = clamp(x + v * 0.06, -lim, lim); }
         const at = s + 4 + speed * 0.24 * (i + 1);
         // Foam flecks, thinning with distance: a read of the water, not a painted lane.
-        writeYaw(t.matrix, track.lateral(at, x, 0.02), track.at(at).yaw + Math.sin(i * 1.9) * 0.25, 0.06 * (1 - i * 0.08), 0.008, 0.28 + (i % 2) * 0.1);
+        writeYaw(t.matrix, track.lateral(at, x, 0.02), track.at(at).yaw + Math.sin(i * 1.9) * 0.25, 0.045 * (1 - i * 0.08), 0.006, 0.24 + (i % 2) * 0.08);
       });
     } else traj.forEach(hide);
     if (deathAt) {
@@ -2994,11 +2994,10 @@ export function createRide(canvas, state, sector, events, opts = {}) {
       if (spill.s < s - 10) spill.active = false;
     } else { hide(spill.grate); hide(spill.sheet); }
     for (const f of floaters) {
-      if (!f.active || f.state === 'gone') { hide(f.body); hide(f.head); if (f.active && f.s < s - 5) f.active = false; continue; }
+      if (!f.active || f.state === 'gone') { hideCrewFigure(f.fig); if (f.active && f.s < s - 5) f.active = false; continue; }
       const p = track.lateral(f.s, f.offset, 0.08 + Math.sin(time + f.s) * 0.02);
       const yaw = track.at(f.s).yaw;
-      writeBasis(f.body.matrix, p, [Math.cos(yaw), 0, -Math.sin(yaw)], [Math.sin(yaw), 0, Math.cos(yaw)], UP, 0.24, 0.75, 0.16);
-      writeYaw(f.head.matrix, add(p, [Math.sin(yaw) * 0.85, 0.02, Math.cos(yaw) * 0.85]), yaw, 0.17, 0.12, 0.2);
+      poseProne(f.fig, { at: add(p, [0, -0.04, 0]), dir: [Math.sin(yaw), 0, Math.cos(yaw)], drift: time + f.s });
       // Steering the raft over them is the rescue (or the mistake).
       if (Math.abs(f.s - s - 1) < 1.2 && Math.abs(f.offset - offset) < 1.3 && f.state === 'floating') {
         f.state = 'gone';

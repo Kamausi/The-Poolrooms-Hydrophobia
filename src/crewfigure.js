@@ -10,6 +10,8 @@ export const CREW_LOOK = {
   tubs: { jacket: '#8a8278', vest: '#a8823a', hat: '#2b2a27', hatKind: 'beanie', tall: 1.05, broad: 1.3 },
   june: { jacket: '#c9c6b8', vest: '#b46a3c', hat: '#bdbaac', hatKind: 'hood', tall: 1.08, broad: 0.85, coat: true },
 };
+/** A guest in the water: faded swimwear grey, a park flotation vest, bare-headed. */
+export const VISITOR_LOOK = { jacket: '#7d8784', vest: '#b46a3c', hat: '#3a3530', hatKind: 'none', tall: 1, broad: 0.95 };
 
 const UP = [0, 1, 0];
 const skin = { color: [0.5, 0.38, 0.3], metallic: 0, roughness: 0.65 };
@@ -17,8 +19,8 @@ const glove = { color: [0.1, 0.1, 0.09], metallic: 0, roughness: 0.95 };
 const boots = { color: [0.06, 0.06, 0.06], metallic: 0, roughness: 0.8 };
 
 /** P(name, geometry, material) is the scene's part factory. */
-export function createCrewFigure(P, id, tag = '') {
-  const L = CREW_LOOK[id];
+export function createCrewFigure(P, id, tag = '', look = null) {
+  const L = look || CREW_LOOK[id];
   const cloth = { color: linear(L.jacket), metallic: 0, roughness: 0.8 };
   const trousers = { color: L.coat ? linear(L.jacket).map((c) => c * 0.85) : [0.08, 0.09, 0.1], metallic: 0, roughness: 0.85 };
   const n = (what) => `Crew ${what} ${id}${tag}`;
@@ -52,7 +54,8 @@ function headwear(f, head, rgt, upL, fwd) {
   if (k === 'helmet') writeBasis(f.hat.matrix, add(head, scale(upL, 0.06)), rgt, upL, fwd, 0.118, 0.075, 0.128);
   else if (k === 'cap') writeBasis(f.hat.matrix, add(head, scale(upL, 0.065)), rgt, upL, fwd, 0.104, 0.06, 0.11);
   else if (k === 'beanie') writeBasis(f.hat.matrix, add(head, scale(upL, 0.07)), rgt, upL, fwd, 0.104, 0.085, 0.11);
-  else writeBasis(f.hat.matrix, add(add(head, scale(upL, 0.025)), scale(fwd, -0.02)), rgt, upL, fwd, 0.128, 0.142, 0.13); // the hood
+  else if (k === 'hood') writeBasis(f.hat.matrix, add(add(head, scale(upL, 0.025)), scale(fwd, -0.02)), rgt, upL, fwd, 0.128, 0.142, 0.13);
+  else writeBasis(f.hat.matrix, add(add(head, scale(upL, 0.03)), scale(fwd, -0.03)), rgt, upL, fwd, 0.1, 0.1, 0.1); // wet hair
   if (k === 'cap') writeBasis(f.brim.matrix, add(add(head, scale(upL, 0.05)), scale(fwd, 0.11)), rgt, upL, fwd, 0.16, 0.015, 0.1);
   else hide(f.brim);
 }
@@ -124,5 +127,29 @@ export function poseStanding(f, { feet, yaw, walk = 0, pace = 0, drop = 0 }) {
     const hand0 = add(add(add(shoulder, [0, -0.56, 0]), reach), scale(rgt, 0.05 * k));
     writeSegment(arm.matrix, shoulder, hand0, 0.05 * B);
     writeBasis(hand.matrix, hand0, rgt, UP, fwd, 0.07, 0.1, 0.08);
+  }
+}
+
+/**
+ * Face down in the water: the torso along dir, arms spread, legs trailing under the surface. at: chest point
+ * at the waterline; dir: the way the head points (horizontal); drift: a slow phase for the limbs.
+ */
+export function poseProne(f, { at, dir, drift = 0 }) {
+  const B = f.L.broad;
+  const down = [0, -1, 0];
+  const rgt = normalize(cross(dir, down));
+  const hip = add(at, scale(dir, -0.32));
+  const sh = upper(f, hip, dir, rgt, down, 0.5);
+  for (const [arm, hand, k] of [[f.armL, f.handL, -1], [f.armR, f.handR, 1]]) {
+    const shoulder = add(sh, scale(rgt, 0.2 * B * k));
+    const hand0 = add(add(add(shoulder, scale(rgt, (0.5 + Math.sin(drift + k) * 0.05) * k)), scale(dir, 0.22)), [0, -0.12, 0]);
+    writeSegment(arm.matrix, shoulder, hand0, 0.05 * B);
+    writeBasis(hand.matrix, hand0, rgt, dir, down, 0.08, 0.1, 0.05);
+  }
+  for (const [leg, foot, k] of [[f.legL, f.footL, -1], [f.legR, f.footR, 1]]) {
+    const h = add(hip, scale(rgt, 0.09 * B * k));
+    const end = add(add(add(h, scale(dir, -0.8)), scale(rgt, (0.1 + Math.sin(drift * 0.7 + k) * 0.03) * k)), [0, -0.25, 0]);
+    writeSegment(leg.matrix, h, end, 0.075 * B);
+    writeBasis(foot.matrix, end, rgt, dir, down, 0.11, 0.24, 0.09);
   }
 }
