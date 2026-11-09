@@ -1,0 +1,21 @@
+# Tests
+
+Headless Chromium (software GL, `?quality=low`) driving the game through its DEV hooks. They check state, not feel: aim, readability, tension and comfort need people (see the playtesting protocol in `docs/PRODUCTION.md`).
+
+| File | Checks | Time |
+|---|---|---|
+| `maps.mjs` | Every dock map is solvable (node only, no browser) | instant |
+| `smoke.cjs` | All eight attractions: ride to the dock, explore, restore, board | ~1 min |
+| `chapter.cjs` | The Closed Wave Pool end to end | ~1 min |
+| `memory.cjs` | Rescues commit at Safe Rooms; the next expedition is authored from memory; false records; the ledger stays clean | ~1 min |
+| `resume.cjs` | Nothing handed out twice on foot; nothing behind the resume point fires on the raft | <1 min |
+| `balance.cjs` | The competent-player bot reaches every dock; reports lowest health and raft condition | several min |
+| `single.cjs` | `dist/UNDERFLOW.html` opens from disk and starts (run `npm run build:single` first) | <1 min |
+
+```sh
+npm test                    # the quick set
+node tests/run.mjs balance  # one test by name
+UNDERFLOW_URL=http://localhost:5173 node tests/smoke.cjs   # against a server you already run
+```
+
+Each test prints `ok` / `FAIL` lines and exits non-zero on a failure or any page error. Shared helpers are in `lib.cjs`.

@@ -9,6 +9,8 @@ Rendered with [67js](https://github.com/codepawl/67.js), a WebGL2 engine where a
 npm install
 npm run dev       # http://localhost:5173
 npm run build     # static site in dist/, host anywhere
+npm run build:single  # dist/UNDERFLOW.html, one playable file
+npm test          # headless tests (see tests/README.md)
 ```
 
 The game needs a browser with WebGL2. On a machine without a GPU it switches to a lighter render mode automatically; add `?quality=low` or `?quality=high` to the URL to choose yourself.
