@@ -259,6 +259,59 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
   const variant = sector.variant || {};
   const remembered = [];
   const prop = (name, mat, pos, size, yaw = 0) => { const p = P(name, box(0.02, 2), mat); writeYaw(p.matrix, pos, yaw, ...size); return p; };
+
+  // ---------- The service door ----------
+  // One ordinary door in every dock, set in a wall away from the raft: teal paint, wired glass, a handle, a
+  // keyhole. Omens use it (the handle turns, it opens a crack, water runs from the keyhole) and sometimes
+  // something forces it, and a player can hold it shut.
+  const door = (() => {
+    const cands = find('.').filter(([x, z]) => { const md = Math.abs(x - dx0) + Math.abs(z - dz0); return md >= 4 && md <= 10 && DIRS.some(([ddx, ddz]) => isWall(x + ddx, z + ddz)); });
+    if (!cands.length) return null;
+    const [cx, cz] = cands[Math.floor(random() * cands.length)];
+    const w = wallSpot(cx, cz);
+    const n = w.normal, t = [n[2], 0, -n[0]];
+    const fl = floorTop(cx, cz);
+    const hinge = [w.pos[0] - t[0] * 0.45 + n[0] * 0.02, fl, w.pos[2] - t[2] * 0.45 + n[2] * 0.02];
+    const teal = { color: linear('#6f9694'), metallic: 0.25, roughness: 0.6 };
+    // A worn safety-yellow frame and a stencilled sign, so the door reads at a glance in poor light.
+    const trim = { color: linear('#b19a50'), metallic: 0.1, roughness: 0.7 };
+    for (const [nm, off, size] of [['Door jamb L', -0.5, [0.08, 2.1, 0.06]], ['Door jamb R', 0.5, [0.08, 2.1, 0.06]]]) writeBasis(P(nm, box(0.02, 2), trim).matrix, [w.pos[0] + t[0] * off + n[0] * 0.02, fl + 1.05, w.pos[2] + t[2] * off + n[2] * 0.02], t, UP, n, ...size);
+    label('SERVICE · KEEP CLOSED', 'rule', [w.pos[0] + n[0] * 0.03, fl + 2.42, w.pos[2] + n[2] * 0.03], n, 1.0, 0.24, 384, 92);
+    writeBasis(P('Door header', box(0.02, 2), trim).matrix, [w.pos[0] + n[0] * 0.02, fl + 2.12, w.pos[2] + n[2] * 0.02], t, UP, n, 1.08, 0.08, 0.06);
+    return {
+      cell: [cx, cz], n, t, hinge, angle: 0, turn: 0, fl,
+      gap: P('Service door opening', box(0, 1), { color: [0.01, 0.012, 0.014], metallic: 0, roughness: 1 }),
+      leaf: P('Service door', box(0.02, 2), teal),
+      glass: P('Service door wired glass', box(0, 1), { color: [0.12, 0.16, 0.15], metallic: 0.3, roughness: 0.15 }),
+      handle: P('Service door handle', cylinder(8, 0.2, 2), { color: [0.55, 0.55, 0.5], metallic: 0.8, roughness: 0.35 }),
+      stream: P('Water from the keyhole', cylinder(6, 0, 1), { color: [0.5, 0.6, 0.6], metallic: 0.2, roughness: 0.05, alphaMode: 'blend', opacity: 0.6 }),
+      puddle: P('Puddle under the door', cylinder(20, 0, 1), { color: [0.05, 0.07, 0.07], metallic: 0.6, roughness: 0.05 }),
+      prints: [0, 1, 2, 3].map((i) => P(`Wet footprint ${i}`, box(0.2, 2), { color: [0.06, 0.07, 0.07], metallic: 0.5, roughness: 0.1 })),
+      puddleR: 0, streamT: 0, printsOn: false, forced: null, heldT: 0, reopenAt: 0,
+    };
+  })();
+  function placeDoor() {
+    if (!door) return;
+    const { n, t, hinge } = door;
+    const a = door.angle;
+    const d = [t[0] * Math.cos(a) + n[0] * Math.sin(a), 0, t[2] * Math.cos(a) + n[2] * Math.sin(a)];
+    const z = cross(d, UP);
+    const c = add(hinge, [d[0] * 0.45, 1.0, d[2] * 0.45]);
+    writeBasis(door.gap.matrix, add(hinge, [t[0] * 0.45 - n[0] * 0.03, 1.0, t[2] * 0.45 - n[2] * 0.03]), t, UP, n, 0.92, 2.02, 0.01);
+    writeBasis(door.leaf.matrix, c, d, UP, z, 0.9, 2.0, 0.05);
+    writeBasis(door.glass.matrix, add(c, [-z[0] * 0.03, 0.5, -z[2] * 0.03]), d, UP, z, 0.32, 0.4, 0.01);
+    const hp = add(hinge, [d[0] * 0.78 - z[0] * 0.05, 1.0, d[2] * 0.78 - z[2] * 0.05]);
+    writeSegment(door.handle.matrix, hp, add(hp, [-d[0] * 0.13 * Math.cos(door.turn), -0.13 * Math.sin(door.turn), -d[2] * 0.13 * Math.cos(door.turn)]), 0.014);
+    const keyhole = add(hp, [0, -0.08, 0]);
+    if (door.streamT > 0) writeSegment(door.stream.matrix, keyhole, [keyhole[0] - z[0] * 0.08, door.fl + 0.01, keyhole[2] - z[2] * 0.08], 0.008); else hide(door.stream);
+    if (door.puddleR > 0) writeBasis(door.puddle.matrix, [keyhole[0] - z[0] * 0.3, door.fl + 0.005, keyhole[2] - z[2] * 0.3], [1, 0, 0], [0, 1, 0], [0, 0, 1], door.puddleR, 0.004, door.puddleR * 0.8); else hide(door.puddle);
+    door.prints.forEach((p, i) => {
+      if (!door.printsOn) return hide(p);
+      const along = 0.5 + i * 0.55, side = (i % 2 ? 0.12 : -0.12);
+      writeYaw(p.matrix, add(hinge, [t[0] * (0.45 + side) + n[0] * along, door.fl + 0.004, t[2] * (0.45 + side) + n[2] * along]), Math.atan2(n[0], n[2]), 0.11, 0.004, 0.26);
+    });
+  }
+  const omenFigure = createCrewFigure(P, 'visitor', ' standing at the far lamp', { ...VISITOR_LOOK, jacket: '#5d6461', vest: '#6d4a36' });
   const vestMat = { color: linear('#b46a3c'), metallic: 0, roughness: 0.65 };
   const cupMat = { color: [0.88, 0.88, 0.84], metallic: 0, roughness: 0.4 };
   // The same small details, in the same places relative to a wall: they will be here, and again later.
@@ -595,6 +648,125 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
   }
 
   const director = createDirector(random, { relax: [30, 46], level: sector.index });
+
+  // ---------- Omens on foot ----------
+  let fomen = null, fomenCool = 28 + random() * 18, lastFomen = '', fused = new Set();
+  const doorDist = () => (door ? Math.hypot(door.hinge[0] - player.pos[0], door.hinge[2] - player.pos[2]) : 99);
+  let viewEye = [0, 1.6, 0], viewDir = [0, 0, -1];
+  const panTo = (p) => soundDir(viewEye, viewDir, p).pan;
+  function startFomen(kind) {
+    lastFomen = kind;
+    fused.add(kind);
+    fomen = { kind, t: 0 };
+    const crew = Object.keys(state.crewState || {}).filter((c) => !(state.forgotten || []).includes(c) && state.crewState[c] !== 'hurt' && followers.some((f) => f.id === c));
+    const who = (crew[0] || state.name).toUpperCase();
+    director.omen(0.3, kind === 'forced' ? 30 : 14); // the door is the event: no swarm on top of it
+    if (kind === 'handle') { hud.hush(12); sound.lever(panTo(door.hinge)); hud.caption('[the handle of the service door is turning — slowly — nobody behind the glass]'); }
+    else if (kind === 'crack') { hud.hush(12, who, 'Did that door just open?'); sound.chair(panTo(door.hinge)); hud.caption('[the service door opens a few centimetres, and stops]'); }
+    else if (kind === 'keyhole') { hud.hush(10); door.streamT = 10; hud.caption('[water running out of the service door\'s keyhole. The lock was dry a minute ago]'); }
+    else if (kind === 'forced') { hud.hush(20); fomen.push = 0; hud.caption('[something is forcing the service door — get to it and HOLD IT SHUT]'); hud.say(who, 'The door — someone hold the door!', 'crew'); }
+    else if (kind === 'lights') {
+      hud.hush(14, who, 'Lights. Stay close.');
+      fomen.order = lamps.filter((l) => !l.broken && distance(l.pos, player.pos) < 22).sort((a, b) => distance(b.pos, player.pos) - distance(a.pos, player.pos));
+      fomen.i = 0; fomen.step = 0;
+      hud.caption('[the lights are going out — one at a time — toward you]');
+    }
+    else if (kind === 'extraStep') fomen.armed = true;
+    else if (kind === 'drain') { sound.gurgle(); setTimeout(() => { sound.breath(0); hud.caption('[the drain empties — and at the end of it, a breath drawn in]'); }, 1900); hud.hush(10); }
+    else if (kind === 'echo') { hud.say(who, 'Radio check. Everyone okay?', 'crew'); setTimeout(() => { hud.say('VOICE · UNDER THE WATER', '…okay?', 'voice'); hud.caption('[the last word again — from under the water]'); }, 3200); hud.hush(12); }
+    else if (kind === 'name') { sound.gurgle(); setTimeout(() => { hud.say('VOICE · THE DRAIN', `${state.name}?`, 'voice'); hud.caption('[your own voice, calling your name, from the drain]'); }, 1200); hud.hush(12); }
+  }
+  function endFomen() { fomen = null; fomenCool = 40 + random() * 35; }
+  function updateFomens(dt, ask) {
+    // Door bookkeeping that outlives any one omen.
+    if (door) {
+      if (door.streamT > 0) { door.streamT -= dt; door.puddleR = Math.min(0.55, door.puddleR + dt * 0.05); }
+      if (door.reopenAt && time > door.reopenAt && doorDist() > 7) { door.reopenAt = 0; door.angle = 0.9; door.printsOn = true; events.ledger?.('changes', `${sector.name}: the service door you held shut was open later, with wet prints over the threshold`); }
+      placeDoor();
+    }
+    const quiet = director.phase === 'relax' && !surge && !(undertow.alive && undertow.holding > 0) && !state.downed && !(lifeguard && lifeguard.state === 'pursuit');
+    if (!fomen) {
+      if (!quiet) return;
+      if ((fomenCool -= dt) > 0) return;
+      const pool = ['handle', 'crack', 'keyhole', 'forced', 'lights', 'extraStep', 'drain', 'echo', 'name'].filter((k) => !fused.has(k) && k !== lastFomen
+        && (door || !['handle', 'crack', 'keyhole', 'forced'].includes(k))
+        && !(k === 'forced' && (sector.index === 0 || !fused.has('handle') && !fused.has('crack')))
+        && !(k === 'name' && state.drift < 35)
+        && !(k === 'echo' && !followers.length));
+      if (pool.length) startFomen(pool[Math.floor(random() * pool.length)]);
+      else fomenCool = 60;
+      return;
+    }
+    const f = fomen;
+    f.t += dt;
+    if (f.kind === 'handle') {
+      door.turn = f.t < 1.4 ? Math.sin(Math.min(1, f.t / 1.2) * Math.PI / 2) * 0.7 : Math.max(0, 0.7 - (f.t - 1.8) * 1.2);
+      if (f.t > 4) { door.turn = 0; endFomen(); }
+    } else if (f.kind === 'crack') {
+      if (!f.wider) door.angle = Math.min(0.1, door.angle + dt * 0.3);
+      // It opens farther once you walk away from it.
+      if (!f.wider && (doorDist() > 6 || f.t > 30)) { f.wider = true; sound.chair(panTo(door.hinge)); hud.caption('[behind you — the door, opening wider]'); }
+      if (f.wider) door.angle = Math.min(0.5, door.angle + dt * 0.4);
+      if (f.wider && door.angle >= 0.5) endFomen();
+    } else if (f.kind === 'keyhole') {
+      if (f.t > 10) endFomen();
+    } else if (f.kind === 'forced') {
+      f.bang = (f.bang || 0) - dt;
+      if (f.bang <= 0) { f.bang = 1.1; sound.thump(panTo(door.hinge)); }
+      door.angle = Math.min(1.5, door.angle + dt * 0.09);
+      const near = doorDist() < 1.9;
+      if (near) {
+        ask(5, `HOLD E · Hold the door shut · ${Math.round((door.heldT / 6) * 100)}%`);
+        if (isDown('e')) { door.angle = Math.max(0, door.angle - dt * 0.3); door.heldT += dt; }
+      }
+      if (door.heldT >= 6) {
+        hud.caption('[the pushing stops. Wet footsteps on the other side, going away]');
+        door.angle = 0; door.reopenAt = time + 70; endFomen();
+      } else if (door.angle >= 1.1) {
+        // The hinges give: what was pushing comes through.
+        door.angle = 1.5;
+        sound.burstBig?.();
+        hud.caption('[the hinges give — it\'s through]');
+        for (let k = 0; k < 3; k++) spawnBloom(add(door.hinge, [door.n[0] * (1 + k * 0.4) + door.t[0] * 0.45, 1.3, door.n[2] * (1 + k * 0.4) + door.t[2] * 0.45]));
+        endFomen();
+      }
+    } else if (f.kind === 'lights') {
+      f.step -= dt;
+      if (f.i < f.order.length && f.step <= 0) { f.step = 0.5; f.order[f.i++].out = true; sound.switchOn(); }
+      if (f.i >= f.order.length && !f.darkT) f.darkT = f.t;
+      if (f.darkT && f.t - f.darkT > 3 && !f.outcome) {
+        const r = random();
+        f.outcome = r < 0.4 ? 'nothing' : r < 0.7 ? 'blooms' : 'figure';
+        if (f.outcome === 'blooms') { const dir = normalize(sub(f.order[0]?.pos || player.pos, player.pos)); for (let k = 0; k < 2; k++) spawnBloom(add(player.pos, [dir[0] * (7 + k) || 6, 1.2, dir[2] * (7 + k) || 6])); }
+        if (f.outcome === 'figure' && f.order[0]) { f.figAt = [f.order[0].pos[0], floorTop(f.order[0].x, f.order[0].z), f.order[0].pos[2]]; f.persist = random() < 0.35; f.figT = 0; }
+        for (const l of f.order) l.out = false;
+        sound.switchOn();
+        if (f.outcome === 'blooms') hud.caption('[the lights come back — and they are already close]');
+      }
+      if (f.figAt) {
+        f.figT += dt;
+        const yaw = Math.atan2(player.pos[0] - f.figAt[0], player.pos[2] - f.figAt[2]);
+        poseStanding(omenFigure, { feet: f.figAt, yaw, walk: 0, pace: 0 });
+        if (f.figT < 0.2 && !f.said) { f.said = true; hud.caption('[at the far end, under the last lamp: someone standing still]'); }
+        // Most are gone a moment later. Some stay, until someone walks up to them.
+        const gone = f.persist ? Math.hypot(f.figAt[0] - player.pos[0], f.figAt[2] - player.pos[2]) < 4 : f.figT > 2.4;
+        if (gone) {
+          hideCrewFigure(omenFigure);
+          if (f.persist) hud.caption('[nobody there. A wet patch on the tiles, the size of two feet]');
+          endFomen();
+        }
+      } else if (f.outcome && f.outcome !== 'figure') endFomen();
+    } else if (f.kind === 'extraStep') {
+      // The next time you stop: the crew's steps stop with yours, then one more.
+      if (f.armed && !moving && time - stoppedAt > 0.5) {
+        f.armed = false;
+        setTimeout(() => sound.footstep(-0.5, false), 450);
+        hud.caption(followers.length ? `[${followers.length + 1} of you stopped walking. One more step — behind you]` : '[you stopped. One more step — behind you]');
+        hud.hush(10);
+      }
+      if (!f.armed && f.t > 3 || f.t > 40) endFomen();
+    } else if (f.t > 6) endFomen();
+  }
   let lastHealth = state.health;
   function runDirector(dt, eye) {
     const hurt = Math.max(0, lastHealth - state.health);
@@ -1212,6 +1384,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     if (lifeguard && lifeguard.warn > 0 && lifeguard.state === 'watching') ask(4, `THE LIFEGUARD HAS SEEN YOU · ${lifeguard.rule === 'swim' ? 'get out of the water' : 'stop running'} or get out of its sight · ${Math.max(0, 2.5 - lifeguard.warn).toFixed(1)} s`);
 
     runDirector(dt, eye);
+    updateFomens(dt, ask);
     voices(dt);
 
     let scanText = '';
@@ -1254,6 +1427,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     if (wasPressed('z')) shoveFoot(eye, dir);
     callouts.update(dt, -player.yaw);
     lastAim = [eye, dir];
+    viewEye = eye; viewDir = dir;
     updateFootExtras(dt, eye, dir, ask);
     if (wasPressed('f')) burst(eye);
     blaster.place(eye, target, dir, swayY * 0.4);
@@ -1738,7 +1912,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
           } else l.broken = 3;
         }
       }
-      const on = !l.broken && (!l.dark || powered());
+      const on = !l.broken && !l.out && (!l.dark || powered());
       const flick = l.flicker > 0.88 ? (Math.sin(time * 41 + l.flicker * 50) > 0.5 ? 0.12 : 1) : 1;
       if (on) {
         writeYaw(l.part.matrix, [l.pos[0], wallH - 0.03, l.pos[2]], 0, 1.4, 0.06, 0.5);
@@ -2021,7 +2195,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     for (let i = 0; i < (r.valves || 0); i++) { const v = pumpValves.find((x) => x.id === valveOrder[i]); if (v) v.open = true; }
     valveStep = r.valves || 0;
   }
-  if (import.meta.env.DEV) window.__explore = { followers, get dockKind() { return dockKind; }, get valves() { return { order: valveOrder, step: valveStep, list: pumpValves }; }, june: juneEvent, thread, get clock() { return clock; }, stagnant, player, center, undertow, lifeguard, cellPos, panelPos, raftPos, code, find, floaters, restorePower };
+  if (import.meta.env.DEV) window.__explore = { omen: (k) => startFomen(k), get omenState() { return fomen; }, door, blooms, lamps, director, followers, get dockKind() { return dockKind; }, get valves() { return { order: valveOrder, step: valveStep, list: pumpValves }; }, june: juneEvent, thread, get clock() { return clock; }, stagnant, player, center, undertow, lifeguard, cellPos, panelPos, raftPos, code, find, floaters, restorePower };
 
   return {
     update,
