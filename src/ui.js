@@ -480,6 +480,12 @@ export function showKeypad(code, onSuccess, onClose) {
   showModal('Keypad', body, [['STEP BACK', () => { removeEventListener('keydown', onKey); onClose(); }]], 'MAINTENANCE DOOR');
 }
 
+/** Settings that change the page itself: text size and contrast. */
+export function applyDisplaySettings() {
+  document.documentElement.style.setProperty('--text-scale', String(settings.textScale || 1));
+  document.body.classList.toggle('contrast', !!settings.highContrast);
+}
+
 export function settingsView(onChange) {
   const wrap = el('div', 'settings');
   for (const [key, label] of Object.entries(SETTING_LABELS)) {
@@ -490,6 +496,7 @@ export function settingsView(onChange) {
     box.onchange = () => {
       settings[key] = box.checked;
       saveSettings();
+      applyDisplaySettings();
       onChange?.();
     };
     row.append(box, document.createTextNode(label));
@@ -508,11 +515,22 @@ export function settingsView(onChange) {
     const row = el('label');
     const sl = el('input');
     Object.assign(sl, { type: 'range', min, max, step: 0.1, value: settings[key] });
-    sl.oninput = () => { settings[key] = Number(sl.value); saveSettings(); };
+    sl.oninput = () => { settings[key] = Number(sl.value); saveSettings(); applyDisplaySettings(); };
     row.append(document.createTextNode(label), sl);
     wrap.append(row);
   };
   range('Steering sensitivity', 'steer', 0.4, 2);
+  range('Text size', 'textScale', 0.85, 1.6);
+  range('Incoming damage (assist)', 'damageAssist', 0.3, 1);
+  {
+    const row = el('label');
+    const sel = el('select');
+    for (const [v, t] of [[0, 'Frame rate: display (60 FPS tier)'], [30, 'Frame rate: 30 FPS profile']]) { const o = el('option', null, t); o.value = v; sel.append(o); }
+    sel.value = String(settings.fpsCap || 0);
+    sel.onchange = () => { settings.fpsCap = Number(sel.value); saveSettings(); };
+    row.append(sel);
+    wrap.append(row);
+  }
   range('Camera motion (shake, roll, impacts)', 'camera', 0, 1);
   // Key bindings: click an action, press a key.
   const keys = el('div', 'bindings');

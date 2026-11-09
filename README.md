@@ -43,6 +43,7 @@ Touch: left half of the screen moves, right half aims or looks, with buttons for
 
 ## Modes
 - **Campaign 1, "Overflow":** choose Mars, Dez, Tubs or June, then ride eight attractions, from the Welcome Pools to the Rooftop Lagoon. Each is a branching ride ending at a holding pool with an optional dock: restore power, run a compressor, raise the pool, winch a gate, or fetch supplies.
+- **Reference chapter, "The Closed Wave Pool":** one complete sequence held to the finished standard: arrival, a navigation choice, exploration with a visible purpose, a loud commitment, a return through the route you made, and a Safe Room that overlooks it.
 - **Challenges:** Pump Defence, High Water, Last Departure, Shared Expedition. **Route builder:** write a ride as tokens, ride it, share it as a link.
 - **Endless:** seeded attractions with rising threat and a score. Enter a seed on the menu or open `?seed=1234`; your best depth per seed is kept.
 - The game saves your exact position every few seconds; closing the tab and choosing **Resume** puts you back where you were. Safe Rooms are the checkpoints you return to after dying.
@@ -63,6 +64,7 @@ Touch: left half of the screen moves, right half aims or looks, with buttons for
 | `src/director.js` | Pacing: relax, warning, build-up, peak, fade, recovery; a pressure budget that counts rescues and repairs |
 | `src/saferoom.js` | The Safe Room scene behind its panel |
 | `src/menuscene.js` | The main-menu corridor behind the title |
+| `src/playlog.js` | Local playtest log and frame-time statistics |
 | `src/ui.js` | Safe Room, workbench, route terminal, logbook, keypad, settings |
 | `src/hud.js`, `src/style.css` | The overlay |
 | `src/audio.js` | Synthesized, stereo-panned sound |
@@ -73,5 +75,6 @@ The first prototype (a single minified Three.js file) is kept at `public/legacy/
 ## Design
 - [docs/GAME_DESIGN.md](docs/GAME_DESIGN.md): concept, mechanics, architecture and what's built so far
 - [docs/SYSTEMS_DESIGN.md](docs/SYSTEMS_DESIGN.md): how raft, water, exploration and Safe Rooms connect; roadmap
+- [docs/PRODUCTION.md](docs/PRODUCTION.md): the quality standard, the reference chapter, measurement, accessibility, playtest protocol, and what is not built
 - [docs/ART_DIRECTION.md](docs/ART_DIRECTION.md): palette, type, lighting, sectors, crew and entity look, interface, main menu
 - [docs/STORY_AND_LORE.md](docs/STORY_AND_LORE.md): setting, characters, entities, endings and story decisions

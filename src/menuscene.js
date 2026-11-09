@@ -7,6 +7,7 @@ import { tileTexture } from './textures.js';
 import { signMaterial, quad } from './labels.js';
 import { quality } from './quality.js';
 import { settings } from './settings.js';
+import { sound } from './audio.js';
 
 export function createMenuScene(canvas) {
   const parts = [];
@@ -45,6 +46,7 @@ export function createMenuScene(canvas) {
     environment: { keyIntensity: 0.02, fillIntensity: 0.05, ambientIntensity: 0.08, fogColor: linear('#080d10'), fogDensity: 0.06, skyTop: display('#080d10'), skyBottom: display('#080d10') },
   });
   renderer.resize();
+  sound.setSpace('tile');
 
   return {
     update(dt) {

@@ -15,6 +15,13 @@ import { AMBIENT } from './sectors.js';
 import { documentFor } from './documents.js';
 import { createDirector, AFTERMATH } from './director.js';
 import { compressorRefill } from './hull.js';
+import { showModal, hideModal } from './ui.js';
+
+/** Machines whose setting changes the way out: [title, option A, option B] with [label, routeMod, toast]. */
+const ROUTE_CHOICES = {
+  water: ['Raise or drain?', ['RAISE THE POOL · fast, flooded outlet', 'flooded', 'THE OUTLET WILL BE FLOODED · FAST, DEEP, THINGS IN IT'], ['DRAIN THE SIDE CHANNEL · slow, exposed outlet', 'drained', 'THE OUTLET WILL BE EXPOSED · SLOW, SHALLOW, SUPPLIES ON THE LEDGES']],
+  divert: ['Where does the pressure go?', ['DIVERT TO THE SUBMERGED EXIT · the water comes off it', 'drained', 'THE EXIT WILL BE EXPOSED · YOU RIDE OUT THROUGH IT'], ['DIVERT INTO THE POOL · the waves finally start', 'flooded', 'THE WAVES WILL START · THE WAY OUT WILL BE ROUGH']],
+};
 
 /** What the stop is for. Every kind restores or reroutes the raft; every kind opens the way on. */
 const DOCK = {
@@ -26,6 +33,8 @@ const DOCK = {
     find: 'Water-control stop. Find the pump fuse and raise the holding pool so the raft can reach the high outlet.', carry: 'Bring the fuse to the pool pump.' },
   retrieval: { item: 'power cell', sign: 'SERVICE GATE\nCIRCUIT 3', machine: 'SERVICE PANEL', verb: 'restoring the circuit', hold: 5,
     find: 'Restore the service gate. A supply container fell onto the deck somewhere: worth the detour.', carry: 'Bring the power cell to the service panel.' },
+  divert: { item: 'pressure key', sign: 'WAVE GENERATOR\nPRESSURE · DIVERT', machine: 'WAVE GENERATOR', verb: 'diverting pressure', hold: 6,
+    find: 'Find the pressure key. Divert the wave generator\'s pressure so the water comes off the submerged exit. A side basin may hold a survivor.', carry: 'Fit the key to the wave generator.' },
   winch: { item: 'winch handle', sign: 'GATE WINCH\nHAND OPERATED', machine: 'GATE WINCH', verb: 'winching the gate up', hold: 8,
     find: 'Winch stop. The gate collapsed behind the raft. Find the winch handle, then winch it up while the crew holds them off.', carry: 'Fit the handle to the winch.' },
 };
@@ -283,6 +292,19 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
   const pumpChallenge = opts.challenge === 'pump' ? { cycle: 0, t: 0 } : null;
   let shoveCool = 0, shoveFatigue = 0, pingT = 0, callerAt = -100, callerWho = null;
   const pingMark = P('Ping marker', torus(0.06, 32, 8), glow([0.4, 1, 0.9], 6));
+  // The crew on foot: they walk your own trail behind you (so they never take a route you couldn't), cover you,
+  // come to you when you are down, and are at the raft when you board. Distinct silhouettes, as on the raft.
+  const LOOK = { mars: ['#3a4a5c', '#b19a50', 1, 1], dez: ['#22324a', '#9a8445', 1.02, 0.95], tubs: ['#8a8278', '#a8823a', 1.05, 1.3], june: ['#c9c6b8', '#b46a3c', 1.08, 0.85] };
+  const followers = (state.regrouped || sector.index > 0) && !state.endless && (!sector.custom || sector.chapter)
+    ? Object.keys(state.crewState || {}).filter((c) => !(state.forgotten || []).includes(c) && state.crewState[c] !== 'hurt').slice(0, 3).map((id, k) => ({
+      id, k, pos: null, cool: 1 + k * 0.5,
+      body: P(`Crew ${id} on foot`, cylinder(14, 0.4, 2), { color: linear(LOOK[id][0]), metallic: 0, roughness: 0.75 }),
+      vest: P(`Crew ${id} vest on foot`, box(0.08, 2), { color: linear(LOOK[id][1]), metallic: 0, roughness: 0.6 }),
+      head: P(`Crew ${id} head on foot`, sphere(14, 10), { color: [0.62, 0.48, 0.38], metallic: 0, roughness: 0.6 }),
+    }))
+    : [];
+  const crewShot = P('Crew shot on foot', slab, glow([0.85, 1, 0.45], 10));
+  let crewShotT = 0;
   const scrap = find('s').map(([x, z], i) => ({ part: P(`Scrap ${i}`, box(0.1, 2), glow([0.6, 1, 0.8], 0.4, { color: [0.55, 0.6, 0.58], metallic: 0.9, roughness: 0.3 })), pos: add(center(x, z), [(random() - 0.5) * 1.5, 0.25 + floorTop(x, z), (random() - 0.5) * 1.5]), taken: false }));
   const lockers = find('h').map(([x, z], i) => {
     const wd = DIRS.find(([dx, dz]) => isWall(x + dx, z + dz)) || [0, 1];
@@ -451,8 +473,15 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
   const pick = (list) => list[Math.floor(random() * list.length)];
   const forwardVec = () => [-Math.sin(player.yaw), 0, -Math.cos(player.yaw)];
   hud.objective(hasCell ? (powered() ? 'Done. Return to the raft.' : K.carry) : K.find);
+  sound.setSpace(rules.openSky ? 'dry' : 'room');
   if (opts.challenge === 'pump') setTimeout(() => { director.crescendo(); hud.say('DEZ', 'Pump\'s running and it\'s loud. Five cycles. Stay near it — it stalls without us.', 'crew'); }, 1500);
   if (state.highWater) hud.caption('[the water is up. The tidal floors are under. The air over the water is heavy.]');
+  if (state.landing === key && !state.landingTaken?.[key]) {
+    (state.landingTaken ||= {})[key] = true;
+    state.patchKits = (state.patchKits || 0) + 2;
+    state.cells = Math.min(3, state.cells + 1);
+    hud.toast('MAINTENANCE LANDING · EQUIPMENT CRATES · +2 PATCH KITS · +1 CELL');
+  }
   if (dockKind === 'repair') {
     hud.caption('[a maintenance platform: a dead compressor, a route diagram under plastic, a pile of discarded life vests]');
     setTimeout(() => hud.say('TUBS', 'Vests. Eleven of them. Somebody counted them off and left them here.', 'crew'), 3500);
@@ -883,7 +912,15 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
       else if (pumpValves.length && valveStep < 3) ask(2, `${K.machine} · NO PRESSURE · open the valves in the diagram's order (it is posted at the dock)`);
       else {
         // Operating the panel takes time and noise: hold E while the swarm comes. Getting hit sets you back.
-        if (isDown('e') && !(pumpValves.length && valveStep < 3)) {
+        // At a water machine the crew decides what the water does next. The raft rides out through the result.
+        if (wasPressed('e') && ROUTE_CHOICES[dockKind] && !(state.routeMod ||= {})[key] && !(pumpValves.length && valveStep < 3)) {
+          const [title, a, b] = ROUTE_CHOICES[dockKind];
+          showModal(title, 'This decides the route the raft takes out of here, and what is waiting on it.', [
+            [a[0], () => { state.routeMod[key] = a[1]; hideModal(); hud.toast(a[2]); }, true],
+            [b[0], () => { state.routeMod[key] = b[1]; hideModal(); hud.toast(b[2]); }],
+          ], K.machine);
+        }
+        if (isDown('e') && !(pumpValves.length && valveStep < 3) && (!ROUTE_CHOICES[dockKind] || state.routeMod?.[key])) {
           if (!operating) { operating = 0.001; director.crescendo(); hud.caption(dockKind === 'winch' ? '[the winch chain screams on its drum — and something answers, everywhere]' : '[the machine groans awake — and something answers, everywhere]'); hud.say('DEZ', `That ${K.machine.toLowerCase()}\'s loud. Hold it. Whatever comes, hold it.`, 'crew'); }
           operating += dt;
           if (state.health < lastPanelHealth - 0.5) operating = Math.max(0.001, operating - 1.2);
@@ -1146,7 +1183,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     hud.prompt(prompts[0]?.[1] || '');
     const depthInfo = state.upgrades.includes('depth') ? ` · ${water ? 'WAIST DEEP' : 'DRY'}${undertow.alive ? ` · WAKE ${Math.round(distance(undertow.pos, player.pos))} M` : ''}` : '';
     hud.depth(`${sector.depth.toFixed(1)} M · ON FOOT${water ? ' · IN WATER' : ''}${depthInfo}`);
-    hud.route([`▸ ON FOOT · ${sector.name}`, hasCell ? (powered() ? '● CIRCUIT RESTORED · RETURN TO THE RAFT' : '○ CARRYING THE POWER CELL · FIND THE PANEL') : '○ FIND THE POWER CELL', `MOORED RAFT ${Math.round(Math.hypot(raftPos[0] - eye[0], raftPos[2] - eye[2]))} M`]);
+    hud.route([`▸ ON FOOT · ${sector.name}`, hasCell ? (powered() ? `● ${K.machine} DONE · RETURN TO THE RAFT` : `○ CARRYING THE ${K.item.toUpperCase()} · FIND THE ${K.machine}`) : `○ FIND THE ${K.item.toUpperCase()}`, `MOORED RAFT ${Math.round(Math.hypot(raftPos[0] - eye[0], raftPos[2] - eye[2]))} M`]);
 
     saveTimer -= dt;
     if (saveTimer <= 0) {
@@ -1210,8 +1247,53 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     else hud.caption('[radio check: static]');
   }
 
+  function updateFollowers(dt) {
+    crewShotT -= dt;
+    if (crewShotT <= 0) hide(crewShot);
+    for (const f of followers) {
+      f.pos ||= [raftPos[0] + (f.k - 1) * 0.9, 0, raftPos[2] + 0.9];
+      const sitting = f.id === 'june' && juneEvent.state === 'sitting';
+      if (sitting || juneEvent.state === 'left' && f.id === 'june') { hide(f.body); hide(f.vest); hide(f.head); continue; }
+      // Target: a point on your trail behind you; when you are down, your side.
+      const trailPt = thread[thread.length - 1 - (f.k + 1)] || [raftPos[0] + (f.k - 1) * 0.9, 0, raftPos[2] + 0.8];
+      const target = state.downed && f.k === 0 ? [player.pos[0] + 0.7, 0, player.pos[2] + 0.4] : trailPt;
+      const to = [target[0] - f.pos[0], 0, target[2] - f.pos[2]];
+      const dd = Math.hypot(to[0], to[2]);
+      const spd = dd > 6 ? 5.5 : 3.6;
+      if (dd > 0.6) f.pos = add(f.pos, scale(normalize(to), Math.min(dd, spd * dt)));
+      const [cx, cz] = cellOf(f.pos[0], f.pos[2]);
+      const fl = floorTop(cx, cz);
+      const wet = inWaterAt(f.pos[0], f.pos[2]);
+      const kneel = state.downed && f.k === 0 && dd < 1 ? 0.45 : 0;
+      const L = LOOK[f.id], h = 1.25 * L[2] - kneel - (wet ? 0.35 : 0);
+      const yaw = Math.atan2(player.pos[0] - f.pos[0], player.pos[2] - f.pos[2]);
+      writeYaw(f.body.matrix, [f.pos[0], fl + h / 2, f.pos[2]], yaw, 0.2 * L[3], h, 0.16 * L[3]);
+      writeYaw(f.vest.matrix, [f.pos[0], fl + h * 0.68, f.pos[2]], yaw, 0.42 * L[3], 0.34, 0.34 * L[3]);
+      writeYaw(f.head.matrix, [f.pos[0], fl + h + 0.13, f.pos[2]], yaw, 0.12, 0.14, 0.12);
+      // Cover fire: the nearest Bloom they can see, or the Undertow if it has you.
+      f.cool -= dt;
+      if (f.cool > 0) continue;
+      f.cool = 1.7 + f.k * 0.3;
+      const from = [f.pos[0], fl + h * 0.75, f.pos[2]];
+      let tgt = null;
+      if (undertow.alive && undertow.holding > 0) tgt = { pos: undertow.pos, hit: () => { undertow.hp -= 1; } };
+      else {
+        const b = blooms.filter((x) => x.active && !x.dying && distance(x.pos, from) < 14 && lineOfSight(from, x.pos)).sort((a, c) => distance(a.pos, from) - distance(c.pos, from))[0];
+        if (b) tgt = { pos: b.pos, hit: () => { b.hp -= 1; b.stagger = 0.3; if (b.hp <= 0) { b.dying = 0.001; sound.burst(); events.cleared(); } } };
+      }
+      if (!tgt) continue;
+      tgt.hit();
+      const d = sub(tgt.pos, from);
+      const Lg = Math.hypot(...d) || 1;
+      writeBasis(crewShot.matrix, scale(add(from, tgt.pos), 0.5), normalize(cross(d, UP)), scale(d, 1 / Lg), cross(normalize(cross(d, UP)), scale(d, 1 / Lg)), 0.03, Lg, 0.03);
+      crewShotT = 0.08;
+      sound.fire();
+    }
+  }
+
   /** Per-frame: valves, clock, notice, June, the thread, fumes haze, Pump Defence. */
   function updateFootExtras(dt, eye, dir, ask) {
+    updateFollowers(dt);
     shoveCool -= dt;
     shoveFatigue = Math.max(0, shoveFatigue - dt * 0.6);
     pingT -= dt;
@@ -1769,7 +1851,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     clouds.forEach((c, i) => writeYaw(c.part.matrix, [c.base[0] + cycle * 3, c.base[1], c.base[2]], 0, 30 + hash(i, 4) * 30, 4 + hash(i, 5) * 4, 14 + hash(i, 6) * 14));
   }
 
-  if (import.meta.env.DEV) window.__explore = { get valves() { return { order: valveOrder, step: valveStep, list: pumpValves }; }, june: juneEvent, thread, get clock() { return clock; }, stagnant, player, center, undertow, lifeguard, cellPos, panelPos, raftPos, code, find, floaters, restorePower };
+  if (import.meta.env.DEV) window.__explore = { followers, get dockKind() { return dockKind; }, get valves() { return { order: valveOrder, step: valveStep, list: pumpValves }; }, june: juneEvent, thread, get clock() { return clock; }, stagnant, player, center, undertow, lifeguard, cellPos, panelPos, raftPos, code, find, floaters, restorePower };
 
   return {
     update,

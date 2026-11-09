@@ -13,6 +13,12 @@ const DEFAULTS = {
   paddleToggle: false, // V toggles paddling instead of holding
   braceToggle: false, // Ctrl/C toggles brace instead of holding
   bindings: {}, // action id → key, for anything the player has rebound
+  textScale: 1, // subtitles, captions, prompts and panels
+  damageAssist: 1, // incoming damage multiplier (an assist, not a difficulty label)
+  highContrast: false, // opaque panels and caption backing, a heavier reticle
+  tips: true, // first-time contextual tips
+  perfOverlay: false, // frame-time overlay: average, 95th and 99th percentile, slow frames
+  fpsCap: 0, // 0 = display rate (60 FPS tier); 30 = the constrained 30 FPS profile
 };
 
 export const settings = { ...DEFAULTS };
@@ -34,6 +40,9 @@ export const SETTING_LABELS = {
   aimAssist: 'Touch aim assist',
   paddleToggle: 'Paddle: toggle instead of hold',
   braceToggle: 'Brace: toggle instead of hold',
+  highContrast: 'High contrast (opaque panels, heavier reticle)',
+  tips: 'First-time tips',
+  perfOverlay: 'Performance overlay (frame times)',
 };
 
 /** Rebindable actions. key is the action's default key, which the game reads; bindings remap physical keys onto it. */

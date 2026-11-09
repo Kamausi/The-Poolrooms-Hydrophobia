@@ -88,6 +88,8 @@ export function populate(sec, random, threat, features = [], theme = {}) {
     else if (f === 'stranded') E.push({ at: len * 0.35, kind: 'stranded' });
     else if (f === 'crate') E.push({ at: len * 0.2, kind: 'cache', item: 'parts', marked: true });
     else if (f === 'setpiece') E.push({ at: len * 0.3, kind: 'setpiece' });
+    else if (f === 'wavepool') { sec.wavepool = true; sec.lamps = 'bright'; E.length = 0; E.push({ at: 8, kind: 'wavesign' }); }
+    else if (f === 'diverter') E.push({ at: len * 0.7, kind: 'diverter' });
     else if (f === 'ballast') { E.length = 0; E.push({ at: len * 0.2, kind: 'ballast' }); }
     else if (f === 'climber') E.push({ at: spot(0.3, 0.7), kind: 'climber' });
   }
@@ -109,6 +111,7 @@ export const DOCK_KINDS = {
   water: { sight: 'The high outlet is a metre above the water. A pump house on the deck.', beacon: 'POOL LEVEL LOW · OUTLET UNREACHABLE' },
   retrieval: { sight: 'A supply container has been knocked onto the platform.', beacon: 'SAFE ROOM BEACON: ACTIVE · SUPPLIES ON THE DECK' },
   winch: { sight: 'The gate collapsed behind you. A hand winch on the gantry.', beacon: 'SERVICE GATE DOWN · MANUAL WINCH' },
+  divert: { sight: 'The wave generator. A lit exit sign under the water beyond it.', beacon: 'WAVE POOL CLOSED · GENERATOR PRESSURE HIGH' },
 };
 
 /** What the holding pool shows about its dock, before you commit. */

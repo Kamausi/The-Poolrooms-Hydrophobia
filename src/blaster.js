@@ -37,7 +37,11 @@ export function createBlaster(state) {
   const beam = { name: 'Arc beam', geometry: box(0, 1), matrix: new Float32Array(16), material: mat(BEAM_COLOR, 14) };
   const scanBeam = { name: 'Inspection beam', geometry: box(0, 1), matrix: new Float32Array(16), material: mat(SCAN_COLOR, 3) };
   const burstShell = { name: 'Disruption burst', geometry: sphere(24, 16), matrix: new Float32Array(16), material: { ...mat([0.7, 0.9, 1], 6, [0.7, 0.9, 1]), alphaMode: 'blend', opacity: 0.35, doubleSided: true } };
-  const parts = [body, shroud, tube, barrel, lens, flash, beam, scanBeam, burstShell];
+  // The hand you see all game: a work glove and a wet sleeve cuff. Drift shows here first: the glove swells,
+  // the sleeve sits differently, the fingers lose their edges. Aim is never affected.
+  const glove = { name: 'Glove', geometry: sphere(14, 10), matrix: new Float32Array(16), material: { color: [0.07, 0.075, 0.07], metallic: 0, roughness: 0.75 } };
+  const cuff = { name: 'Sleeve cuff', geometry: cylinder(16, 0.2, 2), matrix: new Float32Array(16), material: { color: [0.55, 0.28, 0.16], metallic: 0, roughness: 0.85 } };
+  const parts = [body, shroud, tube, barrel, lens, flash, beam, scanBeam, burstShell, glove, cuff];
   for (const p of parts) hide(p);
 
   let cooldown = 0;
@@ -163,6 +167,11 @@ export function createBlaster(state) {
       const base = add(add(add(eye, scale(cam.right, 0.24 + sag * 0.3)), scale(cam.up, -0.2 + bob - sag)), scale(cam.forward, 0.5 - kick * 0.04));
       const at = (o) => add(add(add(base, scale(x, o[0] * G)), scale(y, o[1] * G)), scale(z, o[2] * G));
       writeBasis(body.matrix, at([0, 0, 0]), x, y, z, 0.13 * G, 0.12 * G, 0.46 * G);
+      const swell = Math.max(0, state.drift - 30) * 0.007;
+      writeBasis(glove.matrix, at([0.01, -0.09, 0.1]), x, y, z, 0.09 * G * (1 + swell), 0.11 * G * (1 + swell * 0.6), 0.13 * G * (1 + swell * 0.8));
+      const pale = Math.min(1, swell * 1.6);
+      glove.material.color = [0.07 + pale * 0.5, 0.075 + pale * 0.46, 0.07 + pale * 0.4]; // the glove pales and softens toward skin
+      writeBasis(cuff.matrix, at([0.02, -0.12, 0.3 + swell * 0.1]), x, z, y, 0.11 * G * (1 + swell * 0.4), 0.16 * G, 0.11 * G * (1 + swell * 0.4));
       writeBasis(shroud.matrix, at([0, 0.085, -0.02]), x, y, z, 0.1 * G, 0.06 * G, 0.34 * G);
       writeBasis(tube.matrix, at([-0.072, 0.02, 0.02]), y, z, x, 0.022 * G, 0.36 * G, 0.022 * G);
       writeBasis(barrel.matrix, at([0, 0, 0.29]), x, z, y, 0.035 * G, 0.14 * G, 0.035 * G);

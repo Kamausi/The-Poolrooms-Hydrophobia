@@ -4,9 +4,9 @@
 // Endless: seeded, escalating sectors with a score and per-seed records.
 import '67js/addons/world-material-shader';
 import { VERSION } from '67js';
-import { SECTORS } from './sectors.js';
-import { buildPlan, buildEndlessPlan } from './plans.js';
-import { PRESETS } from './track.js';
+import { SECTORS, REFERENCE_CHAPTER } from './sectors.js';
+import { buildPlan, buildEndlessPlan, populate } from './plans.js';
+import { PRESETS, section, bay } from './track.js';
 import { createRide } from './ride.js';
 import { createExplore } from './explore.js';
 import { createSafeRoom } from './saferoom.js';
@@ -16,7 +16,9 @@ import { initHud, hud } from './hud.js';
 import { sound } from './audio.js';
 import { quality } from './quality.js';
 import { rng } from './math.js';
-import { showModal, hideModal, showSafeRoom, showDocument, showKeypad, settingsView, logbookView } from './ui.js';
+import { playlog, createFrameStats } from './playlog.js';
+import { settings } from './settings.js';
+import { showModal, hideModal, applyDisplaySettings, showSafeRoom, showDocument, showKeypad, settingsView, logbookView } from './ui.js';
 import { CREW, crewById, loadLoops, saveLoop } from './crew.js';
 
 const SAVE_KEY = 'underflow-save-v2';
@@ -49,6 +51,7 @@ let lastPosition = null;
 // ---------- Sectors ----------
 function sectorAt(index) {
   // A custom or shared route: one attraction's look, the player's own ride tokens.
+  if (state.custom?.chapter) return { ...REFERENCE_CHAPTER, index: REFERENCE_CHAPTER.index, custom: true };
   if (state.custom) return { ...SECTORS[state.custom.base] , index, ride: state.custom.tokens, custom: true, crew: [] };
   if (!state.endless) return { ...SECTORS[index], index };
   // Endless: a seeded attraction per depth, with a random ride and harder threats.
@@ -104,6 +107,8 @@ function expeditionRecord() {
 const events = {
   damage(n, reason, quiet = false) {
     if (mode !== 'ride' && mode !== 'explore') return;
+    if (n < 999) n *= settings.damageAssist ?? 1;
+    playlog.record('damage', { reason: reason || 'unknown', n: Math.round(n * 10) / 10 });
     if (n >= 999) state.fatal = true;
     else if (state.protectT > 0) return; // just rescued or revived: a moment's grace
     else if (state.downed) { state.downed.bleed -= n * 0.25; state.downed.revive = Math.max(0, state.downed.revive - 1); if (!quiet) sound.hurt(); return; }
@@ -206,16 +211,29 @@ const events = {
     hud.say('THE ATTENDANT', SECTORS[state.sectorIndex]?.attendant?.dock || 'Please mind the gap.', 'attendant');
     startExplore();
   },
+  /** Scenes report observations for the playtest log. */
+  log(type, data) { playlog.record(type, data); },
   board() {
     // With the circuit restored, the dock's service gate is the one standing open.
     if (state.power[state.sectorKey]) {
       const dock = state.ride.items.find((it) => it.type === 'pool' && it.dock);
       const i = dock?.exits.findIndex((ex) => ex.route === 'service');
       if (dock && i >= 0) state.ride.choices[dock.id] = i;
+      // What the crew did on foot rewrites the way out: a flooded outlet or an exposed one.
+      const mod = state.routeMod?.[state.sectorKey];
+      const ex = dock?.exits[i];
+      if (mod && ex && !ex.modded) {
+        ex.modded = mod;
+        const r = rng(4242 + state.sectorIndex * 7 + state.attempt);
+        ex.sections = mod === 'drained'
+          ? [populate(section('channel', { length: 75, half: 2.6, shallow: true, lamps: 'sparse', label: state.custom?.chapter ? 'THE EXPOSED EXIT' : 'EXPOSED OUTLET' }), r, 0.5, ['cache', 'cache']), bay()]
+          : [populate(section('overflow', { length: 75, half: 2.6, label: state.custom?.chapter ? 'THE WAVES' : 'FLOODED OUTLET' }), r, 1.4, ['wake']), bay()];
+        hud.toast(mod === 'drained' ? 'THE WAY OUT IS THE ONE YOU EXPOSED' : 'THE WAY OUT IS THE ONE YOU FLOODED');
+      }
     }
     startRide({ resumeS: state.ridePosition?.s, departed: state.ridePosition?.departed });
   },
-  safeRoom() { enterSafeRoom(); },
+  safeRoom() { playlog.record('section', { label: state.sectorKey, seconds: Math.round((performance.now() - (state.sectorStart || performance.now())) / 1000) }); enterSafeRoom(); },
   drop() {
     // The bypass: no checkpoint, no heal. The spillway drops you into the next sector.
     hud.toast('SPILLWAY · NO CHECKPOINT');
@@ -257,6 +275,7 @@ function beginSector(index) {
   state.sectorScore = 0;
   state.sectorIndex = index;
   state.sectorKey = keyFor(index);
+  state.sectorStart = performance.now();
   state.crewLine = 0;
   state.ridePosition = null;
   const sector = sectorAt(index);
@@ -304,7 +323,7 @@ function enterSafeRoom() {
   clearResume();
   const sector = sectorAt(state.sectorIndex);
   // The room itself is rendered behind the overlay: hard light, loud pumps, a window onto an empty pool.
-  swap(() => createSafeRoom(canvas, sector));
+  swap(() => createSafeRoom(canvas, sector, { drained: !!(state.custom?.chapter && state.routeMod?.[state.sectorKey] === 'drained') }));
   // Composure fully recovers; equipment gets a minimum recharge; the raft is cleansed.
   state.arrivalDrift = state.drift;
   state.drift = 0;
@@ -321,6 +340,12 @@ function enterSafeRoom() {
   state.fatal = false;
   for (const c of Object.keys(state.crewState || {})) if (state.crewState[c] === 'hurt') state.crewState[c] = 'ok';
   if (state.challenge?.kind === 'departure') return events.challengeDone('You made the last departure.');
+  if (state.custom?.chapter) {
+    hud.show(false);
+    mode = 'end';
+    const drained = state.routeMod?.[state.sectorKey] === 'drained';
+    return showModal('The Closed Wave Pool.', `The bulkhead closes. The pumps are loud, the floor is dry. Through the glass, ${drained ? 'the wave pool is drained to its tiles: the lit exit sign stands in an empty basin, pointing at a wall' : 'the wave pool is running at last, every wave arriving at a beach nobody is on'}.\n\nOn the wall, a maintenance photograph of this room. It was taken from somewhere beneath the floor.\n\n${expeditionRecord()}`, [['PLAY THE CHAPTER AGAIN ↗', () => { hideModal(); startCustom({ chapter: true, tokens: REFERENCE_CHAPTER.ride, base: 0 }); }, true], ['MENU', toMenu]], 'REFERENCE CHAPTER');
+  }
   if (state.custom) {
     hud.show(false);
     mode = 'end';
@@ -423,6 +448,7 @@ ${expeditionRecord()}`, [['RIDE AGAIN ↗', () => { hideModal(); newCampaign(); 
 
 function die() {
   if (mode !== 'ride' && mode !== 'explore') return;
+  playlog.record('death', { sector: state.sectorKey, cause: state.lastHurt || 'unknown', mode });
   mode = 'dead';
   releaseLock();
   hud.prompt('');
@@ -568,7 +594,7 @@ function routeLink(custom) {
   return `${location.origin}${location.pathname}?route=${encodeURIComponent(custom.tokens.join(' '))}&base=${custom.base}`;
 }
 function startCustom(custom) {
-  state = freshState({ character: state.character || 'mars', name: state.name || 'Mars', memory: state.memory, custom });
+  state = freshState({ character: state.character || 'mars', name: state.name || 'Mars', memory: state.memory, custom, regrouped: !!custom.chapter });
   hud.setPlayer(state.name);
   beginSector(0);
   hud.toast(`CUSTOM ROUTE · ${custom.tokens.length} SECTIONS`);
@@ -671,13 +697,31 @@ function setPaused(on) {
   if (on) {
     releaseLock();
     const box = $('pause-extra');
-    box.replaceChildren(settingsView(), logbookView(state));
+    const copy = document.createElement('button');
+    copy.textContent = 'COPY PLAYTEST LOG';
+    copy.className = 'bind';
+    copy.onclick = () => { navigator.clipboard?.writeText(playlog.export()); copy.textContent = 'COPIED · paste it to whoever runs the playtest'; };
+    box.replaceChildren(settingsView(), logbookView(state), copy);
   }
 }
 
+const frames = createFrameStats();
+let perfT = 0, lastLogged = 0;
 function frame(now) {
-  const dt = Math.min(0.05, (now - last) / 1000);
+  // The constrained 30 FPS profile: deliver every other display frame, evenly.
+  if (settings.fpsCap === 30 && now - last < 1000 / 30 - 2) { requestAnimationFrame(frame); return; }
+  const ms = now - last;
+  const dt = Math.min(0.05, ms / 1000);
   last = now;
+  if (mode === 'ride' || mode === 'explore') frames.push(ms);
+  perfT -= dt;
+  if (perfT <= 0) {
+    perfT = 0.5;
+    const st = frames.stats(settings.fpsCap === 30 ? 33.3 : 16.7);
+    $('perf').hidden = !settings.perfOverlay;
+    if (settings.perfOverlay && st) $('perf').textContent = `${settings.fpsCap === 30 ? '30' : '60'} FPS TIER · avg ${st.avg} ms · p95 ${st.p95} · p99 ${st.p99} · slow ${st.slow}/${st.n}${performance.memory ? ` · heap ${Math.round(performance.memory.usedJSHeapSize / 1048576)} MB` : ''}`;
+    if (st && now - lastLogged > 60000) { lastLogged = now; playlog.record('frames', st); }
+  }
   pollGamepad(dt);
   input.context = mode === 'explore' ? 'explore' : 'ride';
   if ($('modal').hidden && (wasPressed('escape') || wasPressed('p')) && now - pausedAt > 250) setPaused(!paused);
@@ -690,6 +734,13 @@ function frame(now) {
 
 // ---------- Boot ----------
 initInput(canvas);
+applyDisplaySettings();
+// If the graphics device is reset (driver update, sleep, too many tabs), save and offer a clean resume.
+canvas.addEventListener('webglcontextlost', (e) => {
+  e.preventDefault();
+  saveResume();
+  showModal('The graphics device was reset.', 'Your exact position was saved. Reload to pick up where you were.', [['RELOAD AND RESUME ↗', () => location.reload(), true]], 'RECOVERY');
+});
 initHud();
 $('engine').textContent = `RENDERED WITH 67JS ${VERSION}${quality.low ? ' · LIGHT MODE' : ''}`;
 refreshMenu();
@@ -710,6 +761,7 @@ $('continue').onclick = () => {
 $('endless').onclick = () => { begin(); startEndless(Number($('seed').value) || 0); };
 $('challenges').onclick = () => { $('menu').hidden = true; challengeMenu(); };
 $('routes').onclick = () => { $('menu').hidden = true; routeBuilder(); };
+$('chapter').onclick = () => { begin(); startCustom({ chapter: true, tokens: REFERENCE_CHAPTER.ride, base: 0 }); };
 {
   const shared = new URLSearchParams(location.search).get('route');
   if (shared) { $('routes').textContent = 'RIDE THE SHARED ROUTE'; $('routes').onclick = () => { $('menu').hidden = true; routeBuilder(shared); }; }

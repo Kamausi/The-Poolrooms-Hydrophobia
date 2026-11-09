@@ -305,3 +305,43 @@ export const COMFORTS = [
   'There is a chair placed directly under the vent. Warm, dry air. You sit for a minute.',
   'A towel dispenser hums and pushes out one white towel. It\'s warm, like it came out of a dryer.',
 ];
+
+/**
+ * The reference chapter: one complete sequence held to the finished standard. Arrival in a still wave pool,
+ * a navigation choice (shoot the diverter for the maintenance landing), exploration with a visible purpose,
+ * a loud commitment, a return through the route you made, and a Safe Room that overlooks what you did.
+ */
+export const REFERENCE_CHAPTER = {
+  id: 'closed-wave-pool', name: 'THE CLOSED WAVE POOL', depth: 22, chapter: true,
+  tile: '#cdd3cf', grout: '#7a8c8e', stain: '#55696f', water: '#1d4a55', fog: '#08141a', lamp: '#e3e6da', band: '#3f6f86',
+  ride: ['channel', 'hall:wavepool,diverter', 'dock:divert'],
+  explore: { lifeguard: null, dark: 0.25 },
+  valve: 'the wave generator',
+  map: [
+    '#############',
+    '#D...l....s.#',
+    '#.~~~~~~~~..#',
+    '#.~~~u~~~~.P#',
+    '#.~~~~~~~~..#',
+    '#.xxxxxxxxx.#',
+    '#.....#.....#',
+    '#..h..#..S..#',
+    '#.##.##.##..#',
+    '#~~f~~#.....#',
+    '#~~~~~#..l..#',
+    '#############',
+  ],
+  attendant: {
+    start: 'The wave pool is closed for maintenance. Waves begin in zero seconds.',
+    dock: 'Guests are asked not to approach the wave generator.',
+    explore: 'The wave pool is closed. The wave pool has always been closed.',
+  },
+  crew: [
+    ['JUNE', 'There\'s an exit sign under the water. Lit. Somebody wants us to see it.'],
+    ['DEZ', 'If we take pressure off the generator, the water comes off that exit. That\'s the whole trick.'],
+    ['TUBS', 'The display says the waves start in zero seconds. It has said that for a while.'],
+    ['MARS', 'Landing on the left has equipment. The dock is easier. Pilot\'s call.'],
+  ],
+  graffiti: ['THE WAVES NEVER STARTED. WE WAITED ANYWAY.', 'the exit sign is real. the exit isn\'t. — M.'],
+  index: 2,
+};

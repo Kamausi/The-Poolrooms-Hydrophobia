@@ -271,3 +271,15 @@ button.primary { background: var(--porcelain); color: var(--drain); border-color
 .graffiti p.hand-b { font-family: 'Nanum Pen Script', cursive; font-size: 1.1em; }
 .graffiti p.hand-c { font-family: 'Shadows Into Light', cursive; }
 .graffiti p.hand-maint { font-family: 'IBM Plex Mono', monospace; font-size: 0.6em; letter-spacing: 0.08em; color: #4d7472 !important; }
+
+/* Text size and contrast settings */
+:root { --text-scale: 1; }
+#subtitle { font-size: calc(clamp(17px, 1.35vw, 28px) * var(--text-scale)); }
+#caption, #prompt, #toast { font-size: calc(clamp(12px, 0.9vw, 18px) * var(--text-scale)); }
+.panel p, .choice b, .choice span { font-size: calc(clamp(13px, 0.95vw, 19px) * var(--text-scale)); }
+#objective { font-size: calc(clamp(15px, 1.15vw, 22px) * var(--text-scale)); }
+body.contrast .panel, body.contrast #modal.safe .panel { background: #080d10; border-color: var(--porcelain); }
+body.contrast #caption, body.contrast #prompt { background: #000; border: 1px solid var(--porcelain); }
+body.contrast #subtitle { background: #000d; padding: 6px 12px; }
+body.contrast #crosshair { border-width: 3px; }
+#perf { position: fixed; left: 4%; top: 64px; z-index: 6; color: var(--fluor); background: #080d10cc; padding: 4px 8px; pointer-events: none; }

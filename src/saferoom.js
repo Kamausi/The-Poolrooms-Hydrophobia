@@ -10,7 +10,7 @@ import { quality } from './quality.js';
 import { settings } from './settings.js';
 import { sound } from './audio.js';
 
-export function createSafeRoom(canvas, sector) {
+export function createSafeRoom(canvas, sector, opts = {}) {
   const parts = [];
   const P = (name, geometry, material, m) => {
     const p = { name, geometry, matrix: m || new Float32Array(16), material };
@@ -67,7 +67,12 @@ export function createSafeRoom(canvas, sector) {
   // Beyond the glass: an enormous empty pool hall, dim, perfectly still.
   const pool = { tag: 'water', color: linear(sector.water), metallic: 0.55, roughness: 0.05 };
   put('Hall floor', white, [0, -3.2, -60], [120, 0.4, 110]);
-  P('Hall water', slab, pool, writeYaw(new Float32Array(16), [0, -1.0, -60], 0, 110, 0.02, 100));
+  // Drained (the reference chapter): the water is off the tiles; the lit exit sign stands in an empty basin.
+  P('Hall water', slab, pool, writeYaw(new Float32Array(16), [0, opts.drained ? -2.95 : -1.0, -60], 0, 110, 0.02, 100));
+  if (opts.drained) {
+    const exitSign = P('Exit in the empty basin', quad(), { ...signMaterial('EXIT', 'safe', 1.4, 256, 96), doubleSided: true });
+    writeBasis(exitSign.matrix, [6, -1.6, -34], [1, 0, 0], [0, 1, 0], [0, 0, 1], 3, 1.1, 1);
+  }
   put('Hall far wall', white, [0, 6, -112], [120, 18, 1]);
   put('Hall left wall', white, [-58, 6, -60], [1, 18, 110]);
   put('Hall right wall', white, [58, 6, -60], [1, 18, 110]);
@@ -81,6 +86,7 @@ export function createSafeRoom(canvas, sector) {
   });
   renderer.resize();
   sound.pumpRoom(true);
+  sound.setSpace('dry');
 
   let time = 0;
   let clockFlicker = 0;

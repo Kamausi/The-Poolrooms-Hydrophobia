@@ -7,6 +7,17 @@ let pumpLoop = null;
 let enabled = true;
 let muffle = null;
 let bus = null; // everything except the hum goes through here, so tubes can muffle it
+let verb = null, verbGain = null, space = null;
+const SPACES = { tile: [1.3, 0.28, 3.2], hall: [3.4, 0.38, 2.2], tube: [0.5, 0.2, 6], room: [0.9, 0.22, 3.6], dry: [0.25, 0.05, 6], reservoir: [4.5, 0.42, 1.8] };
+function impulse(seconds, decay) {
+  const len = Math.ceil(ctx.sampleRate * seconds);
+  const buf = ctx.createBuffer(2, len, ctx.sampleRate);
+  for (let c = 0; c < 2; c++) {
+    const d = buf.getChannelData(c);
+    for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, decay);
+  }
+  return buf;
+}
 
 function ensure() {
   if (ctx) return ctx;
@@ -21,6 +32,12 @@ function ensure() {
   muffle.frequency.value = 20000;
   bus = ctx.createGain();
   bus.connect(muffle).connect(master);
+  // Room acoustics: a convolver fed from the bus. Tiled corridors ring, reservoirs are long, tubes are dull,
+  // the Safe Room is dry.
+  verb = ctx.createConvolver();
+  verbGain = ctx.createGain();
+  verbGain.gain.value = 0;
+  bus.connect(verb).connect(verbGain).connect(master);
   return ctx;
 }
 
@@ -348,6 +365,14 @@ export const sound = {
   },
   breath(pan = 0) { // Blooms: wet inhalations
     noise({ time: 0.5, gain: 0.07, freq: 500, q: 1.2, pan });
+  },
+  /** Set the room's acoustics: 'tile', 'hall', 'reservoir', 'tube', 'room' or 'dry'. */
+  setSpace(kind) {
+    if (!ensure() || kind === space || !SPACES[kind]) return;
+    space = kind;
+    const [seconds, wet, decay] = SPACES[kind];
+    verb.buffer = impulse(seconds, decay);
+    verbGain.gain.setTargetAtTime(wet, ctx.currentTime, 0.2);
   },
   /** Briefly pull the music and the hum down so a warning reads over the water. */
   duck(seconds = 1.2) {
