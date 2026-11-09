@@ -737,11 +737,13 @@ export function createRide(canvas, state, sector, events, opts = {}) {
     coverBeam -= dt;
     const crew = crewAvailable().length;
     if (!crew) return;
-    coverT -= dt * (busy ? 1 : 0.4) * (0.5 + crew / 6);
+    coverT -= dt * (busy ? 1 : 0.6) * (0.5 + crew / 6);
     if (coverT > 0) return;
     coverT = 1.4;
     const live = blooms.filter((b) => b.active && !b.dying && distance(b.pos, eye) < 24);
-    const target = (pinged && live.includes(pinged) ? pinged : null) || live.sort((a, b) => distance(a.pos, eye) - distance(b.pos, eye))[0];
+    // The crew watches the back: whatever is chasing the raft comes first, then your mark, then the nearest.
+    const rear = blooms.filter((b) => b.active && !b.dying && b.rear && distance(b.pos, eye) < 20).sort((a, b) => distance(a.pos, eye) - distance(b.pos, eye))[0];
+    const target = rear || (pinged && live.includes(pinged) ? pinged : null) || live.sort((a, b) => distance(a.pos, eye) - distance(b.pos, eye))[0];
     if (!target) return;
     target.hp -= 1;
     target.flash = 0.12;
@@ -835,6 +837,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
     else if (k) target = k.lane;
     if (d && Math.abs(target - d.lane) < 1.4) target = d.lane + (d.lane > 0 ? -2.2 : 2.2);
     for (const u of patches) if (u.active && u.s > s && u.s - s < 30 && Math.abs(target - u.offset) < 1.6) target = u.offset + (u.offset > 0 ? -2.4 : 2.4);
+    if (ballast && !ballast.done && ballast.surge < 2.2) target = ballast.offset + (ballast.offset > 0 ? -3 : 3); // out of its lane before it surges
     target = clamp(target, -lim, lim);
     // It also calls the jumps.
     const jumpables = [ramp.active ? ramp.s : null, d?.s, ...ropes.filter((r) => r.active).map((r) => r.s), k?.s].filter((x) => x != null && x - s > 0);
@@ -1804,6 +1807,11 @@ export function createRide(canvas, state, sector, events, opts = {}) {
     if (devBot) {
       const t = blooms.filter((b) => b.active && !b.dying && distance(b.pos, eye) < 30 && dot(sub(b.pos, eye), fwd) > 0).sort((a, b) => distance(a.pos, eye) - distance(b.pos, eye))[0];
       if (t) { aimDir = normalize(sub(add(t.pos, [0, -0.25, 0]), eye)); botFire = true; }
+      else if (ballast && !ballast.done) {
+        const tgt = ballast.exposed ? ballast.corePos : ballast.anchorPos?.find((_, i) => ballast.anchors[i] > 0);
+        if (tgt) { aimDir = normalize(sub(tgt, eye)); botFire = true; }
+      }
+      if (state.health < 40 && state.dressings > 0 && !dressing) input.pressed.add('h');
     }
     hud.crosshair(aimNdc[0], aimNdc[1], false);
 
@@ -2349,7 +2357,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
       if (b.surge <= 0) {
         b.surge = 6.5 + random() * 2;
         b.warn = 0;
-        if (Math.abs(offset - b.offset) < 2.2) { damage(12, 'Ballast surged into the raft.', 8, 'bow', 'entity'); shake = 0.9 * settings.camera; }
+        if (Math.abs(offset - b.offset) < 2.2) { damage(8, 'Ballast surged into the raft.', 6, 'bow', 'entity'); shake = 0.9 * settings.camera; }
         else hud.toast('CLEAR OF THE SURGE');
         if (random() < 0.6) spawnBloom(b.s - 4, (random() - 0.5) * 6, 0.8);
       }
@@ -2367,7 +2375,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
       ballast = null;
       return '';
     }
-    if (b.t > 110) {
+    if (b.t > 75) {
       b.done = true;
       hud.caption('[it lets go, all at once, and sinks out of sight. It isn\'t dead. It is somewhere else now.]');
       for (const p of [ballastParts.body, ballastParts.core, ...ballastParts.anchors, ...ballastParts.knots, ...ballastParts.vests]) hide(p);
@@ -2822,7 +2830,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
         b.active = false;
         sound.burst();
         const front = !b.rear;
-        damage(braced && front ? (state.fit === 'protection' ? 2 : 4) : 12, b.rear ? 'A Bloom caught the raft from behind.' : 'A Bloom burst against you.', braced && front ? 0 : 3, b.rear ? 'stern' : pick(['bow', 'left', 'right']), 'entity');
+        damage(braced && front ? (state.fit === 'protection' ? 2 : 4) : b.rear ? 7 : 10, b.rear ? 'A Bloom caught the raft from behind.' : 'A Bloom burst against you.', braced && front ? 0 : 3, b.rear ? 'stern' : pick(['bow', 'left', 'right']), 'entity');
       } else if (behind(b.pos) && !b.rear) b.active = false;
       else if (b.rear && d > 45) b.active = false;
     }
