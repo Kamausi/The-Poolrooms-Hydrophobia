@@ -1,0 +1,476 @@
+{
+ "note": "Every third-party file the game ships. tests/unit/assets.test.js fails if a shipped file is missing here, if a licence is not on the allowed list, or if docs/CREDITS.md does not name the source.",
+ "allowed": [
+  "CC0-1.0",
+  "CC-BY-4.0",
+  "MIT",
+  "Zlib"
+ ],
+ "entries": [
+  {
+   "id": "audio/water-lap",
+   "type": "audio",
+   "files": [
+    "public/audio/water-lap.mp3"
+   ],
+   "source": "Oculus Audio Pack 01 (Meta Open Sound, corpora/oculus-audio-pack)",
+   "creator": "Oculus VR, LLC",
+   "url": "https://developers.meta.com/vr/downloads/package/oculus-audio-pack-1/",
+   "license": "CC-BY-4.0",
+   "modified": true,
+   "changes": "mono, MP3, trimmed, normalised; loops crossfaded",
+   "gameUse": [
+    "sound: water-lap"
+   ]
+  },
+  {
+   "id": "audio/bubbles",
+   "type": "audio",
+   "files": [
+    "public/audio/bubbles.mp3"
+   ],
+   "source": "Oculus Audio Pack 01 (Meta Open Sound, corpora/oculus-audio-pack)",
+   "creator": "Oculus VR, LLC",
+   "url": "https://developers.meta.com/vr/downloads/package/oculus-audio-pack-1/",
+   "license": "CC-BY-4.0",
+   "modified": true,
+   "changes": "mono, MP3, trimmed, normalised; loops crossfaded",
+   "gameUse": [
+    "sound: bubbles"
+   ]
+  },
+  {
+   "id": "audio/machine-room",
+   "type": "audio",
+   "files": [
+    "public/audio/machine-room.mp3"
+   ],
+   "source": "Oculus Audio Pack 01 (Meta Open Sound, corpora/oculus-audio-pack)",
+   "creator": "Oculus VR, LLC",
+   "url": "https://developers.meta.com/vr/downloads/package/oculus-audio-pack-1/",
+   "license": "CC-BY-4.0",
+   "modified": true,
+   "changes": "mono, MP3, trimmed, normalised; loops crossfaded",
+   "gameUse": [
+    "sound: machine-room"
+   ]
+  },
+  {
+   "id": "audio/pump-hum",
+   "type": "audio",
+   "files": [
+    "public/audio/pump-hum.mp3"
+   ],
+   "source": "Oculus Audio Pack 01 (Meta Open Sound, corpora/oculus-audio-pack)",
+   "creator": "Oculus VR, LLC",
+   "url": "https://developers.meta.com/vr/downloads/package/oculus-audio-pack-1/",
+   "license": "CC-BY-4.0",
+   "modified": true,
+   "changes": "mono, MP3, trimmed, normalised; loops crossfaded",
+   "gameUse": [
+    "sound: pump-hum"
+   ]
+  },
+  {
+   "id": "audio/vent",
+   "type": "audio",
+   "files": [
+    "public/audio/vent.mp3"
+   ],
+   "source": "Oculus Audio Pack 01 (Meta Open Sound, corpora/oculus-audio-pack)",
+   "creator": "Oculus VR, LLC",
+   "url": "https://developers.meta.com/vr/downloads/package/oculus-audio-pack-1/",
+   "license": "CC-BY-4.0",
+   "modified": true,
+   "changes": "mono, MP3, trimmed, normalised; loops crossfaded",
+   "gameUse": [
+    "sound: vent"
+   ]
+  },
+  {
+   "id": "audio/underwater",
+   "type": "audio",
+   "files": [
+    "public/audio/underwater.mp3"
+   ],
+   "source": "Oculus Audio Pack 01 (Meta Open Sound, corpora/oculus-audio-pack)",
+   "creator": "Oculus VR, LLC",
+   "url": "https://developers.meta.com/vr/downloads/package/oculus-audio-pack-1/",
+   "license": "CC-BY-4.0",
+   "modified": true,
+   "changes": "mono, MP3, trimmed, normalised; loops crossfaded",
+   "gameUse": [
+    "sound: underwater"
+   ]
+  },
+  {
+   "id": "audio/drone",
+   "type": "audio",
+   "files": [
+    "public/audio/drone.mp3"
+   ],
+   "source": "Oculus Audio Pack 01 (Meta Open Sound, corpora/oculus-audio-pack)",
+   "creator": "Oculus VR, LLC",
+   "url": "https://developers.meta.com/vr/downloads/package/oculus-audio-pack-1/",
+   "license": "CC-BY-4.0",
+   "modified": true,
+   "changes": "mono, MP3, trimmed, normalised; loops crossfaded",
+   "gameUse": [
+    "sound: drone"
+   ]
+  },
+  {
+   "id": "audio/oar",
+   "type": "audio",
+   "files": [
+    "public/audio/oar-1.mp3",
+    "public/audio/oar-2.mp3",
+    "public/audio/oar-3.mp3"
+   ],
+   "source": "Oculus Audio Pack 01 (Meta Open Sound, corpora/oculus-audio-pack)",
+   "creator": "Oculus VR, LLC",
+   "url": "https://developers.meta.com/vr/downloads/package/oculus-audio-pack-1/",
+   "license": "CC-BY-4.0",
+   "modified": true,
+   "changes": "mono, MP3, trimmed, normalised; loops crossfaded",
+   "gameUse": [
+    "sound: oar"
+   ]
+  },
+  {
+   "id": "audio/step-tile",
+   "type": "audio",
+   "files": [
+    "public/audio/step-tile-1.mp3",
+    "public/audio/step-tile-2.mp3",
+    "public/audio/step-tile-3.mp3",
+    "public/audio/step-tile-4.mp3",
+    "public/audio/step-tile-5.mp3"
+   ],
+   "source": "Oculus Audio Pack 01 (Meta Open Sound, corpora/oculus-audio-pack)",
+   "creator": "Oculus VR, LLC",
+   "url": "https://developers.meta.com/vr/downloads/package/oculus-audio-pack-1/",
+   "license": "CC-BY-4.0",
+   "modified": true,
+   "changes": "mono, MP3, trimmed, normalised; loops crossfaded",
+   "gameUse": [
+    "sound: step-tile"
+   ]
+  },
+  {
+   "id": "audio/step-metal",
+   "type": "audio",
+   "files": [
+    "public/audio/step-metal-1.mp3",
+    "public/audio/step-metal-2.mp3",
+    "public/audio/step-metal-3.mp3"
+   ],
+   "source": "Oculus Audio Pack 01 (Meta Open Sound, corpora/oculus-audio-pack)",
+   "creator": "Oculus VR, LLC",
+   "url": "https://developers.meta.com/vr/downloads/package/oculus-audio-pack-1/",
+   "license": "CC-BY-4.0",
+   "modified": true,
+   "changes": "mono, MP3, trimmed, normalised; loops crossfaded",
+   "gameUse": [
+    "sound: step-metal"
+   ]
+  },
+  {
+   "id": "audio/valve",
+   "type": "audio",
+   "files": [
+    "public/audio/valve.mp3"
+   ],
+   "source": "Oculus Audio Pack 01 (Meta Open Sound, corpora/oculus-audio-pack)",
+   "creator": "Oculus VR, LLC",
+   "url": "https://developers.meta.com/vr/downloads/package/oculus-audio-pack-1/",
+   "license": "CC-BY-4.0",
+   "modified": true,
+   "changes": "mono, MP3, trimmed, normalised; loops crossfaded",
+   "gameUse": [
+    "sound: valve"
+   ]
+  },
+  {
+   "id": "audio/lever",
+   "type": "audio",
+   "files": [
+    "public/audio/lever-1.mp3",
+    "public/audio/lever-2.mp3"
+   ],
+   "source": "Oculus Audio Pack 01 (Meta Open Sound, corpora/oculus-audio-pack)",
+   "creator": "Oculus VR, LLC",
+   "url": "https://developers.meta.com/vr/downloads/package/oculus-audio-pack-1/",
+   "license": "CC-BY-4.0",
+   "modified": true,
+   "changes": "mono, MP3, trimmed, normalised; loops crossfaded",
+   "gameUse": [
+    "sound: lever"
+   ]
+  },
+  {
+   "id": "audio/hydraulic",
+   "type": "audio",
+   "files": [
+    "public/audio/hydraulic.mp3"
+   ],
+   "source": "Oculus Audio Pack 01 (Meta Open Sound, corpora/oculus-audio-pack)",
+   "creator": "Oculus VR, LLC",
+   "url": "https://developers.meta.com/vr/downloads/package/oculus-audio-pack-1/",
+   "license": "CC-BY-4.0",
+   "modified": true,
+   "changes": "mono, MP3, trimmed, normalised; loops crossfaded",
+   "gameUse": [
+    "sound: hydraulic"
+   ]
+  },
+  {
+   "id": "audio/hatch-open",
+   "type": "audio",
+   "files": [
+    "public/audio/hatch-open.mp3"
+   ],
+   "source": "Oculus Audio Pack 01 (Meta Open Sound, corpora/oculus-audio-pack)",
+   "creator": "Oculus VR, LLC",
+   "url": "https://developers.meta.com/vr/downloads/package/oculus-audio-pack-1/",
+   "license": "CC-BY-4.0",
+   "modified": true,
+   "changes": "mono, MP3, trimmed, normalised; loops crossfaded",
+   "gameUse": [
+    "sound: hatch-open"
+   ]
+  },
+  {
+   "id": "audio/hatch-close",
+   "type": "audio",
+   "files": [
+    "public/audio/hatch-close.mp3"
+   ],
+   "source": "Oculus Audio Pack 01 (Meta Open Sound, corpora/oculus-audio-pack)",
+   "creator": "Oculus VR, LLC",
+   "url": "https://developers.meta.com/vr/downloads/package/oculus-audio-pack-1/",
+   "license": "CC-BY-4.0",
+   "modified": true,
+   "changes": "mono, MP3, trimmed, normalised; loops crossfaded",
+   "gameUse": [
+    "sound: hatch-close"
+   ]
+  },
+  {
+   "id": "audio/metal-hit",
+   "type": "audio",
+   "files": [
+    "public/audio/metal-hit-1.mp3",
+    "public/audio/metal-hit-2.mp3",
+    "public/audio/metal-hit-3.mp3"
+   ],
+   "source": "Oculus Audio Pack 01 (Meta Open Sound, corpora/oculus-audio-pack)",
+   "creator": "Oculus VR, LLC",
+   "url": "https://developers.meta.com/vr/downloads/package/oculus-audio-pack-1/",
+   "license": "CC-BY-4.0",
+   "modified": true,
+   "changes": "mono, MP3, trimmed, normalised; loops crossfaded",
+   "gameUse": [
+    "sound: metal-hit"
+   ]
+  },
+  {
+   "id": "audio/creature",
+   "type": "audio",
+   "files": [
+    "public/audio/creature-1.mp3",
+    "public/audio/creature-2.mp3",
+    "public/audio/creature-3.mp3"
+   ],
+   "source": "Oculus Audio Pack 01 (Meta Open Sound, corpora/oculus-audio-pack)",
+   "creator": "Oculus VR, LLC",
+   "url": "https://developers.meta.com/vr/downloads/package/oculus-audio-pack-1/",
+   "license": "CC-BY-4.0",
+   "modified": true,
+   "changes": "mono, MP3, trimmed, normalised; loops crossfaded",
+   "gameUse": [
+    "sound: creature"
+   ]
+  },
+  {
+   "id": "audio/creature-far",
+   "type": "audio",
+   "files": [
+    "public/audio/creature-far-1.mp3",
+    "public/audio/creature-far-2.mp3"
+   ],
+   "source": "Oculus Audio Pack 01 (Meta Open Sound, corpora/oculus-audio-pack)",
+   "creator": "Oculus VR, LLC",
+   "url": "https://developers.meta.com/vr/downloads/package/oculus-audio-pack-1/",
+   "license": "CC-BY-4.0",
+   "modified": true,
+   "changes": "mono, MP3, trimmed, normalised; loops crossfaded",
+   "gameUse": [
+    "sound: creature-far"
+   ]
+  },
+  {
+   "id": "audio/whispers",
+   "type": "audio",
+   "files": [
+    "public/audio/whispers.mp3"
+   ],
+   "source": "Oculus Audio Pack 01 (Meta Open Sound, corpora/oculus-audio-pack)",
+   "creator": "Oculus VR, LLC",
+   "url": "https://developers.meta.com/vr/downloads/package/oculus-audio-pack-1/",
+   "license": "CC-BY-4.0",
+   "modified": true,
+   "changes": "mono, MP3, trimmed, normalised; loops crossfaded",
+   "gameUse": [
+    "sound: whispers"
+   ]
+  },
+  {
+   "id": "audio/scrape",
+   "type": "audio",
+   "files": [
+    "public/audio/scrape-1.mp3",
+    "public/audio/scrape-2.mp3"
+   ],
+   "source": "Oculus Audio Pack 01 (Meta Open Sound, corpora/oculus-audio-pack)",
+   "creator": "Oculus VR, LLC",
+   "url": "https://developers.meta.com/vr/downloads/package/oculus-audio-pack-1/",
+   "license": "CC-BY-4.0",
+   "modified": true,
+   "changes": "mono, MP3, trimmed, normalised; loops crossfaded",
+   "gameUse": [
+    "sound: scrape"
+   ]
+  },
+  {
+   "id": "audio/chains",
+   "type": "audio",
+   "files": [
+    "public/audio/chains.mp3"
+   ],
+   "source": "Oculus Audio Pack 01 (Meta Open Sound, corpora/oculus-audio-pack)",
+   "creator": "Oculus VR, LLC",
+   "url": "https://developers.meta.com/vr/downloads/package/oculus-audio-pack-1/",
+   "license": "CC-BY-4.0",
+   "modified": true,
+   "changes": "mono, MP3, trimmed, normalised; loops crossfaded",
+   "gameUse": [
+    "sound: chains"
+   ]
+  },
+  {
+   "id": "audio/sting",
+   "type": "audio",
+   "files": [
+    "public/audio/sting-1.mp3",
+    "public/audio/sting-2.mp3"
+   ],
+   "source": "Oculus Audio Pack 01 (Meta Open Sound, corpora/oculus-audio-pack)",
+   "creator": "Oculus VR, LLC",
+   "url": "https://developers.meta.com/vr/downloads/package/oculus-audio-pack-1/",
+   "license": "CC-BY-4.0",
+   "modified": true,
+   "changes": "mono, MP3, trimmed, normalised; loops crossfaded",
+   "gameUse": [
+    "sound: sting"
+   ]
+  },
+  {
+   "id": "audio/switch",
+   "type": "audio",
+   "files": [
+    "public/audio/switch.mp3"
+   ],
+   "source": "Oculus Audio Pack 01 (Meta Open Sound, corpora/oculus-audio-pack)",
+   "creator": "Oculus VR, LLC",
+   "url": "https://developers.meta.com/vr/downloads/package/oculus-audio-pack-1/",
+   "license": "CC-BY-4.0",
+   "modified": true,
+   "changes": "mono, MP3, trimmed, normalised; loops crossfaded",
+   "gameUse": [
+    "sound: switch"
+   ]
+  },
+  {
+   "id": "audio/gear",
+   "type": "audio",
+   "files": [
+    "public/audio/gear-1.mp3",
+    "public/audio/gear-2.mp3"
+   ],
+   "source": "Oculus Audio Pack 01 (Meta Open Sound, corpora/oculus-audio-pack)",
+   "creator": "Oculus VR, LLC",
+   "url": "https://developers.meta.com/vr/downloads/package/oculus-audio-pack-1/",
+   "license": "CC-BY-4.0",
+   "modified": true,
+   "changes": "mono, MP3, trimmed, normalised; loops crossfaded",
+   "gameUse": [
+    "sound: gear"
+   ]
+  },
+  {
+   "id": "audio/ui-confirm",
+   "type": "audio",
+   "files": [
+    "public/audio/ui-confirm.mp3"
+   ],
+   "source": "Oculus Audio Pack 01 (Meta Open Sound, corpora/oculus-audio-pack)",
+   "creator": "Oculus VR, LLC",
+   "url": "https://developers.meta.com/vr/downloads/package/oculus-audio-pack-1/",
+   "license": "CC-BY-4.0",
+   "modified": true,
+   "changes": "mono, MP3, trimmed, normalised; loops crossfaded",
+   "gameUse": [
+    "sound: ui-confirm"
+   ]
+  },
+  {
+   "id": "audio/ui-back",
+   "type": "audio",
+   "files": [
+    "public/audio/ui-back.mp3"
+   ],
+   "source": "Oculus Audio Pack 01 (Meta Open Sound, corpora/oculus-audio-pack)",
+   "creator": "Oculus VR, LLC",
+   "url": "https://developers.meta.com/vr/downloads/package/oculus-audio-pack-1/",
+   "license": "CC-BY-4.0",
+   "modified": true,
+   "changes": "mono, MP3, trimmed, normalised; loops crossfaded",
+   "gameUse": [
+    "sound: ui-back"
+   ]
+  },
+  {
+   "id": "texture/normal-drips",
+   "type": "texture",
+   "files": [
+    "src/assets/normal-0000.webp"
+   ],
+   "source": "@pmndrs/assets 1.7.0 (npm)",
+   "creator": "Poimandres",
+   "url": "https://www.npmjs.com/package/@pmndrs/assets",
+   "license": "CC0-1.0",
+   "modified": true,
+   "changes": "resized to 256 px, WebP",
+   "gameUse": [
+    "tile glaze wear"
+   ]
+  },
+  {
+   "id": "texture/normal-diamond-plate",
+   "type": "texture",
+   "files": [
+    "src/assets/normal-0008.webp"
+   ],
+   "source": "@pmndrs/assets 1.7.0 (npm)",
+   "creator": "Poimandres",
+   "url": "https://www.npmjs.com/package/@pmndrs/assets",
+   "license": "CC0-1.0",
+   "modified": true,
+   "changes": "resized to 256 px, WebP",
+   "gameUse": [
+    "Safe Room floor"
+   ]
+  }
+ ]
+}

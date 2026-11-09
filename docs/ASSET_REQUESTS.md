@@ -22,6 +22,18 @@ Freesound needs a free account to download.
 | 7 | Kenney **Furniture Kit** (140 models) | CC0 | not stated on the page; individual models are also on [Poly Pizza](https://poly.pizza/bundle/Furniture-Kit-NoG1sEUD1z) | [kenney.nl/assets/furniture-kit](https://kenney.nl/assets/furniture-kit) | Safe Room furniture: chairs, shelves, a cot, a kettle, lockers |
 | 8 | Freesound: **Fluorescent light buzzing** (Rvgerxini) | CC0 | not stated | [freesound.org/people/Rvgerxini/sounds/474312](https://freesound.org/people/Rvgerxini/sounds/474312/) | A second hum, for variety between lamps |
 
+## Priority 3: added after the free-assets review
+
+Reachability was checked again from this environment: ambientCG, Poly Haven, Poimandres Market, Quaternius, Freesound and Kenney are all blocked; only npm and public GitHub downloads work. So these still need you:
+
+| # | Asset | Licence | Link | What it's for |
+|---|---|---|---|---|
+| 9 | ambientCG **Tiles 074** or any small square glazed tile, 1K-JPG | CC0 | [ambientcg.com/list?q=tiles](https://ambientcg.com/list?q=tiles) | A second real tile set (ivory, small format) so columns and arches are not all one procedural grid |
+| 10 | ambientCG **Metal 032** (brushed steel) and **Rubber 004**, 1K-JPG | CC0 | [ambientcg.com](https://ambientcg.com/) | Rails, ladders, the raft's tubes |
+| 11 | Mixamo animations on the default rig, FBX without skin: walk, injured walk, idle, crouch, pull, push, climb ladder, sit | Mixamo terms (royalty-free in games; not redistributable as raw files) | [mixamo.com](https://www.mixamo.com/) (Adobe ID) | The crew's and the Lifeguard's movement, retargeted. Needs skinned-mesh support work on our side before it shows |
+
+Every file that comes in is added to `assets/registry.json` with its source and licence; `tests/unit/assets.test.js` fails the build if a shipped file is not registered, has a licence outside the allowed list, or is not named in `CREDITS.md`.
+
 ## Not needed from you
 
 - **three.js example assets** are reachable from here. Checked: `pool.glb` ("The Night Pool" by syntheticplants, CC BY 4.0, 786 KB) and the Mixamo characters `Xbot.glb`, `Soldier.glb` and `Michelle.glb` (2–3 MB, with idle, walk and run animations; Mixamo's terms allow use in games).
