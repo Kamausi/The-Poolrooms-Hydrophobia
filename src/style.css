@@ -1,0 +1,491 @@
+:root {
+  --ink: #efeee2;
+  --muted: #a9b09f;
+  --accent: #d9e9a3;
+  --signal: #8ff59a;
+  --danger: #ff6a4d;
+  --drift: #8fd3ff;
+  --bg: #101713;
+  --panel: #0c120fe8;
+  --line: #ffffff22;
+  font-family: 'DM Sans', system-ui, sans-serif;
+  color: var(--ink);
+  background: var(--bg);
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; overflow: hidden; background: var(--bg); }
+button { font: inherit; cursor: pointer; color: inherit; }
+button:focus-visible, a:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
+a { color: var(--accent); }
+.mono { font-family: 'IBM Plex Mono', monospace; letter-spacing: 0.12em; font-size: 11px; }
+.small { font-size: 10px; }
+.big { font-family: 'Barlow Condensed', 'Arial Narrow', sans-serif; font-size: 52px; line-height: 1; margin: 4px 0; font-weight: 700; }
+.accent { color: var(--accent); }
+
+#world { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
+.grain { position: fixed; inset: 0; pointer-events: none; opacity: 0.05; background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 160 160' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='3'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E"); }
+#driftfx { position: fixed; inset: 0; pointer-events: none; opacity: 0; background: radial-gradient(circle at 50% 50%, transparent 30%, #8fd3ff33 70%, #cfeeff66); mix-blend-mode: screen; transition: opacity 0.4s; }
+#damage { position: fixed; inset: 0; pointer-events: none; opacity: 0; box-shadow: inset 0 0 160px 40px #b3170599; }
+#damage.flash { animation: hurt 0.5s ease-out; }
+@keyframes hurt { from { opacity: 1; } to { opacity: 0; } }
+
+header { position: fixed; top: 0; left: 0; right: 0; display: flex; align-items: center; gap: 18px; padding: 22px 4%; z-index: 5; pointer-events: none; }
+header > * { pointer-events: auto; }
+.brand { font-weight: 700; letter-spacing: 0.25em; font-size: 18px; display: flex; gap: 10px; align-items: center; }
+.brand-icon { font-size: 26px; color: var(--accent); }
+.edition { font: 9px 'IBM Plex Mono', monospace; letter-spacing: 0.15em; color: var(--muted); border-left: 1px solid var(--line); padding-left: 16px; }
+.spacer { flex: 1; }
+header button { background: none; border: 1px solid var(--line); border-radius: 999px; padding: 6px 12px; font: 10px 'IBM Plex Mono', monospace; letter-spacing: 0.12em; }
+body:not([data-mode='ride']):not([data-mode='explore']) .ingame { display: none; }
+
+#menu { position: fixed; inset: 0; padding: 18vh 8% 6vh; z-index: 3; overflow-y: auto; background: linear-gradient(90deg, #08100df5, #08100dd0 45%, #08100d55), radial-gradient(circle at 70% 40%, #2a3a24, #0b100c 70%); }
+.eyebrow { display: flex; align-items: center; gap: 10px; font: 10px 'IBM Plex Mono', monospace; letter-spacing: 0.2em; color: var(--accent); }
+.eyebrow span { width: 24px; height: 1px; background: var(--accent); }
+h1 { font-family: 'Barlow Condensed', 'Arial Narrow', Impact, sans-serif; font-size: clamp(56px, 8vw, 118px); line-height: 0.9; margin: 22px 0; font-weight: 700; letter-spacing: -1px; }
+h1 em { font-style: normal; color: var(--accent); }
+h2 { font-family: 'Barlow Condensed', sans-serif; font-size: 44px; margin: 8px 0 16px; line-height: 1; }
+.intro { font-size: 17px; max-width: 520px; line-height: 1.6; }
+.description { font-size: 13px; color: var(--muted); max-width: 520px; line-height: 1.8; }
+.launch { display: flex; gap: 14px; margin: 28px 0; flex-wrap: wrap; }
+button.primary, .launch button, .actions button { border: 1px solid var(--accent); background: transparent; padding: 14px 22px; font: 600 12px 'IBM Plex Mono', monospace; letter-spacing: 0.14em; border-radius: 2px; }
+button.primary { background: var(--accent); color: #101713; }
+.controls { display: grid; grid-template-columns: max-content 1fr; gap: 6px 18px; max-width: 620px; font-size: 12px; color: var(--muted); margin: 0 0 24px; }
+.controls dt { font: 10px 'IBM Plex Mono', monospace; letter-spacing: 0.15em; color: var(--ink); padding-top: 2px; }
+.controls dd { margin: 0; }
+
+#hud { position: fixed; inset: 0; pointer-events: none; z-index: 2; transition: opacity 0.4s; }
+#hud p { margin: 0; }
+.hud-tl { position: absolute; left: 4%; top: 92px; max-width: 360px; }
+.hud-tl #objective { font-size: 15px; line-height: 1.5; margin-top: 10px; }
+.rule { display: block; width: 18px; height: 2px; background: var(--ink); margin-top: 14px; }
+.hud-tr { position: absolute; right: 4%; top: 92px; text-align: right; display: grid; gap: 4px; }
+.hud-bl { position: absolute; left: 4%; bottom: 52px; width: 200px; }
+.hud-br { position: absolute; right: 4%; bottom: 52px; text-align: right; }
+.bar { height: 3px; background: #ffffff1c; margin: 6px 0 14px; }
+.bar i { display: block; height: 100%; width: 100%; background: var(--signal); transition: width 0.2s; }
+.bar i.low { background: var(--danger); }
+.bar.drift i { background: var(--drift); width: 0; }
+.drift-label { color: var(--drift); }
+#hint { position: absolute; left: 50%; bottom: 22px; transform: translateX(-50%); color: var(--muted); white-space: nowrap; }
+#crosshair { position: absolute; left: 50%; top: 50%; width: 30px; height: 30px; transform: translate(-50%, -50%); border: 1.5px solid #ffffffcc; border-radius: 50%; }
+#crosshair i { position: absolute; left: 50%; top: 50%; width: 4px; height: 4px; margin: -2px; border-radius: 50%; background: #fff; }
+#crosshair.hit { animation: hit 0.18s ease-out; }
+@keyframes hit { from { border-color: var(--danger); transform: translate(-50%, -50%) scale(1.5); } }
+#subtitle { position: absolute; left: 50%; bottom: 120px; transform: translateX(-50%); max-width: min(680px, 90vw); text-align: center; font-size: 17px; line-height: 1.5; opacity: 0; transition: opacity 0.3s; text-shadow: 0 1px 8px #000; }
+#subtitle.show { opacity: 1; }
+#subtitle b { display: block; font: 10px 'IBM Plex Mono', monospace; letter-spacing: 0.2em; color: var(--accent); margin-bottom: 4px; }
+#subtitle.attendant { font-style: italic; color: #f4efd8; }
+#subtitle.attendant b { color: #f0d890; }
+#subtitle.marco { color: var(--drift); letter-spacing: 0.3em; }
+#subtitle.marco b { color: var(--drift); }
+#subtitle.drift { color: var(--drift); font-style: italic; }
+#subtitle.drift b { color: var(--drift); }
+#toast { position: absolute; left: 50%; top: 61%; transform: translateX(-50%); opacity: 0; color: var(--accent); white-space: nowrap; }
+#toast.show { animation: toast 1.6s ease-out; }
+@keyframes toast { 0% { opacity: 0; transform: translate(-50%, 8px); } 15% { opacity: 1; transform: translate(-50%, 0); } 80% { opacity: 1; } 100% { opacity: 0; } }
+#prompt { position: absolute; left: 50%; top: 36%; transform: translateX(-50%); background: #000a; padding: 10px 16px; border: 1px solid var(--line); max-width: min(760px, 90vw); text-align: center; line-height: 1.7; }
+
+.overlay { position: fixed; inset: 0; z-index: 10; display: grid; place-items: center; background: #050806cc; backdrop-filter: blur(6px); padding: 16px; }
+.overlay[hidden], #menu[hidden], #hud[hidden], #prompt[hidden] { display: none; }
+.panel { background: var(--panel); border: 1px solid var(--line); padding: 30px 34px; max-width: 520px; width: 100%; max-height: 92vh; overflow-y: auto; }
+.panel.wide { max-width: 720px; }
+.panel p { line-height: 1.7; color: #d9dbce; }
+.actions { display: flex; gap: 12px; margin-top: 20px; flex-wrap: wrap; }
+.manual-row { display: flex; justify-content: space-between; border-top: 1px solid var(--line); padding: 10px 0; font: 11px 'IBM Plex Mono', monospace; letter-spacing: 0.1em; }
+.graffiti { background: #e8eee8; color: #1a1f1c; padding: 16px 20px; margin: 18px 0; font-family: 'Barlow Condensed', sans-serif; font-size: 20px; }
+.graffiti p { color: #2b2320 !important; margin: 6px 0; line-height: 1.3 !important; }
+.graffiti p:nth-child(2) { color: #7a1e12 !important; }
+.choices { display: grid; gap: 8px; margin: 18px 0; }
+.choice { display: grid; grid-template-columns: 1fr auto; text-align: left; gap: 2px 12px; padding: 12px 14px; background: #ffffff08; border: 1px solid var(--line); }
+.choice b { font-size: 14px; }
+.choice span { grid-column: 1; font-size: 12px; color: var(--muted); }
+.choice i { grid-column: 2; grid-row: 1 / span 2; align-self: center; font: normal 10px 'IBM Plex Mono', monospace; color: var(--accent); }
+.choice:disabled { opacity: 0.45; cursor: default; }
+.choice.selected { border-color: var(--accent); background: #d9e9a314; }
+
+.touch-controls { display: none; }
+body.touch .touch-controls { display: flex; position: absolute; right: 4%; bottom: 140px; gap: 10px; pointer-events: auto; flex-wrap: wrap; justify-content: flex-end; max-width: 220px; }
+body.touch .touch-controls button { width: 64px; height: 64px; border-radius: 50%; border: 1px solid var(--line); background: #0008; font: 11px 'IBM Plex Mono', monospace; }
+body.touch #touch-fire { width: 84px; height: 84px; border-color: var(--accent); }
+body.touch #hint { display: none; }
+body[data-mode='explore'] #touch-boost { display: none; }
+body[data-mode='ride'] #touch-use { display: none; }
+
+@media (max-width: 640px) {
+  .edition, .controls { display: none; }
+  .big { font-size: 38px; }
+  .hud-tl { top: 70px; max-width: 60vw; }
+  .hud-tl #objective { font-size: 13px; }
+  .hud-tr { top: 70px; }
+  #subtitle { font-size: 14px; bottom: 170px; }
+  #prompt { white-space: normal; text-align: center; max-width: 90vw; }
+}
+
+/* Route indicator, raft panel, heat, captions, scan readout */
+.route { margin-top: 10px; display: grid; gap: 3px; max-width: 300px; color: #cfe3d6; }
+.route p:first-child { color: var(--accent); }
+.raft-panel { display: grid; gap: 2px; margin-bottom: 10px; color: #cbd2c4; }
+.raft-panel b { color: var(--ink); font-weight: 500; }
+.raft-panel b.warn { color: var(--danger); }
+.bar.heat { width: 120px; margin: 6px 0 0 auto; }
+.bar.heat i { background: #ffb347; width: 0; }
+.bar.heat i.low { background: var(--danger); }
+#caption { position: absolute; left: 50%; bottom: 196px; transform: translateX(-50%); opacity: 0; transition: opacity 0.3s; color: #e8f2ff; background: #0008; padding: 6px 12px; white-space: nowrap; }
+#caption.show { opacity: 1; }
+#scan { position: absolute; transform: translateX(-50%); color: #9fe0ff; white-space: nowrap; text-shadow: 0 1px 4px #000; }
+.settings { display: grid; gap: 8px; margin: 12px 0; }
+.settings label { display: flex; gap: 10px; align-items: center; font-size: 13px; }
+.keypad { display: grid; grid-template-columns: repeat(3, 64px); gap: 8px; justify-content: center; margin: 16px 0; }
+.keypad button { height: 52px; background: #ffffff10; border: 1px solid var(--line); font: 600 18px 'IBM Plex Mono', monospace; }
+.keypad-display { text-align: center; font: 600 28px 'IBM Plex Mono', monospace; letter-spacing: 0.4em; color: var(--accent); }
+.logbook { display: grid; gap: 10px; max-height: 40vh; overflow-y: auto; margin: 12px 0; }
+.logbook article { border-left: 2px solid var(--line); padding-left: 12px; }
+.logbook h3 { margin: 0 0 4px; font: 600 11px 'IBM Plex Mono', monospace; letter-spacing: 0.12em; color: var(--accent); }
+.logbook p { margin: 0; font-size: 13px; }
+.terminal { background: #021208; border: 1px solid #1c5a30; color: #9dffb8; font: 12px 'IBM Plex Mono', monospace; padding: 12px 14px; white-space: pre-wrap; line-height: 1.6; }
+.seed-row { display: flex; gap: 8px; align-items: center; margin: 8px 0 16px; flex-wrap: wrap; }
+.seed-row input { background: #ffffff10; border: 1px solid var(--line); color: var(--ink); padding: 10px 12px; font: 12px 'IBM Plex Mono', monospace; width: 160px; }
+@media (max-width: 640px) { .route { display: none; } }
+.actions button:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* The Safe Room is rendered behind its panel: keep it visible. */
+#modal.safe { background: #05080655; backdrop-filter: none; align-items: start; justify-items: end; }
+#modal.safe .panel { margin: 70px 2vw 0 0; max-height: calc(100vh - 90px); width: min(460px, 94vw); background: #0c120fee; }
+.safe-live { display: flex; gap: 18px; flex-wrap: wrap; }
+.safe-live p { margin: 4px 0; }
+.graffiti .reply { padding-left: 18px; font-size: 17px; color: #4b5a52 !important; }
+@media (max-width: 640px) { #modal.safe { justify-items: center; } #modal.safe .panel { margin: 60px 0 0; } }
+
+body.touch:not([data-mode='ride']) #touch-jump, body.touch:not([data-mode='ride']) #touch-brace, body.touch:not([data-mode='ride']) #touch-lock, body.touch:not([data-mode='ride']) #touch-patch { display: none; }
+
+#hint { white-space: normal; text-align: center; width: min(900px, 92vw); line-height: 1.6; }
+
+/* The Lido bucket toss */
+.lido-meter { position: relative; height: 18px; border: 1px solid currentColor; margin: 6px 0; background: linear-gradient(90deg, transparent 42%, rgba(120, 255, 170, 0.25) 42%, rgba(120, 255, 170, 0.25) 58%, transparent 58%); }
+.lido-meter i { position: absolute; top: -3px; width: 4px; height: 22px; margin-left: -2px; background: currentColor; }
+#chambers.warn { color: #ff8a6a; }
+.bindings { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 4px; margin-top: 8px; }
+.bindings p { grid-column: 1 / -1; }
+.bind { font: inherit; font-size: 12px; text-align: left; padding: 4px 8px; background: transparent; color: inherit; border: 1px solid currentColor; opacity: 0.85; cursor: pointer; }
+.route-text { width: 100%; min-height: 90px; font: 13px/1.5 'IBM Plex Mono', monospace; background: rgba(0, 0, 0, 0.25); color: inherit; border: 1px solid currentColor; padding: 8px; margin: 8px 0; box-sizing: border-box; }
+#modal select { font: inherit; background: transparent; color: inherit; border: 1px solid currentColor; padding: 4px; }
+#roster { opacity: 0.85; }
+
+/* ===================================================================================================
+   ART DIRECTION · stale institutional beauty
+   Dead porcelain, stale fluorescent, faded pool teal, deep water, drain black, worn safety yellow.
+   Accents are small and mean something: warning coral = danger, checkpoint green = safe/recovery,
+   blacklight violet = anomaly. Type: Barlow Condensed (wordmark, facility signage), IBM Plex Sans
+   (reading), IBM Plex Mono (short readings and records), authored hands for graffiti.
+   =================================================================================================== */
+:root {
+  --porcelain: #d8d8ca;
+  --fluor: #aaa881;
+  --teal: #4d7472;
+  --deep: #112b31;
+  --drain: #080d10;
+  --safety: #b19a50;
+  --coral: #c45a50;
+  --green: #86aa8a;
+  --violet: #a78cde;
+  --ink: var(--porcelain);
+  --muted: #93978a;
+  --accent: var(--porcelain);
+  --signal: var(--green);
+  --danger: var(--coral);
+  --drift: #8fb3b8;
+  --bg: var(--drain);
+  --panel: #0e2328f0;
+  --line: #4d747266;
+  font-family: 'IBM Plex Sans', system-ui, sans-serif;
+  font-size: clamp(14px, 1.02vw, 22px);
+}
+body { background: var(--drain); }
+.mono { font-family: 'IBM Plex Mono', monospace; letter-spacing: 0.1em; font-size: clamp(11px, 0.84vw, 17px); }
+.small { font-size: clamp(10px, 0.76vw, 15px); }
+.big { font-family: 'Barlow Condensed', 'Arial Narrow', sans-serif; font-weight: 600; letter-spacing: 0.02em; }
+
+/* The wordmark: tall condensed capitals in dirty ivory, a thin waterline across the lower third,
+   and the letters below it displaced as if seen through water. Readable first; the wrongness second. */
+.wordmark { position: relative; display: inline-block; font-family: 'Barlow Condensed', 'Arial Narrow', sans-serif; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; color: transparent; background: linear-gradient(var(--porcelain) 0 66%, transparent 66%); -webkit-background-clip: text; background-clip: text; }
+.wordmark::after { content: attr(data-text); position: absolute; left: 0; top: 0; color: #d8d8ca99; clip-path: inset(66% 0 0 0); transform: translate(0.035em, 0.03em) skewX(-3deg) scaleY(1.04); filter: blur(0.5px); pointer-events: none; }
+.wordmark::before { content: ''; position: absolute; left: -3%; right: -3%; top: 66%; height: max(1px, 0.03em); background: var(--teal); box-shadow: 0 0 6px #4d747299; }
+.brand.wordmark { font-size: clamp(18px, 1.3vw, 26px); letter-spacing: 0.12em; }
+h1.title { font-size: clamp(64px, 9.5vw, 156px); line-height: 1; margin: 14px 0 6px; letter-spacing: 0.08em; }
+.tagline { font-family: 'Barlow Condensed', sans-serif; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; color: var(--fluor); font-size: clamp(18px, 1.6vw, 30px); margin: 0 0 18px; }
+.eyebrow, .eyebrow span { color: var(--fluor); }
+.eyebrow span { background: var(--fluor); }
+h2 { font-family: 'Barlow Condensed', sans-serif; font-weight: 600; letter-spacing: 0.04em; color: var(--porcelain); }
+
+/* The menu: most of the screen is the room behind it. */
+#menu { background: linear-gradient(90deg, #080d10f2 0%, #080d10d8 34%, #080d1040 58%, transparent 75%); padding: 14vh 6% 6vh; }
+.menu-panel { max-width: min(600px, 92vw); }
+.intro { font-size: clamp(15px, 1.1vw, 22px); color: var(--porcelain); }
+.description { font-size: clamp(13px, 0.9vw, 18px); color: var(--muted); }
+.controls { color: var(--muted); font-size: clamp(11px, 0.8vw, 16px); }
+button.primary { background: var(--porcelain); color: var(--drain); border-color: var(--porcelain); }
+.launch button, .actions button, .seed-row button { border: 1px solid var(--line); background: #080d1099; color: var(--porcelain); padding: 12px 18px; font: 500 clamp(11px, 0.8vw, 16px) 'IBM Plex Mono', monospace; letter-spacing: 0.12em; border-radius: 2px; }
+.launch button.primary { border-color: var(--porcelain); background: var(--porcelain); color: var(--drain); }
+
+/* HUD: facility instrumentation, read like a modern game. */
+#objective { font-size: clamp(15px, 1.15vw, 22px); color: var(--porcelain); }
+#subtitle { font-size: clamp(17px, 1.35vw, 28px); color: var(--porcelain); text-shadow: 0 1px 8px #000, 0 0 2px #000; }
+#subtitle b { font: 500 clamp(11px, 0.8vw, 16px) 'IBM Plex Mono', monospace; letter-spacing: 0.16em; color: var(--fluor); }
+#subtitle.attendant { color: #e6e1c6; }
+#subtitle.attendant b { color: var(--safety); }
+#subtitle.marco, #subtitle.voice { color: var(--drift); letter-spacing: 0.04em; }
+#subtitle.marco b, #subtitle.voice b { color: var(--drift); }
+#caption { font: clamp(12px, 0.9vw, 18px) 'IBM Plex Mono', monospace; color: var(--porcelain); background: #080d10cc; border-left: 2px solid var(--teal); }
+#prompt { background: #080d10d9; border: 1px solid var(--line); font-size: clamp(12px, 0.9vw, 18px); }
+#toast { color: var(--porcelain); font-size: clamp(12px, 0.9vw, 18px); }
+#scan { color: var(--violet); }
+.bar { background: #d8d8ca1f; }
+.bar.heat i { background: var(--safety); }
+.raft-panel b.warn, #chambers.warn { color: var(--coral); }
+#roster { color: var(--porcelain); }
+.route p:first-child { color: var(--fluor); }
+/* A reticle that reads on dark water and on pale tile alike. */
+#crosshair { border: 1.5px solid var(--porcelain); box-shadow: 0 0 0 1px #080d10cc, inset 0 0 0 1px #080d10aa; }
+#crosshair i { background: var(--porcelain); box-shadow: 0 0 0 1px #080d10; }
+@keyframes hit { from { border-color: var(--coral); transform: translate(-50%, -50%) scale(1.5); } }
+#damage { box-shadow: inset 0 0 160px 40px #c45a5099; }
+#driftfx { background: radial-gradient(circle at 50% 50%, transparent 30%, #4d747233 70%, #8fb3b855); }
+
+/* Panels, choices, Safe Room */
+.panel { background: var(--panel); border: 1px solid var(--line); }
+.panel p { color: #cfd0c2; font-size: clamp(14px, 1vw, 20px); }
+.choice { background: #080d1066; border: 1px solid var(--line); }
+.choice b { font-size: clamp(13px, 0.95vw, 19px); color: var(--porcelain); }
+.choice span { font-size: clamp(12px, 0.85vw, 17px); }
+.choice i { color: var(--fluor); }
+.choice.selected { border-color: var(--green); background: #86aa8a14; }
+#modal.safe .panel { background: #0e2328ee; border-top: 3px solid var(--green); }
+.terminal { background: #080d10; border: 1px solid #86aa8a55; color: var(--green); }
+.logbook h3 { color: var(--fluor); }
+
+/* Graffiti: authored hands. The same people write in the same hands across every Safe Room. */
+.graffiti { background: #d8d8ca; color: #1d2422; font-size: clamp(20px, 1.5vw, 30px); }
+.graffiti p { font-family: 'Shadows Into Light', cursive; }
+.graffiti p.hand-m { font-family: 'Caveat', cursive; color: #5a1f18 !important; }
+.graffiti p.hand-a { font-family: 'Reenie Beanie', cursive; font-size: 1.15em; }
+.graffiti p.hand-b { font-family: 'Nanum Pen Script', cursive; font-size: 1.1em; }
+.graffiti p.hand-c { font-family: 'Shadows Into Light', cursive; }
+.graffiti p.hand-maint { font-family: 'IBM Plex Mono', monospace; font-size: 0.6em; letter-spacing: 0.08em; color: #4d7472 !important; }
+
+/* Text size and contrast settings */
+:root { --text-scale: 1; }
+#subtitle { font-size: calc(clamp(17px, 1.35vw, 28px) * var(--text-scale)); }
+#caption, #prompt, #toast { font-size: calc(clamp(12px, 0.9vw, 18px) * var(--text-scale)); }
+.panel p, .choice b, .choice span { font-size: calc(clamp(13px, 0.95vw, 19px) * var(--text-scale)); }
+#objective { font-size: calc(clamp(15px, 1.15vw, 22px) * var(--text-scale)); }
+body.contrast .panel, body.contrast #modal.safe .panel { background: #080d10; border-color: var(--porcelain); }
+body.contrast #caption, body.contrast #prompt { background: #000; border: 1px solid var(--porcelain); }
+body.contrast #subtitle { background: #000d; padding: 6px 12px; }
+body.contrast #crosshair { border-width: 3px; }
+#perf { position: fixed; left: 4%; top: 64px; z-index: 6; color: var(--fluor); background: #080d10cc; padding: 4px 8px; pointer-events: none; }
+
+/* ---------- HUD hierarchy ----------
+   The centre of the frame belongs to the world and the crosshair. Announcements sit in the upper third,
+   interaction prompts just below the crosshair, speech and sound captions at the bottom, controls fade. */
+#hint { opacity: 0; transition: opacity 1.2s ease; }
+#hint.show { opacity: 0.85; }
+#prompt { top: auto; bottom: 30%; background: rgba(8, 13, 16, 0.55); border: none; border-left: 2px solid var(--teal, #4D7472); padding: 7px 14px; letter-spacing: 0.06em; }
+#toast { top: 22%; font-size: 13px; letter-spacing: 0.18em; }
+#subtitle { bottom: 96px; }
+#caption { bottom: 58px; background: transparent; padding: 0; color: #c9d4d2; font-size: 12px; letter-spacing: 0.04em; text-shadow: 0 1px 6px #000; white-space: normal; max-width: min(720px, 90vw); text-align: center; }
+.hud-tr { gap: 2px; }
+.hud-tr #band, .hud-tr #guests { opacity: 0.72; }
+@media (max-width: 760px) { #prompt { bottom: 34%; } #subtitle { bottom: 150px; } #caption { bottom: 118px; } }
+/* Short landscape screens (phones): keep speech low and drop the decorative counters. */
+@media (max-height: 480px) {
+  #subtitle { bottom: 52px; font-size: 13px; max-width: 62vw; }
+  #subtitle b { margin-bottom: 1px; }
+  #caption { bottom: 30px; font-size: 10px; }
+  #prompt { bottom: 22%; font-size: 11px; }
+  #toast { top: 16%; }
+  .hud-tl #objective, .hud-tr #guests, .hud-tr #band { display: none; }
+}
+
+/* ===================================================================================================
+   INTERFACE SYSTEM · aging aquatic-facility equipment used in an emergency
+   Dark enamel panels, ivory lettering, inspection labels, a pressure gauge, small rectangular lamps.
+   Accents keep one meaning each: safety yellow = attention/pending, coral = critical, green = recovery,
+   violet = inspection/anomaly. Warning TEXT stays ivory (≈10:1 on petrol); coral is the strip, border
+   or symbol (≈3.5:1 on its own, so it never carries words alone).
+   Functional text is sized for the couch: about 26 px rendered at 1080p, scaled by --hud-scale.
+   =================================================================================================== */
+:root { --hud-scale: 1; --u: calc(clamp(13px, 1.36vw, 26px) * var(--hud-scale) * var(--text-scale)); --fog: 0; }
+.hud-tl, .hud-tr, .hud-bl, .hud-br { font-size: var(--u); }
+.hud-bl .mono, .hud-br .mono { font-size: calc(var(--u) * 0.72); letter-spacing: 0.08em; }
+.hud-bl .small, .hud-br .small, .hud-tr .small { font-size: calc(var(--u) * 0.62); }
+
+/* Upper left: prominent when the objective changes, one line afterwards. */
+.hud-tl { max-width: min(560px, 44vw); transition: opacity 0.4s; }
+.hud-tl #sector-name { font-size: calc(var(--u) * 0.62); color: var(--fluor); }
+.hud-tl #objective { font-size: calc(var(--u) * 0.95); line-height: 1.4; transition: font-size 0.4s; }
+.hud-tl.compact #objective { font-size: calc(var(--u) * 0.7); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; opacity: 0.85; }
+.hud-tl.compact .rule { opacity: 0; }
+
+/* Upper right: the facility's readouts, smaller and quieter than anything the crew relies on. */
+.hud-tr.facility { font-size: calc(var(--u) * 0.6); opacity: 0.85; }
+.hud-tr.facility .mono { font-size: calc(var(--u) * 0.58); }
+#band { filter: blur(calc(var(--fog) * 0.6px)); }
+
+/* Lower left: three teammates above your own entry. */
+.hud-bl { width: auto; min-width: 230px; bottom: 44px; }
+.roster { display: grid; gap: 3px; margin-bottom: 14px; }
+.mate { display: grid; grid-template-columns: 1.2em auto 1fr; gap: 0 0.6em; align-items: baseline; margin: 0; padding: 2px 8px 2px 6px; border-left: 3px solid var(--teal); background: #080d1066; color: var(--porcelain); transition: transform 0.2s, background 0.2s; transform-origin: left center; }
+.mate i { font-style: normal; color: var(--green); }
+.mate b { font-weight: 500; letter-spacing: 0.12em; }
+.mate span { color: var(--porcelain); font-size: 0.9em; }
+.mate.s-hurt { border-left-color: var(--safety); } .mate.s-hurt i { color: var(--safety); }
+.mate.s-down, .mate.s-grabbed { border-left-color: var(--coral); background: #080d10cc; transform: scale(1.22); margin: 4px 0; box-shadow: inset 0 0 0 1px #c45a5099; }
+.mate.s-down i, .mate.s-grabbed i { color: var(--coral); }
+.mate.s-gone { opacity: 0.5; }
+.player { padding: 8px 10px 6px; background: #080d1088; border-left: 3px solid var(--porcelain); }
+.player .who { margin: 0 0 2px; color: var(--porcelain); }
+.player .who b { font-weight: 500; letter-spacing: 0.14em; }
+.player .who span { color: var(--safety); }
+.vital-row { display: grid; grid-template-columns: auto 1fr; gap: 10px; align-items: center; }
+.vital-row #vitals { font-size: calc(var(--u) * 1.7); line-height: 1; margin: 0; }
+.vital-row .bar { margin: 0; height: 4px; min-width: 120px; }
+.drift-row { margin-top: 4px; }
+.drift-row .drift-label { margin: 0; color: var(--drift); }
+
+/* Lower right: equipment on a petrol panel. */
+.hud-br { bottom: 44px; display: grid; justify-items: end; gap: 8px; }
+.raft-panel { display: none; grid-template-columns: auto auto; gap: 10px; align-items: center; padding: 6px 10px; background: #112b31cc; border: 1px solid #4d747288; border-radius: 3px; margin: 0; }
+body.aboard .raft-panel { display: grid; }
+.raft-read p { margin: 1px 0; text-align: right; }
+.gauge { width: calc(var(--u) * 3.2); height: auto; }
+.gauge .dial { fill: none; stroke: #d8d8ca66; stroke-width: 2.5; }
+.gauge .redline { fill: none; stroke: var(--coral); stroke-width: 3.5; }
+.gauge line { stroke: var(--porcelain); stroke-width: 2; stroke-linecap: round; }
+.gauge circle { fill: var(--porcelain); }
+#chambers.warn { color: var(--porcelain); border-right: 3px solid var(--coral); padding-right: 6px; }
+.raft-panel b.warn { color: var(--porcelain); text-decoration: underline 2px var(--coral); }
+.equip { position: relative; text-align: right; padding: 6px 10px 6px 14px; background: #112b31cc; border: 1px solid #4d747288; border-radius: 3px; overflow: hidden; }
+.equip #charge-state { margin: 0; color: var(--fluor); }
+.charge-row { margin: 0; }
+.charge-row #charge { font-size: calc(var(--u) * 1.9); line-height: 1; }
+.equip .bar.heat { width: 100%; min-width: 140px; margin: 4px 0 0; }
+/* Moisture behind the display glass as Drift rises. Behind the numbers, never over them. */
+.equip::before { content: ''; position: absolute; inset: 0; z-index: -1; opacity: var(--fog); background: radial-gradient(circle at 20% 30%, #d8d8ca22 0 2px, transparent 3px) 0 0 / 11px 13px, radial-gradient(circle at 70% 60%, #d8d8ca1a 0 1.5px, transparent 2.5px) 0 0 / 7px 9px, linear-gradient(#d8d8ca10, #d8d8ca06); }
+#ticker { margin: 4px 0 0; color: var(--fluor); opacity: 0; transition: opacity 0.4s; min-height: 1em; }
+#ticker.show { opacity: 1; }
+.slots { display: grid; grid-template-columns: repeat(4, auto); gap: 4px; }
+.slot { display: grid; grid-template-rows: auto auto auto; justify-items: center; min-width: calc(var(--u) * 3.1); padding: 4px 6px; background: #112b31cc; border: 1px solid #4d747288; border-radius: 2px; }
+.slot i { font-style: normal; font-size: 0.85em; color: var(--fluor); border: 1px solid #aaa88166; padding: 0 4px; border-radius: 2px; }
+.slot b { font-weight: 500; font-size: 0.78em; letter-spacing: 0.1em; color: #d8d8caaa; margin-top: 2px; }
+.slot span { font-size: 1.05em; color: var(--porcelain); }
+.slot.empty { opacity: 0.45; }
+.parts { margin: 0; color: #d8d8caaa; }
+
+/* Upper centre: the one urgent event. Ivory words, coral frame and lamp. */
+#urgent { position: absolute; left: 50%; top: 14%; transform: translateX(-50%); margin: 0; padding: 8px 18px 8px 14px; font-size: calc(var(--u) * 0.85); color: var(--porcelain); background: #080d10e6; border: 1px solid var(--coral); border-left: 6px solid var(--coral); letter-spacing: 0.14em; }
+#urgent::after { content: ''; display: inline-block; width: 10px; height: 6px; margin-left: 12px; background: var(--coral); vertical-align: middle; animation: lamp 0.9s steps(1) infinite; }
+@keyframes lamp { 50% { opacity: 0.25; } }
+#helpmark { position: absolute; top: 46%; margin: 0; padding: 6px 12px; font-size: calc(var(--u) * 0.8); color: var(--porcelain); background: #080d10e6; border: 1px solid var(--coral); letter-spacing: 0.12em; }
+#helpmark.left { left: 1.5%; border-left: 6px solid var(--coral); }
+#helpmark.right { right: 1.5%; border-right: 6px solid var(--coral); }
+#urgent[hidden], #helpmark[hidden] { display: none; }
+
+/* Reticle: ivory with a dark outline. Shape carries the state; colour only supports it. */
+#crosshair { width: 22px; height: 22px; border-radius: 50%; transition: width 0.12s, height 0.12s, border-radius 0.12s; --p: 0; }
+#crosshair::before, #crosshair::after { content: ''; position: absolute; inset: -6px; pointer-events: none; opacity: 0; transition: opacity 0.12s; }
+/* Interactive: open brackets. */
+#crosshair.interact { border-color: transparent; box-shadow: none; }
+#crosshair.interact::before { opacity: 1; border: 2px solid var(--porcelain); border-top-color: transparent; border-bottom-color: transparent; border-radius: 2px; filter: drop-shadow(0 0 1px #080d10) drop-shadow(0 0 1px #080d10); }
+/* Lock ready: a square frame with corner ticks. */
+#crosshair.lock { border-radius: 2px; transform: translate(-50%, -50%) rotate(45deg); border-color: var(--violet); }
+/* Held action: a progress arc. */
+#crosshair.holding::after { opacity: 1; border-radius: 50%; background: conic-gradient(var(--porcelain) calc(var(--p) * 360deg), #d8d8ca22 0); -webkit-mask: radial-gradient(circle, transparent 58%, #000 60%); mask: radial-gradient(circle, transparent 58%, #000 60%); }
+/* A brief impact mark when a shot connects. */
+#crosshair.hit { animation: impact 0.2s ease-out; }
+@keyframes impact { from { box-shadow: 0 0 0 1px #080d10cc, 0 0 0 6px #d8d8ca88; transform: translate(-50%, -50%) scale(1.35); } }
+
+/* Subtitles: a dedicated band with optional backing; the source label names who (or what) is speaking. */
+body.subtitle-backing #subtitle.show { background: #080d10d9; padding: 8px 16px; }
+#subtitle { font-size: calc(clamp(17px, 1.45vw, 30px) * var(--text-scale)); }
+
+/* Persistent HUD: nothing compacts. */
+body.hud-persistent .hud-tl.compact #objective { font-size: calc(var(--u) * 0.95); white-space: normal; opacity: 1; }
+
+/* During a crisis, everything not about the crewmate steps back. */
+body.crisis .hud-tr.facility, body.crisis .hud-tl.compact { opacity: 0.45; }
+
+@media (max-width: 760px) {
+  .hud-bl, .hud-br { bottom: 120px; }
+  .roster { gap: 1px; }
+  .slots { grid-template-columns: repeat(2, auto); }
+}
+@media (max-height: 480px) {
+  .hud-bl, .hud-br { bottom: 8px; }
+  .roster { display: none; }
+  body.crisis .roster { display: grid; }
+  .raft-read p:not(:first-child) { display: none; }
+}
+
+/* ---------- Main menu: the first room ----------
+   A vertical list of enamel plates. The selected plate is filled ivory; focus moves at once and a short
+   description follows it. The room behind does the unsettling; the entries never move. */
+.menu-list { display: grid; gap: 6px; max-width: min(520px, 92vw); margin: 26px 0 10px; }
+.menu-list[hidden] { display: none; }
+.menu-item { display: grid; gap: 2px; text-align: left; padding: 12px 18px; background: #080d10b3; color: var(--porcelain); border: 1px solid var(--line); border-left: 3px solid var(--teal); border-radius: 3px; cursor: pointer; font: inherit; }
+.menu-item b { font: 500 calc(clamp(13px, 1.05vw, 21px) * var(--text-scale)) 'IBM Plex Mono', monospace; letter-spacing: 0.16em; }
+.menu-item span { font-size: calc(clamp(11px, 0.82vw, 16px) * var(--text-scale)); color: var(--fluor); white-space: pre-line; letter-spacing: 0.06em; }
+.menu-item:hover, .menu-item:focus-visible, .menu-item:focus { outline: none; background: var(--porcelain); color: var(--drain); border-color: var(--porcelain); }
+.menu-item:focus span, .menu-item:hover span { color: #112b31; }
+.menu-item.back { opacity: 0.8; }
+.menu-list .seed-row { margin: 0; display: grid; grid-template-columns: 1fr auto; gap: 6px; }
+.menu-desc { min-height: 3em; max-width: min(520px, 92vw); color: #d8d8cacc; font-size: calc(clamp(13px, 0.95vw, 19px) * var(--text-scale)); border-left: 2px solid #4d747288; padding-left: 12px; }
+.menu-foot { position: absolute; left: 6%; bottom: 3vh; color: #93978a99; }
+#menu { padding-top: 10vh; }
+#menu .intro { max-width: 34em; }
+.menu-item[hidden] { display: none; }
+#menu { padding-top: 6vh; }
+#menu h1.title { font-size: clamp(54px, 7.4vw, 132px); margin: 8px 0 4px; }
+#menu .tagline { margin-bottom: 10px; }
+#menu .intro { font-size: calc(clamp(13px, 0.98vw, 20px) * var(--text-scale)); margin: 0 0 6px; }
+#menu .description { margin: 0; }
+.menu-list { margin: 16px 0 8px; gap: 5px; }
+.menu-item { padding: 9px 16px; }
+.menu-desc { min-height: 2.6em; margin: 4px 0 0; }
+@media (max-height: 760px) { #menu .description { display: none; } #menu .eyebrow { margin: 0; } }
+#menu { padding-top: max(8vh, 72px); }
+
+/* Safe Room maintenance sheet: an inspection form with numbered sections. */
+.sheet { display: grid; gap: 14px; margin: 18px 0; }
+.sheet-sec { border-top: 1px solid #4d747288; padding-top: 8px; }
+.sheet-head { margin: 0 0 6px; font: 500 calc(clamp(11px, 0.85vw, 16px) * var(--text-scale)) 'IBM Plex Mono', monospace; letter-spacing: 0.18em; color: var(--fluor); }
+.choice .deal { color: var(--porcelain); letter-spacing: 0.04em; }
+.unknown { color: #93978a; font-style: italic; }
+.receipt { color: var(--fluor); border-left: 2px solid var(--safety); padding-left: 8px; }
+/* Journal and pause tabs */
+.tabs { display: flex; gap: 4px; flex-wrap: wrap; margin: 6px 0 12px; }
+.tab { font: 500 calc(clamp(11px, 0.8vw, 15px) * var(--text-scale)) 'IBM Plex Mono', monospace; letter-spacing: 0.12em; padding: 7px 12px; background: #080d1099; color: var(--porcelain); border: 1px solid var(--line); border-bottom: 2px solid transparent; cursor: pointer; }
+.tab.on, .tab:focus { border-bottom-color: var(--porcelain); background: #112b31; outline: none; }
+
+/* Callout strip: held Ping. Stamped labels in a row above the subtitles; the chosen one is filled. */
+.callouts { position: absolute; left: 50%; bottom: 24%; transform: translateX(-50%); display: flex; gap: 4px; padding: 6px; background: #080d10e6; border: 1px solid var(--line); border-radius: 3px; font-size: calc(var(--u) * 0.6); }
+.callouts[hidden] { display: none; }
+.callouts span { padding: 6px 10px; border: 1px solid #4d747288; color: var(--porcelain); letter-spacing: 0.12em; white-space: nowrap; }
+.callouts span.on { background: var(--porcelain); color: var(--drain); border-color: var(--porcelain); }
+
+/* Settings: six categories, and a live preview of subtitles, captions and HUD size. */
+.settings-group { border-top: 1px solid #4d747266; padding-top: 8px; display: grid; gap: 8px; }
+.settings-preview { display: grid; gap: 6px; justify-items: start; padding: 10px; background: #050806; border: 1px dashed #4d747288; }
+.prev-sub { margin: 0; font-size: calc(clamp(17px, 1.45vw, 30px) * var(--text-scale)); color: var(--porcelain); }
+.prev-sub b { display: block; font: 500 calc(clamp(11px, 0.8vw, 16px) * var(--text-scale)) 'IBM Plex Mono', monospace; letter-spacing: 0.16em; color: var(--fluor); }
+.prev-sub.backed { background: #080d10d9; padding: 6px 12px; }
+.prev-cap { margin: 0; font-size: calc(clamp(12px, 0.9vw, 18px) * var(--text-scale)); color: #c9d4d2; }
+.settings-preview .slot { font-size: calc(var(--u) * 0.72); }
+body.contrast .settings-preview { border-color: var(--porcelain); }
+/* Flash reduction: damage and muzzle flashes are dimmer and shorter. */
+body.flash-reduce #damage { box-shadow: inset 0 0 120px 20px #c45a5044; }
+.pause-note { color: var(--porcelain); border-left: 4px solid var(--safety); padding: 6px 10px; background: #080d10; }
+/* Native controls in the facility's colours, so nothing reads as a browser default. */
+.settings input[type='range'], .settings input[type='checkbox'] { accent-color: var(--porcelain); }
+.settings input[type='range'] { min-width: 140px; }
+.settings select, #modal select { background: #112b31; color: var(--porcelain); border: 1px solid var(--line); padding: 6px 8px; font: inherit; border-radius: 2px; }
+.settings label { min-height: 28px; }

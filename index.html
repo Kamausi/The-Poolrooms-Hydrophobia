@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover" />
+  <meta name="theme-color" content="#101713" />
+  <title>UNDERFLOW</title>
+  <meta name="description" content="A first-person horror rail-shooter in the Poolrooms. Rendered with 67js." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600&family=IBM+Plex+Sans:wght@400;500&family=IBM+Plex+Mono:wght@400;500&family=Caveat:wght@500&family=Reenie+Beanie&family=Shadows+Into+Light&family=Nanum+Pen+Script&display=swap" />
+  <link rel="stylesheet" href="/src/style.css" />
+</head>
+<body data-mode="menu">
+  <canvas id="world"></canvas>
+  <div class="grain"></div>
+  <div id="driftfx"></div>
+  <div id="damage"></div>
+
+  <header>
+    <span class="brand wordmark" data-text="UNDERFLOW">UNDERFLOW</span>
+    <span class="edition">CAMPAIGN 01 / OVERFLOW</span>
+    <span class="spacer"></span>
+    <button id="sound">SOUND ON</button>
+    <button id="pause" class="ingame">Ⅱ PAUSE</button>
+  </header>
+
+  <section id="menu">
+    <div class="menu-panel">
+    <p class="eyebrow"><span></span>DRAINER CREW EIGHT · PUMPHOUSE DISPATCH</p>
+    <h1 class="wordmark title" data-text="UNDERFLOW">UNDERFLOW</h1>
+    <p class="tagline">The water only goes deeper.</p>
+    <p class="intro">The park is still running. The pumps work, the towels are warm, the announcements play. Nobody is here. The guest counter changes when you are alone.</p>
+    <p class="description">Crew Seven went down six weeks ago. Their raft came back up the slide empty, four life vests folded on the seat.</p>
+    <nav class="menu-list" aria-label="Main menu">
+      <button id="continue" class="menu-item" data-desc="Pick up the expedition where the facility last saw you." hidden><b>CONTINUE EXPEDITION</b><span id="continue-sub" class="mono"></span></button>
+      <button id="start-exp" class="menu-item" data-desc="Go down the slide: the campaign, the reference chapter, endless mode, challenges and shared routes."><b>START EXPEDITION</b></button>
+      <button id="records-btn" class="menu-item" data-desc="What the crew has witnessed, what the facility claims, and your best endless runs."><b>EXPEDITION RECORDS</b></button>
+      <button id="settings-btn" class="menu-item" data-desc="Controls, interface, audio, camera and effects, assistance, display."><b>SETTINGS</b></button>
+      <button id="credits-btn" class="menu-item" data-desc="Who made the sounds and textures this facility borrows."><b>CREDITS</b></button>
+    </nav>
+    <nav class="menu-list sub" id="start-menu" aria-label="Start expedition" hidden>
+      <button id="start" class="menu-item" data-desc="The campaign: eight attractions, Safe Rooms between them, the crew split at the junction."><b>NEW CAMPAIGN</b></button>
+      <button id="chapter" class="menu-item" data-desc="One finished chapter, 12–18 minutes: an empty wave pool and a sign under the water."><b>REFERENCE CHAPTER · THE CLOSED WAVE POOL</b></button>
+      <div class="seed-row"><button id="endless" class="menu-item" data-desc="Generated attractions, deeper each time. The same seed builds the same facility."><b>ENDLESS MODE</b></button><input id="seed" inputmode="numeric" placeholder="seed (optional)" aria-label="Endless seed" /></div>
+      <button id="challenges" class="menu-item" data-desc="Short rules-bound rides with their own conditions."><b>CHALLENGES</b></button>
+      <button id="routes" class="menu-item" data-desc="Write a route of channels, pools and drops, or ride one someone shared."><b>ROUTE BUILDER</b></button>
+      <button id="start-back" class="menu-item back" data-desc="Back to the main menu."><b>BACK</b></button>
+    </nav>
+    <p id="menu-desc" class="menu-desc" aria-live="polite"></p>
+    <span id="records" class="mono small" hidden></span>
+    </div>
+    <p class="mono small menu-foot"><span id="engine">RENDERED WITH 67JS</span></p>
+  </section>
+
+  <template id="controls-ref">
+    <dl class="controls">
+      <dt>RAFT</dt><dd>A/D steer · Space hop · click fire · right-click focus (Disruptor: lock, release for a volley) · 1–5, Tab or wheel: blaster profile · Ctrl/C brace · Z shove · B ping / radio check · V paddle · G patch · Shift boost · S brake · X look back · T Ride Control</dd>
+      <dt>POOLS</dt><dd>Shoot an arrow to switch gates · Space depart · E moor at a dock · A/D look around</dd>
+      <dt>ON FOOT</dt><dd>WASD move · mouse look · E use · Shift run · V paddle prod (valve tool at the raft) · Z shove · B ping</dd>
+      <dt>BLASTER</dt><dd>Q (or right-click on foot): inspection beam · F: disruption burst (uses a charge cell) · R recharge · H dressing · controllers supported</dd>
+      <dt>ALWAYS</dt><dd>Esc pause and settings · Space to snap out of Drift</dd>
+    </dl>
+  </template>
+  <p id="perf" class="mono small" hidden></p>
+  <section id="hud" hidden>
+    <!-- Upper left: where you are and what to do. Prominent when it changes, compact after. -->
+    <div class="hud-tl">
+      <p id="sector-name" class="mono"></p>
+      <p id="objective"></p>
+      <span class="rule"></span>
+    </div>
+    <!-- Upper right: the facility's own readouts. These can lie; the crew's status never does. -->
+    <div class="hud-tr facility">
+      <p class="mono" id="band">WRISTBAND 0000</p>
+      <p class="mono small" id="guests">GUESTS CHECKED IN: 1</p>
+      <p id="score-wrap" hidden><span class="mono small">SIGNAL SCORE</span><br /><span id="score" class="big">00000</span></p>
+      <p id="cleared" class="mono small"></p>
+      <p id="depth" class="mono small accent"></p>
+      <div id="route" class="route mono small"></div>
+    </div>
+    <!-- Upper centre: one urgent shared event, only when there is one. -->
+    <p id="urgent" class="mono" hidden></p>
+    <p id="helpmark" class="mono" hidden></p>
+    <div id="callouts" class="callouts mono" hidden></div>
+    <!-- Lower left: the crew, then you. -->
+    <div class="hud-bl">
+      <div id="roster" class="roster mono"></div>
+      <div class="player">
+        <p class="who mono"><b id="player-name">YOU</b><span id="carry"></span></p>
+        <div class="vital-row"><p id="vitals" class="big">100</p><div class="bar"><i id="vitals-bar"></i></div></div>
+        <div class="vital-row drift-row"><p class="mono drift-label">DRIFT <span id="drift">0</span></p><div class="bar drift"><i id="drift-bar"></i></div></div>
+        <p id="mode" class="mono small"></p>
+      </div>
+    </div>
+    <!-- Lower right: equipment. The raft's gauge shows while aboard. -->
+    <div class="hud-br">
+      <div class="raft-panel mono small" id="raft-panel">
+        <svg class="gauge" viewBox="0 0 64 40" aria-hidden="true"><path class="dial" d="M6 36 A26 26 0 0 1 58 36" /><path class="redline" d="M6 36 A26 26 0 0 1 11.6 20" /><line id="needle" x1="32" y1="36" x2="32" y2="13" /><circle cx="32" cy="36" r="2.6" /></svg>
+        <div class="raft-read">
+          <p>RAFT PRESSURE <b id="raft">100%</b></p>
+          <p id="chambers">L ▮▮▮▮ · R ▮▮▮▮ · F ▮▮▮▮ · B ▮▮▮▮</p>
+          <p>FILTER <b id="filter">100%</b></p>
+        </div>
+      </div>
+      <div class="equip">
+        <p id="charge-state" class="mono">ARC BLASTER / MK.II</p>
+        <p class="charge-row"><span id="charge" class="big">24</span> <span id="charge-max" class="mono">/ 24</span></p>
+        <div class="bar heat"><i id="heat-bar"></i></div>
+        <p id="ticker" class="mono small"></p>
+      </div>
+      <!-- Quick-use items in fixed places: an empty slot stays where it was. -->
+      <div id="slots" class="slots mono">
+        <div class="slot" data-slot="dressing"><i></i><b>DRESSING</b><span></span></div>
+        <div class="slot" data-slot="filter"><i></i><b>FILTER</b><span id="filters">1</span></div>
+        <div class="slot" data-slot="cell"><i></i><b>CELL</b><span id="cells">0</span></div>
+        <div class="slot" data-slot="patch"><i></i><b>PATCH</b><span></span></div>
+      </div>
+      <p id="scrap" class="mono small parts">0 PARTS</p>
+    </div>
+    <p id="caption" class="mono"></p>
+    <p id="scan" class="mono small"></p>
+    <p id="hint" class="mono small"></p>
+    <div id="crosshair"><i></i></div>
+    <p id="subtitle"></p>
+    <p id="toast" class="mono"></p>
+    <p id="prompt" class="mono" hidden></p>
+    <div class="touch-controls">
+      <button id="touch-boost">BOOST</button>
+      <button id="touch-scan">SCAN</button>
+      <button id="touch-jump">HOP</button>
+      <button id="touch-brace">BRACE</button>
+      <button id="touch-lock">LOCK</button>
+      <button id="touch-paddle">PADDLE</button>
+      <button id="touch-patch">PATCH</button>
+      <button id="touch-shove">SHOVE</button>
+      <button id="touch-ping">PING</button>
+      <button id="touch-cycle">⟳</button>
+      <button id="touch-burst">BURST</button>
+      <button id="touch-reload">R</button>
+      <button id="touch-use">USE</button>
+      <button id="touch-fire">FIRE</button>
+    </div>
+  </section>
+
+  <section id="paused" class="overlay" hidden>
+    <div class="panel">
+      <p class="mono small">TRANSMISSION PAUSED</p>
+      <h2>The current can wait.</h2>
+      <div class="actions"><button id="resume" class="primary">RESUME THE FLOW ↗</button><button id="quit">SAVE AND QUIT TO MENU</button></div>
+      <div id="pause-extra"></div>
+    </div>
+  </section>
+
+  <section id="modal" class="overlay" hidden>
+    <div class="panel wide">
+      <p id="modal-label" class="mono small"></p>
+      <h2 id="modal-title"></h2>
+      <div id="modal-body"></div>
+      <div id="modal-actions" class="actions"></div>
+    </div>
+  </section>
+
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>

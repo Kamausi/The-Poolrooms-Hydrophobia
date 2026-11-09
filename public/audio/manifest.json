@@ -1,0 +1,97 @@
+{
+ "water-lap": [
+  "water-lap"
+ ],
+ "bubbles": [
+  "bubbles"
+ ],
+ "machine-room": [
+  "machine-room"
+ ],
+ "pump-hum": [
+  "pump-hum"
+ ],
+ "vent": [
+  "vent"
+ ],
+ "underwater": [
+  "underwater"
+ ],
+ "drone": [
+  "drone"
+ ],
+ "oar": [
+  "oar-1",
+  "oar-2",
+  "oar-3"
+ ],
+ "step-tile": [
+  "step-tile-1",
+  "step-tile-2",
+  "step-tile-3",
+  "step-tile-4",
+  "step-tile-5"
+ ],
+ "step-metal": [
+  "step-metal-1",
+  "step-metal-2",
+  "step-metal-3"
+ ],
+ "valve": [
+  "valve"
+ ],
+ "lever": [
+  "lever-1",
+  "lever-2"
+ ],
+ "hydraulic": [
+  "hydraulic"
+ ],
+ "hatch-open": [
+  "hatch-open"
+ ],
+ "hatch-close": [
+  "hatch-close"
+ ],
+ "metal-hit": [
+  "metal-hit-1",
+  "metal-hit-2",
+  "metal-hit-3"
+ ],
+ "creature": [
+  "creature-1",
+  "creature-2",
+  "creature-3"
+ ],
+ "creature-far": [
+  "creature-far-1",
+  "creature-far-2"
+ ],
+ "whispers": [
+  "whispers"
+ ],
+ "scrape": [
+  "scrape-1",
+  "scrape-2"
+ ],
+ "chains": [
+  "chains"
+ ],
+ "sting": [
+  "sting-1",
+  "sting-2"
+ ],
+ "switch": [
+  "switch"
+ ],
+ "gear": [
+  "gear-1",
+  "gear-2"
+ ],
+ "ui-confirm": [
+  "ui-confirm"
+ ],
+ "ui-back": [
+  "ui-back"
+ ]
+}
