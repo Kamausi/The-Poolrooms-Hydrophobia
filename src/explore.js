@@ -994,7 +994,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
           ], K.machine);
         }
         if (isDown('e') && !(pumpValves.length && valveStep < 3) && (!ROUTE_CHOICES[dockKind] || state.routeMod?.[key])) {
-          if (!operating) { operating = 0.001; director.crescendo(); hud.caption(dockKind === 'winch' ? '[the winch chain screams on its drum — and something answers, everywhere]' : '[the machine groans awake — and something answers, everywhere]'); hud.say('DEZ', `That ${K.machine.toLowerCase()}\'s loud. Hold it. Whatever comes, hold it.`, 'crew'); }
+          if (!operating) { operating = 0.001; director.crescendo(); sound.lever(); if (dockKind === 'winch') sound.chains(); hud.caption(dockKind === 'winch' ? '[the winch chain screams on its drum — and something answers, everywhere]' : '[the machine groans awake — and something answers, everywhere]'); hud.say('DEZ', `That ${K.machine.toLowerCase()}\'s loud. Hold it. Whatever comes, hold it.`, 'crew'); }
           operating += dt;
           if (state.health < lastPanelHealth - 0.5) operating = Math.max(0.001, operating - 1.2);
           ask(4, `HOLD E · ${K.verb} ${Math.min(100, Math.round((operating / K.hold) * 100))}%`);
@@ -1399,6 +1399,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
         if (valveOrder[valveStep] === v.id) {
           v.open = true;
           valveStep += 1;
+          sound.valve();
           sound.gate();
           hud.toast(valveStep === 3 ? 'ALL THREE VALVES OPEN · PRESSURE AT THE PUMP · the diagram says four' : `VALVE ${v.id} OPEN · ${valveStep}/3`);
           if (valveStep === 3) { events.interest?.(2); events.ledger?.('machinery', 'Pressure diagram: valves in the posted order; the fourth pump is behind the glass'); }
@@ -1538,6 +1539,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
   }
 
   function restorePower() {
+    sound.switchOn();
     // The Last Drain's problem (Filtration Works): starting the compressor triggers a surge. Keep the mechanism
     // running through it and the escape route holds; walk away and the way out floods.
     if (sector.id === 'filtration-works' && dockKind === 'repair' && !surge) {

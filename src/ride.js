@@ -173,6 +173,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
   // Where the raft is going: a faint line of foam, so momentum, currents and a soft side can be read before they bite.
   const traj = Array.from({ length: 7 }, (_, i) => P(`Trajectory ${i}`, slab, glow([0.5, 0.56, 0.55], 0.06, { color: [0.2, 0.24, 0.24], roughness: 0.6 })));
   let sparkT = 0, sparkAt = null;
+  let ambientT = null;
 
   // ---------- Co-op and arcade parts ----------
   const pingMark = P('Ping marker', torus(0.06, 32, 8), glow([0.4, 1, 0.9], 6));
@@ -2796,6 +2797,14 @@ export function createRide(canvas, state, sector, events, opts = {}) {
 
   // ---------- Entities per frame ----------
   function updateEntities(dt, eye, fwd, aimDir) {
+    // The building, recorded: now and then something large moves far off; at high Drift, whispers.
+    ambientT = (ambientT ?? 20) - dt;
+    if (ambientT <= 0) {
+      ambientT = 25 + random() * 30;
+      const pan = random() * 1.6 - 0.8;
+      if (state.drift > 65) sound.whispers?.(pan);
+      else if (director.phase === 'relax') sound.farCreature?.(pan);
+    }
     const behind = (p) => {
       const d = sub(p, eye);
       return d[0] * fwd[0] + d[2] * fwd[2] < -3;

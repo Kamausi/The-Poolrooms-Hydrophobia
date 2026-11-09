@@ -11,5 +11,8 @@ const { check, finish } = require('./lib.cjs');
   await page.evaluate(() => document.querySelector('#modal-body .choice').click()); await page.click('#modal-actions button'); await page.waitForTimeout(3000);
   const hud = await page.evaluate(() => document.getElementById('chambers')?.textContent || '');
   check('the single file starts a ride', hud.length > 0, hud.slice(0, 40));
+  await page.waitForTimeout(2500);
+  const audio = await page.evaluate(() => ({ want: Object.keys(window.__UNDERFLOW_AUDIO?.manifest || {}).length, have: window.__underflowAudio?.loaded().length || 0 }));
+  check('the single file carries its recorded sound', audio.want > 0 && audio.have === audio.want, `${audio.have}/${audio.want}`);
   await finish(browser, errors);
 })();
