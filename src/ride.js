@@ -174,6 +174,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
   const traj = Array.from({ length: 7 }, (_, i) => P(`Trajectory ${i}`, slab, glow([0.5, 0.56, 0.55], 0.06, { color: [0.2, 0.24, 0.24], roughness: 0.6 })));
   let sparkT = 0, sparkAt = null;
   let ambientT = null;
+  let reticleTick = 0, hoverTarget = false;
 
   // ---------- Co-op and arcade parts ----------
   const pingMark = P('Ping marker', torus(0.06, 32, 8), glow([0.4, 1, 0.9], 6));
@@ -1949,6 +1950,12 @@ export function createRide(canvas, state, sector, events, opts = {}) {
     focusing = input.locking && state.profile !== 'disruptor' && !overboard && !capsize;
     if (canFire && state.profile === 'disruptor') updateLocks(dt, eye, look, aimDir);
     else if (locks.length) locks.length = 0;
+    // Reticle: brackets over anything the shot would act on (checked every few frames), a lock frame when a
+    // volley is ready, an arc while an action is held. The reticle itself never shakes.
+    if ((reticleTick = (reticleTick + 1) % 4) === 0) hoverTarget = targets().some((t) => raySphere(eye, aimDir, t.pos, t.r * 1.2) < 60);
+    const rr = hull.state.repair;
+    const holdP = repairing && rr ? Math.min(1, rr.t / (rr.step === 'locate' ? 0.8 : rr.step === 'patch' ? 1.4 : 2)) : crewGrab && isDown('e') ? crewGrab.tension / 100 : dockSeq ? Math.min(1, dockSeq.t / 1.2) : 0;
+    hud.reticle({ interact: hoverTarget, lock: locks.length > 0, progress: holdP });
     if (wasPressed('z')) shove(eye, fwd);
     if (wasPressed('b')) ping(eye, aimDir);
     if (wasPressed('f')) burst(eye, aimDir);

@@ -1259,6 +1259,8 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     if (!input.locked && !input.touch) ask(0, 'CLICK to look around');
     prompts.sort((a, b) => b[0] - a[0]);
     hud.prompt(prompts[0]?.[1] || '');
+    // Reticle: brackets while something can be used; an arc while the machine is held.
+    hud.reticle({ interact: prompts.some((p) => p[0] > 0), progress: operating && isDown('e') ? Math.min(1, operating / K.hold) : 0 });
     const depthInfo = state.upgrades.includes('depth') ? ` · ${water ? 'WAIST DEEP' : 'DRY'}${undertow.alive ? ` · WAKE ${Math.round(distance(undertow.pos, player.pos))} M` : ''}` : '';
     hud.depth(`${sector.depth.toFixed(1)} M · ON FOOT${water ? ' · IN WATER' : ''}${depthInfo}`);
     hud.route([`▸ ON FOOT · ${sector.name}`, hasCell ? (powered() ? `● ${K.machine} DONE · RETURN TO THE RAFT` : `○ CARRYING THE ${K.item.toUpperCase()} · FIND THE ${K.machine}`) : `○ FIND THE ${K.item.toUpperCase()}`, `MOORED RAFT ${Math.round(Math.hypot(raftPos[0] - eye[0], raftPos[2] - eye[2]))} M`]);
