@@ -6,6 +6,8 @@ const el = {};
 const queue = [];
 let speaking = 0;
 let captionTimer = 0;
+let hintTimer = 0;
+const HINT_SECONDS = 7;
 let player = 'MARS';
 let last = null; // the run's state, for lines that depend on Drift and the manifest
 const CREW_NAMES = ['MARS', 'DEZ', 'TUBS', 'JUNE'];
@@ -15,7 +17,7 @@ const IDS = ['hud', 'sector-name', 'objective', 'score', 'score-wrap', 'cleared'
 
 export function initHud() {
   for (const id of IDS) el[id] = $(id);
-  el.fading = document.querySelectorAll('.hud-tl, #cleared, #depth, #hint');
+  el.fading = document.querySelectorAll('.hud-tl, #cleared, #depth');
 }
 
 export const hud = {
@@ -44,6 +46,7 @@ export const hud = {
     // The crew on the radio: dependable state, never faked by the Caller. Shapes and words, not only colour.
     if (state.crewState) el.roster.textContent = Object.entries(state.crewState).map(([id, st]) => (state.forgotten?.includes(id) ? '▯ — — —' : `${st === 'ok' ? '●' : st === 'down' ? '▲' : st === 'grabbed' ? '✕' : '◐'} ${id.toUpperCase()} ${st === 'ok' ? '' : st.toUpperCase()}`.trim())).join(' · ');
     el.cleared.textContent = `${state.cleared} ENTITIES DISPERSED`;
+    el.cleared.hidden = !state.endless;
     el.vitals.textContent = Math.ceil(state.health);
     el['vitals-bar'].style.width = `${Math.min(100, state.health)}%`;
     el['vitals-bar'].classList.toggle('low', state.health < 30);
@@ -80,8 +83,14 @@ export const hud = {
   mode(text) {
     el.mode.textContent = text;
   },
+  /** The control list: shown when a mode starts and after pausing, then it fades so the frame stays clear. */
   hint(text) {
     el.hint.textContent = text;
+    this.reshowHint();
+  },
+  reshowHint() {
+    hintTimer = settings.tips === false ? 0 : HINT_SECONDS;
+    el.hint.classList.toggle('show', hintTimer > 0);
   },
   route(lines) {
     el.route.replaceChildren(...lines.map((line) => {
@@ -153,6 +162,10 @@ export const hud = {
     el.subtitle.classList.remove('show');
   },
   update(dt) {
+    if (hintTimer > 0) {
+      hintTimer -= dt;
+      if (hintTimer <= 0) el.hint.classList.remove('show');
+    }
     if (captionTimer > 0) {
       captionTimer -= dt;
       if (captionTimer <= 0) el.caption.classList.remove('show');

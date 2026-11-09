@@ -321,6 +321,7 @@ function beginSector(index) {
 
 function startRide(opts = {}) {
   const sector = sectorAt(state.sectorIndex);
+  $('menu').hidden = true;
   mode = 'ride';
   paused = false;
   state.charge = Math.max(state.charge, Math.floor(state.maxCharge / 2));
@@ -342,6 +343,7 @@ function startRide(opts = {}) {
 
 function startExplore(opts = {}) {
   const sector = sectorAt(state.sectorIndex);
+  $('menu').hidden = true;
   mode = 'explore';
   paused = false;
   hud.clearSpeech();
@@ -354,6 +356,7 @@ function startExplore(opts = {}) {
 }
 
 function enterSafeRoom() {
+  $('menu').hidden = true;
   mode = 'safe';
   releaseLock();
   clearResume();
@@ -741,6 +744,7 @@ function setPaused(on) {
   paused = on;
   pausedAt = performance.now();
   $('paused').hidden = !on;
+  if (!on) hud.reshowHint();
   if (on) {
     releaseLock();
     const box = $('pause-extra');

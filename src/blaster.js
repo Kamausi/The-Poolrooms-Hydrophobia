@@ -28,20 +28,33 @@ const SCAN_COLOR = [0.45, 0.85, 1];
 
 export function createBlaster(state) {
   const mat = (color, emission = 0, emissiveColor = color) => ({ color, metallic: 0, roughness: 1, emission, emissiveColor });
-  const body = { name: 'Blaster body', geometry: box(0.25, 3), matrix: new Float32Array(16), material: { color: [0.08, 0.16, 0.12], metallic: 0.3, roughness: 0.35 } };
-  const shroud = { name: 'Blaster shroud', geometry: box(0.35, 3), matrix: new Float32Array(16), material: { color: [0.22, 0.36, 0.3], metallic: 0.1, roughness: 0.3 } };
-  const tube = { name: 'Blaster tube', geometry: cylinder(24, 0.1, 2), matrix: new Float32Array(16), material: { color: [0.8, 1, 0.8], metallic: 0, roughness: 0.2, emission: 2.5, emissiveColor: [0.6, 1, 0.55] } };
-  const barrel = { name: 'Blaster barrel', geometry: cylinder(24, 0.05, 2), matrix: new Float32Array(16), material: { color: [0.05, 0.06, 0.06], metallic: 0.8, roughness: 0.3 } };
-  const lens = { name: 'Inspection lens', geometry: sphere(12, 8), matrix: new Float32Array(16), material: mat([0.3, 0.6, 0.8], 0.4, SCAN_COLOR) };
-  const flash = { name: 'Muzzle flash', geometry: sphere(16, 10), matrix: new Float32Array(16), material: mat(BEAM_COLOR, 4.5) }; // restrained: bloom makes it big
-  const beam = { name: 'Arc beam', geometry: box(0, 1), matrix: new Float32Array(16), material: mat(BEAM_COLOR, 8) };
-  const scanBeam = { name: 'Inspection beam', geometry: box(0, 1), matrix: new Float32Array(16), material: mat(SCAN_COLOR, 3) };
-  const burstShell = { name: 'Disruption burst', geometry: sphere(24, 16), matrix: new Float32Array(16), material: { ...mat([0.7, 0.9, 1], 6, [0.7, 0.9, 1]), alphaMode: 'blend', opacity: 0.35, doubleSided: true } };
-  // The hand you see all game: a work glove and a wet sleeve cuff. Drift shows here first: the glove swells,
-  // the sleeve sits differently, the fingers lose their edges. Aim is never affected.
-  const glove = { name: 'Glove', geometry: sphere(14, 10), matrix: new Float32Array(16), material: { color: [0.07, 0.075, 0.07], metallic: 0, roughness: 0.75 } };
-  const cuff = { name: 'Sleeve cuff', geometry: cylinder(16, 0.2, 2), matrix: new Float32Array(16), material: { color: [0.55, 0.28, 0.16], metallic: 0, roughness: 0.85 } };
-  const parts = [body, shroud, tube, barrel, lens, flash, beam, scanBeam, burstShell, glove, cuff];
+  // A maintenance instrument, not a toy: matte painted steel, a vented heat shroud, a worn safety-yellow carry
+  // handle, a charge window set into the side, an inspection lens in its own housing. Small bevels so edges read.
+  const paint = { color: [0.1, 0.135, 0.135], metallic: 0.25, roughness: 0.68 };
+  const part = (name, geometry, material) => ({ name, geometry, matrix: new Float32Array(16), material });
+  const body = part('Blaster receiver', box(0.06, 2), paint);
+  const shroud = part('Heat shroud', box(0.04, 2), { color: [0.16, 0.21, 0.2], metallic: 0.3, roughness: 0.6 });
+  const vents = [0, 1, 2, 3].map((i) => part(`Shroud vent ${i}`, box(0, 1), { color: [0.02, 0.03, 0.035], metallic: 0, roughness: 1 }));
+  const handle = part('Carry handle', box(0.2, 3), { color: [0.3, 0.26, 0.14], metallic: 0.1, roughness: 0.85 });
+  const grip = part('Grip', box(0.18, 3), { color: [0.06, 0.07, 0.07], metallic: 0, roughness: 0.9 });
+  const tube = part('Charge window', cylinder(16, 0.2, 2), { color: [0.5, 0.7, 0.5], metallic: 0, roughness: 0.4, emission: 1.2, emissiveColor: [0.6, 1, 0.55] });
+  const barrel = part('Blaster barrel', cylinder(20, 0.1, 2), { color: [0.05, 0.06, 0.06], metallic: 0.7, roughness: 0.45 });
+  const collar = part('Muzzle collar', cylinder(20, 0.15, 2), { color: [0.09, 0.1, 0.1], metallic: 0.6, roughness: 0.5 });
+  const housing = part('Lens housing', cylinder(16, 0.15, 2), { color: [0.07, 0.08, 0.08], metallic: 0.4, roughness: 0.6 });
+  const lens = part('Inspection lens', sphere(12, 8), mat([0.08, 0.14, 0.17], 0.05, SCAN_COLOR));
+  const flash = part('Muzzle flash', sphere(16, 10), mat(BEAM_COLOR, 4.5)); // restrained: bloom makes it big
+  const beam = part('Arc beam', box(0, 1), mat(BEAM_COLOR, 8));
+  const scanBeam = part('Inspection beam', box(0, 1), mat(SCAN_COLOR, 3));
+  const burstShell = part('Disruption burst', sphere(24, 16), { ...mat([0.7, 0.9, 1], 6, [0.7, 0.9, 1]), alphaMode: 'blend', opacity: 0.35, doubleSided: true });
+  // The hand you see all game: a worn work glove closed on the grip, a navy waterproof sleeve with a reflective
+  // band. Drift shows here first: the glove swells and pales toward skin, the sleeve rides up. Aim is never affected.
+  const gloveMat = { color: [0.13, 0.13, 0.11], metallic: 0, roughness: 0.95 };
+  const palm = part('Glove palm', box(0.32, 3), gloveMat);
+  const fingers = part('Glove fingers', box(0.42, 3), gloveMat);
+  const thumb = part('Glove thumb', box(0.45, 3), gloveMat);
+  const cuff = part('Sleeve', cylinder(16, 0.25, 2), { color: [0.07, 0.09, 0.13], metallic: 0, roughness: 0.85 });
+  const band = part('Sleeve reflective band', cylinder(16, 0.2, 2), { color: [0.62, 0.6, 0.48], metallic: 0, roughness: 0.45 });
+  const parts = [body, shroud, ...vents, handle, grip, tube, barrel, collar, housing, lens, flash, beam, scanBeam, burstShell, palm, fingers, thumb, cuff, band];
   for (const p of parts) hide(p);
 
   let cooldown = 0;
@@ -166,21 +179,34 @@ export function createBlaster(state) {
       const sag = Math.max(0, state.drift - 40) * 0.0025;
       const base = add(add(add(eye, scale(cam.right, 0.24 + sag * 0.3)), scale(cam.up, -0.2 + bob - sag)), scale(cam.forward, 0.5 - kick * 0.04));
       const at = (o) => add(add(add(base, scale(x, o[0] * G)), scale(y, o[1] * G)), scale(z, o[2] * G));
-      writeBasis(body.matrix, at([0, 0, 0]), x, y, z, 0.13 * G, 0.12 * G, 0.46 * G);
+      writeBasis(body.matrix, at([0, 0, 0]), x, y, z, 0.12 * G, 0.11 * G, 0.42 * G);
+      writeBasis(shroud.matrix, at([0, 0.035, 0.2]), x, y, z, 0.15 * G, 0.075 * G, 0.26 * G);
+      vents.forEach((v, i) => writeBasis(v.matrix, at([0, 0.074, 0.11 + i * 0.055]), x, y, z, 0.152 * G, 0.012 * G, 0.022 * G));
+      writeBasis(handle.matrix, at([0, 0.083, -0.05]), x, y, z, 0.026 * G, 0.022 * G, 0.2 * G);
+      // The grip rakes back like a tool handle.
+      const gy = normalize(sub(y, scale(z, 0.38)));
+      const gz = cross(x, gy);
+      writeBasis(grip.matrix, at([0, -0.115, -0.1]), x, gy, gz, 0.06 * G, 0.17 * G, 0.075 * G);
+      writeBasis(tube.matrix, at([-0.061, 0.005, 0.02]), y, z, x, 0.02 * G, 0.26 * G, 0.02 * G);
+      writeBasis(barrel.matrix, at([0, -0.005, 0.29]), x, z, y, 0.05 * G, 0.17 * G, 0.05 * G);
+      writeBasis(collar.matrix, at([0, -0.005, 0.37]), x, z, y, 0.07 * G, 0.045 * G, 0.07 * G);
+      writeBasis(housing.matrix, at([0.078, 0.035, 0.17]), x, z, y, 0.05 * G, 0.06 * G, 0.05 * G);
+      writeBasis(lens.matrix, at([0.078, 0.035, 0.2]), x, y, z, 0.034 * G, 0.034 * G, 0.012 * G);
+      lens.material.emission = scanning ? 6 : 0.05;
       const swell = Math.max(0, state.drift - 30) * 0.007;
-      writeBasis(glove.matrix, at([0.01, -0.09, 0.1]), x, y, z, 0.09 * G * (1 + swell), 0.11 * G * (1 + swell * 0.6), 0.13 * G * (1 + swell * 0.8));
+      const sw = (k) => 1 + swell * k;
+      writeBasis(palm.matrix, at([0.012, -0.1, -0.13]), x, gy, gz, 0.085 * G * sw(1), 0.1 * G * sw(0.6), 0.1 * G * sw(0.8));
+      writeBasis(fingers.matrix, at([0.004, -0.118, -0.055]), x, gy, gz, 0.088 * G * sw(1), 0.125 * G * sw(0.5), 0.048 * G * sw(1.2));
+      writeBasis(thumb.matrix, at([-0.05, -0.045, -0.07]), x, y, z, 0.03 * G * sw(1), 0.03 * G * sw(1), 0.085 * G * sw(0.6));
       const pale = Math.min(1, swell * 1.6);
-      glove.material.color = [0.07 + pale * 0.5, 0.075 + pale * 0.46, 0.07 + pale * 0.4]; // the glove pales and softens toward skin
-      writeBasis(cuff.matrix, at([0.02, -0.12, 0.3 + swell * 0.1]), x, z, y, 0.11 * G * (1 + swell * 0.4), 0.16 * G, 0.11 * G * (1 + swell * 0.4));
-      writeBasis(shroud.matrix, at([0, 0.085, -0.02]), x, y, z, 0.1 * G, 0.06 * G, 0.34 * G);
-      writeBasis(tube.matrix, at([-0.072, 0.02, 0.02]), y, z, x, 0.022 * G, 0.36 * G, 0.022 * G);
-      writeBasis(barrel.matrix, at([0, 0, 0.29]), x, z, y, 0.035 * G, 0.14 * G, 0.035 * G);
-      writeBasis(lens.matrix, at([0.07, 0.07, 0.2]), x, y, z, 0.03 * G, 0.03 * G, 0.03 * G);
-      lens.material.emission = scanning ? 6 : 0.4;
+      const gc = [0.13 + pale * 0.45, 0.13 + pale * 0.42, 0.11 + pale * 0.38]; // the glove pales and softens toward skin
+      palm.material.color = gc; fingers.material.color = gc; thumb.material.color = gc;
+      writeBasis(cuff.matrix, at([0.02, -0.15, -0.27 + swell * 0.05]), x, gz, gy, 0.12 * G * sw(0.4), 0.2 * G, 0.12 * G * sw(0.4));
+      writeBasis(band.matrix, at([0.02, -0.142, -0.2 + swell * 0.05]), x, gz, gy, 0.126 * G * sw(0.4), 0.028 * G, 0.126 * G * sw(0.4));
       const charge = state.charge / state.maxCharge;
       const hot = state.heat / 100;
       tube.material.emissiveColor = [0.6 + hot * 0.4, 1 - hot * 0.7, 0.55 - hot * 0.45];
-      tube.material.emission = overheat > 0 ? 0.3 + Math.random() : state.recharging ? 0.6 + Math.random() * 0.8 : 0.4 + charge * 2.6;
+      tube.material.emission = overheat > 0 ? 0.3 + Math.random() : state.recharging ? 0.4 + Math.random() * 0.6 : 0.25 + charge * 1.3;
       if (beamTimer > 0) {
         writeBasis(flash.matrix, at([0, 0, 0.38]), x, y, z, 0.03, 0.03, 0.03);
         stretch(beam, beamFrom, beamTo, 0.018);

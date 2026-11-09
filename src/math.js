@@ -127,3 +127,13 @@ export function soundDir(eye, forward, point) {
   const label = z > 0.7 ? 'ahead' : z < -0.7 ? 'behind' : x > 0 ? 'right' : 'left';
   return { pan: x * 0.9, label, distance: len };
 }
+
+/** Place a 67js cylinder (radius 1, height 1, axis along local Y) between two points, with the given radius. */
+export function writeSegment(out, a, b, radius) {
+  const d = sub(b, a);
+  const len = Math.max(0.001, length(d));
+  const y = scale(d, 1 / len);
+  const x = normalize(cross(Math.abs(y[1]) > 0.95 ? [1, 0, 0] : [0, 1, 0], y));
+  const z = cross(x, y);
+  return writeBasis(out, add(a, scale(d, 0.5)), x, y, z, radius, len, radius);
+}

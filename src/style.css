@@ -283,3 +283,25 @@ body.contrast #caption, body.contrast #prompt { background: #000; border: 1px so
 body.contrast #subtitle { background: #000d; padding: 6px 12px; }
 body.contrast #crosshair { border-width: 3px; }
 #perf { position: fixed; left: 4%; top: 64px; z-index: 6; color: var(--fluor); background: #080d10cc; padding: 4px 8px; pointer-events: none; }
+
+/* ---------- HUD hierarchy ----------
+   The centre of the frame belongs to the world and the crosshair. Announcements sit in the upper third,
+   interaction prompts just below the crosshair, speech and sound captions at the bottom, controls fade. */
+#hint { opacity: 0; transition: opacity 1.2s ease; }
+#hint.show { opacity: 0.85; }
+#prompt { top: auto; bottom: 30%; background: rgba(8, 13, 16, 0.55); border: none; border-left: 2px solid var(--teal, #4D7472); padding: 7px 14px; letter-spacing: 0.06em; }
+#toast { top: 22%; font-size: 13px; letter-spacing: 0.18em; }
+#subtitle { bottom: 96px; }
+#caption { bottom: 58px; background: transparent; padding: 0; color: #c9d4d2; font-size: 12px; letter-spacing: 0.04em; text-shadow: 0 1px 6px #000; white-space: normal; max-width: min(720px, 90vw); text-align: center; }
+.hud-tr { gap: 2px; }
+.hud-tr #band, .hud-tr #guests { opacity: 0.72; }
+@media (max-width: 760px) { #prompt { bottom: 34%; } #subtitle { bottom: 150px; } #caption { bottom: 118px; } }
+/* Short landscape screens (phones): keep speech low and drop the decorative counters. */
+@media (max-height: 480px) {
+  #subtitle { bottom: 52px; font-size: 13px; max-width: 62vw; }
+  #subtitle b { margin-bottom: 1px; }
+  #caption { bottom: 30px; font-size: 10px; }
+  #prompt { bottom: 22%; font-size: 11px; }
+  #toast { top: 16%; }
+  .hud-tl #objective, .hud-tr #guests, .hud-tr #band { display: none; }
+}

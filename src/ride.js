@@ -3,7 +3,7 @@
 // the arrival bay) have their own parts. A 67js renderer keeps the part list it was built with, so every
 // entity here is a pool of parts that are moved, recoloured or hidden.
 import { Renderer67, box, sphere, cylinder, torus } from '67js';
-import { dot, writeYaw, writeBasis, hide, add, sub, scale, normalize, clamp, damp, rng, screenRay, raySphere, rayPlaneY, linear, cross, display, project, angleTo, soundDir, distance } from './math.js';
+import { dot, writeYaw, writeBasis, writeSegment, hide, add, sub, scale, normalize, clamp, damp, rng, screenRay, raySphere, rayPlaneY, linear, cross, display, project, angleTo, soundDir, distance } from './math.js';
 import { tileTexture } from './textures.js';
 import { signMaterial, quad } from './labels.js';
 import { createBlaster, PROFILES, PROFILE_ORDER } from './blaster.js';
@@ -170,7 +170,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
   const deathVest = P('Vest caught against the wall', box(0.03, 2), { color: linear('#b46a3c'), metallic: 0, roughness: 0.65 });
   if (sector.variant && Object.keys(sector.variant).some((k) => k !== 'notes') && !opts.resumeS) setTimeout(() => hud.say('THE ATTENDANT', sector.variant.dangerous ? 'Welcome back, guest. We kept your place.' : 'Welcome back, guest. Some improvements have been made since your last visit.', 'attendant'), 2500);
   // Where the raft is going: a faint line of foam, so momentum, currents and a soft side can be read before they bite.
-  const traj = Array.from({ length: 7 }, (_, i) => P(`Trajectory ${i}`, slab, glow([0.85, 0.85, 0.78], 0.35)));
+  const traj = Array.from({ length: 7 }, (_, i) => P(`Trajectory ${i}`, slab, glow([0.55, 0.62, 0.6], 0.12, { color: [0.4, 0.46, 0.45], roughness: 0.3 })));
   let sparkT = 0, sparkAt = null;
 
   // ---------- Co-op and arcade parts ----------
@@ -179,40 +179,83 @@ export function createRide(canvas, state, sector, events, opts = {}) {
   const hookRope = P('Hook line', slab, { color: [0.95, 0.8, 0.2], metallic: 0, roughness: 0.6 });
   const hookHead = P('Hook', torus(0.05, 18, 6), { color: [0.6, 0.6, 0.6], metallic: 0.9, roughness: 0.3 });
   // The crew in the raft (after they regroup at the first Safe Room). Distinct silhouettes, the only warm colours.
+  // Read by silhouette first, colour second: Mars's safety helmet, Dez's brimmed cap, Tubs broad in a beanie,
+  // June tall in a pale hood and long coat.
   const CREW_LOOK = {
-    mars: { jacket: '#3a4a5c', vest: '#b19a50', tall: 1, broad: 1 },
-    dez: { jacket: '#22324a', vest: '#9a8445', tall: 1.02, broad: 0.95 },
-    tubs: { jacket: '#8a8278', vest: '#a8823a', tall: 1.05, broad: 1.3 },
-    june: { jacket: '#c9c6b8', vest: '#b46a3c', tall: 1.08, broad: 0.85, coat: true },
+    mars: { jacket: '#3a4a5c', vest: '#b19a50', hat: '#b19a50', hatKind: 'helmet', tall: 1, broad: 1 },
+    dez: { jacket: '#22324a', vest: '#9a8445', hat: '#1b2738', hatKind: 'cap', tall: 1.02, broad: 0.95 },
+    tubs: { jacket: '#8a8278', vest: '#a8823a', hat: '#2b2a27', hatKind: 'beanie', tall: 1.05, broad: 1.3 },
+    june: { jacket: '#c9c6b8', vest: '#b46a3c', hat: '#bdbaac', hatKind: 'hood', tall: 1.08, broad: 0.85, coat: true },
   };
-  const crewFigs = ['mars', 'dez', 'tubs', 'june'].map((id) => ({
-    id,
-    body: P(`Crew ${id}`, cylinder(14, 0.4, 2), { color: linear(CREW_LOOK[id].jacket), metallic: 0, roughness: 0.75 }),
-    vest: P(`Crew vest ${id}`, box(0.08, 2), { color: linear(CREW_LOOK[id].vest), metallic: 0, roughness: 0.6 }),
-    head: P(`Crew head ${id}`, sphere(14, 10), { color: [0.62, 0.48, 0.38], metallic: 0, roughness: 0.6 }),
-  }));
-  const SEATS = [[-1.0, 1.55], [1.02, 1.35], [-1.08, 0.25]]; // on the gunwales, out of the line of fire
+  const skin = { color: [0.5, 0.38, 0.3], metallic: 0, roughness: 0.65 };
+  const crewFigs = ['mars', 'dez', 'tubs', 'june'].map((id) => {
+    const L = CREW_LOOK[id];
+    const cloth = { color: linear(L.jacket), metallic: 0, roughness: 0.8 };
+    return {
+      id,
+      body: P(`Crew ${id}`, cylinder(14, 0.4, 2), cloth),
+      vest: P(`Crew vest ${id}`, box(0.04, 2), { color: linear(L.vest).map((c) => c * 0.8), metallic: 0, roughness: 0.8 }),
+      shoulders: P(`Crew shoulders ${id}`, box(0.35, 3), cloth),
+      armL: P(`Crew arm L ${id}`, cylinder(10, 0.45, 2), cloth),
+      armR: P(`Crew arm R ${id}`, cylinder(10, 0.45, 2), cloth),
+      handL: P(`Crew hand L ${id}`, box(0.4, 2), { color: [0.1, 0.1, 0.09], metallic: 0, roughness: 0.95 }),
+      handR: P(`Crew hand R ${id}`, box(0.4, 2), { color: [0.1, 0.1, 0.09], metallic: 0, roughness: 0.95 }),
+      head: P(`Crew head ${id}`, sphere(14, 10), skin),
+      hat: P(`Crew hat ${id}`, sphere(16, 10), { color: linear(L.hat), metallic: 0, roughness: L.hatKind === 'helmet' ? 0.5 : 0.9 }),
+      brim: P(`Crew brim ${id}`, box(0.2, 2), { color: linear(L.hat), metallic: 0, roughness: 0.9 }),
+    };
+  });
+  const crewPieces = (f) => [f.body, f.vest, f.shoulders, f.armL, f.armR, f.handL, f.handR, f.head, f.hat, f.brim];
+  const SEATS = [[-1.0, 1.6], [1.02, 1.4], [-1.1, 0.75]]; // on the gunwales, out of the line of fire
   function placeCrew(base, rgt, fwd, up) {
     const aboard = (state.regrouped || state.sectorIndex > 0) && !state.endless ? Object.keys(state.crewState).filter((c) => !(state.forgotten || []).includes(c) && state.crewState[c] !== 'grabbed') : [];
     let seat = 0;
     for (const f of crewFigs) {
       const on = aboard.includes(f.id) && seat < SEATS.length && !(capsize && capsize.t > 0.6 && capsize.t < 4.4);
-      if (!on) { hide(f.body); hide(f.vest); hide(f.head); continue; }
+      if (!on) { crewPieces(f).forEach(hide); continue; }
       const L = CREW_LOOK[f.id];
       const [x, z] = SEATS[seat++];
+      const side = x < 0 ? -1 : 1; // which gunwale they sit on; the inboard arm holds the raft's rope
       const hurt = state.crewState[f.id] === 'hurt';
       const duckC = braced || hurt || flowT > 0 || shake > 0.45 ? 0.25 : 0; // they brace with you, and when the water turns
       const sway = Math.sin(time * 1.3 + seat) * 0.03 + (paddleT > 0.5 ? Math.sin(strokePhase * Math.PI * 2) * 0.06 : 0);
       const p = add(add(add(base, scale(rgt, x + sway)), scale(fwd, z)), scale(up, 0.12));
       const h = 0.5 * L.tall - duckC; // seated low on the tube
-      // They lean into turns (against the slide), and jolt on impacts.
-      const upL = normalize(add(up, scale(rgt, clamp(-velX * 0.05, -0.22, 0.22) + (shake > 0.3 ? Math.sin(time * 40 + seat) * 0.05 : 0))));
-      writeBasis(f.body.matrix, add(p, scale(upL, h / 2)), rgt, upL, fwd, 0.2 * L.broad, h * (L.coat ? 1.05 : 1), 0.17 * L.broad);
-      writeBasis(f.vest.matrix, add(p, scale(upL, h * 0.62)), rgt, upL, fwd, 0.44 * L.broad, 0.3, 0.38 * L.broad);
-      writeBasis(f.head.matrix, add(p, scale(upL, h + 0.11)), rgt, upL, fwd, 0.1, 0.12, 0.1);
+      // They lean into turns (against the slide), and jolt on impacts; bracing hunches them forward.
+      const upL = normalize(add(add(up, scale(rgt, clamp(-velX * 0.05, -0.22, 0.22) + (shake > 0.3 ? Math.sin(time * 40 + seat) * 0.05 : 0))), scale(fwd, duckC * 0.8)));
+      const B = L.broad;
+      writeBasis(f.body.matrix, add(p, scale(upL, h / 2)), rgt, upL, fwd, 0.17 * B, h * (L.coat ? 1.08 : 1), 0.14 * B);
+      writeBasis(f.vest.matrix, add(p, scale(upL, h * 0.6)), rgt, upL, fwd, 0.36 * B, h * 0.5, 0.31 * B);
+      const sh = add(p, scale(upL, h * 0.9));
+      writeBasis(f.shoulders.matrix, sh, rgt, upL, fwd, 0.42 * B, 0.11, 0.2 * B);
+      const neck = add(sh, scale(upL, 0.07));
+      const head = add(neck, scale(upL, 0.1));
+      writeBasis(f.head.matrix, head, rgt, upL, fwd, 0.095, 0.115, 0.105);
+      // Arms: down to the rope on the gunwale, gripping; the paddle stroke pulls them back and forth.
+      const stroke = paddleT > 0.5 ? Math.sin(strokePhase * Math.PI * 2) * 0.12 : 0;
+      for (const [arm, hand, k] of [[f.armL, f.handL, -1], [f.armR, f.handR, 1]]) {
+        const shoulder = add(sh, scale(rgt, 0.2 * B * k));
+        const grip = add(add(add(p, scale(rgt, (0.24 * B + 0.08) * k + (k === side ? 0.06 : -0.02))), scale(fwd, 0.16 + stroke * k)), scale(up, 0.06 + duckC * 0.3));
+        writeSegment(arm.matrix, shoulder, grip, 0.05 * B);
+        writeBasis(hand.matrix, grip, rgt, upL, fwd, 0.08, 0.06, 0.1);
+      }
+      const hatK = L.hatKind;
+      if (hatK === 'helmet') writeBasis(f.hat.matrix, add(head, scale(upL, 0.06)), rgt, upL, fwd, 0.118, 0.075, 0.128);
+      else if (hatK === 'cap') writeBasis(f.hat.matrix, add(head, scale(upL, 0.065)), rgt, upL, fwd, 0.104, 0.06, 0.11);
+      else if (hatK === 'beanie') writeBasis(f.hat.matrix, add(head, scale(upL, 0.07)), rgt, upL, fwd, 0.104, 0.085, 0.11);
+      else writeBasis(f.hat.matrix, add(add(head, scale(upL, 0.025)), scale(fwd, -0.02)), rgt, upL, fwd, 0.128, 0.142, 0.13); // the hood
+      if (hatK === 'cap') writeBasis(f.brim.matrix, add(add(head, scale(upL, 0.05)), scale(fwd, 0.11)), rgt, upL, fwd, 0.16, 0.015, 0.1);
+      else hide(f.brim);
     }
   }
-  const climberPart = { body: P('Climber', cylinder(12, 0.3, 2), { color: [0.82, 0.84, 0.8], metallic: 0, roughness: 0.35 }), head: P('Climber head', sphere(12, 8), { color: [0.85, 0.86, 0.82], metallic: 0, roughness: 0.3 }) };
+  // The climber: pale, waterlogged, too long in the arm. It hauls itself over the tube rather than standing up.
+  const climberSkin = { color: [0.62, 0.64, 0.58], metallic: 0, roughness: 0.22 };
+  const climberPart = {
+    body: P('Climber', cylinder(12, 0.45, 3), climberSkin),
+    head: P('Climber head', lumpy, climberSkin),
+    arms: [0, 1].map((i) => P(`Climber arm ${i}`, cylinder(8, 0.4, 2), climberSkin)),
+    hands: [0, 1].map((i) => P(`Climber hand ${i}`, lumpy, { ...climberSkin, color: [0.7, 0.7, 0.64] })),
+  };
   const tug = { line: P('Tug line', slab, { color: [0.95, 0.8, 0.2], metallic: 0, roughness: 0.6 }), hand: P('Hand in the water', sphere(10, 8), { color: [0.85, 0.75, 0.68], metallic: 0, roughness: 0.4 }), grip: P('Grip on the crewmate', lumpy, dark([0.004, 0.01, 0.012])) };
   const restrainedPart = { body: P('Restrained figure', cylinder(12, 0.3, 2), { color: [0.75, 0.7, 0.62], metallic: 0, roughness: 0.6 }), strap: P('Restraint', torus(0.08, 24, 8), glow([1, 0.4, 0.2], 2.5)), window: P('Observation window', slab, glow([0.8, 0.9, 1], 1.4)) };
   const ballastParts = {
@@ -228,9 +271,13 @@ export function createRide(canvas, state, sector, events, opts = {}) {
     core: P(`Bloom ${i}`, ball, { color: [0.62, 0.66, 0.6], metallic: 0, roughness: 0.15, emission: 0.02, emissiveColor: [0.77, 0.35, 0.31], alphaMode: 'blend', opacity: 0.62 }),
     heart: P(`Bloom heart ${i}`, sphere(12, 8), glow(linear('#c45a50'), 2.2, { color: [0.35, 0.06, 0.05] })),
     spikes: P(`Bloom spikes ${i}`, slab, dark([0.12, 0.02, 0.02])),
+    // Folds of the same waterlogged stuff, faceted and uneven, so no two Blooms share an outline.
+    lobes: [0, 1, 2].map((j) => P(`Bloom fold ${i}.${j}`, lumpy, { color: [0.5, 0.54, 0.5], metallic: 0, roughness: 0.25, emission: 0.02, emissiveColor: [0.77, 0.35, 0.31], alphaMode: 'blend', opacity: 0.7 })),
+    threads: [0, 1].map((j) => P(`Bloom thread ${i}.${j}`, cylinder(6, 0, 1), { color: [0.32, 0.34, 0.31], metallic: 0, roughness: 0.4, alphaMode: 'blend', opacity: 0.55 })),
+    seed: i * 2.39,
     active: false, pos: [0, 0, 0], hp: 2, phase: 0, dying: 0, drift: [0, 0, 0],
   }));
-  const signals = Array.from({ length: 8 }, (_, i) => ({ ring: P(`Signal ${i}`, ring, glow(linear('#86aa8a'), 2, { color: linear('#86aa8a'), roughness: 0.4 })), active: false, pos: [0, 0, 0], yaw: 0, used: 0 }));
+  const signals = Array.from({ length: 8 }, (_, i) => ({ ring: P(`Signal ${i}`, ring, glow(linear('#86aa8a'), 1.4, { color: linear('#86aa8a'), roughness: 0.4 })), plate: P(`Signal plate ${i}`, box(0.06, 2), { color: [0.05, 0.07, 0.07], metallic: 0.3, roughness: 0.7 }), active: false, pos: [0, 0, 0], yaw: 0, used: 0 }));
   const ropes = Array.from({ length: 2 }, (_, i) => ({
     line: P(`Lane rope ${i}`, slab, { color: [0.85, 0.85, 0.8], metallic: 0, roughness: 0.6 }),
     floats: Array.from({ length: 5 }, (_, j) => ({ part: P(`Rope float ${i}.${j}`, ball, glow([1, 0.4, 0.1], 0.6, { color: j % 2 ? [0.9, 0.9, 0.85] : [0.9, 0.25, 0.08], roughness: 0.4 })), alive: true, pos: [0, 0, 0] })),
@@ -305,8 +352,12 @@ export function createRide(canvas, state, sector, events, opts = {}) {
     active: false, s: 0, offset: 0, survivor: true, state: 'floating', hp: 2,
   }));
   // ---------- Raft movement content ----------
-  const buoy = () => P('Gate marker', sphere(14, 10), glow([1, 0.45, 0.1], 1.5, { color: [1, 0.5, 0.12], roughness: 0.4 }));
-  const gateSets = Array.from({ length: 3 }, () => ({ a: buoy(), b: buoy(), active: false, s: 0, lane: 0, done: false }));
+  // Gate markers are channel buoys: a worn safety-yellow can with a black band and a small lamp on top. The lamp
+  // carries the readability; the body stays matte so it never blooms into a blob up close.
+  const buoy = () => P('Gate marker', cylinder(14, 0.3, 3), { color: linear('#b19a50'), metallic: 0, roughness: 0.7 });
+  const buoyBand = () => P('Gate marker band', cylinder(14, 0.1, 2), { color: [0.03, 0.035, 0.035], metallic: 0, roughness: 0.8 });
+  const buoyLamp = () => P('Gate marker lamp', sphere(10, 6), glow([1, 0.6, 0.2], 2.2, { color: [0.6, 0.35, 0.1] }));
+  const gateSets = Array.from({ length: 3 }, () => ({ a: buoy(), b: buoy(), aBand: buoyBand(), bBand: buoyBand(), aLamp: buoyLamp(), bLamp: buoyLamp(), active: false, s: 0, lane: 0, done: false }));
   let gateStreak = 0;
   const debrisPool = Array.from({ length: 3 }, (_, i) => ({ a: P(`Floating debris ${i}`, box(0.15, 2), { color: [0.6, 0.55, 0.45], metallic: 0, roughness: 0.8 }), b: P(`Floating chair ${i}`, box(0.08, 2), { color: [0.93, 0.93, 0.9], metallic: 0, roughness: 0.4 }), active: false, s: 0, lane: 0, done: false }));
   const pickups = Array.from({ length: 3 }, (_, i) => ({ part: P(`Air pickup ${i}`, box(0.12, 2), glow([0.6, 0.85, 0.7], 1.6, { color: [0.4, 0.6, 0.5] })), active: false, s: 0, lane: 0, item: 'parts', done: false }));
@@ -2068,7 +2119,9 @@ export function createRide(canvas, state, sector, events, opts = {}) {
       } else if (next.sec.type === 'bay') lines.push(`SAFE ROOM ARRIVAL BAY ${d ? `IN ${d} M` : 'HERE'}`);
       else if (next.sec.type === 'drop') lines.push(`SPILLWAY DROP IN ${d} M · NO CHECKPOINT`);
     }
-    lines.push(`RAFT FIT: ${(state.fit || 'standard').toUpperCase()} · PILOT: ${state.autopilot ? 'RIDE CONTROL (T)' : 'YOU (T)'}${locks.length ? ` · LOCKS ${locks.length}` : ''}${braced ? ' · BRACED' : ''}`);
+    // Steady facts (fit, Ride Control piloting) live in the Safe Room and pause; the HUD shows what changes.
+    const stance = [state.autopilot ? '' : 'PILOT: YOU (T)', locks.length ? `LOCKS ${locks.length}` : '', braced ? 'BRACED' : ''].filter(Boolean).join(' · ');
+    if (stance) lines.push(stance);
     if (state.upgrades.includes('depth')) lines.push(`DEPTH SENSOR: ${sec.shallow ? 'SHALLOW · SAFE' : sec.type === 'tube' || sec.type === 'overflow' ? 'DEEP · CONNECTED · DANGER' : 'DEEP'}`);
     return lines;
   }
@@ -2206,8 +2259,25 @@ export function createRide(canvas, state, sector, events, opts = {}) {
       else climber.lean = Math.max(0, climber.lean - dt * 0.4);
       velX += climber.side * (climber.lean > 1 ? 0.6 : 2.4) * dt;
       climber.pos = track.lateral(s + 1.1, offset + climber.side * 1.05, 0.55);
-      writeBasis(climberPart.body.matrix, climber.pos, [1, 0, 0], [0, 1, 0], [0, 0, 1], 0.22, 0.6, 0.18);
-      writeYaw(climberPart.head.matrix, add(climber.pos, [0, 0.5, 0]), time, 0.15, 0.17, 0.15);
+      {
+        // Rises out of the water over the first second, then slumps over the tube toward the middle of the raft.
+        const rise = clamp(climber.t / 1.1, 0, 1);
+        const outside = track.lateral(s + 1.1, offset + climber.side * 1.55, -0.35 + rise * 0.45);
+        const inward = normalize(sub(track.lateral(s + 1.1, offset, 0), track.lateral(s + 1.1, offset + climber.side, 0)));
+        const heave = Math.sin(climber.t * 5) * 0.04;
+        const shoulders = add(climber.pos, add(scale(inward, 0.1 + climber.lean * -0.05), [0, 0.12 + heave, 0]));
+        writeSegment(climberPart.body.matrix, outside, shoulders, 0.2);
+        const headAt = add(add(shoulders, scale(inward, 0.2)), [0, -0.02 - heave, 0]);
+        writeBasis(climberPart.head.matrix, headAt, [1, 0, 0], [0, 1, 0], [0, 0, 1], 0.14, 0.12, 0.15);
+        const along = normalize(cross([0, 1, 0], inward));
+        climberPart.arms.forEach((arm, i) => {
+          const k = i ? 1 : -1;
+          const reach = 0.55 + rise * 0.35 + Math.max(0, Math.sin(climber.t * 2.4 + i * Math.PI)) * 0.15;
+          const hand = add(add(add(shoulders, scale(inward, reach)), scale(along, k * 0.32)), [0, -0.32, 0]);
+          writeSegment(arm.matrix, add(shoulders, scale(along, k * 0.16)), hand, 0.055);
+          writeBasis(climberPart.hands[i].matrix, hand, [1, 0, 0], [0, 1, 0], [0, 0, 1], 0.09, 0.04, 0.11);
+        });
+      }
       prompt = climber.lean > 1 ? 'IT IS SLIPPING · Z / tap B · SHOVE IT OFF' : `SOMETHING ON THE ${climber.side < 0 ? 'LEFT' : 'RIGHT'} · hold ${climber.side < 0 ? 'D' : 'A'} to counterbalance · Z shove · Scatter`;
       if (climber.t > 7) {
         hull.hit(climber.side < 0 ? 'left' : 'right', 10, 'entity', 0.7);
@@ -2217,7 +2287,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
         if (climber.lean < 0.5 && state.chambers[climber.side < 0 ? 'left' : 'right'] < 50 && random() < 0.4) goOverboard('knocked');
         climber = null;
       }
-    } else { hide(climberPart.body); hide(climberPart.head); }
+    } else { hide(climberPart.body); hide(climberPart.head); climberPart.arms.forEach(hide); climberPart.hands.forEach(hide); }
     // Tug-of-war: hold E to keep the line in the band; shoot the grip; don't pull so hard the line slips.
     if (crewGrab) {
       const g = crewGrab;
@@ -2309,7 +2379,8 @@ export function createRide(canvas, state, sector, events, opts = {}) {
       traj.forEach((t, i) => {
         for (let k = 0; k < 4; k++) { v += (-v * 2.6 + (sec0.bias || 0) * 2.4 + hullFx.pull) * 0.06; x = clamp(x + v * 0.06, -lim, lim); }
         const at = s + 2 + speed * 0.24 * (i + 1);
-        writeYaw(t.matrix, track.lateral(at, x, 0.02), track.at(at).yaw, 0.09, 0.01, 0.5);
+        // Foam flecks, thinning with distance: a read of the water, not a painted lane.
+        writeYaw(t.matrix, track.lateral(at, x, 0.02), track.at(at).yaw + Math.sin(i * 1.9) * 0.25, 0.06 * (1 - i * 0.08), 0.008, 0.28 + (i % 2) * 0.1);
       });
     } else traj.forEach(hide);
     if (deathAt) {
@@ -2780,7 +2851,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
     };
     const closeRate = state.visible ? 1.35 : 1;
     for (const b of blooms) {
-      if (!b.active) { hide(b.core); hide(b.spikes); hide(b.heart); continue; }
+      if (!b.active) { hide(b.core); hide(b.spikes); hide(b.heart); b.lobes.forEach(hide); b.threads.forEach(hide); continue; }
       if (b.dying) {
         b.dying += dt;
         const k = 1 + b.dying * 6;
@@ -2788,6 +2859,8 @@ export function createRide(canvas, state, sector, events, opts = {}) {
         writeYaw(b.heart.matrix, b.pos, 0, 0.2 * k, 0.2 * k, 0.2 * k);
         b.heart.material.emission = Math.max(0.02, 6 - b.dying * 30);
         hide(b.spikes);
+        b.lobes.forEach((l, j) => writeYaw(l.matrix, add(b.pos, [Math.cos(b.seed + j * 2.1) * 0.3 * k, -0.1 * k, Math.sin(b.seed + j * 2.1) * 0.3 * k]), b.seed + j, 0.3 * k, 0.12 * k, 0.3 * k));
+        b.threads.forEach(hide);
         if (b.dying > 0.18) b.active = false;
         continue;
       }
@@ -2833,7 +2906,22 @@ export function createRide(canvas, state, sector, events, opts = {}) {
       const pulse = (0.45 + Math.sin(b.phase * (1 + windup * 3)) * 0.05) * (1 + windup * 0.45);
       const squash = (b.stagger > 0 ? 0.75 : 1) * (d > 22 ? 1 + Math.sin(b.phase * 0.5) * 0.04 : 1); // resting: slow breathing
       writeYaw(b.core.matrix, [b.pos[0], b.pos[1] + Math.sin(b.phase * 0.7) * 0.15, b.pos[2]], b.phase * 0.4, pulse / squash, pulse * 0.92 * squash, pulse);
-      writeYaw(b.spikes.matrix, b.pos, b.phase, pulse * 2.3, 0.07, 0.07);
+      hide(b.spikes);
+      // Folds swell with the body and shift on their own slow beats; threads trail back into the water.
+      const centre = [b.pos[0], b.pos[1] + Math.sin(b.phase * 0.7) * 0.15, b.pos[2]];
+      b.lobes.forEach((l, j) => {
+        const a = b.seed + j * 2.1 + Math.sin(b.phase * 0.3 + j) * 0.25;
+        const r = pulse * (0.62 + 0.12 * Math.sin(b.phase * 0.9 + j * 1.7));
+        const at = add(centre, [Math.cos(a) * r, (j - 1) * 0.16 * pulse + Math.sin(b.phase * 0.6 + j) * 0.05, Math.sin(a) * r]);
+        const sz = pulse * (0.55 + 0.1 * j) * (1 + windup * 0.2);
+        writeYaw(l.matrix, at, a * 1.3 + b.phase * 0.1, sz, sz * 0.72, sz * 0.85);
+      });
+      b.threads.forEach((th, j) => {
+        const from = add(centre, [Math.cos(b.seed + j * 3) * pulse * 0.4, -pulse * 0.6, Math.sin(b.seed + j * 3) * pulse * 0.4]);
+        // Short strands that hang and trail away from the raft, swinging with the body.
+        const tail = add(sub(from, scale(normalize(toCam), 0.25 + j * 0.15)), [Math.sin(b.phase * 0.8 + j * 2) * 0.12, -(0.45 + j * 0.2), Math.cos(b.phase * 0.7 + j) * 0.1]);
+        writeSegment(th.matrix, from, tail, 0.018 * (1 + windup));
+      });
       writeYaw(b.heart.matrix, [b.pos[0], b.pos[1] + Math.sin(b.phase * 0.7) * 0.15, b.pos[2]], 0, pulse * 0.42, pulse * 0.42, pulse * 0.42);
       b.heart.material.emission = b.flash > 0 ? 9 : (1.4 + Math.sin(b.phase * 2) * 0.6) * (1 + windup * 2.5);
       if (d < 1.1 && !b.goal) {
@@ -2845,13 +2933,15 @@ export function createRide(canvas, state, sector, events, opts = {}) {
       else if (b.rear && d > 45) b.active = false;
     }
     for (const g of signals) {
-      if (!g.active) { hide(g.ring); continue; }
+      if (!g.active) { hide(g.ring); hide(g.plate); continue; }
       if (g.used) {
         g.used += dt;
         g.ring.material.emission = Math.max(0.02, 8 - g.used * 20);
         if (g.used > 0.4) g.active = false;
-      } else g.ring.material.emission = 2.6 + Math.sin(time * 4) * 0.8;
-      writeYaw(g.ring.matrix, g.pos, g.yaw, 0.55, 0.55, 0.55);
+      } else g.ring.material.emission = 1.4 + Math.sin(time * 4) * 0.5;
+      // A lit ring on a wall-mounted plate: a fixture you can shoot, not a hoop floating in the air.
+      writeYaw(g.ring.matrix, g.pos, g.yaw, 0.34, 0.34, 0.34);
+      writeYaw(g.plate.matrix, g.pos, g.yaw, 0.9, 0.9, 0.04);
       if (behind(g.pos)) g.active = false;
     }
     for (const r of ropes) {
@@ -2999,10 +3089,15 @@ export function createRide(canvas, state, sector, events, opts = {}) {
     const half = track.sectionAt(s).sec.half;
     // Gate markers: thread the pair.
     for (const g of gateSets) {
-      if (!g.active) { hide(g.a); hide(g.b); continue; }
+      if (!g.active) { [g.a, g.b, g.aBand, g.bBand, g.aLamp, g.bLamp].forEach(hide); continue; }
       const bob2 = Math.sin(time * 2 + g.s) * 0.06;
-      writeYaw(g.a.matrix, track.lateral(g.s, g.lane - 1.05, 0.15 + bob2), 0, 0.22, 0.3, 0.22);
-      writeYaw(g.b.matrix, track.lateral(g.s, g.lane + 1.05, 0.15 + bob2), 0, 0.22, 0.3, 0.22);
+      for (const [body, band, lamp, k] of [[g.a, g.aBand, g.aLamp, -1], [g.b, g.bBand, g.bLamp, 1]]) {
+        const at = track.lateral(g.s, g.lane + k * 1.05, 0.2 + bob2);
+        const tilt = Math.sin(time * 1.7 + g.s + k) * 0.08;
+        writeBasis(body.matrix, at, [Math.cos(tilt), Math.sin(tilt), 0], [-Math.sin(tilt), Math.cos(tilt), 0], [0, 0, 1], 0.17, 0.55, 0.17);
+        writeBasis(band.matrix, add(at, [0, 0.08, 0]), [Math.cos(tilt), Math.sin(tilt), 0], [-Math.sin(tilt), Math.cos(tilt), 0], [0, 0, 1], 0.175, 0.09, 0.175);
+        writeYaw(lamp.matrix, add(at, [-Math.sin(tilt) * 0.3, 0.32, 0]), 0, 0.05, 0.05, 0.05);
+      }
       if (!g.done && g.s < s) {
         g.done = true;
         if (Math.abs(offset - g.lane) < 0.95) {
@@ -3411,7 +3506,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
     bloomAhead() { return spawnBloom(s + 10, offset * 0.6, 1.2); },
     get locks() { return locks.length; },
   };
-  if (import.meta.env.DEV) window.__ride = { track, hull, puncture: (c, cause = 'scrape') => hull.puncture(c, cause), overboard: () => goOverboard('test'), free: () => restrained && !restrained.freed && freeRestrained(), shove: () => shove(fx.eye, fx.fwd), ping: () => ping(fx.eye, fx.fwd), fireAt: (dir) => { fireProfile(fx.eye, fx.look, dir || fx.fwd); return state.profile; }, hitTarget: (key) => { const t = targets().find((x) => x.key === key); if (t) { shotProfile = state.profile; t.fn(); } return !!t; }, get wave() { return wave; }, set bot(v) { devBot = v; }, spawnEnc: (kind, extra = {}) => spawn({ e: { kind, ...extra }, s: s + 10, sec: track.sectionAt(s).sec }), get coop() { return { climber, crewGrab, ballast, restrained, protect, focusing, fov, profile: state.profile, special: state.special }; }, reset: () => { overboard = null; capsize = null; trailGrab = null; hull.state.capsized = false; }, capsize: () => startCapsize(), get swimming() { return overboard; }, get capsized() { return capsize; }, get grab() { return trailGrab; }, valve, linked, lifeguard, locker, wake, passengerStep, burst: () => burst(fx.eye, fx.fwd), get s() { return s; }, set s(v) { s = v; } };
+  if (import.meta.env.DEV) window.__ride = { parts, get eye() { return fx.eye; }, track, hull, puncture: (c, cause = 'scrape') => hull.puncture(c, cause), overboard: () => goOverboard('test'), free: () => restrained && !restrained.freed && freeRestrained(), shove: () => shove(fx.eye, fx.fwd), ping: () => ping(fx.eye, fx.fwd), fireAt: (dir) => { fireProfile(fx.eye, fx.look, dir || fx.fwd); return state.profile; }, hitTarget: (key) => { const t = targets().find((x) => x.key === key); if (t) { shotProfile = state.profile; t.fn(); } return !!t; }, get wave() { return wave; }, set bot(v) { devBot = v; }, spawnEnc: (kind, extra = {}) => spawn({ e: { kind, ...extra }, s: s + 10, sec: track.sectionAt(s).sec }), get coop() { return { climber, crewGrab, ballast, restrained, protect, focusing, fov, profile: state.profile, special: state.special }; }, reset: () => { overboard = null; capsize = null; trailGrab = null; hull.state.capsized = false; }, capsize: () => startCapsize(), get swimming() { return overboard; }, get capsized() { return capsize; }, get grab() { return trailGrab; }, valve, linked, lifeguard, locker, wake, passengerStep, burst: () => burst(fx.eye, fx.fwd), get s() { return s; }, set s(v) { s = v; } };
 
   return {
     update,
