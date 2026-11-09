@@ -7,10 +7,19 @@
 //   world authoring (here)   proposes variations from memory, ahead of play, between expeditions
 //   the director             threats, pressure and recovery during an expedition (director.js)
 //   shared rules             movement, shooting, rescues, objectives (everywhere else)
-// An expedition's world is fixed when it departs: every room it enters keeps the accepted layout until it
-// returns. Grout's live alterations follow their own warnings. Every authored variation is checked for
-// playability (the cell and the machine still reachable from the dock) before it is accepted; anything that
-// fails falls back to the last accepted version, so an expedition always has content.
+// The contract:
+//   - An expedition receives one accepted version of the facility when it departs. Retries continue that
+//     expedition and keep its version. Only a new departure adopts persistent changes.
+//   - History records every decision ("you flooded this room once"); current state records the latest
+//     resolved outcome ("this room is flooded now"). Authoring reads current state.
+//   - Three accounts, kept apart: what the facility did (facility.history), what the crew witnessed (the
+//     ledger, written only when the crew sees it), and what the facility claims (its records, which lie).
+//   - A rescue becomes a lasting fact at the next Safe Room. A failed expedition keeps what was committed and
+//     what was witnessed; uncommitted rescues are lost with the run.
+//   - Remembered deaths make a place observant, not harder: warnings, a vest at the spot, an incident notice,
+//     an abandoned cache, the Attendant recognising you. Pressure stays the live director's job.
+// Every authored map is checked for playability (the cell and the machine reachable from the dock). A failed
+// candidate falls back to the last accepted map if that still passes, otherwise to the authored base map.
 
 const KEY = 'underflow-facility';
 
@@ -25,14 +34,16 @@ Allow the facility's written account of those actions to become increasingly inc
 Preserve opportunities for cooperation, recognisable danger, and dependable refuge.
 Leave some rooms quiet. Make the water inviting enough that stopping feels tempting.`;
 
-/** Names the facility gives the people you bring back. It will forget them in its own way. */
-const VISITOR_NAMES = ['Ines Varga', 'Theo Lund', 'Abena Mensah', 'Ruth Calloway', 'Sami Haddad', 'Lio Park', 'Grete Holm', 'Nnamdi Eze', 'Clara Voss', 'Pavel Orlov'];
+/** Names for the people you bring back: first × last, so a long history does not repeat. Each has a unique id. */
+const FIRST = ['Ines', 'Theo', 'Abena', 'Ruth', 'Sami', 'Lio', 'Grete', 'Nnamdi', 'Clara', 'Pavel', 'Mira', 'Owen', 'Yusra', 'Tomas'];
+const LAST = ['Varga', 'Lund', 'Mensah', 'Calloway', 'Haddad', 'Park', 'Holm', 'Eze', 'Voss', 'Orlov', 'Achebe', 'Reyes', 'Novak'];
 
 function blank() {
   return {
     expeditions: 0,
     sectors: {}, // key → { restored, flooded, drained, bypassed, deaths, damage, interest, lost, visits, feedback }
-    visitors: [], // { name, sector, expedition }
+    visitors: [], // { id, name, sector, expedition } — committed at a Safe Room
+    history: [], // what the facility did: { expedition, sector, notes }
     ledger: { places: [], machinery: [], behaviours: [], visitors: [], changes: [] },
     accepted: {}, // sector id → last accepted variation (the fallback)
   };
@@ -47,10 +58,22 @@ export function saveFacility() {
   try { localStorage.setItem(KEY, JSON.stringify(facility)); } catch {}
 }
 
-export const sectorMem = (key) => (facility.sectors[key] ||= { restored: 0, flooded: 0, drained: 0, bypassed: 0, deaths: 0, damage: 0, interest: 0, lost: 0, visits: 0, feedback: {} });
+facility.history ||= [];
+export const sectorMem = (key) => (facility.sectors[key] ||= { restored: 0, flooded: 0, drained: 0, bypassed: 0, deaths: 0, damage: 0, interest: 0, lost: 0, visits: 0, feedback: {}, water: null, lastDeath: null });
 
 export function recordSector(key, field, n = 1) {
-  sectorMem(key)[field] = (sectorMem(key)[field] || 0) + n;
+  const m = sectorMem(key);
+  m[field] = (m[field] || 0) + n;
+  // History counts every decision; current state is the latest one.
+  if (field === 'flooded' || field === 'drained') m.water = field;
+  saveFacility();
+}
+
+/** Where and how the crew died last here, so the place can remember it physically. */
+export function recordDeath(key, where) {
+  const m = sectorMem(key);
+  m.deaths = (m.deaths || 0) + 1;
+  m.lastDeath = where;
   saveFacility();
 }
 
@@ -63,11 +86,20 @@ export function note(kind, item) {
   return true;
 }
 
-export function rescueVisitor(sectorKey) {
-  const name = VISITOR_NAMES[facility.visitors.length % VISITOR_NAMES.length];
-  facility.visitors.push({ name, sector: sectorKey, expedition: facility.expeditions });
-  note('visitors', `${name} · brought to safety · expedition ${facility.expeditions}`);
-  return name;
+/** A rescue in the field: named at once, but only pending until the crew reaches a Safe Room. */
+export function nameVisitor(sectorKey, n) {
+  const i = facility.visitors.length + n;
+  const name = `${FIRST[i % FIRST.length]} ${LAST[(i * 5 + Math.floor(i / FIRST.length)) % LAST.length]}`;
+  return { id: `v${facility.expeditions}-${sectorKey}-${i}-${Date.now() % 100000}`, name, sector: sectorKey, expedition: facility.expeditions };
+}
+/** At a Safe Room, pending rescues become facts: in the facility's memory and in the crew's ledger. */
+export function commitVisitors(pending = []) {
+  for (const v of pending) {
+    if (facility.visitors.some((x) => x.id === v.id)) continue;
+    facility.visitors.push(v);
+    note('visitors', `${v.name} · brought to safety · expedition ${v.expedition}`);
+  }
+  saveFacility();
 }
 
 /** Reachability: the dock must still reach the cell candidates and the machine. */
@@ -109,31 +141,32 @@ export function authorExpedition(sectors) {
     const interest = (m.interest || 0) + (m.feedback?.unsettling || 0) * 3 - (m.feedback?.lost || 0) * 3;
     // A repaired system opens more of the building: "the service corridor has been extended".
     if (m.restored && interest >= 2) { v.extend = true; v.notes.push('the service corridor has been extended'); }
-    // A changed water level persists: the flooded side floods a familiar room, the drained side dries one.
-    const map = sector.map.map((r) => r);
-    let edited = map;
-    if (m.flooded || m.drained) {
-      const grid = map.map((r) => [...r]);
+    // The water is where the latest decision left it (not a sum of every decision ever made).
+    if (m.water) {
+      const grid = sector.map.map((r) => [...r]);
       const cells = [];
       grid.forEach((row, z) => row.forEach((c, x) => {
-        if (m.flooded && c === '.' && [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dz]) => grid[z + dz]?.[x + dx] === '~')) cells.push([x, z, '~']);
-        if (m.drained && c === '~') cells.push([x, z, '.']);
+        if (m.water === 'flooded' && c === '.' && [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dz]) => grid[z + dz]?.[x + dx] === '~')) cells.push([x, z, '~']);
+        if (m.water === 'drained' && c === '~') cells.push([x, z, '.']);
       }));
       for (const [x, z, to] of cells.slice(0, 6)) grid[z][x] = to;
       const candidate = grid.map((r) => r.join(''));
-      if (playable(candidate)) { edited = candidate; v.notes.push(m.flooded ? 'a familiar room is flooded' : 'the water is lower than you left it'); }
+      const last = facility.accepted[sector.id]?.map;
+      // Accept the candidate; failing that the last accepted map if it still passes; failing that the base map.
+      if (playable(candidate)) v.map = candidate;
+      else if (last && playable(last)) v.map = last;
+      if (v.map) { v.water = m.water; v.notes.push(m.water === 'flooded' ? 'a familiar room is flooded' : 'the water is lower than you left it'); }
     }
-    if (edited !== map) v.map = edited;
     // A repaired place remembers who repaired it, wrongly.
     if (m.restored) { v.plaque = true; v.lockers = true; }
-    // Where people kept dying, the facility leaves notes, and the swarms are heavier.
-    if ((m.deaths || 0) >= 2) { v.dangerous = true; v.notes.push('people keep dying here'); }
+    // Where people died, the facility remembers: a warning, a vest at the spot, a notice, a cache. Not harder.
+    if ((m.deaths || 0) >= 1 && m.lastDeath) { v.dangerous = true; v.deathAt = m.lastDeath; v.notes.push('it remembers where you died'); }
     if (m.bypassed && !m.restored) { v.waiting = true; v.notes.push('the dock you skipped is waiting with its lights on'); }
-    // Accept only what passes; otherwise keep the last accepted version.
-    if (v.map && !playable(v.map)) v.map = facility.accepted[sector.id]?.map;
     facility.accepted[sector.id] = v;
+    facility.history.push({ expedition: facility.expeditions, sector: sector.id, notes: v.notes });
     out[index] = v;
   });
+  if (facility.history.length > 200) facility.history.splice(0, facility.history.length - 200);
   saveFacility();
   return out;
 }

@@ -4,6 +4,17 @@ The Poolrooms remember what expeditions did, then reconstruct those events incor
 
 The reference point is Dimension 9's evolving-world process, as you described it: 15 hand-made rooms that informed a written specification (atmosphere, room rules, lore, art preferences); a serverless application running Opus 5.5 that proposes additional content, partly informed by where players travel and linger; generated concept art and props; tested code; and a creator who reviews batches, gives feedback and updates the direction. The useful lesson is the reviewed, rule-guided pipeline. It is not a claim that systems are invented and published live during a player's session. I have not checked that account independently.
 
+## The contract
+
+- **One accepted world per expedition.** It is authored when the expedition departs. Retries, including a death before the first Safe Room, continue that expedition with that world. Only a new departure adopts persistent changes.
+- **History and current state are different facts.** History counts every decision ("you flooded this room once"). Current state is the latest resolved outcome ("this room is drained now"). Authoring reads current state.
+- **Three accounts, kept apart:**
+  - what the facility did: `facility.history`, the variations authored per expedition;
+  - what the crew witnessed: the ledger, written only when the crew sees a change, close up and looking at it;
+  - what the facility claims: its records, which are wrong.
+- **A rescue becomes a lasting fact at the next Safe Room.** It is named at once but stays pending until then. If the expedition fails before that, the pending rescue is lost with the run. What survives a failed expedition is what was committed at Safe Rooms and what was witnessed.
+- **Deaths make a place observant, not harder.** Nothing in memory raises threat. Pressure stays with the live director, which can see the crew's condition.
+
 ## What is built (`src/memory.js`, with hooks in `main.js`, `ride.js`, `explore.js`, `ui.js`)
 
 ### A persistent record
@@ -20,15 +31,24 @@ The Attendant fronts all of it without explaining any of it: "The service corrid
 
 ### Consequences, authored between expeditions
 - **A repaired system opens the building:** where you restored a dock and the place held your interest, the next expedition's ride gains an *extended service corridor*. What was a short passage is now a fully lit, operating pool hall, and the Attendant announces it.
-- **Diverted water stays diverted:** a flooded choice floods a familiar room on foot; a drained one leaves the water lower than you left it.
-- **Repairs are remembered wrongly:** a plaque credits Drainer Crew Seven for your crew's repair. The tool marks are yours.
-- **A second changing room with the same locker numbers:** in 0417, a dry flotation vest with the name of someone you rescued inside the collar.
+- **Diverted water stays where you last left it:** a flooded outcome floods a familiar room on foot; a drained one lowers the water and leaves a teal waterline on the ceiling above the dock, everything below it cleaner.
+- **Repairs are remembered wrongly:** the yellow tape you wrapped is still on the machine. A plate on the dock wall reads "PUMP REPAIRED · 2006 · CREDIT: DRAINER CREW SEVEN". The wrench marks are only in the caption.
+- **A second changing room with the same lockers:** a row of six lockers numbered 0415–0420, with the same broken door, missing tile and discarded cup as the dock wall. In 0417 sits a folded orange vest with a readable collar tag carrying the name of someone you rescued, or your wristband number if there is no one.
 - **Records disagree with the ledger:** a Safe Room shows an attendance sheet that says your rescued visitor was never admitted, a maintenance terminal that lists them inspecting the room decades ago, or a staff photograph with them in a Pumphouse vest, already wet. Your ledger says otherwise, in your handwriting.
-- **Danger is remembered:** where people died twice, swarms are heavier and "DON'T STAY HERE" is scratched into the dock edge, in two hands, one of them yours.
-- **Skipped docks wait:** a dock you bypassed has every light on and a polished tether post.
+- **A death is remembered, physically:**
+  - a flotation vest caught where it happened (against the channel wall on the raft, or on the floor on foot);
+  - "DON'T STAY HERE" in handwriting on the dock wall;
+  - an incident report that says no incident occurred;
+  - an abandoned cache beside the vest, with a filter, a dressing and a patch kit;
+  - the Attendant on arrival: "Welcome back, guest. We kept your place."
+
+  Difficulty is unchanged.
+- **Skipped docks wait:** four extra fittings lit over the dock, and a polished brass ring on the tether post.
+
+Every one of these is in the room before any caption explains it. A caption appears only when you are close and looking, and only then does the ledger record it.
 
 ### Validation and caching
-Every authored map change is checked for playability (the dock still reaches every cell candidate and the machine) before it is accepted. A variation that fails falls back to the last accepted one, so an expedition always has content. Authoring is deterministic for a given memory: a retry sees the same world.
+Every authored map change is checked for playability: the dock must still reach every cell candidate and the machine. A failing candidate falls back to the last accepted map if that still passes, and otherwise to the authored base map, so an expedition always has content. The accepted world is stored with the expedition, so a retry sees the same world.
 
 ### Consistency within an expedition
 Variations are fixed when the expedition departs and do not change until it returns. Every room keeps its accepted layout; necessary routes stay open; Grout's live alterations keep their own warnings and rules. Larger changes appear on the next departure.
@@ -37,7 +57,7 @@ Variations are fixed when the expedition departs and do not change until it retu
 The record counts deliberate signals, not lingering: optional vignettes explored, documents read and puzzles solved (interest); and explicit Safe Room field notes ("It stayed with me", "I got lost", "Too quiet, in a good way"). Interest and "stayed with me" make a place a candidate for expansion; "I got lost" works against it.
 
 ### The Pumphouse field ledger (the discovery catalogue)
-In the pause menu: places, machinery identified, entity behaviours observed, visitors brought to safety, and changes noticed between expeditions. It is kept across expeditions and is the one record that is never wrong. New entries are announced as they are made. The unease comes from the gap between the ledger and the facility's own documents.
+In the pause menu: places, machinery identified, entity behaviours observed, visitors brought to safety, and changes noticed between expeditions. It is kept across expeditions and is the one record that is never wrong. It contains observations only: a change enters it when the crew witnesses it, never at departure. Visitors are entered when committed at a Safe Room, each with a unique id, with names drawn from first × last name lists so a long history does not repeat. New entries are announced as they are made. The unease comes from the gap between the ledger and the facility's own documents.
 
 ## Generation rules
 

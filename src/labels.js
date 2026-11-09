@@ -24,6 +24,7 @@ export function labelTexture(text, style = 'sign', width = 512, height = 128) {
     safe: ['#1d3a28', '#d8eedb', '#86aa8a'],
     amber: ['#1a1608', '#b19a50', '#6d5f2c'],
     count: ['#080d10', '#d8d8ca', '#4d7472'],
+    hand: ['#d8d8ca', '#3a2620', '#d8d8ca'], // handwriting scrawled on tile
   }[style] || ['#112b31', '#d8d8ca', '#4d7472'];
   g.fillStyle = palette[0];
   g.fillRect(0, 0, width, height);
@@ -35,7 +36,7 @@ export function labelTexture(text, style = 'sign', width = 512, height = 128) {
   g.textBaseline = 'middle';
   const lines = String(text).split('\n');
   let size = height / (lines.length + 0.6);
-  const face = style === 'count' || style === 'depth' ? '500 SIZEpx "IBM Plex Mono", monospace' : '500 SIZEpx "Barlow Condensed", "Arial Narrow", Impact, sans-serif';
+  const face = style === 'hand' ? '500 SIZEpx "Caveat", "Shadows Into Light", cursive' : style === 'count' || style === 'depth' ? '500 SIZEpx "IBM Plex Mono", monospace' : '500 SIZEpx "Barlow Condensed", "Arial Narrow", Impact, sans-serif';
   g.font = face.replace('SIZE', size);
   const widest = Math.max(...lines.map((l) => g.measureText(l).width));
   if (widest > width * 0.9) {

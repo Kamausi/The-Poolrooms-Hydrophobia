@@ -1,6 +1,6 @@
 // Overlays: the shared modal, the Safe Room, the logbook, documents, the keypad, settings.
 import { settings, saveSettings, SETTING_LABELS, ACTIONS } from './settings.js';
-import { input, applyBindings } from './input.js';
+import { input, applyBindings, PAD_ACTIONS, PAD_NAMES } from './input.js';
 import { COMFORTS } from './sectors.js';
 import { ROUTES } from './plans.js';
 import { CREW, crewById, fadingCrew } from './crew.js';
@@ -123,6 +123,8 @@ export function showSafeRoom(state, sector, nextSector, nextPlan, onLeave, onSav
     state.regrouped = true;
     body.append(el('p', null, 'The others are already here: soaked, arguing about the junction, alive. Tubs has the kettle on a pump housing. From here, the four of you ride one raft.'));
   }
+  // Real relief: dry clothes, machine noise, people making an effort to stay awake.
+  if (state.regrouped && !state.endless) body.append(el('p', null, ['Dry overalls hang on the pipe by the heater. Tubs is pacing so he doesn\'t fall asleep; June counts tiles out loud.', 'Somebody has the kettle going on a pump housing. Dez is stripping the blaster with his eyes half shut, talking to keep them open.', 'Mars makes everyone change into dry socks before anyone sits down. Nobody argues. The pumps are loud enough to be company.'][(state.sectorIndex + state.guests) % 3]));
   body.append(el('p', 'mono small', `PUMPHOUSE COUNTER · GUESTS ADMITTED: 04 · GUESTS RETURNED: ${String(Math.max(1, 4 - (state.forgotten || []).length - 1)).padStart(2, '0')} · DISCREPANCY: NONE`));
   // Recovery you can see: hard floor, moving air, a record that says you are here.
   if (state.arrivalDrift > 65) body.append(el('p', null, `When you came in, your name on the manifest was a smudge and the door took two tries to notice you. Under the hard white light the letters come back: ${crewById(state.character).full.toUpperCase()}. Your wristband reads ${state.band} again.`));
@@ -594,5 +596,23 @@ export function settingsView(onChange) {
   reset.onclick = () => { settings.bindings = {}; saveSettings(); applyBindings(); keys.querySelectorAll('.bind').forEach((x) => x.onclick !== reset.onclick); wrap.replaceWith(settingsView(onChange)); };
   keys.append(reset);
   wrap.append(keys);
+  // Controller buttons: choose an action, press a button.
+  const pads = el('div', 'bindings');
+  pads.append(el('p', 'mono', 'CONTROLLER · choose, then press a button'));
+  for (const [id, label, def] of PAD_ACTIONS) {
+    const b = el('button', 'bind');
+    const show = () => (b.textContent = `${label} · ${PAD_NAMES[settings.padBindings?.[id] ?? def] || '?'}`);
+    show();
+    b.onclick = () => {
+      b.textContent = `${label} · press a controller button…`;
+      input.padCapture = (i) => { (settings.padBindings ||= {})[id] = i; saveSettings(); show(); };
+    };
+    pads.append(b);
+  }
+  const padReset = el('button', 'bind');
+  padReset.textContent = 'Reset controller buttons';
+  padReset.onclick = () => { settings.padBindings = {}; saveSettings(); wrap.replaceWith(settingsView(onChange)); };
+  pads.append(padReset);
+  wrap.append(pads);
   return wrap;
 }

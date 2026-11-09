@@ -196,12 +196,53 @@ function setupTouch() {
 }
 
 // Controller (Gamepad API). Left stick steers or moves; right stick aims (raft) or looks (on foot).
-// RT fire · LT lock · A hop · B brace · X use · Y scan · LB burst · RB boost · R3 look back · L3 paddle (toggle)
-// D-pad up recharge · D-pad down patch · D-pad left ping · D-pad right next profile · tap B shove · Start pause
+// Defaults: RT fire · LT lock/focus · A hop · B brace (tap: shove) · X use · Y scan · LB burst · RB boost
+// R3 look back · L3 paddle (toggle) · D-pad up recharge · D-pad down patch · D-pad left ping · D-pad right next
+// profile · Select dressing · Start pause. The actions in PAD_ACTIONS can be rebound (settings.padBindings).
+// Menus, the pause screen and Safe Rooms are fully navigable: D-pad or left stick to move, A to choose,
+// B to go back, left/right to change sliders and options.
+export const PAD_ACTIONS = [
+  ['hop', 'Hop / jump', 0], ['use', 'Use / rescue / line', 2], ['burst', 'Disruption burst', 4], ['boost', 'Boost / run', 5],
+  ['dressing', 'Field dressing', 8], ['paddle', 'Paddle (toggle)', 10], ['lookback', 'Look back', 11], ['recharge', 'Recharge', 12],
+  ['patch', 'Patch and pump', 13], ['ping', 'Ping / radio check', 14], ['cycle', 'Next blaster profile', 15],
+];
+export const PAD_NAMES = ['A', 'B', 'X', 'Y', 'LB', 'RB', 'LT', 'RT', 'Select', 'Start', 'L3', 'R3', 'D-pad up', 'D-pad down', 'D-pad left', 'D-pad right'];
+const padMap = () => Object.fromEntries(PAD_ACTIONS.map(([id, , def]) => [id, settings.padBindings?.[id] ?? def]));
 const prev = [];
-const EDGE = { 0: ' ', 2: 'e', 4: 'f', 9: 'escape', 12: 'r', 8: 'h', 14: 'b', 15: 'tab' };
 let bDown = 0;
-const HOLD = { 5: 'shift', 11: 'x', 0: ' ' };
+const navPrev = { up: false, down: false, left: false, right: false, a: false, b: false };
+
+function visibleOverlay() {
+  for (const id of ['modal', 'paused', 'menu']) {
+    const el = document.getElementById(id);
+    if (el && !el.hidden && getComputedStyle(el).display !== 'none') return el;
+  }
+  return null;
+}
+
+/** Menu navigation with a controller: move focus through what can be chosen, A to choose, B to go back. */
+function navigate(overlay, pad, b) {
+  const ax = pad.axes[0] || 0, ay = pad.axes[1] || 0;
+  const now = { up: b(12) || ay < -0.6, down: b(13) || ay > 0.6, left: b(14) || ax < -0.6, right: b(15) || ax > 0.6, a: b(0), b: b(1) };
+  const edge = (k) => now[k] && !navPrev[k];
+  const items = [...overlay.querySelectorAll('button:not([disabled]), input, select, a[href]')].filter((el) => el.offsetParent !== null);
+  let i = items.indexOf(document.activeElement);
+  const focus = (j) => { const el = items[(j + items.length) % items.length]; el?.focus(); el?.scrollIntoView({ block: 'nearest' }); };
+  if (edge('down')) focus(i < 0 ? 0 : i + 1);
+  if (edge('up')) focus(i < 0 ? items.length - 1 : i - 1);
+  const el = document.activeElement;
+  if ((edge('left') || edge('right')) && el && items.includes(el)) {
+    const dir = edge('right') ? 1 : -1;
+    if (el.type === 'range') { el.value = String(Number(el.value) + dir * Number(el.step || 0.1)); el.dispatchEvent(new Event('input')); }
+    else if (el.tagName === 'SELECT') { el.selectedIndex = Math.max(0, Math.min(el.options.length - 1, el.selectedIndex + dir)); el.dispatchEvent(new Event('change')); }
+    else focus(i + dir);
+  }
+  if (edge('a') && el && items.includes(el)) el.click();
+  if (edge('b')) input.pressed.add('escape');
+  if (b(9) && !prev[9]) input.pressed.add('escape');
+  Object.assign(navPrev, now);
+}
+
 export function pollGamepad(dt) {
   const pad = navigator.getGamepads?.().find((g) => g && g.connected);
   if (!pad) return;
@@ -209,6 +250,20 @@ export function pollGamepad(dt) {
   const any = pad.buttons.some((x) => x.pressed) || pad.axes.some((a) => Math.abs(a) > 0.3);
   if (any) input.pad = true;
   if (!input.pad) return;
+  // Rebinding: the first newly pressed button is the answer.
+  if (input.padCapture) {
+    const i = pad.buttons.findIndex((x, k) => x.pressed && !prev[k]);
+    if (i >= 0) { const f = input.padCapture; input.padCapture = null; f(i); }
+    pad.buttons.forEach((x, k) => (prev[k] = x.pressed));
+    return;
+  }
+  const overlay = visibleOverlay();
+  if (overlay) {
+    navigate(overlay, pad, b);
+    pad.buttons.forEach((x, k) => (prev[k] = x.pressed));
+    return;
+  }
+  const M = padMap();
   const dz = (v) => (Math.abs(v) < 0.15 ? 0 : v);
   input.move[0] = dz(pad.axes[0] || 0);
   input.move[1] = -dz(pad.axes[1] || 0);
@@ -227,9 +282,11 @@ export function pollGamepad(dt) {
   if (b(1)) bDown += dt;
   else if (bDown > 0) { if (bDown < 0.2) input.pressed.add('z'); if (settings.braceToggle && bDown < 0.2) input.braceHeld = !input.braceHeld; bDown = 0; }
   input.scanHeld = b(3);
-  input.patchHeld = b(13);
-  if (b(10) && !prev[10]) input.paddleHeld = !input.paddleHeld;
+  input.patchHeld = b(M.patch);
+  if (b(M.paddle) && !prev[M.paddle]) input.paddleHeld = !input.paddleHeld;
   if (input.firing && input.paddleHeld && input.context === 'ride') input.paddleHeld = false;
+  const EDGE = { [M.hop]: ' ', [M.use]: 'e', [M.burst]: 'f', 9: 'escape', [M.recharge]: 'r', [M.dressing]: 'h', [M.ping]: 'b', [M.cycle]: 'tab' };
+  const HOLD = { [M.boost]: 'shift', [M.lookback]: 'x', [M.hop]: ' ' };
   for (const [i, k] of Object.entries(EDGE)) if (b(+i) && !prev[i]) input.pressed.add(k);
   for (const [i, k] of Object.entries(HOLD)) b(+i) ? input.keys.add(k) : prev[i] && input.keys.delete(k);
   pad.buttons.forEach((x, i) => (prev[i] = x.pressed));

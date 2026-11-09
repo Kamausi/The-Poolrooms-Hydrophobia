@@ -220,6 +220,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     if (c) container = { part: P('Supply container', box(0.08, 2), { color: [0.85, 0.55, 0.12], metallic: 0.3, roughness: 0.5, emission: 0.4, emissiveColor: [1, 0.6, 0.2] }), pos: add(center(...c), [0, 0.45, 0]), taken: false };
   }
   let paddleCool = 0;
+  let deathCache = null;
   const facility = facilityMem;
 
   // ---------- Exploration pass: puzzles, architecture, the thread, the crew ----------
@@ -250,29 +251,73 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     label(`PRESSURE DIAGRAM\nOPEN IN ORDER: ${valveOrder.join(' → ')}\nPUMPS: 1 2 3 4`, 'rule', add(w.pos, [0, 0.2, 0]), w.normal, 1.6, 0.7, 512, 220);
   }
   // ---------- What the facility remembers (memory.js authored this expedition's variation) ----------
+  // The payoff is physical first: the player should notice the contradiction before any caption explains it.
+  // Captions only come when you are close and looking at it, and the ledger records only what the crew saw.
   const variant = sector.variant || {};
   const remembered = [];
+  const prop = (name, mat, pos, size, yaw = 0) => { const p = P(name, box(0.02, 2), mat); writeYaw(p.matrix, pos, yaw, ...size); return p; };
+  const vestMat = { color: linear('#b46a3c'), metallic: 0, roughness: 0.65 };
+  const cupMat = { color: [0.88, 0.88, 0.84], metallic: 0, roughness: 0.4 };
+  // The same small details, in the same places relative to a wall: they will be here, and again later.
+  const repeatDetails = (w) => {
+    const side = normalize(cross(w.normal, UP));
+    prop('Missing tile', { color: [0.05, 0.06, 0.06], metallic: 0, roughness: 1 }, add(add(w.pos, scale(side, -1.1)), [0, -0.5, 0]), [0.24, 0.24, 0.03], Math.atan2(w.normal[0], w.normal[2]));
+    writeYaw(P('Discarded cup', cylinder(14, 0.05, 1), cupMat).matrix, add(add(w.pos, scale(side, 0.9)), add(scale(w.normal, 0.35), [0, -1.65, 0])), 0, 0.06, 0.1, 0.06);
+  };
   if (variant.plaque) {
-    // The repair is still there. The plaque credits someone else.
+    // The repair is still there: your tape is still on the handle. The plate credits Crew Seven, twenty years ago.
     const w = wallSpot(dx0, dz0);
-    label('PUMP REPAIRED\nCREDIT: DRAINER CREW SEVEN\nTOOL MARKS ON FILE', 'count', add(w.pos, [0.9, -0.3, 0]), w.normal, 1.3, 0.6, 512, 220);
-    remembered.push({ pos: w.pos, cap: '[a plaque credits Crew Seven for a repair your crew made. The tool marks are yours: you can see where the wrench slipped.]', ledger: `${sector.name}: our repair, credited to Crew Seven` });
+    label('PUMP REPAIRED · 2006\nCREDIT: DRAINER CREW SEVEN\nINSPECTION PLATE 14', 'count', add(w.pos, [0.9, -0.3, 0]), w.normal, 1.3, 0.6, 512, 220);
+    prop('Fresh tape on the handle', { color: linear('#b19a50'), metallic: 0, roughness: 0.7 }, add(panelPos, [0, -0.35, 0]), [0.32, 0.08, 0.32]);
+    repeatDetails(w);
+    remembered.push({ pos: add(w.pos, [0.9, -0.3, 0]), cap: '[the plate says Crew Seven repaired this in 2006. The tape on the handle is the tape you wrapped. The wrench marks are yours.]', ledger: `${sector.name}: our repair, credited to Crew Seven in 2006` });
   }
   const lockerCell = variant.lockers ? takeCell() : null;
   if (lockerCell) {
-    // A second changing room with the same locker numbers. One locker holds a dry vest with a name on it.
+    // A second changing room: the same locker numbers, the same broken hinge, the same missing tile, the same cup.
     const w = wallSpot(...lockerCell);
-    for (let i = 0; i < 4; i++) {
-      const l = P(`Remembered locker ${i}`, box(0.04, 2), { color: [0.18, 0.28, 0.38], metallic: 0.6, roughness: 0.45 });
-      writeYaw(l.matrix, add(add(w.pos, scale(normalize(cross(w.normal, UP)), (i - 1.5) * 0.75)), [0, -0.7, 0]), Math.atan2(w.normal[0], w.normal[2]), 0.7, 2, 0.5);
+    const side = normalize(cross(w.normal, UP));
+    const yaw = Math.atan2(w.normal[0], w.normal[2]);
+    for (let i = 0; i < 6; i++) {
+      const at = add(add(w.pos, scale(side, (i - 2.5) * 0.62)), [0, -0.7, 0]);
+      prop(`Remembered locker ${i}`, { color: [0.18, 0.28, 0.38], metallic: 0.6, roughness: 0.45 }, at, [0.58, 2, 0.5], yaw);
+      if (i === 1) prop('Broken locker door', { color: [0.2, 0.3, 0.4], metallic: 0.6, roughness: 0.45 }, add(at, add(scale(w.normal, 0.45), scale(side, 0.2))), [0.56, 1.9, 0.04], yaw + 0.9);
     }
-    label('0417 · 0418 · 0419 · 0420', 'count', add(w.pos, [0, 0.6, 0]), w.normal, 1.8, 0.35, 512, 96);
+    label('0415 · 0416 · 0417 · 0418 · 0419 · 0420', 'count', add(w.pos, [0, 0.6, 0]), w.normal, 2.4, 0.3, 640, 80);
+    repeatDetails(w);
+    // In 0417: a dry flotation vest, folded. The name in the collar is someone you brought back.
+    const vestAt = add(add(w.pos, scale(side, (1 - 2.5) * 0.62 + 0.62)), add(scale(w.normal, 0.38), [0, -0.9, 0]));
+    prop('Dry vest in 0417', vestMat, vestAt, [0.42, 0.14, 0.32], yaw);
     const visitor = (state.visitorsThisRun || [])[0] || facility.visitors[facility.visitors.length - 1]?.name;
-    remembered.push({ pos: center(...lockerCell), cap: visitor ? `[the same locker numbers as the last changing room. In 0417, a dry flotation vest. The name inside the collar: ${visitor}.]` : '[the same locker numbers as the last changing room. In 0417, a dry flotation vest with your crew\'s number inside the collar.]', ledger: `${sector.name}: a second changing room with the same locker numbers` });
+    label(visitor ? visitor.toUpperCase() : `DRAINER ${state.band}`, 'count', add(vestAt, add(scale(w.normal, 0.17), [0, 0.12, 0])), w.normal, 0.36, 0.08, 384, 64);
+    remembered.push({ pos: vestAt, cap: visitor ? `[locker 0417: a dry flotation vest. The name in the collar is ${visitor}.]` : `[locker 0417: a dry flotation vest with your wristband number in the collar. You are wearing your vest.]`, ledger: `${sector.name}: a second changing room with the same lockers, the same hinge, the same cup` });
   }
-  if (variant.waiting) remembered.push({ pos: [dockC[0], 0, dockC[2]], cap: '[last time you skipped this dock. Every light in it is on. The tether post has been polished.]', ledger: `${sector.name}: the skipped dock was waiting with its lights on` });
-  if (variant.dangerous) remembered.push({ pos: [dockC[0], 0, dockC[2]], cap: '[scratched into the dock edge: DON\'T STAY HERE. Two hands. One of them is yours.]', ledger: `${sector.name}: people keep dying here` });
-  if (variant.map) remembered.push({ pos: [dockC[0], 0, dockC[2]], cap: '[the water is not where you left it. Your last diversion held.]', ledger: `${sector.name}: the water level changed between expeditions` });
+  if (variant.waiting) {
+    // The dock you skipped last time: every light on, the tether post polished.
+    for (let i = 0; i < 4; i++) prop(`Waiting light ${i}`, { color: [1, 1, 1], metallic: 0, roughness: 1, emission: 7, emissiveColor: linear('#d8d6a6') }, add(dockC, [Math.cos(i * 1.57) * 1.6, 3.2, Math.sin(i * 1.57) * 1.6]), [0.9, 0.05, 0.25]);
+    writeYaw(P('Polished tether ring', torus(0.04, 32, 8), { color: [0.95, 0.8, 0.45], metallic: 1, roughness: 0.08 }).matrix, [dockC[0] - dockWall[0] * 0.6, 1.05, dockC[2] - dockWall[1] * 0.6], 0, 0.22, 0.22, 0.22);
+    remembered.push({ pos: [dockC[0], 0, dockC[2]], cap: '[last time you skipped this dock. Every light in it is on. Someone polished the tether post.]', ledger: `${sector.name}: the skipped dock was waiting with its lights on` });
+  }
+  if (variant.dangerous) {
+    // Where you died: a vest caught where it happened, a warning in two hands, an incident notice for an incident
+    // that "did not occur", and an abandoned cache. The place is observant, not harder.
+    const d = variant.deathAt || {};
+    const at = d.pos ? [d.pos[0], 0, d.pos[2]] : [dockC[0], 0, dockC[2]];
+    const [ax, az] = cellOf(at[0], at[2]);
+    if (d.pos) prop('Vest where you died', vestMat, [at[0] + 0.3, floorTop(ax, az) + 0.1, at[2]], [0.42, 0.12, 0.32], 0.7);
+    const w = wallSpot(dx0, dz0);
+    label("DON'T STAY HERE\ndon't stay here", 'hand', add(w.pos, [-0.9, -0.6, 0]), w.normal, 1.2, 0.55, 512, 220);
+    label('INCIDENT REPORT\nNO INCIDENT OCCURRED\nGUESTS ACCOUNTED FOR: ALL', 'count', add(w.pos, [-0.9, 0.35, 0]), w.normal, 1.2, 0.5, 512, 200);
+    const cacheAt = add(at, [-0.6, 0, 0.5]);
+    deathCache = { pos: [cacheAt[0], floorTop(ax, az) + 0.25, cacheAt[2]], part: prop('Abandoned cache', { color: [0.55, 0.5, 0.3], metallic: 0.3, roughness: 0.6 }, [cacheAt[0], floorTop(ax, az) + 0.25, cacheAt[2]], [0.6, 0.4, 0.4]), taken: false };
+    remembered.push({ pos: at, cap: `[a flotation vest, caught right where it happened. ${d.cause ? `The report on the wall says no incident occurred.` : ''}]`, ledger: `${sector.name}: it remembers where you died` });
+  }
+  if (variant.map) {
+    // The water stayed where you left it. When it drops, the old line is still there: on the ceiling.
+    if (variant.water === 'drained') for (let i = 0; i < 3; i++) { const w = wallSpot(dx0 + i, dz0); prop(`Ceiling waterline ${i}`, { color: linear('#4d7472'), metallic: 0, roughness: 0.4 }, add(w.pos, [0, 1.35, 0]), [CELL, 0.12, 0.04], Math.atan2(w.normal[0], w.normal[2]) + Math.PI / 2); }
+    remembered.push({ pos: [dockC[0], 0, dockC[2]], cap: variant.water === 'drained' ? '[the water is lower than you left it. There is a waterline on the ceiling. Everything below it is cleaner.]' : '[the water is higher than you left it. Your last diversion held, and then some.]', ledger: `${sector.name}: the water is where we left it` });
+  }
+
   // A pool clock that only moves while nobody is looking at it.
   const clockCell = takeCell();
   const clock = clockCell ? (() => {
@@ -1325,7 +1370,12 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     shoveFatigue = Math.max(0, shoveFatigue - dt * 0.6);
     pingT -= dt;
     if (pingT <= 0) hide(pingMark);
-    for (const r of remembered) if (!r.seen && Math.hypot(r.pos[0] - eye[0], r.pos[2] - eye[2]) < 3.2) {
+    if (deathCache && !deathCache.taken && Math.hypot(deathCache.pos[0] - eye[0], deathCache.pos[2] - eye[2]) < 2.2) {
+      ask(2, 'E · Open the abandoned cache');
+      if (wasPressed('e')) { deathCache.taken = true; hide(deathCache.part); state.filters = Math.min(3, state.filters + 1); state.dressings = (state.dressings || 0) + 1; state.patchKits = (state.patchKits || 0) + 1; sound.pickup(); hud.toast('ABANDONED CACHE · +1 FILTER · +1 DRESSING · +1 PATCH KIT'); }
+    }
+    // Close, and looking at it: then the caption, and only then does the crew's ledger record it.
+    for (const r of remembered) if (!r.seen && Math.hypot(r.pos[0] - eye[0], r.pos[2] - eye[2]) < 3.4 && angleTo(eye, dir, add(r.pos, [0, 0.8, 0])) < 0.7) {
       r.seen = true;
       hud.caption(r.cap);
       events.ledger?.('changes', r.ledger);
@@ -1891,5 +1941,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     update,
     resize: () => renderer.resize(),
     dispose: () => renderer.dispose(),
+    /** Where the player is right now, for an immediate resume save. */
+    snapshot: () => ({ mode: 'explore', pos: [...player.pos], yaw: player.yaw, hasCell }),
   };
 }

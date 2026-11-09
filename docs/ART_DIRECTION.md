@@ -48,10 +48,20 @@ Sizes scale with the viewport: about 18–22 px main UI, 24–28 px subtitles an
 
 | Area | Palette and light | Feeling |
 |---|---|---|
-| The Yellow Channel (Welcome Pools) | dirty ivory, stale yellow-green light, faded blue waterline bands | familiar, low, repetitive, apparently supervised |
-| The Blue Reservoir (Lazy River, Wave Hall, the reservoir sections) | desaturated cyan, petroleum blue, cold white highlights, dark depth | vast, exposed, hard to measure |
-| The Last Drain (Filtration Works, and the drain at the end) | bone white, charcoal, tarnished metal, a coral band | heavy, compressed, hydraulic; the tile starts to suggest anatomy |
-| Safe Rooms | neutral ivory, warm light, matte machinery, checkpoint green | finite, dry, functional, occupied |
+Three broad visual families, mapped to every area in the build:
+
+| Area | Family | Palette and light (from `sectors.js`) | Feeling |
+|---|---|---|---|
+| 1 · Welcome Pools | Yellow Channel | dirty ivory tile, stale yellow-green light, faded blue band | familiar, low, repetitive, apparently supervised |
+| 2 · Lazy River (and its Blue Reservoir section) | Blue Reservoir | grey-green tile, warm calm stretches, cold white over the reservoir | slow, warm, tempting, then vast |
+| 3 · Wave Hall | Blue Reservoir | cold grey tile, petroleum water, cold white light | big, exposed, hard to measure |
+| 4 · Family Splash Zone | Yellow Channel | warm ivory, rose grout, a faded red-brown band | cheerful signage over something wrong |
+| 5 · Blacklight Pavilion | (its own) | near-black violet tile, violet light | anomaly made visible |
+| 6 · Filtration Works (and its reservoir section) | Last Drain | bone tile, charcoal grout, a coral band, near-black water | heavy, compressed, hydraulic |
+| 7 · Hotel Baths | Last Drain | tan tile, brown grout, warm-stale light | old luxury, sealed |
+| 8 · Rooftop Lagoon | (its own) | pale tile, overcast sky | open air that is still inside |
+| The Closed Wave Pool (reference chapter) | Blue Reservoir | cold grey tile, petroleum water | still, scaled up, a sign under the water |
+| Safe Rooms | — | neutral ivory, warm task light, matte machinery, checkpoint green | finite, dry, functional, occupied |
 
 The Blacklight Pavilion keeps its violet; the Rooftop Lagoon's sky is overcast.
 
@@ -75,7 +85,9 @@ Dark petroleum panels, dirty ivory text, thin teal borders, short monospaced rea
 
 The title over a nearly static scene: a low tiled corridor, shallow black-green water, one fluorescent fitting lighting part of the floor (it buzzes and occasionally dips), an empty raft with folded vests just past the light. Far down the corridor a small green EXIT sign is reflected in the water. There is no sign above it.
 
-## Not yet built
-- Refraction along submerged edges and condensation crawling across glass (needs shader work beyond 67js's current material set).
-- Softening around the hands at high Drift (the blaster sags out of view instead).
-- Anatomical tile in the final drain itself (the drain is reached through the ending text, not a level).
+## Prototype vs finished
+- **Refraction:** 67js has a `liquid` material (a pass after the opaque scene, with refraction, absorption and Fresnel reflection). UNDERFLOW uses it in one place, over the Closed Wave Pool's submerged exit sign. It renders without errors in automated tests, but nobody has looked at it in motion. Channel water still uses the flat `water` ripple material.
+- **High-Drift hands:** a primitive glove and cuff swell, pale and shift as Drift rises (`blaster.js`). This is prototype deformation, not a finished hand asset.
+- **Characters:** no authored skeletal animation. Movement is procedural: sway, leaning into turns, bracing, jolts, the Bloom's swell, lunge and collapse.
+- **Bright effects:** signals, pickups and lock marks were toned down and moved onto the palette (checkpoint green, coral). The muzzle flash and beams are still bright. How much of the screen they take in motion needs visual review.
+- **Not built:** condensation on glass; anatomical tile in the final drain (the drain is reached through the ending text, not a level).

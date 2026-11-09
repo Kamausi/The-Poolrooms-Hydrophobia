@@ -3,6 +3,7 @@
 // arrival bay → Safe Room. Skipping the dock takes the bypass: no checkpoint, straight into the next sector.
 // Endless: seeded, escalating sectors with a score and per-seed records.
 import '67js/addons/world-material-shader';
+import '67js/addons/liquid-shader';
 import { VERSION } from '67js';
 import { SECTORS, REFERENCE_CHAPTER } from './sectors.js';
 import { buildPlan, buildEndlessPlan, populate } from './plans.js';
@@ -17,7 +18,7 @@ import { sound } from './audio.js';
 import { quality } from './quality.js';
 import { rng } from './math.js';
 import { playlog, createFrameStats } from './playlog.js';
-import { facility, recordSector, note, rescueVisitor, authorExpedition, saveFacility } from './memory.js';
+import { facility, recordSector, recordDeath, note, nameVisitor, commitVisitors, authorExpedition, saveFacility } from './memory.js';
 import { settings } from './settings.js';
 import { showModal, hideModal, applyDisplaySettings, ledgerView, showSafeRoom, showDocument, showKeypad, settingsView, logbookView } from './ui.js';
 import { CREW, crewById, loadLoops, saveLoop } from './crew.js';
@@ -70,7 +71,7 @@ function sectorAt(index) {
 }
 function planFor(sector) {
   const random = rng(5000 + sector.index * 97 + state.attempt * 13 + state.seed * 3);
-  return { items: buildPlan(sector, random, (sector.threat || 1) * (state.pressure || 1) * (state.highWater ? 1.3 : 1) * (sector.variant?.dangerous ? 1.25 : 1)), choices: {} };
+  return { items: buildPlan(sector, random, (sector.threat || 1) * (state.pressure || 1) * (state.highWater ? 1.3 : 1)), choices: {} };
 }
 const keyFor = (index) => `${state.endless ? 'e' : 's'}${index}`;
 
@@ -87,6 +88,9 @@ function loadJSON(key) {
   try { return JSON.parse(localStorage.getItem(key) || 'null'); } catch { return null; }
 }
 function saveResume() {
+  // Capture the position now (not the last periodic snapshot) when the scene can say where it is.
+  const fresh = scene?.snapshot?.();
+  if (fresh) lastPosition = fresh;
   if (!lastPosition || (mode !== 'ride' && mode !== 'explore')) return;
   try { localStorage.setItem(RESUME_KEY, JSON.stringify({ state: snapshot(), position: lastPosition })); } catch {}
 }
@@ -158,12 +162,13 @@ const events = {
       }
     }
     state.protectT = Math.max(0, (state.protectT || 0) - dt);
-    // Everyone brought back gets a name in the crew's ledger. The facility's records will disagree.
+    // Everyone brought back gets a name at once; it becomes a lasting fact at the next Safe Room.
     while ((state.namedRescues || 0) < state.rescued) {
+      const v = nameVisitor(state.sectorKey, (state.pendingVisitors || []).length);
       state.namedRescues = (state.namedRescues || 0) + 1;
-      const name = rescueVisitor(state.sectorKey);
-      (state.visitorsThisRun ||= []).push(name);
-      hud.toast(`${name.toUpperCase()} · BROUGHT TO SAFETY · IN THE LEDGER`);
+      (state.pendingVisitors ||= []).push(v);
+      (state.visitorsThisRun ||= []).push(v.name);
+      hud.toast(`${v.name.toUpperCase()} · SAFE ONCE YOU REACH A SAFE ROOM`);
     }
     // Incapacitated: once per checkpoint, the first fall is not death. Pulse only, from the floor.
     if (state.health <= 0 && !state.fatal && !state.downed && !state.downUsed && !state.sitting) {
@@ -359,7 +364,7 @@ function enterSafeRoom() {
   state.guests += 1;
   state.downUsed = false;
   state.downed = null;
-  if (!state.endless && !state.custom) { recordSector(state.sectorKey, 'visits'); note('places', sector.name); }
+  if (!state.endless && !state.custom) { recordSector(state.sectorKey, 'visits'); note('places', sector.name); commitVisitors(state.pendingVisitors); state.pendingVisitors = []; }
   state.fatal = false;
   for (const c of Object.keys(state.crewState || {})) if (state.crewState[c] === 'hurt') state.crewState[c] = 'ok';
   if (state.challenge?.kind === 'departure') return events.challengeDone('You made the last departure.');
@@ -472,7 +477,8 @@ ${expeditionRecord()}`, [['RIDE AGAIN ↗', () => { hideModal(); newCampaign(); 
 function die() {
   if (mode !== 'ride' && mode !== 'explore') return;
   playlog.record('death', { sector: state.sectorKey, cause: state.lastHurt || 'unknown', mode });
-  if (!state.endless && !state.custom) recordSector(state.sectorKey, 'deaths');
+  // Where and how: so the place can remember it physically next time (a vest at the spot, a warning).
+  if (!state.endless && !state.custom) recordDeath(state.sectorKey, { mode, s: mode === 'ride' ? scene?.position : null, f: mode === 'ride' && scene?.trackLength ? scene.position / scene.trackLength : null, pos: mode === 'explore' ? lastPosition?.pos : null, cause: state.lastHurt || 'unknown' });
   mode = 'dead';
   releaseLock();
   hud.prompt('');
@@ -506,8 +512,11 @@ Somewhere above, a raft comes back up the slide. Empty.`, [
       hideModal();
       const save = loadJSON(SAVE_KEY);
       const attempt = state.attempt + 1;
-      if (save) state = { ...freshState(), ...save, memory: state.memory };
-      else state = freshState({ band: state.band, character: state.character, name: state.name, memory: state.memory });
+      // A retry continues the same expedition: same accepted world, same expedition number. Uncommitted
+      // rescues are lost with the run.
+      const keep = { variants: state.variants, expedition: state.expedition, regrouped: state.regrouped };
+      if (save) state = { ...freshState(), ...save, memory: state.memory, ...keep, pendingVisitors: [] };
+      else state = freshState({ band: state.band, character: state.character, name: state.name, memory: state.memory, ...keep });
       state.attempt = attempt;
       beginSector(state.sectorIndex);
       startRide();
@@ -554,8 +563,7 @@ function beginCampaignAs(id, memory) {
   facility.expeditions += 1;
   saveFacility();
   state.expedition = facility.expeditions;
-  state.variants = authorExpedition(SECTORS);
-  for (const v of Object.values(state.variants)) for (const n of v.notes) note('changes', n);
+  state.variants = authorExpedition(SECTORS); // the ledger notes changes only when the crew witnesses them
   hud.setPlayer(me.name);
   try { localStorage.removeItem(SAVE_KEY); } catch {}
   clearResume();

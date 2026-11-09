@@ -4,7 +4,7 @@ The goal: a focused cooperative campaign held to AAA presentation, responsivenes
 
 This document separates what the build does now from what still needs people, assets and hardware. "Built" means implemented and exercised by an automated headless test. Nothing here has been verified by human play or on target GPUs.
 
-## The reference chapter: The Closed Wave Pool (built)
+## The reference chapter: The Closed Wave Pool (implemented, awaiting quality validation)
 
 Menu → REFERENCE CHAPTER. Target playtime 12–18 minutes (an evaluation target, not an estimate). Files: `src/sectors.js` (REFERENCE_CHAPTER), `src/plans.js` (wavepool, diverter, divert dock), `src/ride.js`, `src/explore.js`, `src/main.js`, `src/saferoom.js`.
 
@@ -28,12 +28,12 @@ Verified headlessly end to end: arrival, diverter, landing bonus, docking sequen
 |---|---|---|---|
 | Player feel | Aiming, firing, steering, bracing, wading and docking feel precise and consistent | New players control it with either input and understand their mistakes | Systems built (profiles, focus, shove, brace, docking sequence, trajectory foam, rebinding); **feel unverified by people** |
 | World design | Memorable spaces, believable construction, deliberate impossibilities | Players navigate by landmarks | Palette, tile kit, waterline bands, signage system; architectural kit is primitives, **not finished art** |
-| Characters and creatures | Complete models, animation, reactions, voice | Convincing in chaos | Crew silhouettes that lean, brace and jolt; followers on foot; a full Bloom state set. **No skinned characters, animation or voice yet** |
+| Characters and creatures | Complete models, animation, reactions, voice | Convincing in chaos | Crew silhouettes that lean, brace and jolt; followers on foot; a full Bloom state set (all procedural). **No authored skeletal animation, finished models or voice yet** |
 | Cooperation | Players and AI reliably help, travel, fight, finish objectives | Works with 1 human + 3 bots, mixed, 4 humans | AI crew covers, revives (abstracted), follows your trail, rides with you. **No online play** |
 | Campaign design | Distinct objectives, route choices, escalation, payoffs | Players distinguish sectors by what they did | Eight sectors + reference chapter, dock kinds, route consequences |
 | Sound and presentation | Water, architecture, machinery, voices, music, UI as one identity | Players understand events without prompts | Synthesised audio language, per-space reverb, ducking under warnings; **no recorded audio or voice** |
-| Technical reliability | Stable frame delivery, controlled loading, dependable saves, consistent state | Measurements on representative hardware | Frame-time overlay, 30 FPS profile, context-loss recovery, resume saves. **No hardware measurements yet** |
-| Usability | Onboarding, full controller support, settings, accessibility, recovery from interruptions | Someone new can start, learn, leave and resume unaided | First-time tips, rebinding, toggles, text size, damage assist, high contrast, camera motion, captions, resume |
+| Technical reliability | Stable frame delivery, controlled loading, dependable saves, consistent state | Measurements on representative hardware | Frame-time overlay, 30 FPS profile, graphics-reset recovery, periodic position resume. **No hardware measurements yet; resume not interruption-tested around pickups, docking, machinery or incapacitation** |
+| Usability | Onboarding, full controller support, settings, accessibility, recovery from interruptions | Someone new can start, learn, leave and resume unaided | First-time tips, keyboard and controller rebinding, controller menu navigation, toggles, text size, damage assist, high contrast, camera motion, captions, resume. **Controller support is implemented but untested with a physical controller** |
 
 ## Feel systems in this pass (built)
 
@@ -50,14 +50,14 @@ Verified headlessly end to end: arrival, diverter, landing bonus, docking sequen
 
 - Primary tier: stable 60 FPS (16.7 ms). Constrained tier: a deliberate 30 FPS profile (33.3 ms), selectable in Settings.
 - Measure the slow tail, not averages: the overlay (Settings → Performance overlay) shows average, 95th and 99th percentile frame time, the count of frames over 1.5× budget, and JS heap where the browser reports it. The playtest log stores a sample every minute.
-- Reliability: a graphics-device reset saves your exact position and offers a reload-and-resume; tab switches pause and save.
+- Reliability: the scene saves its position every ~3 seconds; pausing, quitting, hiding the tab and a graphics-device reset each capture the position immediately before saving, then offer a reload-and-resume. Resume rebuilds the scene from a limited set of values (raft distance and departed pools, or position, facing and whether you carry the item). It is a periodic position resume, not an exact restoration of everything in flight.
 - **Not yet measured:** representative hardware. Headless software rendering (the only thing available to automated tests here) says nothing about a GPU or phone.
 - Engine: 67js `@codepawlhq/67js@0.16.0` (package.json). Its documented glTF skeletal animation, morph targets, animation layers and IK are the route to finished characters; none is used yet because there are no character assets. Evaluate them with a representative scene (animated crew, enemies, water, lights, effects, sound, UI) before any engine decision. Engine or language changes should answer a measured bottleneck.
 - Budgets to track separately as content arrives: program code, downloaded assets, assets in memory, GPU memory, CPU simulation, rendering, network.
 
 ## Accessibility (built, review against the Xbox Accessibility Guidelines)
 
-Full rebinding; hold/toggle for paddle and brace; look and steering sensitivity; camera motion slider; text size; high contrast; incoming-damage assist; captions for every warning (and warnings that read without music); shapes and words alongside colour in crew status; first-time tips (can be turned off); controller support through every system; pause, resume and graphics-reset recovery.
+Full rebinding; hold/toggle for paddle and brace; look and steering sensitivity; camera motion slider; text size; high contrast; incoming-damage assist; captions for every warning (and warnings that read without music); shapes and words alongside colour in crew status; first-time tips (can be turned off); gameplay controller mapping with rebindable buttons; menus, pause, settings and Safe Rooms navigable by controller (D-pad or stick, A to choose, B to go back, left/right on sliders); pause, resume and graphics-reset recovery. Not yet verified on physical controllers.
 
 ## Playtesting protocol
 
@@ -78,5 +78,5 @@ Each area needs a named quality owner, even when one person covers several: game
 - **Finished art:** skinned, animated crew and creatures, a modelled architectural kit, authored textures. Needs artists and assets; the code is ready to host them (67js glTF).
 - **Recorded sound and voice performances.** Needs a sound team and actors; the game uses synthesised audio and text.
 - **Online four-player play** and its state agreement (who has the cell, who sees the grab, pilot handoff on disconnect). Needs a server and netcode; the single-player AI crew stands in.
-- **Water refraction, surface foam simulation, condensation.** Needs shader work beyond 67js's current material set.
+- **Water refraction in the channels, surface foam simulation, condensation.** 67js's `liquid` material refracts and is used once (the wave pool's exit); it is not used for channel water, where its cost and look are unmeasured.
 - **Human playtests and hardware measurements.** Need people and devices; the log and overlay are there for them.

@@ -158,11 +158,17 @@ export function createRide(canvas, state, sector, events, opts = {}) {
     sign: P('Wave display', plane, { ...signMaterial('WAVES BEGIN IN\n00:00', 'count', 1.2, 512, 220), doubleSided: true }),
     exit: P('Submerged exit glow', slab, glow([0.45, 0.8, 0.55], 1.4)),
     exitSign: P('Submerged exit sign', plane, { ...signMaterial('EXIT', 'safe', 0.7, 256, 96), doubleSided: true }),
+    // A real body of water over the exit: the liquid pass refracts the sign beneath it.
+    liquid: P('Water over the exit', slab, { tag: 'liquid', color: linear('#7aa6a8'), metallic: 0, roughness: 0.05 }),
     diverter: P('Diverter relay', box(0.04, 2), { color: linear('#c45a50'), metallic: 0.4, roughness: 0.5, emission: 1.2, emissiveColor: linear('#c45a50') }),
     arc: P('Relay arc', slab, glow([0.8, 0.9, 1], 10)),
     s: 0, active: false, divS: 0, divSide: 1, divActive: false, divDone: false, arcT: 0,
   };
   const spark = P('Impact spark', sphere(10, 8), glow([1, 0.9, 0.6], 10));
+  // Remembered death on the water: a flotation vest caught against the wall at the spot.
+  const deathAt = sector.variant?.deathAt?.mode === 'ride' && sector.variant.deathAt.f != null ? sector.variant.deathAt : null;
+  const deathVest = P('Vest caught against the wall', box(0.03, 2), { color: linear('#b46a3c'), metallic: 0, roughness: 0.65 });
+  if (sector.variant && Object.keys(sector.variant).some((k) => k !== 'notes') && !opts.resumeS) setTimeout(() => hud.say('THE ATTENDANT', sector.variant.dangerous ? 'Welcome back, guest. We kept your place.' : 'Welcome back, guest. Some improvements have been made since your last visit.', 'attendant'), 2500);
   // Where the raft is going: a faint line of foam, so momentum, currents and a soft side can be read before they bite.
   const traj = Array.from({ length: 7 }, (_, i) => P(`Trajectory ${i}`, slab, glow([0.85, 0.85, 0.78], 0.35)));
   let sparkT = 0, sparkAt = null;
@@ -224,7 +230,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
     spikes: P(`Bloom spikes ${i}`, slab, dark([0.12, 0.02, 0.02])),
     active: false, pos: [0, 0, 0], hp: 2, phase: 0, dying: 0, drift: [0, 0, 0],
   }));
-  const signals = Array.from({ length: 8 }, (_, i) => ({ ring: P(`Signal ${i}`, ring, glow([0.55, 1, 0.5], 3.2, { color: [0.5, 1, 0.55], roughness: 0.4 })), active: false, pos: [0, 0, 0], yaw: 0, used: 0 }));
+  const signals = Array.from({ length: 8 }, (_, i) => ({ ring: P(`Signal ${i}`, ring, glow(linear('#86aa8a'), 2, { color: linear('#86aa8a'), roughness: 0.4 })), active: false, pos: [0, 0, 0], yaw: 0, used: 0 }));
   const ropes = Array.from({ length: 2 }, (_, i) => ({
     line: P(`Lane rope ${i}`, slab, { color: [0.85, 0.85, 0.8], metallic: 0, roughness: 0.6 }),
     floats: Array.from({ length: 5 }, (_, j) => ({ part: P(`Rope float ${i}.${j}`, ball, glow([1, 0.4, 0.1], 0.6, { color: j % 2 ? [0.9, 0.9, 0.85] : [0.9, 0.25, 0.08], roughness: 0.4 })), alive: true, pos: [0, 0, 0] })),
@@ -303,7 +309,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
   const gateSets = Array.from({ length: 3 }, () => ({ a: buoy(), b: buoy(), active: false, s: 0, lane: 0, done: false }));
   let gateStreak = 0;
   const debrisPool = Array.from({ length: 3 }, (_, i) => ({ a: P(`Floating debris ${i}`, box(0.15, 2), { color: [0.6, 0.55, 0.45], metallic: 0, roughness: 0.8 }), b: P(`Floating chair ${i}`, box(0.08, 2), { color: [0.93, 0.93, 0.9], metallic: 0, roughness: 0.4 }), active: false, s: 0, lane: 0, done: false }));
-  const pickups = Array.from({ length: 3 }, (_, i) => ({ part: P(`Air pickup ${i}`, box(0.12, 2), glow([0.6, 1, 0.8], 2.5, { color: [0.4, 0.7, 0.5] })), active: false, s: 0, lane: 0, item: 'parts', done: false }));
+  const pickups = Array.from({ length: 3 }, (_, i) => ({ part: P(`Air pickup ${i}`, box(0.12, 2), glow([0.6, 0.85, 0.7], 1.6, { color: [0.4, 0.6, 0.5] })), active: false, s: 0, lane: 0, item: 'parts', done: false }));
   const ramp = {
     lip: P('Ramp lip', slab, tileMat), foam: P('Ramp foam', slab, glow([0.9, 0.97, 1], 2.2)),
     chev: [0, 1, 2].map((i) => P(`Ramp chevron ${i}`, slab, glow([1, 0.8, 0.2], 2.5))),
@@ -326,7 +332,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
     riders: [0, 1, 2].map((i) => P(`Crew rider ${i}`, cylinder(12, 0.3, 2), { color: [0.95, 0.5, 0.15], metallic: 0, roughness: 0.6 })),
     active: false, sec: null, hits: 0, spawnT: 0, pos: [0, 0, 0],
   };
-  const lockMarks = Array.from({ length: 6 }, (_, i) => P(`Lock ${i}`, torus(0.05, 32, 8), glow([1, 0.3, 0.3], 4)));
+  const lockMarks = Array.from({ length: 6 }, (_, i) => P(`Lock ${i}`, torus(0.05, 32, 8), glow(linear('#c45a50'), 3)));
   const volleyBeams = Array.from({ length: 6 }, (_, i) => P(`Volley beam ${i}`, box(0, 1), glow([1, 0.5, 0.4], 12)));
   const shots = Array.from({ length: 8 }, (_, i) => ({ part: P(`Spitter shot ${i}`, sphere(14, 10), glow([0.8, 0.3, 1], 5)), active: false, pos: [0, 0, 0], from: null, reflect: false, t: 0 }));
   const abyss = P('Abyss water', slab, waterMat());
@@ -2240,11 +2246,12 @@ export function createRide(canvas, state, sector, events, opts = {}) {
     if (wave.active) {
       const half = Math.min(track.sectionAt(wave.s).sec.half, 9);
       facing(wave.sign, track.lateral(wave.s, -(half - 0.1), 4.2), track.right(wave.s), 3.2, 1.4);
-      writeYaw(wave.exit.matrix, track.lateral(wave.s + 30, 0, -0.05), track.at(wave.s + 30).yaw, 2.2, 0.02, 1.2);
-      writeBasis(wave.exitSign.matrix, track.lateral(wave.s + 30, 0, 0.012), [1, 0, 0], [0, 0, 1], [0, 1, 0], 0.9, 0.34, 1);
+      writeYaw(wave.exit.matrix, track.lateral(wave.s + 30, 0, -0.6), track.at(wave.s + 30).yaw, 2.2, 0.02, 1.2);
+      writeBasis(wave.exitSign.matrix, track.lateral(wave.s + 30, 0, -0.55), [1, 0, 0], [0, 0, 1], [0, 1, 0], 0.9, 0.34, 1);
+      writeYaw(wave.liquid.matrix, track.lateral(wave.s + 30, 0, -0.27), track.at(wave.s + 30).yaw, 3, 0.5, 2.4);
       if (!wave.said && wave.s - s < 25) { wave.said = true; hud.caption('[the wave display reads 00:00. The water is perfectly still. Below the surface: a lit exit sign]'); }
-      if (wave.s < s - 60) { wave.active = false; hide(wave.sign); hide(wave.exit); hide(wave.exitSign); }
-    } else { hide(wave.sign); hide(wave.exit); hide(wave.exitSign); }
+      if (wave.s < s - 60) { wave.active = false; hide(wave.sign); hide(wave.exit); hide(wave.exitSign); hide(wave.liquid); }
+    } else { hide(wave.sign); hide(wave.exit); hide(wave.exitSign); hide(wave.liquid); }
     if (wave.divActive) {
       const half = Math.min(track.sectionAt(wave.divS).sec.half, 9);
       wave.divPos = track.lateral(wave.divS, wave.divSide * (half - 0.25), 2);
@@ -2267,6 +2274,14 @@ export function createRide(canvas, state, sector, events, opts = {}) {
         writeYaw(t.matrix, track.lateral(at, x, 0.02), track.at(at).yaw, 0.09, 0.01, 0.5);
       });
     } else traj.forEach(hide);
+    if (deathAt) {
+      const ds = deathAt.f * track.length;
+      if (Math.abs(ds - s) < 70) {
+        const half = Math.min(track.sectionAt(ds).sec.half, 6);
+        writeYaw(deathVest.matrix, track.lateral(ds, half - 0.35, 0.05 + Math.sin(time * 1.3) * 0.02), track.at(ds).yaw + 0.4, 0.42, 0.12, 0.32);
+        if (!saidHull.has('deathvest') && ds - s < 14 && ds > s) { saidHull.add('deathvest'); hud.caption('[a flotation vest, caught against the wall — right where it happened last time]'); events.ledger?.('changes', `${sector.name}: a vest where we went down`); }
+      } else hide(deathVest);
+    } else hide(deathVest);
     // Impact sparks: where the shot landed, in the profile's colour.
     sparkT -= dt;
     if (sparkT > 0 && sparkAt) writeYaw(spark.matrix, sparkAt, 0, 0.08 + sparkT, 0.08 + sparkT, 0.08 + sparkT);
@@ -2681,7 +2696,8 @@ export function createRide(canvas, state, sector, events, opts = {}) {
     for (const seg of segments) if (seg.lampPos) {
       const tall = seg.lampPos[1] - track.at(seg.s).p[1] > 7;
       const sec2 = track.sectionAt(seg.s).sec;
-      const col = sec2.reservoir ? [0.85, 0.95, 1] : lampColor; // the reservoir's cold white
+      // The reservoir's cold white; the calm stretches warm and soft, where stopping is tempting.
+      const col = sec2.reservoir ? [0.85, 0.95, 1] : sec2.calm ? [lampColor[0] * 1.05, lampColor[1] * 0.92, lampColor[2] * 0.72] : lampColor;
       lights.push({ position: seg.lampPos, color: col, intensity: (tall ? 18 : 9.5) * (seg.lamp.material.emission / 9) * lampSag, radius: 0.4, range: tall ? 22 : 10.5, d: distance(seg.lampPos, eye) });
     }
     const r = track.nextRoom(s - 2);
@@ -3353,6 +3369,11 @@ export function createRide(canvas, state, sector, events, opts = {}) {
     get position() {
       return s;
     },
+    get trackLength() {
+      return track.length;
+    },
+    /** Where the raft is right now, for an immediate resume save. */
+    snapshot: () => (finished ? null : { mode: 'ride', s: holding ? stopOf(holding) : s, departed: [...departed] }),
   };
 }
 

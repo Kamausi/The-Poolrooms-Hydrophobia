@@ -13,6 +13,7 @@ const DEFAULTS = {
   paddleToggle: false, // V toggles paddling instead of holding
   braceToggle: false, // Ctrl/C toggles brace instead of holding
   bindings: {}, // action id → key, for anything the player has rebound
+  padBindings: {}, // action id → controller button index
   textScale: 1, // subtitles, captions, prompts and panels
   damageAssist: 1, // incoming damage multiplier (an assist, not a difficulty label)
   highContrast: false, // opaque panels and caption backing, a heavier reticle
