@@ -56,7 +56,7 @@ export function award(state, kind, { base, label, quiet = false } = {}) {
   ensureScore(state);
   const row = AWARDS[kind] || [base ?? 0, 0.1, label || kind.toUpperCase()];
   const b = base ?? row[0];
-  const points = round5(b * state.flow);
+  const points = round5(b * state.flow * (state.doubleT > 0 ? 2 : 1)); // DOUBLE FLOW: a short window where everything pays twice
   const credit = Math.max(1, Math.round(b / 10));
   state.score += points;
   state.sectorScore += b;

@@ -153,6 +153,7 @@ const events = {
     // Temporary equipment runs down in play time.
     if (state.overchargeT > 0) { state.overchargeT -= dt; state.charge = Math.min(state.maxCharge, state.charge + dt * 5); if (state.overchargeT <= 0) { state.heat = Math.min(100, (state.heat || 0) + 40); hud.toast('OVERCHARGE SPENT · the tool is running hot'); } }
     if (state.dryT > 0) state.dryT -= dt;
+    if (state.doubleT > 0) state.doubleT -= dt;
     scoreTick(state, dt, { pressure: mode === 'ride' && (state.directorPhase === 'buildup' || state.directorPhase === 'peak') });
     // The crew notices Drift before the meter says much: the hand first, then the way you're breathing.
     const stage = state.drift >= 72 ? 3 : state.drift >= 55 ? 2 : state.drift >= 38 ? 1 : 0;

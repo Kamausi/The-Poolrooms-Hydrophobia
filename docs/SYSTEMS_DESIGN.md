@@ -657,3 +657,11 @@ A collectible is worth 250 (a dry thing 750) to the Expedition Score, is written
 - a lamp left burning on the floor draws Blooms that have not committed to you: a decoy, at the cost of your light.
 
 **Not built from these briefs:** rooms whose route depends on which lighting circuit is live ("facility states"), reflections and shadows as puzzle elements, perspective alignment, private versus shared hallucinations (one player), the survey map, warm tokens and unclaimed vests, score-qualified side rooms for collectibles, the Lost & Found. Keyboard bindings only for the lamp. Tests: `tests/unit/collectibles.test.js`, `tests/finds.cjs`.
+
+## 25. The raft's arcade layer (implemented)
+
+- **Token lines.** Every half-minute or so, away from rooms, seven worn-yellow service tokens lie on the water in a curve from where the raft is to where the line wants it: the next gate if one is coming, otherwise a lane of the channel. Each is worth 5 Service Credit; taking all seven is a FULL LINE. They are level design drawn on the water: the line tells you to start moving now.
+- **Drops.** After a fight the facility sometimes lets something go downstream (45% of recoveries, outside rooms). Drive through it or shoot it. DOUBLE FLOW: everything pays twice for thirty seconds. FULL CELL: the tool is full and cool, plus a cell. MAX PRESSURE: every chamber that still holds air goes to 100. SYSTEM PURGE: every drain in the channel lets go and what is in the water is dispersed. Each has its own colour, sound and one line from the Attendant.
+- **Assessments.** Once a sector, about twenty seconds in, the Attendant selects your party for a circulation assessment: reach the next dock as firm as you are now, reach FLOW ×3, or take two perfect lines. Participation is voluntary. Passing pays 1,500 (multiplied by FLOW) and 150 credit; only the hull test can be failed, and failing costs nothing.
+
+Not built: token lines that deliberately lead somewhere wrong, drops on foot, assessments with stranger conditions (darkness, a named profile), and "three guests have qualified" when there are four. Test: `tests/arcade.cjs`.

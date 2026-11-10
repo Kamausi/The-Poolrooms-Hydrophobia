@@ -66,3 +66,11 @@ describe('Expedition Score, FLOW and Service Credit', () => {
     expect(attendantVerdict('A')).toMatch(/advanced circulation/);
   });
 });
+
+describe('DOUBLE FLOW', () => {
+  it('pays twice while the window is open, and only then', () => {
+    const a = award(ensureScore({ doubleT: 10 }), 'kill').points;
+    const b = award(ensureScore({ doubleT: 0 }), 'kill').points;
+    expect(a).toBe(b * 2);
+  });
+});
