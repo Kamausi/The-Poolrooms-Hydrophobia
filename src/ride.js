@@ -341,6 +341,19 @@ export function createRide(canvas, state, sector, events, opts = {}) {
   const buoyLamp = () => P('Gate marker lamp', sphere(10, 6), glow([1, 0.6, 0.2], 2.2, { color: [0.6, 0.35, 0.1] }));
   const gateSets = Array.from({ length: 3 }, () => ({ a: buoy(), b: buoy(), aBand: buoyBand(), bBand: buoyBand(), aLamp: buoyLamp(), bLamp: buoyLamp(), active: false, s: 0, lane: 0, done: false }));
   let gateStreak = 0;
+  // Service tokens: a line of them on the water draws the line to take. All of one line is a FULL LINE.
+  const tokens = Array.from({ length: 7 }, (_, i) => ({ part: P(`Service token ${i}`, cylinder(14, 0, 1), glow(linear('#b19a50'), 0.9, { color: linear('#b19a50'), metallic: 0.8, roughness: 0.3 })), active: false, s: 0, lane: 0, line: 0 }));
+  let tokenCool = 22, tokenLine = 0, tokenGot = 0, tokenMissed = false;
+  // A drop: something the facility lets go of after a fight. Drive through it or shoot it.
+  const DROPS = {
+    double: { name: 'DOUBLE FLOW', color: [1, 0.85, 0.3], line: 'Guest performance is being counted twice. Thirty seconds.' },
+    cell: { name: 'FULL CELL', color: [0.6, 1, 0.5], line: 'Your equipment has been topped up. You are welcome.' },
+    pressure: { name: 'MAX PRESSURE', color: [0.5, 0.85, 1], line: 'Flotation restored to operating pressure.' },
+    purge: { name: 'SYSTEM PURGE', color: [1, 0.45, 0.4], line: 'System purge. Please keep hands and faces away from the drains.' },
+  };
+  const drop = { part: P('Facility drop', cylinder(16, 0.1, 2), glow([1, 0.85, 0.3], 2.2, { color: [0.3, 0.3, 0.28], metallic: 0.7, roughness: 0.3 })), ring: P('Facility drop ring', torus(0.08, 24, 8), glow([1, 0.85, 0.3], 1.4)), active: false, s: 0, lane: 0, kind: 'double' };
+  // An Attendant assessment: an optional test, offered once a sector. Passing pays; failing costs nothing.
+  let assess = null, assessAt = 18 + random() * 10;
   const debrisPool = Array.from({ length: 3 }, (_, i) => ({ a: P(`Floating debris ${i}`, box(0.15, 2), { color: [0.6, 0.55, 0.45], metallic: 0, roughness: 0.8 }), b: P(`Floating chair ${i}`, box(0.08, 2), { color: [0.93, 0.93, 0.9], metallic: 0, roughness: 0.4 }), active: false, s: 0, lane: 0, done: false }));
   const pickups = Array.from({ length: 3 }, (_, i) => ({ part: P(`Air pickup ${i}`, box(0.12, 2), glow([0.6, 0.85, 0.7], 1.6, { color: [0.4, 0.6, 0.5] })), active: false, s: 0, lane: 0, item: 'parts', done: false }));
   const ramp = {
@@ -981,6 +994,8 @@ export function createRide(canvas, state, sector, events, opts = {}) {
         if (c && !curRoom) Object.assign(c, { active: true, pos: track.lateral(s + 30, (random() < 0.5 ? -1 : 1) * (Math.min(sec.half, 6) - 0.4), 2.4), falling: 0, item: ['cell', 'filter', 'parts'][Math.floor(random() * 3)] });
         const [who, line] = AFTERMATH[Math.floor(random() * AFTERMATH.length)];
         hud.say(who, line, 'crew');
+        // After a fight the facility sometimes lets something go downstream.
+        if (!drop.active && !curRoom && random() < 0.45) spawnDrop();
         // The Attendant speaks in the quiet after danger, never during it.
         if (random() < 0.3) setTimeout(() => hud.say('THE ATTENDANT', 'Your party has qualified for the lower attractions.', 'attendant'), 5000);
       }
@@ -1305,6 +1320,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
   function targets() {
     const list = [];
     const T = (pos, r, fn, key = null) => list.push({ pos, r, fn, key });
+    if (drop.active) T(track.lateral(drop.s, drop.lane, 0.55), 0.6, () => takeDrop(), 'drop');
     if (trailGrab?.pos) T(trailGrab.pos, 0.6, () => { trailGrab.hp -= shotProfile === 'scatter' ? 2 : 1; sound.hit(); }, 'grip');
     if (omen?.kind === 'beneath' && omen.revealed && omen.pos) T(omen.pos, 0.7, () => { omen.hp -= 1; sound.hit(); shake = Math.max(shake, 0.2); if (omen.hp <= 0) endBeneath('shot'); }, 'beneath');
     if (wave.divActive && !wave.divDone && wave.divPos) T(wave.divPos, 0.5, () => {
@@ -1689,6 +1705,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
       hud.toast(state.autopilot ? 'RIDE CONTROL IS STEERING · it is very smooth · Drift rises while you let it' : 'YOU HAVE THE RAFT');
     }
     const lim = Math.max(0.5, Math.min(sec.half, 6) - 0.95);
+    updateArcade(dt, sec, curRoom, lim);
     // The hull: leaks drain, a soft side lists and pulls, low chambers let the water in.
     hullFx = hull.update(dt, { silence: silence > 0, onWash: () => { state.drift = Math.min(100, state.drift + 3); shake = Math.max(shake, 0.25); } });
     const hurtNow = state.health < lastHullHealth - 0.5;
@@ -2180,6 +2197,78 @@ export function createRide(canvas, state, sector, events, opts = {}) {
     scanTarget.t += dt;
     if (scanTarget.t >= best.need) return best.done(best.obj);
     return `${best.label} · ${Math.round((scanTarget.t / best.need) * 100)}%`;
+  }
+
+  function spawnDrop(kind) {
+    const kinds = Object.keys(DROPS);
+    const lim = Math.max(0.5, Math.min(track.sectionAt(s).sec.half, 6) - 1.2);
+    Object.assign(drop, { active: true, s: s + 42, lane: (random() * 2 - 1) * lim, kind: kind || kinds[Math.floor(random() * kinds.length)] });
+    drop.part.material.emissiveColor = drop.ring.material.emissiveColor = DROPS[drop.kind].color;
+    hud.caption('[something bright comes down the channel ahead, turning slowly]');
+  }
+  function takeDrop() {
+    const D = DROPS[drop.kind];
+    drop.active = false;
+    hud.toast(D.name);
+    hud.say('THE ATTENDANT', D.line, 'attendant', true);
+    if (drop.kind === 'double') { state.doubleT = 30; sound.pump(); sound.switchOn(); }
+    else if (drop.kind === 'cell') { state.charge = state.maxCharge; state.heat = 0; state.cells = Math.min(3, state.cells + 1); sound.pickup(); sound.switchOn(); }
+    else if (drop.kind === 'pressure') { for (const k of CHAMBERS) if (state.chambers[k] > 0) state.chambers[k] = 100; raftSqV -= 6; sound.accent?.('gate'); sound.pump(); }
+    else {
+      // Every drain in the channel lets go at once. Not an explosion: a hydraulic event.
+      sound.burstBig?.(); sound.pump(); shake = Math.max(shake, 0.6);
+      for (const b of blooms) if (b.active && !b.dying) { b.dying = 0.001; events.cleared(); events.score(100, 'PURGED', 'kill'); }
+      hud.caption('[every drain in the channel erupts at once]');
+    }
+  }
+  function updateArcade(dt, sec, curRoom, lim) {
+    // --- Token lines: a curve of service tokens from where you are to where the line wants you.
+    tokenCool -= dt;
+    if (tokenCool <= 0 && !curRoom && !tokens.some((t) => t.active) && sec.type !== 'lift' && sec.type !== 'drop') {
+      tokenCool = 34 + random() * 22;
+      tokenLine += 1; tokenGot = 0; tokenMissed = false;
+      const g = gateSets.find((x) => x.active && x.s > s + 30 && x.s < s + 70);
+      const to = g ? g.lane : (random() * 2 - 1) * lim * 0.85;
+      const s1 = g ? g.s - 2 : s + 52;
+      tokens.forEach((t, i) => { const k = i / (tokens.length - 1); const e = k * k * (3 - 2 * k); Object.assign(t, { active: true, s: s + 24 + (s1 - s - 24) * k, lane: offset + (to - offset) * e, line: tokenLine }); });
+    }
+    for (const t of tokens) {
+      if (!t.active) { hide(t.part); continue; }
+      const p = track.lateral(t.s, t.lane, 0.16 + Math.sin(time * 3 + t.s) * 0.03);
+      writeYaw(t.part.matrix, p, time * 2 + t.s, 0.2, 0.025, 0.2);
+      if (t.s < s + 0.6) {
+        t.active = false;
+        if (Math.abs(offset - t.lane) < 1.0 && !overboard && !capsize) { tokenGot += 1; state.credit = (state.credit || 0) + 5; sound.tick(tokenGot); }
+        else tokenMissed = true;
+        if (!tokens.some((x) => x.active)) { if (!tokenMissed && tokenGot === tokens.length) events.award('line'); }
+      }
+    }
+    // --- The drop.
+    if (drop.active) {
+      const p = track.lateral(drop.s, drop.lane, 0.55 + Math.sin(time * 2) * 0.08);
+      writeYaw(drop.part.matrix, p, time * 1.2, 0.2, 0.5, 0.2);
+      writeBasis(drop.ring.matrix, p, [Math.cos(time), 0, Math.sin(time)], [0, 1, 0], [-Math.sin(time), 0, Math.cos(time)], 0.42, 0.42, 0.42);
+      if (Math.abs(drop.s - s) < 1.4 && Math.abs(offset - drop.lane) < 1.3) takeDrop();
+      else if (drop.s < s - 4) drop.active = false;
+    } else { hide(drop.part); hide(drop.ring); }
+    // --- The assessment.
+    if (!assess && !state.custom && !state.endless && time > assessAt && !curRoom && !state.assessed?.[state.sectorKey]) {
+      (state.assessed ||= {})[state.sectorKey] = true;
+      const kinds = [
+        { id: 'hull', text: 'Reach the next dock with the raft as firm as it is now.', base: state.raft },
+        { id: 'flow', text: 'Reach FLOW ×3.', base: 0 },
+        { id: 'lines', text: 'Take two perfect lines.', base: state.tally?.awards?.gate || 0 },
+      ];
+      assess = { ...kinds[Math.floor(random() * kinds.length)], done: false };
+      hud.say('THE ATTENDANT', `Your party has been selected for a circulation assessment. ${assess.text} Participation is voluntary.`, 'attendant', true);
+      hud.ticker(`ASSESSMENT · ${assess.text}`);
+    }
+    if (assess && !assess.done) {
+      // true: passed · false: failed (only the hull test can fail, at the dock) · null: still open
+      const pass = assess.id === 'flow' ? ((state.flow || 1) >= 3 ? true : null) : assess.id === 'lines' ? ((state.tally?.awards?.gate || 0) >= assess.base + 2 ? true : null) : curRoom?.sec.dock ? state.raft >= assess.base - 2 : null;
+      if (pass === true) { assess.done = true; events.score(1500, 'ASSESSMENT PASSED', 'other'); state.credit = (state.credit || 0) + 150; hud.say('THE ATTENDANT', 'Assessment complete. Your party has qualified.', 'attendant', true); }
+      else if (pass === false) { assess.done = true; hud.say('THE ATTENDANT', 'Assessment complete. Your party remains eligible for standard passage.', 'attendant'); }
+    }
   }
 
   function burst(eye, dir) {
@@ -3720,7 +3809,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
     bloomAhead() { return spawnBloom(s + 10, offset * 0.6, 1.2); },
     get locks() { return locks.length; },
   };
-  if (import.meta.env.DEV) window.__ride = { parts, omen: (k) => startOmen(k), get omenState() { return omen; }, get director() { return director; }, get eye() { return fx.eye; }, track, hull, puncture: (c, cause = 'scrape') => hull.puncture(c, cause), overboard: () => goOverboard('test'), free: () => restrained && !restrained.freed && freeRestrained(), shove: () => shove(fx.eye, fx.fwd), ping: () => ping(fx.eye, fx.fwd), fireAt: (dir) => { fireProfile(fx.eye, fx.look, dir || fx.fwd); return state.profile; }, hitTarget: (key) => { const t = targets().find((x) => x.key === key); if (t) { shotProfile = state.profile; t.fn(); } return !!t; }, get wave() { return wave; }, set bot(v) { devBot = v; }, spawnEnc: (kind, extra = {}) => spawn({ e: { kind, ...extra }, s: s + 10, sec: track.sectionAt(s).sec }), get coop() { return { climber, crewGrab, ballast, restrained, protect, focusing, fov, profile: state.profile, special: state.special }; }, reset: () => { overboard = null; capsize = null; trailGrab = null; hull.state.capsized = false; }, capsize: () => startCapsize(), get swimming() { return overboard; }, get capsized() { return capsize; }, get grab() { return trailGrab; }, valve, linked, lifeguard, locker, wake, passengerStep, burst: () => burst(fx.eye, fx.fwd), get s() { return s; }, set s(v) { s = v; } };
+  if (import.meta.env.DEV) window.__ride = { parts, blooms, tokens, drop, spawnDrop, get assess() { return assess; }, set assessAt(v) { assessAt = v; }, set tokenCool(v) { tokenCool = v; }, get offset() { return offset; }, set offset(v) { offset = v; }, omen: (k) => startOmen(k), get omenState() { return omen; }, get director() { return director; }, get eye() { return fx.eye; }, track, hull, puncture: (c, cause = 'scrape') => hull.puncture(c, cause), overboard: () => goOverboard('test'), free: () => restrained && !restrained.freed && freeRestrained(), shove: () => shove(fx.eye, fx.fwd), ping: () => ping(fx.eye, fx.fwd), fireAt: (dir) => { fireProfile(fx.eye, fx.look, dir || fx.fwd); return state.profile; }, hitTarget: (key) => { const t = targets().find((x) => x.key === key); if (t) { shotProfile = state.profile; t.fn(); } return !!t; }, get wave() { return wave; }, set bot(v) { devBot = v; }, spawnEnc: (kind, extra = {}) => spawn({ e: { kind, ...extra }, s: s + 10, sec: track.sectionAt(s).sec }), get coop() { return { climber, crewGrab, ballast, restrained, protect, focusing, fov, profile: state.profile, special: state.special }; }, reset: () => { overboard = null; capsize = null; trailGrab = null; hull.state.capsized = false; }, capsize: () => startCapsize(), get swimming() { return overboard; }, get capsized() { return capsize; }, get grab() { return trailGrab; }, valve, linked, lifeguard, locker, wake, passengerStep, burst: () => burst(fx.eye, fx.fwd), get s() { return s; }, set s(v) { s = v; } };
 
   return {
     update,

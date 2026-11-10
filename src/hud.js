@@ -36,7 +36,7 @@ function aboutCrisis(kind, text) {
 }
 const garble = (text, amount) => text.replace(/[A-Z0-9]/g, (c) => (Math.random() < amount ? '·' : c));
 
-const IDS = ['feed', 'flow', 'callouts', 'player-name', 'carry', 'urgent', 'helpmark', 'slots', 'needle', 'ticker', 'hud', 'sector-name', 'objective', 'score', 'score-wrap', 'cleared', 'depth', 'vitals', 'vitals-bar', 'drift', 'drift-bar', 'charge', 'charge-max', 'charge-state', 'mode', 'crosshair', 'subtitle', 'toast', 'prompt', 'damage', 'driftfx', 'scrap', 'hint', 'band', 'guests', 'route', 'raft', 'chambers', 'roster', 'filter', 'filters', 'cells', 'heat-bar', 'caption', 'scan', 'raft-panel'];
+const IDS = ['status', 'feed', 'flow', 'callouts', 'player-name', 'carry', 'urgent', 'helpmark', 'slots', 'needle', 'ticker', 'hud', 'sector-name', 'objective', 'score', 'score-wrap', 'cleared', 'depth', 'vitals', 'vitals-bar', 'drift', 'drift-bar', 'charge', 'charge-max', 'charge-state', 'mode', 'crosshair', 'subtitle', 'toast', 'prompt', 'damage', 'driftfx', 'scrap', 'hint', 'band', 'guests', 'route', 'raft', 'chambers', 'roster', 'filter', 'filters', 'cells', 'heat-bar', 'caption', 'scan', 'raft-panel'];
 
 export function initHud() {
   for (const id of IDS) el[id] = $(id);
@@ -120,6 +120,9 @@ export const hud = {
     el.score.textContent = Math.floor(state.score).toLocaleString('en-US').padStart(6, '0');
     el.flow.textContent = `FLOW ×${(state.flow || 1).toFixed(1)}`;
     el.flow.classList.toggle('hot', (state.flow || 1) >= 3);
+    // What you are carrying that is doing something right now: bracketed, like stamps on an inspection card.
+    const st = [state.doubleT > 0 && `[DOUBLE FLOW ${Math.ceil(state.doubleT)}]`, state.overchargeT > 0 && `[OVERCHARGE ${Math.ceil(state.overchargeT)}]`, state.dryT > 0 && `[DRY ${Math.ceil(state.dryT)}]`, state.canisters > 0 && `[CANISTER ×${state.canisters}]`, !state.mounted && state.lamp?.mode > 0 && `[LAMP ${state.lamp.mode === 2 ? 'UV' : 'WHITE'} ${Math.round(state.lamp.charge)}%]`].filter(Boolean).join(' ');
+    if (el.status.textContent !== st) el.status.textContent = st;
     // The facility stops acknowledging you as Drift rises: your band blurs, the raft stops counting you.
     const fade = Math.max(0, (state.drift - 65) / 35);
     el.band.textContent = `WRISTBAND ${fade > 0 ? garble(state.band, fade * 0.8) : state.band} · ${fade > 0.6 ? garble(player, fade * 0.6) : player}`;

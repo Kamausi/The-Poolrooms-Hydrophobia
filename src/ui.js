@@ -7,6 +7,7 @@ import { ROUTES } from './plans.js';
 import { CREW, crewById, fadingCrew } from './crew.js';
 import { ensureHull, compressorRefill, CHAMBER_NAME } from './hull.js';
 import { facility, sectorMem, saveFacility, falseRecord } from './memory.js';
+import { progress as findProgress, headcountLine } from './collectibles.js';
 
 const $ = (id) => document.getElementById(id);
 const el = (tag, cls, text) => {
@@ -534,6 +535,15 @@ export function ledgerView() {
   const L = facility.ledger;
   wrap.append(el('p', 'mono', `PUMPHOUSE FIELD LEDGER · ${facility.expeditions} EXPEDITION${facility.expeditions === 1 ? '' : 'S'} · VERIFIED BY THE CREW`));
   const list = el('div', 'logbook');
+  {
+    // Collections: small sets. What was found stays found across expeditions.
+    const pr = findProgress(facility.found || {});
+    const a = el('article');
+    a.append(el('h3', null, 'COLLECTED'), el('p', null, Object.values(pr).map((x) => `${x.name} ${x.have}/${x.of}`).join(' · ')));
+    const hc = headcountLine(facility.found || {}, 4);
+    if (hc) a.append(el('p', null, hc));
+    list.append(a);
+  }
   for (const [k, title] of [['places', 'PLACES'], ['machinery', 'MACHINERY IDENTIFIED'], ['behaviours', 'ENTITY BEHAVIOURS OBSERVED'], ['visitors', 'VISITORS BROUGHT TO SAFETY'], ['changes', 'CHANGES NOTICED BETWEEN EXPEDITIONS']]) {
     const a = el('article');
     a.append(el('h3', null, `${title} · ${L[k].length}`), el('p', null, L[k].length ? L[k].join(' · ') : '—'));

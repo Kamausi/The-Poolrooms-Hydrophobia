@@ -19,6 +19,8 @@ Headless Chromium (software GL, `?quality=low`) driving the game through its DEV
 | `uncanny.cjs` | A crewmate takes the helm and gives it back; round columns push you out; the Lifeguard's ladder rounds including the missing ladder, and being noticed; a figure performing a crewmate's habit | ~1 min |
 | `score.cjs` | A kill pays, raises FLOW and shows in the feed; credit and the signal rating are unmultiplied; damage knocks FLOW down; FLOW is frozen on foot; the debrief, grade and verdict; the cabinet sells for credit; per-profile kick; a clean landing is scored | <1 min |
 | `feel.cjs` | Walking ramps up and stops short; only two Blooms commit at once; hesitation rises when still and falls when moving; omens never repeat a kind twice running | ~1 min |
+| `finds.cjs` | Collectibles and a power-up per dock; picking up scores and enters the ledger and is not offered again; dry pack and canister effects; the work lamp cycles, lights, drains, shows a dormant Bloom under UV, stays where it is set down, and draws uncommitted Blooms | ~1 min |
+| `arcade.cjs` | A token line and FULL LINE; each facility drop does what it says when shot; one Attendant assessment a sector, paid when passed | ~1 min |
 | `audio.cjs` | Every recorded sound in `public/audio/manifest.json` loads and decodes | <1 min |
 | `balance.cjs` | The competent-player bot reaches every dock; reports lowest health and raft condition | several min |
 | `single.cjs` | `dist/UNDERFLOW.html` opens from disk, starts and carries its recorded sound (run `npm run build:single` first) | <1 min |
