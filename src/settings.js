@@ -24,6 +24,7 @@ const DEFAULTS = {
   flashReduce: false, // dimmer damage flash and muzzle flash
   hudScale: 1, // HUD size, separate from text size
   subtitleBacking: true, // a dark band behind subtitles
+  scoreDisplay: 1, // 0 immersive (never), 1 standard (in action), 2 arcade (always, with the feed)
   hudPersistent: false, // keep the objective, roster and controls at full size instead of letting them settle
 };
 

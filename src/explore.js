@@ -803,6 +803,8 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
   let lastPanelHealth = state.health;
   let waterT = 0;
   let stillT = 0;
+  let vel = [0, 0, 0];
+  let hesitation = 0;
   let sink = 0;
   let healing = 0;
   let fumeSaid = false;
@@ -904,12 +906,19 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     const quiet = director.phase === 'relax' && !surge && !(undertow.alive && undertow.holding > 0) && !state.downed && !(lifeguard && lifeguard.state !== 'watching');
     if (!fomen) {
       if (!quiet) return;
-      if ((fomenCool -= dt) > 0) return;
-      const pool = ['handle', 'crack', 'keyhole', 'forced', 'lights', 'extraStep', 'drain', 'echo', 'name'].filter((k) => !fused.has(k) && k !== lastFomen
+      // Hesitation: standing still with the objective known, or doubling back, is noticed. It brings the next
+      // unexplained thing sooner. It never brings enemies: confusion should be frightening, not punished.
+      hesitation = stillT > 8 ? Math.min(1, hesitation + dt / 20) : Math.max(0, hesitation - dt / 30);
+      if ((fomenCool -= dt * (1 + hesitation * 1.5)) > 0) return;
+      const CAT = { handle: 'door', crack: 'door', keyhole: 'door', forced: 'door', lights: 'light', extraStep: 'presence', drain: 'sound', echo: 'voice', name: 'voice' };
+      let pool = ['handle', 'crack', 'keyhole', 'forced', 'lights', 'extraStep', 'drain', 'echo', 'name'].filter((k) => !fused.has(k) && k !== lastFomen
         && (door || !['handle', 'crack', 'keyhole', 'forced'].includes(k))
         && !(k === 'forced' && (sector.index === 0 || !fused.has('handle') && !fused.has('crack')))
         && !(k === 'name' && state.drift < 35)
         && !(k === 'echo' && !followers.length));
+      // Not the same kind of thing twice running: a door, then a sound, then a voice, not door, door, door.
+      const varied = pool.filter((k) => CAT[k] !== CAT[lastFomen]);
+      if (varied.length) pool = varied;
       if (pool.length) startFomen(pool[Math.floor(random() * pool.length)]);
       else fomenCool = 60;
       return;
@@ -1269,8 +1278,13 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     let speed = (water ? 2.3 : 4.2) * (running ? (water ? 1.35 : 1.45) : 1);
     if (groutHere && !groutHere.cleared) speed *= 0.5;
     const held = undertow.holding > 0 || (lifeguard && lifeguard.state === 'grab') || floaters.some((f) => f.state === 'holding') || ropes.some((r) => r.holding > 0) || state.sitting || !!state.downed;
+    if (held) vel = [0, 0, 0];
     if (!held) {
-      player.pos = add(player.pos, add(scale(forward, mz * speed * dt), scale(right, mx * speed * dt)));
+      // Immediate response, a little weight: quick to start and quicker to stop on tile; in water you carry on.
+      const wantV = add(scale(forward, mz * speed), scale(right, mx * speed));
+      const rate = len > 0.1 ? (water ? 6 : 15) : (water ? 4.5 : 22);
+      vel = [damp(vel[0], wantV[0], rate, dt), 0, damp(vel[2], wantV[2], rate, dt)];
+      player.pos = add(player.pos, scale(vel, dt));
       if (rules.basin && basin === 'bypass' && WATERISH.has(at(pcx, pcz))) {
         // The basin turning: a slow circulation that carries you sideways while you wade.
         const bc = basinCentre();
@@ -2299,6 +2313,9 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
   }
 
   function updateBlooms(dt, eye) {
+    const maxCommit = 2 + (sector.index >= 5 ? 1 : 0);
+    let committed = 0;
+    for (const b of blooms) { if (!b.active || b.dying || b.dormant) b.commit = false; else if (b.commit) committed += 1; }
     for (const b of blooms) {
       if (!b.active) { hide(b.core); hide(b.spikes); hide(b.heart); hide(b.lobes[0]); hide(b.lobes[1]); continue; }
       const dd0 = Math.hypot(b.pos[0] - eye[0], b.pos[2] - eye[2]);
@@ -2362,7 +2379,12 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
         const v = (d < 18 ? 1.5 + sector.index * 0.2 : 0.4) * (state.visible ? 1.3 : 1) * (b.lunge > 0 ? 4 : 1);
         const side = cross(normalize(to), UP);
         const orbit = d > 3 ? Math.sin(b.phase * 0.4 + b.hp) * 0.6 : 0;
-        const next = add(b.pos, add(scale(normalize(to), v * dt), scale(side, orbit * dt)));
+        // Attack slots: only a couple may commit at once. The rest circle just out of reach, readable and waiting,
+        // so five Blooms around you are a threat you can see, not five unavoidable hits.
+        if (!b.commit && d < 3.8 && committed < maxCommit) { b.commit = true; committed += 1; }
+        if (b.commit && d > 6.5) b.commit = false;
+        const holdOff = !b.commit && d < 3.4 && b.lunge <= 0;
+        const next = holdOff ? add(b.pos, add(scale(normalize(to), -0.4 * dt), scale(side, (b.hp % 2 ? 1 : -1) * 1.6 * dt))) : add(b.pos, add(scale(normalize(to), v * dt), scale(side, orbit * dt)));
         if (!isWall(...cellOf(next[0], next[2]))) b.pos = next;
         pushOutOfColumns(b.pos, columns, 0.4);
       }
@@ -2884,7 +2906,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     for (let i = 0; i < (r.valves || 0); i++) { const v = pumpValves.find((x) => x.id === valveOrder[i]); if (v) v.open = true; }
     valveStep = r.valves || 0;
   }
-  if (import.meta.env.DEV) window.__explore = { omen: (k) => startFomen(k), get marcoAct() { return marcoAct; }, set marcoAct(v) { marcoAct = v; }, marcos, columns, wavePool, get basin() { return basin; }, isWater, floorTop, get operating() { return operating; }, set operating(v) { operating = v; }, panelFront, holdT, shoot, spawnBloom, occupant, lockers, noise, violate, get omenState() { return fomen; }, door, blooms, lamps, director, followers, get dockKind() { return dockKind; }, get valves() { return { order: valveOrder, step: valveStep, list: pumpValves }; }, june: juneEvent, thread, get clock() { return clock; }, stagnant, player, center, undertow, lifeguard, cellPos, panelPos, raftPos, code, find, floaters, restorePower };
+  if (import.meta.env.DEV) window.__explore = { omen: (k) => startFomen(k), get hesitation() { return hesitation; }, get lastOmen() { return lastFomen; }, get marcoAct() { return marcoAct; }, set marcoAct(v) { marcoAct = v; }, marcos, columns, wavePool, get basin() { return basin; }, isWater, floorTop, get operating() { return operating; }, set operating(v) { operating = v; }, panelFront, holdT, shoot, spawnBloom, occupant, lockers, noise, violate, get omenState() { return fomen; }, door, blooms, lamps, director, followers, get dockKind() { return dockKind; }, get valves() { return { order: valveOrder, step: valveStep, list: pumpValves }; }, june: juneEvent, thread, get clock() { return clock; }, stagnant, player, center, undertow, lifeguard, cellPos, panelPos, raftPos, code, find, floaters, restorePower };
 
   return {
     update,

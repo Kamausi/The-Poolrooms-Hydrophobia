@@ -194,6 +194,17 @@ export function showSafeRoom(state, sector, nextSector, nextPlan, onLeave, onSav
   body.append(sheet);
 
   // Playing well earns access, and carries you deeper.
+  if (access.report) {
+    // The debrief: one shared expedition score, what it was made of, and the facility's opinion of it.
+    const r = access.report;
+    const d = el('div', 'debrief mono');
+    d.append(el('p', 'debrief-head', `${r.sector} · DEBRIEF`));
+    const rows = [['SECTOR SCORE', r.points.toLocaleString('en-US')], ['ACCURACY', `${Math.round(r.accuracy * 100)}%`], ['MAX FLOW', `×${r.maxFlow.toFixed(1)}`], ['CREW SAVES', String(r.saves)], ['GUESTS RESCUED', String(r.rescues)], ['RAFT CONDITION', `${Math.round(r.raft)}%`], ['EXPEDITION SCORE', r.total.toLocaleString('en-US')]];
+    for (const [k, v] of rows) { const p = el('p', 'debrief-row'); p.append(el('span', null, k), el('b', null, v)); d.append(p); }
+    const g = el('p', 'debrief-grade'); g.append(el('span', null, 'GRADE'), el('b', null, r.grade)); d.append(g);
+    d.append(el('p', 'debrief-verdict', `THE ATTENDANT · "${r.verdict}"`));
+    body.append(d);
+  }
   if (access.earned) body.append(el('p', 'mono', `SIGNAL RATING ${access.sectorScore} · MAINTENANCE OVERRIDE ISSUED (${state.overrides} held · press O at a locked gate) · FULL ROUTE DATA · NEXT SECTOR ROUTED DEEPER`));
   else if (access.sectorScore != null) body.append(el('p', 'mono', `SIGNAL RATING ${access.sectorScore} · 1200 earns an override and full route data`));
 
@@ -356,6 +367,34 @@ export function showSafeRoom(state, sector, nextSector, nextPlan, onLeave, onSav
     modsBox.append(b);
   }
   s1.append(bench);
+  {
+    // The emergency cabinet: Service Credit, earned by what you did out there, buys what it lists. Nothing else.
+    const cab = el('div', 'cabinet');
+    const head = el('p', 'mono', '');
+    const stock = [
+      ['FIELD DRESSING', 300, () => { state.dressings = (state.dressings || 0) + 1; }],
+      ['CHARGE CELL', 250, () => { state.cells = Math.min(3, state.cells + 1); }, () => state.cells >= 3],
+      ['PATCH KIT', 400, () => { state.patchKits = (state.patchKits || 0) + 1; }],
+      ['FILTER', 250, () => { state.filters = Math.min(3, state.filters + 1); }, () => state.filters >= 3],
+    ];
+    const buttons = [];
+    const refresh = () => {
+      head.textContent = `EMERGENCY CABINET · SERVICE CREDIT ${Math.floor(state.credit || 0)}`;
+      for (const [b, cost, full] of buttons) b.disabled = (state.credit || 0) < cost || !!full?.();
+    };
+    cab.append(head);
+    const row = el('div', 'choices');
+    for (const [name, cost, give, full] of stock) {
+      const b = el('button', 'choice');
+      b.append(el('span', null, name), el('span', 'deal', `−${cost} CREDIT`));
+      b.onclick = () => { if ((state.credit || 0) < cost) return; state.credit -= cost; give(); refresh(); onSave(); };
+      buttons.push([b, cost, full]);
+      row.append(b);
+    }
+    cab.append(row);
+    refresh();
+    s1.append(cab);
+  }
 
   // Route terminal: partial information about the next routes.
   if (nextSector && nextPlan) {
@@ -650,6 +689,7 @@ export function settingsView(onChange) {
   const iface = group('INTERFACE');
   range(iface, 'Text size', 'textScale', 0.85, 1.6);
   range(iface, 'HUD size', 'hudScale', 0.8, 1.4);
+  range(iface, 'Score display: 0 immersive (hidden) · 1 standard (in action) · 2 arcade (always)', 'scoreDisplay', 0, 2, 1);
   for (const k of ['subtitleBacking', 'highContrast', 'hudPersistent', 'captions', 'tips']) check(iface, k);
   // Live preview: a subtitle and a quick-use slot, drawn with the current settings.
   preview = el('div', 'settings-preview');

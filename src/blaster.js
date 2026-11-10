@@ -23,6 +23,16 @@ export const PROFILES = {
   hook: { label: 'HOOK LINE', key: '5', interval: 1.1, heat: 0, charge: 0, special: 0, damage: 0, range: 16, color: [1, 0.8, 0.25], job: 'catch supplies · pull against a grip · reach · moor' },
 };
 export const PROFILE_ORDER = ['pulse', 'repeater', 'scatter', 'disruptor', 'hook'];
+// How each profile feels in the hand. The tool moves; the reticle does not, so aim stays dependable.
+// kick: how far it comes back · rec: how fast it settles · rise: how much the muzzle lifts · walk: sideways
+// wander while firing (the Repeater rattles in the grip as it heats).
+export const FEEL = {
+  pulse: { kick: 0.8, rec: 13, rise: 0.25, walk: 0 }, // tap, tap: sharp and clean
+  repeater: { kick: 0.45, rec: 18, rise: 0.08, walk: 0.012 }, // a rattle that grows with heat
+  scatter: { kick: 3.2, rec: 4.5, rise: 1.4, walk: 0 }, // a shove, then a long recovery
+  disruptor: { kick: 2.4, rec: 3.6, rise: 0.7, walk: 0 }, // tension, release, a slow settle
+  hook: { kick: 1.3, rec: 6, rise: 0.3, walk: 0 }, // the spool pulls the hand after the throw
+};
 const BEAM_COLOR = [0.85, 1, 0.45];
 const profileOf = (state) => PROFILES[state.profile] || PROFILES.pulse;
 const SCAN_COLOR = [0.45, 0.85, 1];
@@ -64,7 +74,7 @@ export function createBlaster(state) {
   let beamTimer = 0;
   let burstTimer = 0;
   let burstAt = [0, 0, 0];
-  let kick = 0;
+  let kick = 0, kickRec = 8, kickRise = 0, walk = 0, walkT = 0;
   let beamFrom = [0, 0, 0];
   let beamTo = [0, 0, 0];
   let scanning = false;
@@ -90,7 +100,8 @@ export function createBlaster(state) {
       cooldown -= dt;
       beamTimer -= dt;
       burstTimer -= dt;
-      kick = Math.max(0, kick - dt * 8);
+      kick = Math.max(0, kick - dt * kickRec * Math.max(0.35, kick));
+      walkT += dt;
       state.noise = Math.max(0, state.noise - dt * 9);
       if (overheat > 0) {
         overheat -= dt;
@@ -124,7 +135,11 @@ export function createBlaster(state) {
       state.heat += P.heat;
       state.noise = Math.min(100, state.noise + (P === PROFILES.hook ? 2 : 7));
       cooldown = P.interval;
-      kick = P === PROFILES.scatter || P === PROFILES.disruptor ? 2.2 : 1;
+      {
+        const F = FEEL[state.profile] || FEEL.pulse;
+        kick = Math.min(F.kick * 1.6, kick + F.kick); kickRec = F.rec; kickRise = F.rise; walk = F.walk * (1 + state.heat / 60);
+        if (state.tally) state.tally.shots += 1;
+      }
       beam.material.emissiveColor = P.color;
       beam.material.color = P.color;
       if (P === PROFILES.scatter) sound.scatter?.();
@@ -178,7 +193,7 @@ export function createBlaster(state) {
       const G = 0.6;
       // As Drift rises your grip relaxes and the blaster sags out of view.
       const sag = Math.max(0, state.drift - 40) * 0.0025;
-      const base = add(add(add(eye, scale(cam.right, 0.24 + sag * 0.3)), scale(cam.up, -0.2 + bob - sag)), scale(cam.forward, 0.5 - kick * 0.04));
+      const base = add(add(add(add(eye, scale(cam.right, 0.24 + sag * 0.3)), scale(cam.up, -0.2 + bob - sag + kick * kickRise * 0.012)), scale(cam.forward, 0.5 - kick * 0.04)), scale(cam.right, kick > 0.05 ? Math.sin(walkT * 61) * walk : 0));
       const at = (o) => add(add(add(base, scale(x, o[0] * G)), scale(y, o[1] * G)), scale(z, o[2] * G));
       writeBasis(body.matrix, at([0, 0, 0]), x, y, z, 0.12 * G, 0.11 * G, 0.42 * G);
       writeBasis(shroud.matrix, at([0, 0.035, 0.2]), x, y, z, 0.15 * G, 0.075 * G, 0.26 * G);

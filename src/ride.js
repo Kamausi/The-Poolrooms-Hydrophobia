@@ -426,6 +426,8 @@ export function createRide(canvas, state, sector, events, opts = {}) {
   let dressing = 0;
   let velX = 0; // lateral velocity: the raft has weight
   let jumpY = 0, jumpV = 0, lastHop = -10;
+  // The raft as an inflatable body: a spring that squashes on landings and scrapes and stretches on a hop.
+  let raftSq = 0, raftSqV = 0, hopBuf = 0, airT = 0;
   let braced = false, braceStart = -10;
   const locks = [];
   let lockTimer = 0, volleyT = 0;
@@ -858,6 +860,9 @@ export function createRide(canvas, state, sector, events, opts = {}) {
   function hop(power) {
     jumpV = (state.fit === 'handling' ? 5.2 : 4.3) * power;
     lastHop = time;
+    hopBuf = 0;
+    airT = 0;
+    raftSqV -= 5; // the tubes snap back as it leaves the water
     sound.splash();
   }
 
@@ -1332,12 +1337,13 @@ export function createRide(canvas, state, sector, events, opts = {}) {
       if (lastHitPoint && lastHitPoint[1] < b.pos[1] - 0.2 && b.hp > 0) {
         b.hp = 0;
         if (!saidHull.has('sac')) { saidHull.add('sac'); hud.caption('[the sac under it ruptures — it goes under like a stone]'); events.ledger?.('behaviours', 'Bloom: a low shot ruptures the buoyant sac'); }
-        events.score(40, 'SAC RUPTURED');
+        events.award('weak', 'PRECISION · SAC RUPTURED');
       }
       if (b.hp <= 0) {
         b.dying = 0.001;
         sound.burst();
-        events.score(100, 'ENTITY DISPERSED');
+        events.score(100, 'ENTITY DISPERSED', 'kill');
+        if (jumpY > 0.3) events.award('airShot');
         events.cleared();
         ripple = [...b.pos];
         rippleTime = time;
@@ -1747,6 +1753,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
             if (!saidHull.has('pushoff')) { saidHull.add('pushoff'); hud.caption('[you push off the tile with the blade]'); }
           } else {
             sound.scrape(Math.sign(offset) * 0.7);
+            raftSqV += 5; // the tube folds against the tile
             hull.hit(offset < 0 ? 'left' : 'right', 4, 'scrape', 0.25);
             hud.caption('[the raft scrapes the tile]');
             // The same scrape, at the same point, on a different slide.
@@ -1762,13 +1769,26 @@ export function createRide(canvas, state, sector, events, opts = {}) {
         hud.caption('[that scrape again. The same scrape, at the same point, on a different slide.]');
       }
       // Hop: Space. Clears low ropes, floating debris and still water; the launch on a ramp.
-      if (wasPressed(' ') && !state.sitting && !overboard && !capsize && jumpY <= 0.001 && sec.type !== 'lift' && !curRoom) hop(hullFx.hopScale);
+      // A press slightly early still counts: it is held for a moment and used the instant the raft can hop.
+      if (wasPressed(' ')) hopBuf = 0.14;
+      hopBuf = Math.max(0, hopBuf - dt);
+      if (hopBuf > 0 && !state.sitting && !overboard && !capsize && jumpY <= 0.001 && sec.type !== 'lift' && !curRoom) hop(hullFx.hopScale);
+    }
+    // The hull's spring: stiff when firm, slow and soggy when the chambers are soft.
+    {
+      const firm = 0.5 + 0.5 * (state.raft ?? 100) / 100;
+      raftSqV += (-raftSq * 140 * firm - raftSqV * (7 + 5 * firm)) * dt;
+      raftSq = clamp(raftSq + raftSqV * dt, -0.6, 1.2);
     }
     if (jumpY > 0 || jumpV > 0) {
+      airT += dt;
       jumpV -= 12 * dt;
       jumpY = Math.max(0, jumpY + jumpV * dt);
       if (jumpY === 0) {
         jumpV = 0;
+        raftSqV += 9; // it lands, flattens, rebounds
+        const onDebris = debrisPool.some((d) => d.active && Math.abs(d.s - s) < 3 && Math.abs(d.lane - offset) < 1.4);
+        if (airT > 0.45 && !onDebris && state.chambers.stern >= 40 && Math.abs(offset) < Math.max(0.5, Math.min(sec.half, 6) - 1.2)) events.award('landing');
         shake = Math.max(shake, 0.3);
         sound.splash();
         sound.accent?.('land');
@@ -1817,7 +1837,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
     // Sitting down in the water: the camera sinks toward the surface.
     sink = damp(sink, state.sitting ? 0.7 : 0, 1.5, dt);
     const duck = (braced ? 0.5 : 0) + (state.downed ? 0.75 : 0);
-    let eye = add(track.lateral(s, offset, 1.35 + bob - sink - duck + jumpY - hullFx.sag), jitter);
+    let eye = add(track.lateral(s, offset, 1.35 + bob - sink - duck + jumpY - hullFx.sag - Math.max(0, raftSq) * 0.09 * settings.camera), jitter);
     if (dockSeq) eye = add(eye, [0, Math.min(1, dockSeq.t / 1.2) * 0.45, 0]); // standing up to step out
     const ahead = track.lateral(s + 10, offset * 0.6, 1.2 + bob * 0.5 - sink * 1.6 - duck + jumpY * 0.6);
     let look = ahead;
@@ -1860,7 +1880,8 @@ export function createRide(canvas, state, sector, events, opts = {}) {
         if (d < bestD) { bestD = d; aimNdc = [p[0], p[1]]; }
       }
     }
-    fov = damp(fov, focusing ? FOCUS_FOV : FOV, 9, dt);
+    // Speed opens the view a little and braking closes it; focus overrides both. Scaled by the camera-motion setting.
+    fov = damp(fov, focusing ? FOCUS_FOV : FOV + clamp((speed - 6) * 0.9, -2, 7) * (settings.camera ?? 1), focusing ? 9 : 3, dt);
     let aimDir = screenRay(eye, look, fov, aspect, aimNdc[0], aimNdc[1], up);
     // Test bot (DEV only): aims at the nearest Bloom like a competent player, so balance can be measured.
     let botFire = false;
@@ -2198,7 +2219,9 @@ export function createRide(canvas, state, sector, events, opts = {}) {
     const upV = capsize && capsize.t > 0.6 && capsize.t < 4.4 ? scale(cross(rgt, fwd), -1) : cross(rgt, fwd);
     const list = (state.passenger.stage >= 5 ? 0.12 : 0) + hullFx.list * 1.4;
     const tiltUp = normalize(add(upV, scale(rgt, list)));
-    writeBasis(raft.lip.matrix, base, rgt, fwd, tiltUp, 1.05, 1.05, 1);
+    // Squash and stretch: wider and flatter on a landing, taller as it leaves; flatter overall when soft.
+    const soft = 1 - 0.28 * (1 - (state.raft ?? 100) / 100);
+    writeBasis(raft.lip.matrix, base, rgt, fwd, tiltUp, 1.05 * (1 + raftSq * 0.07), 1.05 * (1 + raftSq * 0.07), Math.max(0.45, soft * (1 - raftSq * 0.3)));
     const seatPos = add(add(base, scale(fwd, 0.82)), scale(tiltUp, 0.1));
     raftSeat = add(seatPos, [0, 0.2, 0]);
     const dip = state.passenger.stage >= 1 ? 0.62 : 1;
@@ -3157,7 +3180,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
       u.eye.material.emission = near < 18 ? 3 + Math.sin(time * 10) * 2 : 0.02;
       writeYaw(u.eye.matrix, add(c, [0, 0.01, 0]), 0, 0.12, 0.03, 0.12);
       if (near < 14 && !u.warned) { u.warned = true; hud.say('JUNE', 'Still water. Shoot the still water!', 'crew'); }
-      if (near < 0.5 && !u.grabbed && jumpY > 0.3) { u.grabbed = true; hud.toast('HOPPED THE STILL WATER'); }
+      if (near < 0.5 && !u.grabbed && jumpY > 0.3) { u.grabbed = true; events.award('hop', 'HOPPED THE STILL WATER'); }
       if (near < 0.5 && !u.grabbed) {
         u.grabbed = true;
         held = 3.5;
@@ -3289,7 +3312,9 @@ export function createRide(canvas, state, sector, events, opts = {}) {
         g.done = true;
         if (Math.abs(offset - g.lane) < 0.95) {
           gateStreak += 1;
-          events.score(40 * gateStreak, `GATE ×${gateStreak}`);
+          // Dead centre is a PERFECT LINE; anywhere between the buoys still counts.
+          if (Math.abs(offset - g.lane) < 0.4) events.award('gate', gateStreak > 1 ? `PERFECT LINE ×${gateStreak}` : 'PERFECT LINE');
+          else events.score(40 * gateStreak, `GATE ×${gateStreak}`, 'other');
           sound.accent?.('gate');
           if (gateStreak === 3) { hud.ticker('CLEAN LINE · +1 PART'); state.scrap += 1; }
         } else gateStreak = 0;
@@ -3310,7 +3335,9 @@ export function createRide(canvas, state, sector, events, opts = {}) {
           shake = 0.5;
           held = Math.max(held, 0.6);
           damage(6, 'The raft hit floating debris.', 8, 'bow', 'scrape');
-        } else if (jumpY >= 0.3) hud.toast('HOPPED THE DEBRIS');
+        } else if (jumpY >= 0.3) { if (Math.abs(offset - d.lane) < 1.15) events.award('hop'); }
+        // Past it with a hand's width to spare: nothing was hit, and it still counts for something.
+        else if (Math.abs(offset - d.lane) < 1.75) { events.award('nearMiss'); shake = Math.max(shake, 0.12); sound.splash(); }
       }
       if (d.s < s - 6) d.active = false;
     }

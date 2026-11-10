@@ -1,0 +1,42 @@
+// Scoring: a kill pays and raises FLOW, the feed shows it, damage knocks FLOW down without resetting it, FLOW is
+// frozen on foot, a hushed room keeps recording but stops talking, the Safe Room shows the debrief and the
+// cabinet sells for Service Credit, and each blaster profile kicks differently.
+const { open, newCampaign, check, finish } = require('./lib.cjs');
+(async () => {
+  const { browser, page, errors } = await open({ width: 900, height: 506 });
+  await newCampaign(page);
+  let r = await page.evaluate(() => { const u = window.__underflow; u.beginSector(0); u.startRide(); u.setState({ health: 1e6 }); u.step(20);
+    const s0 = u.state.score, f0 = u.state.flow;
+    u.events.score(100, 'ENTITY DISPERSED'); const s1 = u.state.score, f1 = u.state.flow, feed = document.getElementById('feed').textContent;
+    u.events.award('save'); u.events.award('gate');
+    const before = u.state.score; u.events.score(100, 'ENTITY DISPERSED'); const paid = u.state.score - before;
+    u.step(2);
+    return { s0, f0, s1, f1, feed, paid, flow: u.state.flow, credit: u.state.credit, rating: u.state.sectorScore, shown: !document.getElementById('score-wrap').hidden, text: document.getElementById('flow').textContent }; });
+  check('a kill pays, raises FLOW and shows in the feed; FLOW multiplies the next one', r.s1 - r.s0 === 100 && r.f1 > r.f0 && /\+100/.test(r.feed) && r.paid > 100 && r.shown && /FLOW ×/.test(r.text), JSON.stringify(r));
+  check('Service Credit and the signal rating are not multiplied', r.credit === 10 + 50 + 25 + 10 && r.rating === 100 + 500 + 250 + 100, JSON.stringify({ credit: r.credit, rating: r.rating }));
+
+  r = await page.evaluate(() => { const u = window.__underflow; u.setState({ flow: 5, health: 1e6, protectT: 0 }); u.events.damage(20, 'test'); const hit = u.state.flow;
+    u.setState({ flow: 5 }); u.startExplore(); u.step(300); const foot = u.state.flow; return { hit, foot }; });
+  check('damage knocks FLOW down but not out; on foot it is frozen', r.hit < 5 && r.hit > 2.5 && r.foot === 5, JSON.stringify(r));
+
+  r = await page.evaluate(() => { const u = window.__underflow; u.enterSafeRoom(); u.step(2);
+    const d = document.querySelector('.debrief'); const rows = [...document.querySelectorAll('.debrief-row')].map((x) => x.textContent);
+    const grade = document.querySelector('.debrief-grade b')?.textContent, verdict = document.querySelector('.debrief-verdict')?.textContent || '';
+    u.setState({ credit: 300 }); const cab = document.querySelector('.cabinet'); const before = u.state.dressings;
+    return { has: !!d, rows: rows.length, grade, verdict: /THE ATTENDANT/.test(verdict), cab: !!cab, before }; });
+  check('the Safe Room shows the sector debrief with a grade and the Attendant\'s verdict', r.has && r.rows >= 6 && /^[SABCD]$/.test(r.grade || '') && r.verdict, JSON.stringify(r));
+  r = await page.evaluate(() => { const u = window.__underflow; u.enterSafeRoom(); u.setState({ credit: 300 }); u.enterSafeRoom(); u.step(1);
+    const b = [...document.querySelectorAll('.cabinet .choice')]; const dress = b.find((x) => /DRESSING/.test(x.textContent)), patch = b.find((x) => /PATCH/.test(x.textContent));
+    const before = u.state.dressings || 0; const patchDisabled = patch.disabled; dress.click();
+    return { bought: (u.state.dressings || 0) - before, credit: u.state.credit, patchDisabled, head: document.querySelector('.cabinet p').textContent }; });
+  check('the emergency cabinet sells for Service Credit and refuses what you cannot afford', r.bought === 1 && r.credit === 0 && r.patchDisabled, JSON.stringify(r));
+
+  r = await page.evaluate(async () => { const m = await import('/src/blaster.js'); const F = m.FEEL; return { scatter: F.scatter.kick, pulse: F.pulse.kick, rep: F.repeater.walk, recS: F.scatter.rec, recP: F.pulse.rec }; });
+  check('each blaster profile has its own kick: Scatter shoves and recovers slowly, Pulse is sharp, the Repeater rattles', r.scatter > r.pulse * 3 && r.recS < r.recP && r.rep > 0, JSON.stringify(r));
+
+  r = await page.evaluate(() => { const u = window.__underflow; u.beginSector(0); u.startRide(); u.setState({ health: 1e6 }); u.step(30); const R = window.__ride;
+    const before = u.state.tally.awards.landing || 0; u.press(' '); u.step(1); let air = 0; for (let k = 0; k < 80; k++) { u.step(1); } 
+    return { landed: (u.state.tally.awards.landing || 0) - before, hop: true }; });
+  check('a hop that comes down clean is scored', r.landed === 1, JSON.stringify(r));
+  await finish(browser, errors);
+})();

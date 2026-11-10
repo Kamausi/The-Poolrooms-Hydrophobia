@@ -586,3 +586,49 @@ Deaths never raise danger. Tests: `omens.cjs`, `doors.cjs`, `hunt.cjs`, `dread.c
 - *"Was that right?"* A survivor you pulled out slowly sits on the Safe Room bench. The first time you do anything at the sheet, they repeat your blaster check with empty hands, then stop and look at them.
 
 These use the prototype figures (boxes and capsules). The effect the brief describes needs a believable human baseline (faces, hands, clothing contact, authored animation) so that a wrong performance reads as intended and not as unfinished art; that work is not done, and nobody has been asked whether these read as disturbing or as rough. Tests: `level.cjs`, `uncanny.cjs`.
+
+## 23. Score, FLOW, Service Credit, and the raft as an arcade body (implemented)
+
+The rail controls locomotion; the player controls attention, aim, survival and line. Scoring exists to make that mastery visible, and it stays in the campaign.
+
+**Two layers** (`src/score.js`, pure and unit-tested):
+
+| | What | Rules |
+|---|---|---|
+| Expedition Score | Never spent. One shared number for the crew | Every award is its base value × FLOW |
+| FLOW | ×1.0 to ×8.0 | Rises with consecutive skilled actions (a kill, a precise shot, a clean gate, a save). Decays only on the raft while the director is pressing and nothing skilled has happened for four seconds. **Frozen on foot and in quiet stretches**: silence and exploration never cost it. A hit knocks it down in proportion, never to zero; a crewmate going down halves the excess |
+| Service Credit | Spendable | A tenth of each award's base value, unmultiplied. Spent at the Safe Room's emergency cabinet (dressing 300, cell 250, patch kit 400, filter 250) |
+
+The "signal rating" that earns a maintenance override is the unmultiplied sector total, so FLOW does not change that balance. High performance never makes the director spawn more.
+
+**Presentation.** A feed of up to three lines under the reticle (`+150 PRECISION`), gone in under two seconds. The score and FLOW sit with the facility readouts and rest when nothing is happening. Settings → Interface → Score display: 0 immersive (never shown), 1 standard (wakes with the action), 2 arcade (always). While a room is hushed after a discovery the feed says nothing; the score is still recorded.
+
+**Debrief.** At each Safe Room: sector score, accuracy, max FLOW, crew saves, guests rescued, raft condition, the expedition total, and a grade S to D. The weights depend on what the sector asked: a rail sector weighs score and accuracy; an exploration sector weighs crew and raft condition, so a careful walk is not marked down for not being a speedrun. The Attendant gives its verdict as a qualification ("Your party has qualified for advanced circulation").
+
+**Rafting is scored, not only shooting.** PERFECT LINE through the centre of a gate (a pass between the buoys still counts, for less); CLEAN HOP over debris or still water; CLEAN LANDING after real air time, off the walls, on a firm stern; NEAR MISS past debris with a hand's width to spare; AIR SHOT for a kill while airborne.
+
+**The raft as an inflatable body.**
+- A hop pressed up to 0.14 s early is held and used the moment the raft can leave the water.
+- The hull is a spring: it stretches as it leaves, flattens and rebounds on a landing, folds against a wall on a scrape. Soft chambers make the spring slow and the tube visibly flatter. The camera compresses with a landing (scaled by the camera-motion setting).
+- The view opens a little with speed and closes under braking; focus overrides both.
+
+**The blaster's hand feel** (`FEEL` in `src/blaster.js`). Each profile has its own kick, recovery, muzzle rise and wander: Pulse is sharp and settles at once; the Repeater rattles sideways more as it heats; Scatter shoves and takes a long moment to come back; the Disruptor releases and settles slowly. Only the tool moves; the reticle does not, so aim stays dependable.
+
+**On foot.** Movement has a little weight: quick to start, quicker to stop on tile, and it carries on in water.
+
+**Attack slots.** On foot only two Blooms (three from the Filtration Works on) may commit at once. The others circle just out of reach until a slot frees. Five around you is a threat you can read, not five unavoidable hits.
+
+**Hesitation.** Standing still for a while raises a hesitation signal; moving lets it fall. It only shortens the wait for the next omen. It never spawns anything: confusion is meant to be frightening, not punished. Omens rotate by kind (door, light, presence, sound, voice), so the same kind never comes twice running.
+
+**Feel signatures: what is built and what is not.**
+
+| Action | Input | Tool / body | Camera | Sound | World | Not built |
+|---|---|---|---|---|---|---|
+| Fire (per profile) | immediate | per-profile kick, rise, wander | none on the reticle | per-profile shot | beam, spark, target reaction | haptics, hit-stop |
+| Hop | buffered 0.14 s | hull stretches | rises | splash | ripple | crew pressing together (needs co-op) |
+| Landing | — | hull flattens, rebounds | compresses | splash, accent | ripple, CLEAN LANDING | crew rebound animation |
+| Scrape | — | hull folds, chamber damage | shake | scrape | — | directional jolt |
+| Shove | immediate | weapon thrust (existing) | — | contact | knockback | haptics |
+| Walk / wade | immediate | — | step bob (existing) | tile, metal steps | — | wet-tile and deep-water step sounds |
+
+**From the same briefs, not built:** a free-aim reticle envelope on the raft and hidden aim magnetism for controllers; edge wedges for incoming threats; token lines that draw the ideal line and FULL LINE; timed power-up drops with their own announcements; Attendant assessments; the Lost & Found gamble; early extraction; score-qualified routes beyond the existing override; per-player contribution lines (there is one player); leaderboards. Controller haptics are not implemented anywhere. Tests: `tests/unit/score.test.js`, `tests/score.cjs`, `tests/feel.cjs`. Whether any of this feels good is a question for people playing it.

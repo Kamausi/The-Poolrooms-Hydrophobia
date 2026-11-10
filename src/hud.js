@@ -10,6 +10,7 @@ let speaking = 0;
 let captionTimer = 0;
 let hintTimer = 0;
 let objectiveTimer = 0, tickerTimer = 0;
+let scoreWake = 0;
 let crisis = null; // the crewmate in trouble, if any: the HUD makes them impossible to miss
 let lastRoster = '';
 let hushT = 0, lastAttendant = -999, clock = 0;
@@ -35,7 +36,7 @@ function aboutCrisis(kind, text) {
 }
 const garble = (text, amount) => text.replace(/[A-Z0-9]/g, (c) => (Math.random() < amount ? '·' : c));
 
-const IDS = ['callouts', 'player-name', 'carry', 'urgent', 'helpmark', 'slots', 'needle', 'ticker', 'hud', 'sector-name', 'objective', 'score', 'score-wrap', 'cleared', 'depth', 'vitals', 'vitals-bar', 'drift', 'drift-bar', 'charge', 'charge-max', 'charge-state', 'mode', 'crosshair', 'subtitle', 'toast', 'prompt', 'damage', 'driftfx', 'scrap', 'hint', 'band', 'guests', 'route', 'raft', 'chambers', 'roster', 'filter', 'filters', 'cells', 'heat-bar', 'caption', 'scan', 'raft-panel'];
+const IDS = ['feed', 'flow', 'callouts', 'player-name', 'carry', 'urgent', 'helpmark', 'slots', 'needle', 'ticker', 'hud', 'sector-name', 'objective', 'score', 'score-wrap', 'cleared', 'depth', 'vitals', 'vitals-bar', 'drift', 'drift-bar', 'charge', 'charge-max', 'charge-state', 'mode', 'crosshair', 'subtitle', 'toast', 'prompt', 'damage', 'driftfx', 'scrap', 'hint', 'band', 'guests', 'route', 'raft', 'chambers', 'roster', 'filter', 'filters', 'cells', 'heat-bar', 'caption', 'scan', 'raft-panel'];
 
 export function initHud() {
   for (const id of IDS) el[id] = $(id);
@@ -82,6 +83,16 @@ export const hud = {
     [...el.callouts.children].forEach((c, i) => c.classList.toggle('on', i === selected));
   },
   /** Routine score lines go to a small ticker by the equipment, never across the middle of the screen. */
+  /** The score feed: one line per award, near the reticle. Recorded always; shown unless the room is hushed. */
+  feed(a) {
+    if (!a || a.quiet || hushT > 0 || (settings.scoreDisplay ?? 1) === 0) return;
+    scoreWake = 6;
+    const p = document.createElement('p');
+    p.innerHTML = `<b>+${a.points}</b> ${a.label}`;
+    el.feed.append(p);
+    while (el.feed.children.length > 3) el.feed.firstChild.remove();
+    setTimeout(() => p.remove(), 1700);
+  },
   ticker(text) {
     el.ticker.textContent = text;
     el.ticker.classList.add('show');
@@ -102,8 +113,13 @@ export const hud = {
   },
   stats(state) {
     last = state;
-    el['score-wrap'].hidden = !state.endless;
-    el.score.textContent = String(Math.floor(state.score)).padStart(5, '0');
+    // Standard: the score wakes with the action and rests in the quiet. Arcade: always. Immersive: never.
+    const sd = settings.scoreDisplay ?? 1;
+    el['score-wrap'].hidden = sd === 0 || (sd === 1 && scoreWake <= 0 && !state.endless);
+    el['score-wrap'].classList.toggle('rest', sd === 1 && scoreWake <= 0);
+    el.score.textContent = Math.floor(state.score).toLocaleString('en-US').padStart(6, '0');
+    el.flow.textContent = `FLOW ×${(state.flow || 1).toFixed(1)}`;
+    el.flow.classList.toggle('hot', (state.flow || 1) >= 3);
     // The facility stops acknowledging you as Drift rises: your band blurs, the raft stops counting you.
     const fade = Math.max(0, (state.drift - 65) / 35);
     el.band.textContent = `WRISTBAND ${fade > 0 ? garble(state.band, fade * 0.8) : state.band} · ${fade > 0.6 ? garble(player, fade * 0.6) : player}`;
@@ -211,6 +227,7 @@ export const hud = {
     el.scan.style.top = `calc(${y}% + 26px)`;
   },
   hitmarker() {
+    if (last?.tally) last.tally.hits = Math.min(last.tally.shots, last.tally.hits + 1);
     el.crosshair.classList.remove('hit');
     void el.crosshair.offsetWidth;
     el.crosshair.classList.add('hit');
@@ -281,6 +298,7 @@ export const hud = {
   update(dt) {
     clock += dt;
     hushT = Math.max(0, hushT - dt);
+    scoreWake = Math.max(0, scoreWake - dt);
     if (objectiveTimer > 0) {
       objectiveTimer -= dt;
       if (objectiveTimer <= 0 && !settings.hudPersistent) el.objective.parentElement.classList.add('compact');
