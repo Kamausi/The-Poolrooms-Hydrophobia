@@ -10,6 +10,8 @@ A first-person cooperative horror rail-shooter and explorer set in the Poolrooms
 | `src/ride.js` | The raft: track, hull, combat, encounters, dev bot. Largest and riskiest file |
 | `src/crewfigure.js`, `src/blaster.js` | The crew figure (seated, walking, Safe Room) and the tool in your hand |
 | `src/explore.js` | On foot: dock maps, objectives, machines, followers, remembered payoffs |
+| `src/score.js` | Expedition Score, FLOW, Service Credit, the sector debrief (pure, unit-tested) |
+| `src/poolrooms.js`, `src/director.js` | Placement rules for columns, arches and the painted room (pure, unit-tested); the pacing director with dread and holds |
 | `src/memory.js` | The facility's memory between expeditions (see `docs/WORLD_MEMORY.md`) |
 | `src/sectors.js`, `src/plans.js`, `src/track.js` | Content as data: attractions, track plans, track geometry |
 | `src/ui.js`, `src/hud.js`, `src/input.js`, `src/settings.js` | Menus, HUD, input and bindings, settings |
@@ -26,7 +28,9 @@ Local notes: `src/CLAUDE.md` (engine and module rules). Skills in `.claude/skill
 npm run dev            # http://localhost:5173 (DEV hooks: window.__underflow, __ride, __explore)
 npm run build          # dist/
 npm run build:single   # dist/UNDERFLOW.html, one playable file
-npm test               # maps, smoke, chapter, memory, resume (starts its own dev server)
+npm test               # unit tests, then the browser tests (starts its own dev server)
+npm run typecheck      # tsc over the files listed in tsconfig.json
+npm run test:unit      # Vitest: pure modules, no browser (tests/unit/)
 npm run test:balance   # the competent-player bot through all eight attractions (slow)
 ```
 

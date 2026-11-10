@@ -6,6 +6,7 @@ import '67js/addons/world-material-shader';
 import '67js/addons/liquid-shader';
 import { VERSION } from '67js';
 import { SECTORS, REFERENCE_CHAPTER } from './sectors.js';
+import { award, hurt as scoreHurt, incap as scoreIncap, tick as scoreTick, debrief, ensureScore, attendantVerdict } from './score.js';
 import { buildPlan, buildEndlessPlan, populate } from './plans.js';
 import { PRESETS, section, bay } from './track.js';
 import { createRide } from './ride.js';
@@ -127,16 +128,29 @@ const events = {
     else if (state.downed) { state.downed.bleed -= n * 0.25; state.downed.revive = Math.max(0, state.downed.revive - 1); if (!quiet) sound.hurt(); return; }
     state.health = Math.max(0, state.health - n);
     state.lastHurt = reason;
+    if (n < 999 && !quiet) scoreHurt(state, n); // a hit costs FLOW; slow drains (Drift, a hold) do not
     if (!quiet) { hud.damage(); sound.hurt(); }
   },
   heal(n) { state.health = Math.min(100, state.health + n); },
-  score(n, label) {
-    state.score += n;
-    state.sectorScore += n;
-    if (label) hud.ticker(state.endless ? `+${n} · ${label}` : label);
+  /** Points for something done. kind names a row in score.js (kill, weak, save, gate…); FLOW multiplies it. */
+  score(n, label, kind = 'other') {
+    // Older call sites pass only a label: read the kind off it, so FLOW responds to what was actually done.
+    if (kind === 'other' && label) kind = [[/DISPERSED|RUPTURED|SUNK|REPELLED/, 'kill'], [/^GATE/, 'gate'], [/RETURNED TO SENDER/, 'intercept'], [/SAVED|PULLED|FREED|CUT DOWN/, 'save'], [/SURVIVOR|RESCUED/, 'rescue'], [/VALVE|DIVERTER|CIRCUIT|ANCHOR|ROPE/, 'machine']].find(([re]) => re.test(label))?.[1] || 'other';
+    const a = award(state, kind, { base: n, label });
+    hud.feed(a);
+    if (label) hud.ticker(label);
+    return a;
+  },
+  /** A skilled action from the table in score.js, at its own value. */
+  award(kind, label) {
+    const a = award(state, kind, { label });
+    hud.feed(a);
+    return a;
   },
   cleared() { state.cleared += 1; },
   tick(dt) {
+    // FLOW decays only under pressure on the raft; a quiet room or a walk never costs the multiplier.
+    scoreTick(state, dt, { pressure: mode === 'ride' && (state.directorPhase === 'buildup' || state.directorPhase === 'peak') });
     // The crew notices Drift before the meter says much: the hand first, then the way you're breathing.
     const stage = state.drift >= 72 ? 3 : state.drift >= 55 ? 2 : state.drift >= 38 ? 1 : 0;
     if (state.drift < 20) state.driftTold = 0;
@@ -189,6 +203,7 @@ const events = {
       state.sitting = false; // a fall wakes you out of the warm water
       const crew = Object.keys(state.crewState || {}).filter((c) => !state.forgotten.includes(c) && state.crewState[c] !== 'hurt');
       state.downed = { bleed: 30, revive: 0, crew: crew.length ? crew[0] : null, t: 0 };
+      scoreIncap(state);
       state.downUsed = true;
       state.health = 1;
       state.profile = 'pulse';
@@ -447,7 +462,13 @@ function enterSafeRoom() {
     state.overrides += 1;
     state.pressure = Math.min(1.6, (state.pressure || 1) + 0.1);
   }
-  const access = { earned, sectorScore: state.sectorScore };
+  // The sector debrief: what the score was made of, and a grade weighted by what the sector asked.
+  const report = debrief(state, { par: 4500 + state.sectorIndex * 500, raft: state.raft ?? 100, crewIntact: !Object.values(state.crewState || {}).some((v) => v === 'hurt' || v === 'grabbed') });
+  report.verdict = attendantVerdict(report.grade);
+  report.total = Math.round(state.score);
+  report.sector = sector.name;
+  state.lastDebrief = report;
+  const access = { earned, sectorScore: state.sectorScore, report };
   state.sectorScore = 0;
   saveNow();
   showSafeRoom(state, sector, nextSec, state.nextPlan, () => { hideModal(); nextSector(true); }, saveNow, access);

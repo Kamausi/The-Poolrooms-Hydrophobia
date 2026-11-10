@@ -34,7 +34,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
   const tileMat = { color: [1, 1, 1], metallic: 0, roughness: 0.22, map, normalMap: tileNormal(), normalScale: [1, 1], boxMapScale: 0.5 };
   const lampColor = linear(sector.lamp);
   const bandMat = { color: linear(sector.band || '#4d7472'), metallic: 0, roughness: 0.35 };
-  const waterMat = () => ({ tag: 'water', color: linear(sector.water), metallic: 0.55, roughness: 0.08 });
+  const waterMat = () => ({ tag: 'water', color: linear(sector.water), metallic: 0.3, roughness: 0.08, emission: 0.22, emissiveColor: linear(sector.water) }); // rich against the ivory, lit a little from within
   const slab = box(0, 1);
   const ball = sphere(28, 18);
   const lumpy = sphere(7, 5);
@@ -402,6 +402,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
   let ripple = [0, -100, 0];
   let rippleTime = -10;
   let shake = 0;
+  let helmTakeback = 0;
   let nextLine = 6;
   let crewLine = state.crewLine || 0;
   let held = 0; // seconds the raft is held (Undertow / wake)
@@ -425,6 +426,8 @@ export function createRide(canvas, state, sector, events, opts = {}) {
   let dressing = 0;
   let velX = 0; // lateral velocity: the raft has weight
   let jumpY = 0, jumpV = 0, lastHop = -10;
+  // The raft as an inflatable body: a spring that squashes on landings and scrapes and stretches on a hop.
+  let raftSq = 0, raftSqV = 0, hopBuf = 0, airT = 0;
   let braced = false, braceStart = -10;
   const locks = [];
   let lockTimer = 0, volleyT = 0;
@@ -857,11 +860,14 @@ export function createRide(canvas, state, sector, events, opts = {}) {
   function hop(power) {
     jumpV = (state.fit === 'handling' ? 5.2 : 4.3) * power;
     lastHop = time;
+    hopBuf = 0;
+    airT = 0;
+    raftSqV -= 5; // the tubes snap back as it leaves the water
     sound.splash();
   }
 
   /** Ride control: the park steers. It reads the water well and it is very smooth. */
-  function autopilotSteer(lim) {
+  function autopilotSteer(lim, caller = 'RIDE CONTROL') {
     let target = 0;
     const near = (list) => list.filter((x) => x.active && x.s > s && x.s - s < 40).sort((a, b) => a.s - b.s)[0];
     const g = near(gateSets), d = near(debrisPool), k = near(pickups);
@@ -877,7 +883,8 @@ export function createRide(canvas, state, sector, events, opts = {}) {
     const next = Math.min(...jumpables, Infinity);
     if (next - s < speed * 0.45 && next - s > 0 && jumpY === 0 && time - attendantCall > 1.5) {
       attendantCall = time;
-      hud.say('RIDE CONTROL', 'Please brace for the splash.', 'attendant');
+      if (caller === 'RIDE CONTROL') hud.say('RIDE CONTROL', 'Please brace for the splash.', 'attendant');
+      else hud.say(caller, pick(['Hold on — jumping!', 'Brace! Over it!', 'Up we go —']), 'crew');
       hop(1);
     }
     return clamp((target - offset) * 0.9 - velX * 0.35, -1, 1);
@@ -1330,12 +1337,13 @@ export function createRide(canvas, state, sector, events, opts = {}) {
       if (lastHitPoint && lastHitPoint[1] < b.pos[1] - 0.2 && b.hp > 0) {
         b.hp = 0;
         if (!saidHull.has('sac')) { saidHull.add('sac'); hud.caption('[the sac under it ruptures — it goes under like a stone]'); events.ledger?.('behaviours', 'Bloom: a low shot ruptures the buoyant sac'); }
-        events.score(40, 'SAC RUPTURED');
+        events.award('weak', 'PRECISION · SAC RUPTURED');
       }
       if (b.hp <= 0) {
         b.dying = 0.001;
         sound.burst();
-        events.score(100, 'ENTITY DISPERSED');
+        events.score(100, 'ENTITY DISPERSED', 'kill');
+        if (jumpY > 0.3) events.award('airShot');
         events.cleared();
         ripple = [...b.pos];
         rippleTime = time;
@@ -1661,6 +1669,21 @@ export function createRide(canvas, state, sector, events, opts = {}) {
       if (trailGrab) steerIn = 1;
       if (crewGrab) { botE = true; if (crewGrab.tension < 50) input.keys.add('e'); else input.keys.delete('e'); } else if (botE) { botE = false; input.keys.delete('e'); }
     }
+    // The helm: one helmsman at a time, handed over in a moment. A crewmate at the helm steers for the line and
+    // calls the jumps while you aim and shoot. Steer hard yourself and you take it back.
+    const helmFree = (id) => id && state.crewState?.[id] && !['grabbed', 'hurt'].includes(state.crewState[id]) && !(state.forgotten || []).includes(id);
+    if (wasPressed('y') && !state.downed) {
+      if (state.helm) { hud.say(state.helm.toUpperCase(), 'Yours.', 'crew', true); state.helm = null; }
+      else {
+        const id = Object.keys(state.crewState || {}).find(helmFree);
+        if (id) { state.helm = id; hud.say(id.toUpperCase(), pick(['I\'ve got the helm. Shoot.', 'Helm\'s mine. Watch the sides.', 'Got it. Eyes up.']), 'crew', true); }
+        else hud.toast('NOBODY CAN TAKE THE HELM');
+      }
+    }
+    if (state.helm && !helmFree(state.helm)) { hud.toast(`${state.helm.toUpperCase()} LET GO OF THE HELM · YOU HAVE IT`); state.helm = null; }
+    helmTakeback = state.helm && Math.abs(steerIn) > 0.6 ? helmTakeback + dt : 0;
+    if (helmTakeback > 0.35) { hud.say(state.helm.toUpperCase(), 'Okay — yours!', 'crew', true); state.helm = null; helmTakeback = 0; }
+    hud.helm(state.helm ? state.helm.toUpperCase() : state.autopilot ? 'RIDE CONTROL' : 'YOU');
     if (wasPressed('t')) {
       state.autopilot = !state.autopilot;
       hud.toast(state.autopilot ? 'RIDE CONTROL IS STEERING · it is very smooth · Drift rises while you let it' : 'YOU HAVE THE RAFT');
@@ -1710,9 +1733,10 @@ export function createRide(canvas, state, sector, events, opts = {}) {
       viewYaw = damp(viewYaw, 0, 3, dt);
       // The raft has weight: steering accelerates it sideways, water drag slows it, currents push it.
       let steer = steerIn;
-      if (state.autopilot && Math.abs(steerIn) < 0.1) steer = autopilotSteer(lim);
+      if (state.helm) steer = autopilotSteer(lim, state.helm.toUpperCase()) * 0.9;
+      else if (state.autopilot && Math.abs(steerIn) < 0.1) steer = autopilotSteer(lim);
       if (state.downed) steer = autopilotSteer(lim); // you're on the floor of the raft; the crew steers
-      if (state.autopilot) state.drift = Math.min(100, state.drift + dt * 0.35);
+      if (state.autopilot && !state.helm) state.drift = Math.min(100, state.drift + dt * 0.35);
       if (overboard || capsize) steer = 0;
       const accel = (state.fit === 'handling' ? 15 : 10) * (paddling ? 1.4 : 1) * settings.steer;
       const current = (sec.current || 0) * Math.sin(s * 0.035 + sec.id);
@@ -1729,6 +1753,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
             if (!saidHull.has('pushoff')) { saidHull.add('pushoff'); hud.caption('[you push off the tile with the blade]'); }
           } else {
             sound.scrape(Math.sign(offset) * 0.7);
+            raftSqV += 5; // the tube folds against the tile
             hull.hit(offset < 0 ? 'left' : 'right', 4, 'scrape', 0.25);
             hud.caption('[the raft scrapes the tile]');
             // The same scrape, at the same point, on a different slide.
@@ -1744,13 +1769,26 @@ export function createRide(canvas, state, sector, events, opts = {}) {
         hud.caption('[that scrape again. The same scrape, at the same point, on a different slide.]');
       }
       // Hop: Space. Clears low ropes, floating debris and still water; the launch on a ramp.
-      if (wasPressed(' ') && !state.sitting && !overboard && !capsize && jumpY <= 0.001 && sec.type !== 'lift' && !curRoom) hop(hullFx.hopScale);
+      // A press slightly early still counts: it is held for a moment and used the instant the raft can hop.
+      if (wasPressed(' ')) hopBuf = 0.14;
+      hopBuf = Math.max(0, hopBuf - dt);
+      if (hopBuf > 0 && !state.sitting && !overboard && !capsize && jumpY <= 0.001 && sec.type !== 'lift' && !curRoom) hop(hullFx.hopScale);
+    }
+    // The hull's spring: stiff when firm, slow and soggy when the chambers are soft.
+    {
+      const firm = 0.5 + 0.5 * (state.raft ?? 100) / 100;
+      raftSqV += (-raftSq * 140 * firm - raftSqV * (7 + 5 * firm)) * dt;
+      raftSq = clamp(raftSq + raftSqV * dt, -0.6, 1.2);
     }
     if (jumpY > 0 || jumpV > 0) {
+      airT += dt;
       jumpV -= 12 * dt;
       jumpY = Math.max(0, jumpY + jumpV * dt);
       if (jumpY === 0) {
         jumpV = 0;
+        raftSqV += 9; // it lands, flattens, rebounds
+        const onDebris = debrisPool.some((d) => d.active && Math.abs(d.s - s) < 3 && Math.abs(d.lane - offset) < 1.4);
+        if (airT > 0.45 && !onDebris && state.chambers.stern >= 40 && Math.abs(offset) < Math.max(0.5, Math.min(sec.half, 6) - 1.2)) events.award('landing');
         shake = Math.max(shake, 0.3);
         sound.splash();
         sound.accent?.('land');
@@ -1799,7 +1837,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
     // Sitting down in the water: the camera sinks toward the surface.
     sink = damp(sink, state.sitting ? 0.7 : 0, 1.5, dt);
     const duck = (braced ? 0.5 : 0) + (state.downed ? 0.75 : 0);
-    let eye = add(track.lateral(s, offset, 1.35 + bob - sink - duck + jumpY - hullFx.sag), jitter);
+    let eye = add(track.lateral(s, offset, 1.35 + bob - sink - duck + jumpY - hullFx.sag - Math.max(0, raftSq) * 0.09 * settings.camera), jitter);
     if (dockSeq) eye = add(eye, [0, Math.min(1, dockSeq.t / 1.2) * 0.45, 0]); // standing up to step out
     const ahead = track.lateral(s + 10, offset * 0.6, 1.2 + bob * 0.5 - sink * 1.6 - duck + jumpY * 0.6);
     let look = ahead;
@@ -1842,7 +1880,8 @@ export function createRide(canvas, state, sector, events, opts = {}) {
         if (d < bestD) { bestD = d; aimNdc = [p[0], p[1]]; }
       }
     }
-    fov = damp(fov, focusing ? FOCUS_FOV : FOV, 9, dt);
+    // Speed opens the view a little and braking closes it; focus overrides both. Scaled by the camera-motion setting.
+    fov = damp(fov, focusing ? FOCUS_FOV : FOV + clamp((speed - 6) * 0.9, -2, 7) * (settings.camera ?? 1), focusing ? 9 : 3, dt);
     let aimDir = screenRay(eye, look, fov, aspect, aimNdc[0], aimNdc[1], up);
     // Test bot (DEV only): aims at the nearest Bloom like a competent player, so balance can be measured.
     let botFire = false;
@@ -2112,7 +2151,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
       else if (next.sec.type === 'drop') lines.push(`SPILLWAY DROP IN ${d} M · NO CHECKPOINT`);
     }
     // Steady facts (fit, Ride Control piloting) live in the Safe Room and pause; the HUD shows what changes.
-    const stance = [state.autopilot ? '' : 'PILOT: YOU (T)', locks.length ? `LOCKS ${locks.length}` : '', braced ? 'BRACED' : ''].filter(Boolean).join(' · ');
+    const stance = [ locks.length ? `LOCKS ${locks.length}` : '', braced ? 'BRACED' : ''].filter(Boolean).join(' · ');
     if (stance) lines.push(stance);
     if (state.upgrades.includes('depth')) lines.push(`DEPTH SENSOR: ${sec.shallow ? 'SHALLOW · SAFE' : sec.type === 'tube' || sec.type === 'overflow' ? 'DEEP · CONNECTED · DANGER' : 'DEEP'}`);
     return lines;
@@ -2180,7 +2219,9 @@ export function createRide(canvas, state, sector, events, opts = {}) {
     const upV = capsize && capsize.t > 0.6 && capsize.t < 4.4 ? scale(cross(rgt, fwd), -1) : cross(rgt, fwd);
     const list = (state.passenger.stage >= 5 ? 0.12 : 0) + hullFx.list * 1.4;
     const tiltUp = normalize(add(upV, scale(rgt, list)));
-    writeBasis(raft.lip.matrix, base, rgt, fwd, tiltUp, 1.05, 1.05, 1);
+    // Squash and stretch: wider and flatter on a landing, taller as it leaves; flatter overall when soft.
+    const soft = 1 - 0.28 * (1 - (state.raft ?? 100) / 100);
+    writeBasis(raft.lip.matrix, base, rgt, fwd, tiltUp, 1.05 * (1 + raftSq * 0.07), 1.05 * (1 + raftSq * 0.07), Math.max(0.45, soft * (1 - raftSq * 0.3)));
     const seatPos = add(add(base, scale(fwd, 0.82)), scale(tiltUp, 0.1));
     raftSeat = add(seatPos, [0, 0.2, 0]);
     const dip = state.passenger.stage >= 1 ? 0.62 : 1;
@@ -3139,7 +3180,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
       u.eye.material.emission = near < 18 ? 3 + Math.sin(time * 10) * 2 : 0.02;
       writeYaw(u.eye.matrix, add(c, [0, 0.01, 0]), 0, 0.12, 0.03, 0.12);
       if (near < 14 && !u.warned) { u.warned = true; hud.say('JUNE', 'Still water. Shoot the still water!', 'crew'); }
-      if (near < 0.5 && !u.grabbed && jumpY > 0.3) { u.grabbed = true; hud.toast('HOPPED THE STILL WATER'); }
+      if (near < 0.5 && !u.grabbed && jumpY > 0.3) { u.grabbed = true; events.award('hop', 'HOPPED THE STILL WATER'); }
       if (near < 0.5 && !u.grabbed) {
         u.grabbed = true;
         held = 3.5;
@@ -3271,7 +3312,9 @@ export function createRide(canvas, state, sector, events, opts = {}) {
         g.done = true;
         if (Math.abs(offset - g.lane) < 0.95) {
           gateStreak += 1;
-          events.score(40 * gateStreak, `GATE ×${gateStreak}`);
+          // Dead centre is a PERFECT LINE; anywhere between the buoys still counts.
+          if (Math.abs(offset - g.lane) < 0.4) events.award('gate', gateStreak > 1 ? `PERFECT LINE ×${gateStreak}` : 'PERFECT LINE');
+          else events.score(40 * gateStreak, `GATE ×${gateStreak}`, 'other');
           sound.accent?.('gate');
           if (gateStreak === 3) { hud.ticker('CLEAN LINE · +1 PART'); state.scrap += 1; }
         } else gateStreak = 0;
@@ -3292,7 +3335,9 @@ export function createRide(canvas, state, sector, events, opts = {}) {
           shake = 0.5;
           held = Math.max(held, 0.6);
           damage(6, 'The raft hit floating debris.', 8, 'bow', 'scrape');
-        } else if (jumpY >= 0.3) hud.toast('HOPPED THE DEBRIS');
+        } else if (jumpY >= 0.3) { if (Math.abs(offset - d.lane) < 1.15) events.award('hop'); }
+        // Past it with a hand's width to spare: nothing was hit, and it still counts for something.
+        else if (Math.abs(offset - d.lane) < 1.75) { events.award('nearMiss'); shake = Math.max(shake, 0.12); sound.splash(); }
       }
       if (d.s < s - 6) d.active = false;
     }

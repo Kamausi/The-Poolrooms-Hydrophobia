@@ -24,6 +24,7 @@ const DEFAULTS = {
   flashReduce: false, // dimmer damage flash and muzzle flash
   hudScale: 1, // HUD size, separate from text size
   subtitleBacking: true, // a dark band behind subtitles
+  scoreDisplay: 1, // 0 immersive (never), 1 standard (in action), 2 arcade (always, with the feed)
   hudPersistent: false, // keep the objective, roster and controls at full size instead of letting them settle
 };
 
@@ -60,5 +61,5 @@ export const ACTIONS = [
   ['hop', 'Hop / jump', ' '], ['brace', 'Brace', 'c'], ['use', 'Use / rescue / line', 'e'], ['shove', 'Shove', 'z'],
   ['ping', 'Ping / radio check', 'b'], ['cycle', 'Next blaster profile', 'tab'], ['scan', 'Inspection beam', 'q'], ['burst', 'Disruption burst', 'f'],
   ['boost', 'Boost / paddle burst / run', 'shift'], ['recharge', 'Recharge', 'r'], ['paddle', 'Paddle / prod', 'v'], ['patch', 'Patch and pump', 'g'],
-  ['lookback', 'Look back', 'x'], ['dressing', 'Field dressing', 'h'], ['autopilot', 'Ride Control', 't'],
+  ['lookback', 'Look back', 'x'], ['dressing', 'Field dressing', 'h'], ['autopilot', 'Ride Control', 't'], ['helm', 'Hand over / take the helm', 'y'],
 ];

@@ -1,0 +1,17 @@
+{
+  // Type checking for the JavaScript, file by file. Pure modules first; the rest join as they are typed.
+  "compilerOptions": {
+    "allowJs": true,
+    "checkJs": true,
+    "noEmit": true,
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "lib": ["ES2022", "DOM"],
+    "strict": false,
+    "noImplicitAny": false,
+    "skipLibCheck": true,
+    "types": []
+  },
+  "files": ["src/director.js", "src/math.js", "src/hull.js", "src/memory.js", "src/track.js", "src/plans.js", "src/sectors.js", "src/poolrooms.js", "src/score.js"]
+}

@@ -54,7 +54,7 @@
 
   <template id="controls-ref">
     <dl class="controls">
-      <dt>RAFT</dt><dd>A/D steer · Space hop · click fire · right-click focus (Disruptor: lock, release for a volley) · 1–5, Tab or wheel: blaster profile · Ctrl/C brace · Z shove · B ping / radio check · V paddle · G patch · Shift boost · S brake · X look back · T Ride Control</dd>
+      <dt>RAFT</dt><dd>A/D steer · Space hop · click fire · right-click focus (Disruptor: lock, release for a volley) · 1–5, Tab or wheel: blaster profile · Ctrl/C brace · Z shove · B ping / radio check · V paddle · G patch · Shift boost · S brake · X look back · Y hand over or take the helm · T Ride Control</dd>
       <dt>POOLS</dt><dd>Shoot an arrow to switch gates · Space depart · E moor at a dock · A/D look around</dd>
       <dt>ON FOOT</dt><dd>WASD move · mouse look · E use · Shift run · V paddle prod (valve tool at the raft) · Z shove · B ping</dd>
       <dt>BLASTER</dt><dd>Q (or right-click on foot): inspection beam · F: disruption burst (uses a charge cell) · R recharge · H dressing · controllers supported</dd>
@@ -73,7 +73,7 @@
     <div class="hud-tr facility">
       <p class="mono" id="band">WRISTBAND 0000</p>
       <p class="mono small" id="guests">GUESTS CHECKED IN: 1</p>
-      <p id="score-wrap" hidden><span class="mono small">SIGNAL SCORE</span><br /><span id="score" class="big">00000</span></p>
+      <p id="score-wrap" hidden><span class="mono small">EXPEDITION SCORE</span><br /><span id="score" class="big">00000</span><br /><span id="flow" class="mono">FLOW ×1.0</span></p>
       <p id="cleared" class="mono small"></p>
       <p id="depth" class="mono small accent"></p>
       <div id="route" class="route mono small"></div>
@@ -100,6 +100,7 @@
           <p>RAFT PRESSURE <b id="raft">100%</b></p>
           <p id="chambers">L ▮▮▮▮ · R ▮▮▮▮ · F ▮▮▮▮ · B ▮▮▮▮</p>
           <p>FILTER <b id="filter">100%</b></p>
+          <p id="helm">HELM · YOU</p>
         </div>
       </div>
       <div class="equip">
@@ -121,6 +122,8 @@
     <p id="scan" class="mono small"></p>
     <p id="hint" class="mono small"></p>
     <div id="crosshair"><i></i></div>
+    <!-- The score feed: what you just did and what it was worth. Quiet during quiet. -->
+    <div id="feed" class="mono small" aria-live="off"></div>
     <p id="subtitle"></p>
     <p id="toast" class="mono"></p>
     <p id="prompt" class="mono" hidden></p>

@@ -9,3 +9,4 @@ Short records of choices that shape the code: what was decided, why, and what wo
 | [0003](0003-rule-based-authoring.md) | Between-expedition authoring is deterministic and rule-based, not generated live |
 | [0004](0004-ai-crew-before-netcode.md) | Single player with an AI crew before online play |
 | [0005](0005-recorded-sound.md) | Recorded sound where a free recording fits, synthesis everywhere else |
+| [0006](0006-engineering-foundation.md) | Keep 67js; fix CI, add unit tests and type checking first; workers, WASM and a server only when measured or needed |

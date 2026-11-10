@@ -119,7 +119,8 @@ export function createHull(state, { hud, sound, random }) {
   }
 
   /** Leaks drain; air hisses; low chambers let water over. Returns 'capsize' when the raft should turn over. */
-  function update(dt, { silence = false, onWash } = {}) {
+  /** @param {number} dt @param {{ silence?: boolean, onWash?: () => void }} [opts] */
+  function update(dt, { silence = false, onWash = undefined } = {}) {
     for (const l of state.leaks) {
       l.t += dt;
       // A holed chamber settles at the water's pressure: soft, useless, but a leak alone never sinks the raft.
