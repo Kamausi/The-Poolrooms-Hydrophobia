@@ -150,6 +150,9 @@ const events = {
   cleared() { state.cleared += 1; },
   tick(dt) {
     // FLOW decays only under pressure on the raft; a quiet room or a walk never costs the multiplier.
+    // Temporary equipment runs down in play time.
+    if (state.overchargeT > 0) { state.overchargeT -= dt; state.charge = Math.min(state.maxCharge, state.charge + dt * 5); if (state.overchargeT <= 0) { state.heat = Math.min(100, (state.heat || 0) + 40); hud.toast('OVERCHARGE SPENT · the tool is running hot'); } }
+    if (state.dryT > 0) state.dryT -= dt;
     scoreTick(state, dt, { pressure: mode === 'ride' && (state.directorPhase === 'buildup' || state.directorPhase === 'peak') });
     // The crew notices Drift before the meter says much: the hand first, then the way you're breathing.
     const stage = state.drift >= 72 ? 3 : state.drift >= 55 ? 2 : state.drift >= 38 ? 1 : 0;
@@ -264,6 +267,11 @@ const events = {
   /** Scenes report observations for the playtest log. */
   log(type, data) { playlog.record(type, data); },
   board() {
+    // A pressure canister found on foot goes into the softest chamber the moment you are back aboard.
+    if (state.canisters > 0 && state.chambers) {
+      const k = Object.keys(state.chambers).sort((a, b) => state.chambers[a] - state.chambers[b])[0];
+      if (state.chambers[k] < 95) { state.chambers[k] = 100; state.canisters -= 1; state.raft = Object.values(state.chambers).reduce((a, b) => a + b, 0) / 4; hud.toast(`PRESSURE CANISTER · ${k.toUpperCase()} CHAMBER FULL`); }
+    }
     // With the circuit restored, the dock's service gate is the one standing open.
     if (state.power[state.sectorKey]) {
       const dock = state.ride.items.find((it) => it.type === 'pool' && it.dock);

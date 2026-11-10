@@ -632,3 +632,28 @@ The "signal rating" that earns a maintenance override is the unmultiplied sector
 | Walk / wade | immediate | — | step bob (existing) | tile, metal steps | — | wet-tile and deep-water step sounds |
 
 **From the same briefs, not built:** a free-aim reticle envelope on the raft and hidden aim magnetism for controllers; edge wedges for incoming threats; token lines that draw the ideal line and FULL LINE; timed power-up drops with their own announcements; Attendant assessments; the Lost & Found gamble; early extraction; score-qualified routes beyond the existing override; per-player contribution lines (there is one player); leaderboards. Controller haptics are not implemented anywhere. Tests: `tests/unit/score.test.js`, `tests/score.cjs`, `tests/feel.cjs`. Whether any of this feels good is a question for people playing it.
+
+## 24. Things worth picking up, and the work lamp (implemented)
+
+**Rule:** power-ups make you more capable, collectibles make you more informed, and a few artifacts make you wonder whether those are different. Everything is a physical object; nothing glows every five metres.
+
+**Per dock** (`src/collectibles.js`, pure and unit-tested; placed by `explore.js`): at most two collectibles the ledger does not already hold and one power-up, on cells away from the dock, the same on a retry.
+
+| Set | Items | What it is for |
+|---|---|---|
+| LOST GUESTS | 6 wristbands | The same number decades apart; a pass dated tomorrow; one with your number while you wear yours |
+| THE HEADCOUNT | 5 records | The facility's counts disagree with each other. With all five the ledger can say it: the facility has counted five since before you arrived, and there are four of you |
+| DRY THINGS | 4 objects found dry under water | Each takes 20 Drift off you, and a crewmate asks why you look better. Counted in `state.dryCount`; nothing reads that count yet |
+| DUCKS | 4 | Relief. One is warm; one is always facing you |
+
+A collectible is worth 250 (a dry thing 750) to the Expedition Score, is written in the field ledger and the journal's COLLECTED line, and persists across expeditions. Completing a set pays 2,500 once.
+
+**Power-ups**, taken as objects: an OVERCHARGE CELL (25 s of fast recharge, then the tool runs hot), a DRY PACK (45 s in which Drift does not rise out of the water), a PRESSURE CANISTER (fills the softest chamber when you board). What is active shows as bracketed stamps under the player's vitals: `[DRY 31] [CANISTER ×1] [LAMP UV 82%]`.
+
+**The work lamp.** `L` cycles off, white, UV. `K` sets it down or picks it up. White lasts about four minutes, UV two and a half; it recharges at the raft. Light is a decision, not a chore:
+- a lit lamp near you counts as light for composure (the dark raises Drift);
+- under UV a dormant Bloom on the floor shows what it is, and painted depth markings show without the scan beam;
+- a lit lamp in your hand lets the Lifeguard see you from further; in the dark with it off you are harder to see;
+- a lamp left burning on the floor draws Blooms that have not committed to you: a decoy, at the cost of your light.
+
+**Not built from these briefs:** rooms whose route depends on which lighting circuit is live ("facility states"), reflections and shadows as puzzle elements, perspective alignment, private versus shared hallucinations (one player), the survey map, warm tokens and unclaimed vests, score-qualified side rooms for collectibles, the Lost & Found. Keyboard bindings only for the lamp. Tests: `tests/unit/collectibles.test.js`, `tests/finds.cjs`.

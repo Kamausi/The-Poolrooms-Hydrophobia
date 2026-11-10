@@ -61,5 +61,5 @@ export const ACTIONS = [
   ['hop', 'Hop / jump', ' '], ['brace', 'Brace', 'c'], ['use', 'Use / rescue / line', 'e'], ['shove', 'Shove', 'z'],
   ['ping', 'Ping / radio check', 'b'], ['cycle', 'Next blaster profile', 'tab'], ['scan', 'Inspection beam', 'q'], ['burst', 'Disruption burst', 'f'],
   ['boost', 'Boost / paddle burst / run', 'shift'], ['recharge', 'Recharge', 'r'], ['paddle', 'Paddle / prod', 'v'], ['patch', 'Patch and pump', 'g'],
-  ['lookback', 'Look back', 'x'], ['dressing', 'Field dressing', 'h'], ['autopilot', 'Ride Control', 't'], ['helm', 'Hand over / take the helm', 'y'],
+  ['lookback', 'Look back', 'x'], ['dressing', 'Field dressing', 'h'], ['autopilot', 'Ride Control', 't'], ['helm', 'Hand over / take the helm', 'y'], ['lamp', 'Work lamp: off / white / UV', 'l'], ['lampPlace', 'Work lamp: set down / pick up', 'k'],
 ];

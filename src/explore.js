@@ -17,7 +17,8 @@ import { AMBIENT } from './sectors.js';
 import { documentFor } from './documents.js';
 import { createDirector, AFTERMATH } from './director.js';
 import { compressorRefill } from './hull.js';
-import { facility as facilityMem } from './memory.js';
+import { facility as facilityMem, saveFacility } from './memory.js';
+import { plan as planFinds, collect as collectFind, headcountLine } from './collectibles.js';
 import { planColumns, pushOutOfColumns, columnBlocks, planArches, cloudTexture } from './poolrooms.js';
 import { showModal, hideModal } from './ui.js';
 
@@ -521,6 +522,27 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
   // The first supply locker is always 0417.
   if (lockers[0]) { const { pos, wd } = lockers[0]; label('0417', 'count', [pos[0] - wd[0] * 0.31, 1.75, pos[2] - wd[1] * 0.31], [-wd[0], 0, -wd[1]], 0.36, 0.12, 192, 64); }
   let attendant0417 = false, attendant0417T = 0;
+
+  // ---------- Things worth picking up: collectibles (kept in the ledger across expeditions) and one power-up ----------
+  const found = (facilityMem.found ||= {});
+  const findCells = find('.').filter(([x, z]) => Math.abs(x - dx0) + Math.abs(z - dz0) >= 4);
+  const finds = planFinds({ sectorIndex: sector.index, cells: findCells, found, hash }).map((it, i) => {
+    const c = center(...it.cell);
+    const pos = [c[0] + (hash(i, 3) - 0.5) * 1.6, floorTop(...it.cell) + 0.1, c[2] + (hash(i, 7) - 0.5) * 1.6];
+    const duck = it.set === 'ducks';
+    const part = it.type === 'powerup' ? P(`Found ${it.id}`, cylinder(12, 0.1, 2), glow(linear('#4d7472'), 0.5, { color: [0.5, 0.6, 0.58], metallic: 0.7, roughness: 0.3 }))
+      : duck ? P(`Found ${it.id}`, ball, { color: [0.95, 0.8, 0.15], metallic: 0, roughness: 0.4 })
+        : P(`Found ${it.id}`, box(0.03, 2), glow([0.85, 0.85, 0.78], 0.1, { color: [0.85, 0.85, 0.8], metallic: 0, roughness: 0.6 }));
+    const head = duck ? P(`Found ${it.id} head`, ball, { color: [0.95, 0.8, 0.15], metallic: 0, roughness: 0.4 }) : null;
+    return { ...it, pos, part, head, taken: false, yaw: hash(i, 11) * 6 };
+  });
+  // ---------- The work lamp: carried or set down, white or UV, a limited charge ----------
+  state.lamp ||= { charge: 100, mode: 0 }; // mode: 0 off, 1 white, 2 UV
+  const lampPart = P('Work lamp', box(0.04, 2), glow([1, 0.95, 0.85], 0.02, { color: [0.75, 0.6, 0.15], metallic: 0.5, roughness: 0.5 }));
+  let lampPlaced = null, lampTold = false, lastLit = true;
+  const lampOn = () => state.lamp.mode > 0 && state.lamp.charge > 0;
+  const lampAt = () => lampPlaced || add(player.pos, [0, 1.3, 0]);
+  const uvNear = (p, r = 8) => lampOn() && state.lamp.mode === 2 && distance(lampAt(), p) < r;
   const docs = find('l').map(([x, z], i) => {
     const doc = documentFor(sector.index, i);
     const pos = add(center(x, z), [(random() - 0.5) * 1.2, 0.95 + floorTop(x, z), (random() - 0.5) * 1.2]);
@@ -1339,14 +1361,16 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     hud.crosshair(0, 0, true);
 
     // Composure: warm water, the dark, being alone.
-    const litHere = rules.openSky || lamps.some((l) => Math.abs(l.x - pcx) <= 1 && Math.abs(l.z - pcz) <= 1 && l.on);
+    const litHere = rules.openSky || lamps.some((l) => Math.abs(l.x - pcx) <= 1 && Math.abs(l.z - pcz) <= 1 && l.on) || (lampOn() && distance(lampAt(), add(player.pos, [0, 1.3, 0])) < 6);
+    lastLit = litHere;
     // Drift builds from prolonged immersion, stillness, being far from the raft, and the dark.
     // A short scouting trip is cheap; staying still in warm water is not.
     waterT = water ? waterT + dt : Math.max(0, waterT - dt * 2);
     stillT = moving ? 0 : stillT + dt;
     const fromRaft = Math.hypot(raftPos[0] - player.pos[0], raftPos[2] - player.pos[2]);
     const driftRate = (water ? 0.6 + Math.min(2.4, waterT * 0.12) : 0.08) + (stillT > 6 ? 0.8 : 0) + (fromRaft > 34 ? 0.35 : 0) + (litHere ? 0 : 0.5);
-    state.drift = clamp(state.drift + dt * driftRate * (1 + sector.index * 0.1), 0, 100);
+    // A dry pack: out of the water, Drift does not rise while it lasts.
+    if (!(state.dryT > 0 && !water)) state.drift = clamp(state.drift + dt * driftRate * (1 + sector.index * 0.1), 0, 100);
     // Fumes are a condition, not a clock: a marked stagnant pocket, or the vapour a pump releases when you start it.
     vapour = Math.max(0, vapour - dt);
     const inFumes = (water && stagnant.has(`${pcx},${pcz}`)) || (vapour > 0 && Math.hypot(panelPos[0] - player.pos[0], panelPos[2] - player.pos[2]) < 9) || (state.highWater && water);
@@ -1486,6 +1510,20 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
         hud.toast('+1 PART');
       }
     }
+    for (const f of finds) {
+      if (f.taken) { hide(f.part); if (f.head) hide(f.head); continue; }
+      if (f.type === 'powerup') writeYaw(f.part.matrix, add(f.pos, [0, 0.12, 0]), time * 0.6, 0.08, 0.3, 0.08);
+      else if (f.head) {
+        // One of them is always facing you.
+        const yaw = f.id === 'duck-facing' ? Math.atan2(eye[0] - f.pos[0], eye[2] - f.pos[2]) : f.yaw;
+        writeYaw(f.part.matrix, add(f.pos, [0, 0.02, 0]), yaw, 0.1, 0.08, 0.13);
+        writeYaw(f.head.matrix, add(f.pos, [Math.sin(yaw) * 0.08, 0.11, Math.cos(yaw) * 0.08]), yaw, 0.06, 0.06, 0.06);
+      } else writeYaw(f.part.matrix, f.pos, f.yaw, 0.2, 0.025, 0.12);
+      if (Math.hypot(f.pos[0] - eye[0], f.pos[2] - eye[2]) < 1.9) {
+        ask(2, f.type === 'powerup' ? `E · Take the ${f.name.toLowerCase()}` : 'E · Pick it up');
+        if (wasPressed('e')) { takeFind(f); return; }
+      }
+    }
     for (const lk of lockers) {
       if (lk.opened || Math.hypot(lk.pos[0] - eye[0], lk.pos[2] - eye[2]) > 2.2) continue;
       ask(2, 'E · Open the supply locker');
@@ -1606,7 +1644,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
       else writeYaw(w.part.matrix, [c[0], h - 0.01, c[2]], 0, CELL, 0.02, CELL);
     }
     for (const m of markings) {
-      const visible = !rules.uv || (input.scanning && angleTo(eye, dir, m.pos) < 0.6 && distance(eye, m.pos) < 14);
+      const visible = !rules.uv || (input.scanning && angleTo(eye, dir, m.pos) < 0.6 && distance(eye, m.pos) < 14) || uvNear(m.pos, 10);
       if (visible) facing(m.part, m.pos, m.normal, 1.3, 0.65);
       else hide(m.part);
     }
@@ -1888,6 +1926,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
   function updateFootExtras(dt, eye, dir, ask) {
     updateFollowers(dt);
     updateWavePool(dt, eye, dir);
+    updateLamp(dt, eye, ask);
     if (attendant0417T > 0 && (attendant0417T -= dt) <= 0) hud.say('THE ATTENDANT', 'Thank you. The item removed from Locker 0417 has been returned.', 'attendant', true);
     // Where you stand still the longest: the Safe Room window remembers it.
     if (sector.chapter) { const sp = Math.hypot(player.pos[0] - (lastStill?.[0] ?? 0), player.pos[2] - (lastStill?.[2] ?? 0)); if (sp < 0.3) { stillHere += dt; if (stillHere > (state.hesitation?.t || 0)) state.hesitation = { t: stillHere, near: nearestFeature(player.pos) }; } else { stillHere = 0; lastStill = [...player.pos]; } }
@@ -2019,8 +2058,50 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
   }
 
   /** What has been picked up, opened or solved here, so a resume cannot hand out the same supplies twice. */
+  function takeFind(f) {
+    f.taken = true;
+    sound.pickup();
+    if (f.type === 'powerup') {
+      if (f.id === 'overcharge') state.overchargeT = f.seconds;
+      else if (f.id === 'drypack') state.dryT = f.seconds;
+      else state.canisters = (state.canisters || 0) + 1;
+      hud.toast(`${f.name} · ${f.note}`);
+      return;
+    }
+    const r = collectFind(state, found, f);
+    if (!r) return;
+    saveFacility();
+    hud.caption(`[${r.text}]`);
+    events.score(r.score, `RECORDED · ${r.setName}`, 'evidence');
+    events.ledger?.('changes', `${r.setName}: ${r.text}`);
+    events.interest?.(1);
+    if (r.effect === 'dry') hud.say(followers[0]?.id.toUpperCase() || 'JUNE', 'That was under the water. Why is it dry? …Why do you look better?', 'crew', true);
+    if (r.complete) events.score(r.bonus, `${r.setName} · COMPLETE`, 'evidence');
+    const hc = f.set === 'headcount' ? headcountLine(found, 1 + followers.length) : null;
+    if (hc) hud.toast(hc);
+  }
+  /** The work lamp, each frame: cycle (L), set down or pick up (K), drain, recharge at the raft. */
+  function updateLamp(dt, eye, ask) {
+    const lamp = state.lamp;
+    if (!lampTold) { lampTold = true; hud.toast('WORK LAMP · L: off / white / UV · K: set it down or pick it up'); }
+    if (wasPressed('l')) { lamp.mode = (lamp.mode + 1) % 3; sound.switchOn(); hud.toast(lamp.charge <= 0 ? 'WORK LAMP · NO CHARGE · the raft recharges it' : ['WORK LAMP OFF', 'WORK LAMP · WHITE', 'WORK LAMP · UV'][lamp.mode]); }
+    if (wasPressed('k')) {
+      if (lampPlaced && Math.hypot(lampPlaced[0] - player.pos[0], lampPlaced[2] - player.pos[2]) < 2.2) { lampPlaced = null; hud.toast('LAMP PICKED UP'); }
+      else if (!lampPlaced) { const f = forwardVec(); lampPlaced = [player.pos[0] + f[0] * 0.7, player.floor + 0.25, player.pos[2] + f[2] * 0.7]; hud.toast('LAMP SET DOWN · it stays lit until its charge runs out'); }
+      else hud.toast('THE LAMP IS WHERE YOU LEFT IT');
+    }
+    if (lampOn()) lamp.charge = Math.max(0, lamp.charge - dt * (lamp.mode === 2 ? 100 / 150 : 100 / 240));
+    if (!lampPlaced && Math.hypot(raftPos[0] - player.pos[0], raftPos[2] - player.pos[2]) < 3) lamp.charge = Math.min(100, lamp.charge + dt * 20);
+    if (lampPlaced) {
+      writeYaw(lampPart.matrix, lampPlaced, 0.4, 0.14, 0.3, 0.14);
+      lampPart.material.emission = lampOn() ? 3 : 0.02;
+      lampPart.material.emissiveColor = lamp.mode === 2 ? [0.55, 0.3, 1] : [1, 0.95, 0.85];
+    } else hide(lampPart);
+  }
+
   function takenState() {
     return {
+      finds: finds.map((x, i) => (x.taken ? i : -1)).filter((i) => i >= 0),
       scrap: scrap.map((x, i) => (x.taken ? i : -1)).filter((i) => i >= 0),
       lockers: lockers.map((x, i) => (x.opened ? i : -1)).filter((i) => i >= 0),
       container: !!container?.taken, cache: !!deathCache?.taken, june: juneEvent.state, valves: valveStep,
@@ -2309,6 +2390,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     if (lifeguard && lifeguard.lampOn) out.push({ position: add(lifeguard.base, [0, 4.6, 0]), color: lifeguard.rule === 'swim' ? [1, 0.25, 0.12] : [1, 0.9, 0.7], intensity: 9, radius: 0.3, range: 16 });
     if (lifeguard?.spot) out.push({ position: add(lifeguard.spot, [0, 1.6, 0]), color: [1, 0.93, 0.8], intensity: 14, radius: 0.5, range: 5 });
     if (rules.uv) out.push({ position: [eye[0], 3.5, eye[2]], color: [0.5, 0.25, 1], intensity: 3, radius: 1, range: 12 });
+    if (lampOn()) out.push(state.lamp.mode === 2 ? { position: lampAt(), color: [0.5, 0.25, 1], intensity: 5, radius: 0.3, range: 9 } : { position: lampAt(), color: [1, 0.95, 0.85], intensity: 8, radius: 0.3, range: 11 });
     return out;
   }
 
@@ -2327,7 +2409,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
         writeYaw(b.lobes[0].matrix, add(b.pos, [fx * 0.38, 0.01, fy * 0.38]), b.phase, 0.26, 0.045 + breath * 0.05, 0.22);
         writeYaw(b.lobes[1].matrix, add(b.pos, [-fy * 0.3, 0.0, fx * 0.3]), b.phase + 1, 0.22, 0.04, 0.2);
         hide(b.spikes); hide(b.heart);
-        b.core.material.emission = 0.02;
+        b.core.material.emission = uvNear(b.pos) ? 0.9 : 0.02; // under UV the heap on the floor shows what it is
         if (dd0 < 4.2 || b.woken) {
           b.dormant = false;
           b.waking = 0.001;
@@ -2364,8 +2446,10 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
         if (b.dying > 0.18) b.active = false;
         continue;
       }
-      const to = sub(add(eye, [0, -0.3, 0]), b.pos);
-      const d = Math.hypot(...to);
+      // A lamp left burning on the floor draws the ones that have not committed to you.
+      const lure = lampPlaced && lampOn() && !b.commit && distance(lampPlaced, b.pos) < 10 && distance(lampPlaced, b.pos) < distance(eye, b.pos) * 1.3;
+      const to = lure ? sub(add(lampPlaced, [0, 0.9, 0]), b.pos) : sub(add(eye, [0, -0.3, 0]), b.pos);
+      const d = lure ? distance(add(eye, [0, -0.3, 0]), b.pos) : Math.hypot(...to); // contact and slots are always about you
       b.stagger = Math.max(0, (b.stagger || 0) - dt);
       b.flash = Math.max(0, (b.flash || 0) - dt);
       if (b.retreat) {
@@ -2376,7 +2460,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
         // Swarm movement: close in, but spread around you instead of queueing in one line.
         // Freshly filled, it launches: a short fast lunge before it settles into the swarm's pace.
         b.lunge = Math.max(0, b.lunge - dt);
-        const v = (d < 18 ? 1.5 + sector.index * 0.2 : 0.4) * (state.visible ? 1.3 : 1) * (b.lunge > 0 ? 4 : 1);
+        const v = (d < 18 || lure ? 1.5 + sector.index * 0.2 : 0.4) * (state.visible ? 1.3 : 1) * (b.lunge > 0 ? 4 : 1);
         const side = cross(normalize(to), UP);
         const orbit = d > 3 ? Math.sin(b.phase * 0.4 + b.hp) * 0.6 : 0;
         // Attack slots: only a couple may commit at once. The rest circle just out of reach, readable and waiting,
@@ -2623,7 +2707,8 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     const eyeL = add(L.pos, [0, 1.9, 0]);
     const dd = Math.hypot(player.pos[0] - L.pos[0], player.pos[2] - L.pos[2]);
     const facingYou = Math.abs(Math.atan2(Math.sin(Math.atan2(player.pos[0] - L.pos[0], player.pos[2] - L.pos[2]) - L.look), Math.cos(Math.atan2(player.pos[0] - L.pos[0], player.pos[2] - L.pos[2]) - L.look))) < 1.2;
-    const seesYou = L.blind <= 0 && (dd < 2.5 || (dd < 18 && facingYou && lineOfSight(eyeL, add(player.pos, [0, 1.2, 0]))));
+    const sight = 18 + (lampOn() && !lampPlaced ? 6 : 0) - (!lastLit ? 7 : 0);
+    const seesYou = L.blind <= 0 && (dd < 2.5 || (dd < sight && facingYou && lineOfSight(eyeL, add(player.pos, [0, 1.2, 0]))));
     const spd = 2.4 + sector.index * 0.1;
     if (L.state === 'rounds') {
       if (seesYou && dd < 9) {
@@ -2900,13 +2985,14 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     const r = opts.restore;
     for (const i of r.scrap || []) if (scrap[i]) scrap[i].taken = true;
     for (const i of r.lockers || []) if (lockers[i]) lockers[i].opened = true;
+    for (const i of r.finds || []) if (finds[i]) finds[i].taken = true;
     if (r.container && container) container.taken = true;
     if (r.cache && deathCache) { deathCache.taken = true; hide(deathCache.part); }
     if (r.june && r.june !== 'waiting') juneEvent.state = r.june === 'sitting' ? 'waiting' : r.june;
     for (let i = 0; i < (r.valves || 0); i++) { const v = pumpValves.find((x) => x.id === valveOrder[i]); if (v) v.open = true; }
     valveStep = r.valves || 0;
   }
-  if (import.meta.env.DEV) window.__explore = { omen: (k) => startFomen(k), get hesitation() { return hesitation; }, get lastOmen() { return lastFomen; }, get marcoAct() { return marcoAct; }, set marcoAct(v) { marcoAct = v; }, marcos, columns, wavePool, get basin() { return basin; }, isWater, floorTop, get operating() { return operating; }, set operating(v) { operating = v; }, panelFront, holdT, shoot, spawnBloom, occupant, lockers, noise, violate, get omenState() { return fomen; }, door, blooms, lamps, director, followers, get dockKind() { return dockKind; }, get valves() { return { order: valveOrder, step: valveStep, list: pumpValves }; }, june: juneEvent, thread, get clock() { return clock; }, stagnant, player, center, undertow, lifeguard, cellPos, panelPos, raftPos, code, find, floaters, restorePower };
+  if (import.meta.env.DEV) window.__explore = { omen: (k) => startFomen(k), finds, found, get lampPlaced() { return lampPlaced; }, lights: () => gatherLights(add(player.pos, [0, 1.6, 0])), get hesitation() { return hesitation; }, get lastOmen() { return lastFomen; }, get marcoAct() { return marcoAct; }, set marcoAct(v) { marcoAct = v; }, marcos, columns, wavePool, get basin() { return basin; }, isWater, floorTop, get operating() { return operating; }, set operating(v) { operating = v; }, panelFront, holdT, shoot, spawnBloom, occupant, lockers, noise, violate, get omenState() { return fomen; }, door, blooms, lamps, director, followers, get dockKind() { return dockKind; }, get valves() { return { order: valveOrder, step: valveStep, list: pumpValves }; }, june: juneEvent, thread, get clock() { return clock; }, stagnant, player, center, undertow, lifeguard, cellPos, panelPos, raftPos, code, find, floaters, restorePower };
 
   return {
     update,
