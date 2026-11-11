@@ -2611,8 +2611,13 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
       }
       // A lamp left burning on the floor draws the ones that have not committed to you.
       const lure = lampPlaced && lampOn() && !b.commit && distance(lampPlaced, b.pos) < 10 && distance(lampPlaced, b.pos) < distance(eye, b.pos) * 1.3;
-      const to = lure ? sub(add(lampPlaced, [0, 0.9, 0]), b.pos) : sub(add(eye, [0, -0.3, 0]), b.pos);
-      const d = lure ? distance(add(eye, [0, -0.3, 0]), b.pos) : Math.hypot(...to); // contact and slots are always about you
+      const d = distance(add(eye, [0, -0.3, 0]), b.pos); // contact and slots are always about you
+      // With the power out they find you by your light. One that has not committed, and is not already on top of
+      // you, loses you while your lamp is off (or set down elsewhere) and drifts to where it last had you.
+      const carrying = lampOn() && !lampPlaced;
+      b.blind = blackout && !lure && !b.commit && !carrying && d > 3.8;
+      if (!b.blind) b.lastSeen = [eye[0], eye[1] - 0.3, eye[2]];
+      const to = lure ? sub(add(lampPlaced, [0, 0.9, 0]), b.pos) : b.blind ? sub(b.lastSeen || b.pos, b.pos) : sub(add(eye, [0, -0.3, 0]), b.pos);
       b.stagger = Math.max(0, (b.stagger || 0) - dt);
       b.flash = Math.max(0, (b.flash || 0) - dt);
       if (b.retreat) {
@@ -2623,15 +2628,15 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
         // Swarm movement: close in, but spread around you instead of queueing in one line.
         // Freshly filled, it launches: a short fast lunge before it settles into the swarm's pace.
         b.lunge = Math.max(0, b.lunge - dt);
-        const v = (d < 18 || lure ? 1.5 + sector.index * 0.2 : 0.4) * (state.visible ? 1.3 : 1) * (b.lunge > 0 ? 4 : 1);
-        const side = cross(normalize(to), UP);
+        const v = b.blind ? (Math.hypot(...to) > 0.6 ? 0.6 : 0) : (d < (blackout && carrying ? 26 : 18) || lure ? 1.5 + sector.index * 0.2 : 0.4) * (state.visible ? 1.3 : 1) * (b.lunge > 0 ? 4 : 1);
+        const side = cross(normalize(Math.hypot(...to) > 1e-3 ? to : [1, 0, 0]), UP);
         const orbit = d > 3 ? Math.sin(b.phase * 0.4 + b.hp) * 0.6 : 0;
         // Attack slots: only a couple may commit at once. The rest circle just out of reach, readable and waiting,
         // so five Blooms around you are a threat you can see, not five unavoidable hits.
         if (!b.commit && d < 3.8 && committed < maxCommit) { b.commit = true; committed += 1; }
         if (b.commit && d > 6.5) b.commit = false;
         const holdOff = !b.commit && d < 3.4 && b.lunge <= 0;
-        const next = holdOff ? add(b.pos, add(scale(normalize(to), -0.4 * dt), scale(side, (b.hp % 2 ? 1 : -1) * 1.6 * dt))) : add(b.pos, add(scale(normalize(to), v * dt), scale(side, orbit * dt)));
+        const next = holdOff ? add(b.pos, add(scale(normalize(to), -0.4 * dt), scale(side, (b.hp % 2 ? 1 : -1) * 1.6 * dt))) : v === 0 ? b.pos : add(b.pos, add(scale(normalize(to), v * dt), scale(side, (b.blind ? 0 : orbit) * dt)));
         if (!isWall(...cellOf(next[0], next[2]))) b.pos = next;
         pushOutOfColumns(b.pos, columns, 0.4);
       }

@@ -45,5 +45,18 @@ const { open, newCampaign, check, finish } = require('./lib.cjs');
     return out; });
   check('the relay trips on the fourth throw: fixtures, strips and lit signs all go out, and it will not switch', r.third && !r.before && !r.fourth && r.blackout && r.emergency && r.lit === 0 && r.coral === 0 && r.signs > 0 && r.signsDark && r.refused, JSON.stringify(r));
   check('resetting the breaker takes time at the relay, winds back if you leave, and brings the circuit back as it was', r.winding && r.cancelled && r.restored && r.paid === 1 && r.coralBack > 0 && r.signsLit && r.again, JSON.stringify(r));
+  r = await page.evaluate(() => { const u = window.__underflow, E = window.__explore, C = E.circuit; u.setState({ health: 1e6, drift: 0 });
+    E.blooms.forEach((b) => { b.active = false; }); E.setBlackout(true);
+    const me = [C.relayPos[0], 0, C.relayPos[2]]; E.player.pos = [...me]; u.state.lamp.mode = 0; u.state.lamp.charge = 100;
+    const spot = E.find('.').map(([x, z]) => E.center(x, z)).map((c) => ({ c, d: Math.hypot(c[0] - me[0], c[2] - me[2]) })).filter((o) => o.d > 5 && o.d < 11).sort((a, b) => a.d - b.d)[0].c;
+    const n0 = E.blooms.length; E.spawnBloom([spot[0], 1.2, spot[2]]); const b = E.blooms.find((x) => x.active) || E.blooms[n0];
+    const start = [...b.pos]; const hold = () => { u.setState({ health: 1e6, drift: 0 }); E.player.pos = [...me]; };
+    for (let k = 0; k < 20; k++) { hold(); u.step(3); }
+    const blind = b.blind, stayed = Math.hypot(b.pos[0] - start[0], b.pos[2] - start[2]), d0 = Math.hypot(b.pos[0] - me[0], b.pos[2] - me[2]);
+    u.state.lamp.mode = 1; for (let k = 0; k < 20; k++) { hold(); u.state.lamp.charge = 100; u.step(3); }
+    const seen = !b.blind || !b.active, d1 = Math.hypot(b.pos[0] - me[0], b.pos[2] - me[2]);
+    E.setBlackout(false); u.state.lamp.mode = 0;
+    return { blind, stayed, d0, d1, seen, active: b.active }; });
+  check('with the power out a Bloom that has not committed loses you while your lamp is off, and comes when you light it', r.blind && r.stayed < 0.5 && r.seen && r.d1 < r.d0 - 1, JSON.stringify(r));
   await finish(browser, errors);
 })();

@@ -722,5 +722,7 @@ The lighting relay takes three throws. The third brings a warning (the housing i
 
 To bring it back, start a reset at the relay (E) and stay there for four seconds; step away and it winds back. A reset restores the circuit that was live, clears the throw count and is scored once as machinery. The crew reacts the first time, and the ledger notes that the relay trips on the fourth throw. A blackout is saved with a resume.
 
-It is caused only by the player and warned one throw ahead. Not built: a blackout the facility causes itself, different sound under power loss beyond the trip and a brief duck, creatures behaving differently in it, and signage that changes meaning rather than only going dark. Test: `tests/circuit.cjs`.
+**Blooms hunt by your light in it.** With the power out, a Bloom that has not committed to you and is more than a few metres away loses you while your work lamp is off or set down somewhere else: it drifts slowly to where it last had you and waits there. Carry the lamp lit and they find you again, from farther than usual. One already on top of you is not fooled. So in a blackout the lamp is a trade: light keeps Drift down and tells them where you are; a lamp left burning on the floor still draws them to it.
+
+It is caused only by the player and warned one throw ahead. The Lifeguard and other entities do not change behaviour in a blackout. Not built: a blackout the facility causes itself, different sound under power loss beyond the trip and a brief duck, and signage that changes meaning rather than only going dark. Test: `tests/circuit.cjs`.
 
