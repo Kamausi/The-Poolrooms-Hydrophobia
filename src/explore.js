@@ -1,6 +1,7 @@
 // On foot at a dock. You can go anywhere you can reach, but you must find your own way back to the raft.
 // The goal: carry the power cell to the service panel (which opens the gate to the Safe Room's arrival
 // bay), then return to the moored raft. Each attraction adds its own rules (see sectors.js).
+import { rumble } from './haptics.js';
 import { Renderer67, box, sphere, cylinder, torus } from '67js';
 import { writeYaw, writeBasis, writeSegment, hide, add, sub, scale, normalize, clamp, damp, rng, raySphere, rayPlaneY, linear, distance, cross, display, angleTo, soundDir } from './math.js';
 import { tileTexture, tileNormal } from './textures.js';
@@ -2824,7 +2825,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
       walkLG(L, player.pos, spd, dt);
       if (dd < 1.1 && !state.downed) {
         L.state = 'grab'; L.grabT = 0; L.kicks = 0; L.next = null;
-        sound.whistle(0); sound.hurt();
+        sound.whistle(0); sound.hurt(); rumble('grab');
         hud.caption('[its hand closes on your vest strap]');
         hud.say('THE LIFEGUARD', '— three short whistles —', 'attendant', true);
       } else if (L.blind > 0) { L.state = 'returning'; L.next = null; }
@@ -3079,6 +3080,8 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
   return {
     update,
     resize: () => renderer.resize(),
+    /** Render scale relative to the quality tier's own pixel ratio (automatic resolution). */
+    setScale: (k) => { renderer.pixelRatio = quality.renderer.pixelRatio * k; renderer.resize(); },
     dispose: () => renderer.dispose(),
     /** Where the player is right now, for an immediate resume save. */
     snapshot: () => ({ mode: 'explore', pos: [...player.pos], yaw: player.yaw, hasCell, taken: takenState() }),

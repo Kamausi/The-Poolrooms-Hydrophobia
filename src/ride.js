@@ -13,6 +13,7 @@ import { input, wasPressed, isDown, labelForDefaultKey as labelFor } from './inp
 import { hud } from './hud.js';
 import { sound } from './audio.js';
 import { quality } from './quality.js';
+import { rumble } from './haptics.js';
 import { settings } from './settings.js';
 import { AMBIENT } from './sectors.js';
 import { Track, EXIT_OFFSET, section } from './track.js';
@@ -2207,6 +2208,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
     hud.caption('[something bright comes down the channel ahead, turning slowly]');
   }
   function takeDrop() {
+    rumble('drop');
     const D = DROPS[drop.kind];
     drop.active = false;
     hud.toast(D.name);
@@ -3814,6 +3816,8 @@ export function createRide(canvas, state, sector, events, opts = {}) {
   return {
     update,
     resize: () => renderer.resize(),
+    /** Render scale relative to the quality tier's own pixel ratio (automatic resolution). */
+    setScale: (k) => { renderer.pixelRatio = quality.renderer.pixelRatio * k; renderer.resize(); },
     dispose: () => {
       sound.setMuffle(false);
       renderer.dispose();

@@ -3,6 +3,7 @@
 //   signal pulse     (hold click)  operates targets, switches and mechanisms; recharges; builds heat and noise
 //   inspection beam  (hold right click or Q)  reveals hidden markings and reads targets; makes you visible
 //   disruption burst (F)  interrupts entities or forces an emergency mechanism; costs a charge cell; very loud
+import { rumble, PATTERNS } from './haptics.js';
 import { box, cylinder, sphere } from '67js';
 import { add, scale, cross, normalize, sub, length, writeBasis, hide, cameraBasis } from './math.js';
 import { sound } from './audio.js';
@@ -139,6 +140,7 @@ export function createBlaster(state) {
         const F = FEEL[state.profile] || FEEL.pulse;
         kick = Math.min(F.kick * 1.6, kick + F.kick); kickRec = F.rec; kickRise = F.rise; walk = F.walk * (1 + state.heat / 60);
         if (state.tally) state.tally.shots += 1;
+        rumble(PATTERNS[state.profile] ? state.profile : 'pulse');
       }
       beam.material.emissiveColor = P.color;
       beam.material.color = P.color;
