@@ -26,6 +26,8 @@ const DEFAULTS = {
   subtitleBacking: true, // a dark band behind subtitles
   scoreDisplay: 1, // 0 immersive (never), 1 standard (in action), 2 arcade (always, with the feed)
   autoRes: true, // lower the internal resolution when frames run long, raise it again when there is room
+  padAssist: 0.6, // controller aim help on the raft: 0 off … 1 strongest (magnetism and stick friction)
+  threatWedges: true, // rim markers for threats that are close and out of view
   rumble: 1, // controller vibration strength (0 = off)
   hudPersistent: false, // keep the objective, roster and controls at full size instead of letting them settle
 };
@@ -52,6 +54,7 @@ export const SETTING_LABELS = {
   highContrast: 'High contrast (opaque panels, heavier reticle)',
   tips: 'First-time tips',
   perfOverlay: 'Performance overlay (frame times)',
+  threatWedges: 'Threat markers at the edge of the view (close threats you cannot see)',
   autoRes: 'Automatic resolution (hold the frame rate by lowering render scale)',
   flashReduce: 'Reduce flashes (damage and muzzle)',
   subtitleBacking: 'Subtitle backing (dark band behind speech)',

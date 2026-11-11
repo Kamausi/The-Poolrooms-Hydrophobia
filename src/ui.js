@@ -745,6 +745,8 @@ export function settingsView(onChange) {
   const assist = group('GAMEPLAY ASSISTANCE');
   range(assist, 'Incoming damage (assist)', 'damageAssist', 0.3, 1);
   check(assist, 'aimAssist');
+  range(assist, 'Controller aim assist (0 = off)', 'padAssist', 0, 1);
+  check(assist, 'threatWedges');
 
   const display = group('DISPLAY');
   {

@@ -631,7 +631,7 @@ The "signal rating" that earns a maintenance override is the unmultiplied sector
 | Shove | immediate | weapon thrust (existing) | — | contact | knockback | haptics |
 | Walk / wade | immediate | — | step bob (existing) | tile, metal steps | — | wet-tile and deep-water step sounds |
 
-**From the same briefs, not built:** a free-aim reticle envelope on the raft and hidden aim magnetism for controllers; edge wedges for incoming threats; early extraction; score-qualified routes beyond the existing override; per-player contribution lines (there is one player); leaderboards. Token lines, drops, assessments, the Lost & Found and haptic patterns came later (sections 25 and 27). Tests: `tests/unit/score.test.js`, `tests/score.cjs`, `tests/feel.cjs`. Whether any of this feels good is a question for people playing it.
+**From the same briefs, not built:** a free-aim reticle envelope on the raft (controller aim help and threat markers came later, section 28); early extraction; score-qualified routes beyond the existing override; per-player contribution lines (there is one player); leaderboards. Token lines, drops, assessments, the Lost & Found and haptic patterns came later (sections 25 and 27). Tests: `tests/unit/score.test.js`, `tests/score.cjs`, `tests/feel.cjs`. Whether any of this feels good is a question for people playing it.
 
 ## 24. Things worth picking up, and the work lamp (implemented)
 
@@ -689,4 +689,14 @@ This is the first **facility state**. Not built: more than two states (power los
 **The Lost & Found** (`src/collectibles.js`). A hatch in the Safe Room's emergency cabinet returns one item per visit for 150 Service Credit. You do not choose what comes back: usually a supply, sometimes more credit than you paid, sometimes one wet sock, rarely a dressing with your handwriting on it. No outcome costs anything but the fee, because a Safe Room is safe.
 
 Limits: the resolution controller is tested as logic and the scale change is tested on the canvas, but it has never run its loop on a real GPU, so the thresholds are unproven. Vibration has not been felt on a physical controller; the tests check the patterns and that the request is made, not that anything shook. Not built: an automatic quality tier beyond resolution (shadows, lamps, bloom), ambient occlusion, volumetrics, auto exposure, trigger-specific vibration, and patterns for most on-foot actions. Tests: `tests/unit/autores.test.js`, `tests/unit/haptics.test.js`, `tests/unit/collectibles.test.js`, `tests/score.cjs`.
+
+## 28. Controller aim help and threat markers (implemented)
+
+Both are screen-space geometry in `src/aim.js` (pure).
+
+**Aim help, controller only, on the raft.** When the reticle is within a small radius of a target, the shot bends part of the way toward it: strongest on the target, nothing at the edge of the radius, never a snap and never across the screen. The right stick also slows as the reticle crosses a target, so a thumb can stop on it. The reticle is drawn where the shot will go, so the help is visible. One setting scales both (0 is off). Mouse aim is untouched; touch keeps its own snap.
+
+**Threat markers.** A Bloom that has noticed you, is within 12 m and is outside the view gets a wedge on the rim pointing toward it; one directly behind is drawn at the bottom. At most three, the nearest first, larger when closer. Blooms that have not noticed you get no marker: the HUD reports what is coming, not what is waiting. A setting turns them off.
+
+Limits: the assist strengths are untuned guesses, never tried with a physical controller. Markers exist on the raft only and only for Blooms; projectiles, the Lifeguard and on-foot threats have none. Tests: `tests/unit/aim.test.js`, `tests/arcade.cjs`.
 

@@ -68,6 +68,22 @@ export const hud = {
   carry(text) {
     el.carry.textContent = text ? ` · ${text}` : '';
   },
+  /** Threats out of view: up to three wedges on the rim. list: { x, y, angle, urgency } in screen space (−1…1). */
+  wedges(list) {
+    const box = document.getElementById('wedges');
+    if (!box) return;
+    const n = list?.length || 0;
+    if (!n && box.dataset.n === '0') return;
+    box.dataset.n = String(n);
+    for (let i = 0; i < box.children.length; i++) {
+      const w = box.children[i], t = list?.[i];
+      w.hidden = !t;
+      if (!t) continue;
+      w.style.left = `${50 + t.x * 50}%`;
+      w.style.top = `${50 - t.y * 50}%`;
+      w.style.transform = `translate(-50%, -50%) rotate(${Math.round(t.angle)}deg) scale(${(0.8 + Math.min(1, t.urgency * 2.5) * 0.6).toFixed(2)})`;
+    }
+  },
   /** A crewmate who needs you, off to one side: a marker at that edge of the view. side: -1 left, 1 right, 0 none. */
   help(side, who = '') {
     el.helpmark.hidden = !side;

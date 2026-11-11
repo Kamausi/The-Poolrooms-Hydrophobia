@@ -913,6 +913,7 @@ function frame(now) {
     if (st && now - lastLogged > 60000) { lastLogged = now; playlog.record('frames', st); }
   }
   pollGamepad(dt);
+  if (mode !== 'ride') hud.wedges([]);
   input.context = mode === 'explore' ? 'explore' : 'ride';
   if ($('modal').hidden && (wasPressed('escape') || wasPressed('p')) && now - pausedAt > 250) setPaused(!paused);
   if (mode === 'menu' && $('modal').hidden && !$('start-menu').hidden && wasPressed('escape')) showMenuList('main');

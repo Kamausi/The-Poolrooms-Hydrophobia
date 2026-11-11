@@ -14,6 +14,7 @@ import { hud } from './hud.js';
 import { sound } from './audio.js';
 import { quality } from './quality.js';
 import { rumble } from './haptics.js';
+import { magnet, friction, wedges as threatWedges } from './aim.js';
 import { settings } from './settings.js';
 import { AMBIENT } from './sectors.js';
 import { Track, EXIT_OFFSET, section } from './track.js';
@@ -1318,6 +1319,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
   }
 
   // ---------- Shooting ----------
+  let lastWedges = [], padAssistTest = false;
   function targets() {
     const list = [];
     const T = (pos, r, fn, key = null) => list.push({ pos, r, fn, key });
@@ -1897,6 +1899,25 @@ export function createRide(canvas, state, sector, events, opts = {}) {
         const d = Math.hypot(p[0] - aimNdc[0], p[1] - aimNdc[1]);
         if (d < bestD) { bestD = d; aimNdc = [p[0], p[1]]; }
       }
+    }
+    // Controller: the shot bends a little toward a target the reticle is already near, and the stick slows over it.
+    input.aimFriction = 1;
+    if ((input.pad || padAssistTest) && !input.touch && (settings.padAssist ?? 0) > 0) {
+      const pts = targets().map((t) => project(eye, look, fov, aspect, t.pos, up));
+      input.aimFriction = 1 - (1 - friction(aimNdc, pts)) * settings.padAssist;
+      aimNdc = magnet(aimNdc, pts, { pull: settings.padAssist });
+    }
+    // Close threats you cannot see get a marker on the rim of the view. Only ones that have noticed you: the HUD
+    // reports what is coming for you, not what is waiting.
+    {
+      const near = [];
+      if (settings.threatWedges !== false) for (const b of blooms) {
+        if (!b.active || b.dying || !(b.noticed || b.rear)) continue;
+        const rel = sub(b.pos, eye), d = Math.hypot(...rel);
+        if (d < 12) near.push({ rel, urgency: 1 / Math.max(0.5, d) });
+      }
+      lastWedges = near.length ? threatWedges(near, fwd, rgt, up, Math.tan((fov * Math.PI) / 360), aspect) : [];
+      hud.wedges(lastWedges);
     }
     // Speed opens the view a little and braking closes it; focus overrides both. Scaled by the camera-motion setting.
     fov = damp(fov, focusing ? FOCUS_FOV : FOV + clamp((speed - 6) * 0.9, -2, 7) * (settings.camera ?? 1), focusing ? 9 : 3, dt);
@@ -3811,7 +3832,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
     bloomAhead() { return spawnBloom(s + 10, offset * 0.6, 1.2); },
     get locks() { return locks.length; },
   };
-  if (import.meta.env.DEV) window.__ride = { parts, blooms, tokens, drop, spawnDrop, get assess() { return assess; }, set assessAt(v) { assessAt = v; }, set tokenCool(v) { tokenCool = v; }, get offset() { return offset; }, set offset(v) { offset = v; }, omen: (k) => startOmen(k), get omenState() { return omen; }, get director() { return director; }, get eye() { return fx.eye; }, track, hull, puncture: (c, cause = 'scrape') => hull.puncture(c, cause), overboard: () => goOverboard('test'), free: () => restrained && !restrained.freed && freeRestrained(), shove: () => shove(fx.eye, fx.fwd), ping: () => ping(fx.eye, fx.fwd), fireAt: (dir) => { fireProfile(fx.eye, fx.look, dir || fx.fwd); return state.profile; }, hitTarget: (key) => { const t = targets().find((x) => x.key === key); if (t) { shotProfile = state.profile; t.fn(); } return !!t; }, get wave() { return wave; }, set bot(v) { devBot = v; }, spawnEnc: (kind, extra = {}) => spawn({ e: { kind, ...extra }, s: s + 10, sec: track.sectionAt(s).sec }), get coop() { return { climber, crewGrab, ballast, restrained, protect, focusing, fov, profile: state.profile, special: state.special }; }, reset: () => { overboard = null; capsize = null; trailGrab = null; hull.state.capsized = false; }, capsize: () => startCapsize(), get swimming() { return overboard; }, get capsized() { return capsize; }, get grab() { return trailGrab; }, valve, linked, lifeguard, locker, wake, passengerStep, burst: () => burst(fx.eye, fx.fwd), get s() { return s; }, set s(v) { s = v; } };
+  if (import.meta.env.DEV) window.__ride = { get wedges() { return lastWedges; }, set padAssist(v) { padAssistTest = v; }, get aimFriction() { return input.aimFriction; }, parts, blooms, tokens, drop, spawnDrop, get assess() { return assess; }, set assessAt(v) { assessAt = v; }, set tokenCool(v) { tokenCool = v; }, get offset() { return offset; }, set offset(v) { offset = v; }, omen: (k) => startOmen(k), get omenState() { return omen; }, get director() { return director; }, get eye() { return fx.eye; }, track, hull, puncture: (c, cause = 'scrape') => hull.puncture(c, cause), overboard: () => goOverboard('test'), free: () => restrained && !restrained.freed && freeRestrained(), shove: () => shove(fx.eye, fx.fwd), ping: () => ping(fx.eye, fx.fwd), fireAt: (dir) => { fireProfile(fx.eye, fx.look, dir || fx.fwd); return state.profile; }, hitTarget: (key) => { const t = targets().find((x) => x.key === key); if (t) { shotProfile = state.profile; t.fn(); } return !!t; }, get wave() { return wave; }, set bot(v) { devBot = v; }, spawnEnc: (kind, extra = {}) => spawn({ e: { kind, ...extra }, s: s + 10, sec: track.sectionAt(s).sec }), get coop() { return { climber, crewGrab, ballast, restrained, protect, focusing, fov, profile: state.profile, special: state.special }; }, reset: () => { overboard = null; capsize = null; trailGrab = null; hull.state.capsized = false; }, capsize: () => startCapsize(), get swimming() { return overboard; }, get capsized() { return capsize; }, get grab() { return trailGrab; }, valve, linked, lifeguard, locker, wake, passengerStep, burst: () => burst(fx.eye, fx.fwd), get s() { return s; }, set s(v) { s = v; } };
 
   return {
     update,
