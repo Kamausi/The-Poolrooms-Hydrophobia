@@ -20,6 +20,14 @@ describe('facility memory', () => {
     expect(a[1].map).toEqual(b[1].map);
     expect(a[1].plaque).toBe(true);
   });
+  it('a dock you left early keeps your place until you restore it', () => {
+    recordSector('s3', 'left');
+    const v = authorExpedition(SECTORS)[3];
+    expect(v.left).toBe(1);
+    expect(v.map).toBeUndefined();
+    recordSector('s3', 'restored');
+    expect(authorExpedition(SECTORS)[3]?.left).toBeUndefined();
+  });
   it('remembered deaths make a place observant, never a harder map', () => {
     recordDeath('s2', [3, 4]);
     const v = authorExpedition(SECTORS)[2];

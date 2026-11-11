@@ -203,6 +203,7 @@ export function showSafeRoom(state, sector, nextSector, nextPlan, onLeave, onSav
     d.append(el('p', 'debrief-head', `${r.sector} · DEBRIEF`));
     const rows = [['SECTOR SCORE', r.points.toLocaleString('en-US')], ['ACCURACY', `${Math.round(r.accuracy * 100)}%`], ['MAX FLOW', `×${r.maxFlow.toFixed(1)}`], ['CREW SAVES', String(r.saves)], ['GUESTS RESCUED', String(r.rescues)], ['RAFT CONDITION', `${Math.round(r.raft)}%`], ['EXPEDITION SCORE', r.total.toLocaleString('en-US')]];
     for (const [k, v] of rows) { const p = el('p', 'debrief-row'); p.append(el('span', null, k), el('b', null, v)); d.append(p); }
+    if (r.early) { const p = el('p', 'debrief-row early'); p.append(el('span', null, 'EARLY EXTRACTION'), el('b', null, 'CIRCUIT LEFT DARK')); d.append(p); }
     const g = el('p', 'debrief-grade'); g.append(el('span', null, 'GRADE'), el('b', null, r.grade)); d.append(g);
     d.append(el('p', 'debrief-verdict', `THE ATTENDANT · "${r.verdict}"`));
     body.append(d);
@@ -745,6 +746,8 @@ export function settingsView(onChange) {
   const assist = group('GAMEPLAY ASSISTANCE');
   range(assist, 'Incoming damage (assist)', 'damageAssist', 0.3, 1);
   check(assist, 'aimAssist');
+  range(assist, 'Controller aim assist (0 = off)', 'padAssist', 0, 1);
+  check(assist, 'threatWedges');
 
   const display = group('DISPLAY');
   {

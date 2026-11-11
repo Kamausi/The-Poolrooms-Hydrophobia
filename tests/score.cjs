@@ -42,6 +42,18 @@ const { open, newCampaign, check, finish } = require('./lib.cjs');
     const fx = u.rumble('scatter'); return { w0, w1, w2: c.width, k, fx }; });
   check('the render scale can be lowered and restored without rebuilding the scene; a shot asks for its own rumble', r.k === 0.5 && r.w1 < r.w0 * 0.6 && r.w2 === r.w0 && r.fx && r.fx.strongMagnitude > 0.9, JSON.stringify(r));
 
+  r = await page.evaluate(() => { const u = window.__underflow; u.beginSector(0); u.startExplore(); u.step(5); const E = window.__explore;
+    E.player.pos = [E.raftPos[0] + 1, 0, E.raftPos[2]]; u.step(2); const prompt = document.body.innerText.match(/Leave early[^\n]*/)?.[0] || '';
+    u.press('e'); u.step(2); const early = !!u.state.early?.[u.state.sectorKey], mode = u.mode;
+    const left = JSON.parse(localStorage.getItem('underflow-facility') || '{}').sectors?.[u.state.sectorKey]?.left || 0;
+    u.enterSafeRoom(); u.step(1);
+    return { left, prompt, early, mode, row: !!document.querySelector('.debrief-row.early'), grade: document.querySelector('.debrief-grade b')?.textContent, verdict: document.querySelector('.debrief-verdict')?.textContent || '' }; });
+  check('boarding with the circuit dark is an early extraction: the prompt says what it costs, and the debrief records it', /grade capped/.test(r.prompt) && r.left === 1 && r.early && r.mode === 'ride' && r.row && /[BCD]/.test(r.grade || '') && /left before/.test(r.verdict), JSON.stringify(r));
+
+  r = await page.evaluate(() => { const u = window.__underflow; u.setState({ variants: { 0: { left: 1, notes: [] } } }); u.beginSector(0); u.startExplore(); u.step(3); const E = window.__explore;
+    return { kept: E.remembered.some((x) => /STOPPED HERE/.test(x.cap)) }; });
+  check('next expedition the dock you left early has kept your place', r.kept, JSON.stringify(r));
+
   r = await page.evaluate(async () => { const m = await import('/src/blaster.js'); const F = m.FEEL; return { scatter: F.scatter.kick, pulse: F.pulse.kick, rep: F.repeater.walk, recS: F.scatter.rec, recP: F.pulse.rec }; });
   check('each blaster profile has its own kick: Scatter shoves and recovers slowly, Pulse is sharp, the Repeater rattles', r.scatter > r.pulse * 3 && r.recS < r.recP && r.rep > 0, JSON.stringify(r));
 

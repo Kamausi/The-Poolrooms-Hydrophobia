@@ -270,8 +270,9 @@ export function pollGamepad(dt) {
   input.move[1] = -dz(pad.axes[1] || 0);
   const rx = dz(pad.axes[2] || 0), ry = dz(pad.axes[3] || 0);
   if (input.context === 'ride') {
-    input.aim[0] = Math.max(-0.95, Math.min(0.95, input.aim[0] + rx * dt * 1.8));
-    input.aim[1] = Math.max(-0.9, Math.min(0.9, input.aim[1] - ry * dt * 1.8));
+    const f = input.aimFriction ?? 1; // set by the raft each frame: slower over a target (aim assist)
+    input.aim[0] = Math.max(-0.95, Math.min(0.95, input.aim[0] + rx * dt * 1.8 * f));
+    input.aim[1] = Math.max(-0.9, Math.min(0.9, input.aim[1] - ry * dt * 1.8 * f));
   } else {
     input.look[0] += rx * dt * 700;
     input.look[1] += ry * dt * 500;

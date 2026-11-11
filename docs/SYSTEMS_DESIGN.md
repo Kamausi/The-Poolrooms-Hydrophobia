@@ -631,7 +631,7 @@ The "signal rating" that earns a maintenance override is the unmultiplied sector
 | Shove | immediate | weapon thrust (existing) | — | contact | knockback | haptics |
 | Walk / wade | immediate | — | step bob (existing) | tile, metal steps | — | wet-tile and deep-water step sounds |
 
-**From the same briefs, not built:** a free-aim reticle envelope on the raft and hidden aim magnetism for controllers; edge wedges for incoming threats; early extraction; score-qualified routes beyond the existing override; per-player contribution lines (there is one player); leaderboards. Token lines, drops, assessments, the Lost & Found and haptic patterns came later (sections 25 and 27). Tests: `tests/unit/score.test.js`, `tests/score.cjs`, `tests/feel.cjs`. Whether any of this feels good is a question for people playing it.
+**From the same briefs, not built:** a free-aim reticle envelope on the raft (controller aim help and threat markers came later, section 28; early extraction, section 29); score-qualified routes beyond the existing override; per-player contribution lines (there is one player); leaderboards. Token lines, drops, assessments, the Lost & Found and haptic patterns came later (sections 25 and 27). Tests: `tests/unit/score.test.js`, `tests/score.cjs`, `tests/feel.cjs`. Whether any of this feels good is a question for people playing it.
 
 ## 24. Things worth picking up, and the work lamp (implemented)
 
@@ -656,7 +656,7 @@ A collectible is worth 250 (a dry thing 750) to the Expedition Score, is written
 - a lit lamp in your hand lets the Lifeguard see you from further; in the dark with it off you are harder to see;
 - a lamp left burning on the floor draws Blooms that have not committed to you: a decoy, at the cost of your light.
 
-**Not built from these briefs** (the lighting circuit in section 26 came later): reflections and shadows as puzzle elements, perspective alignment, private versus shared hallucinations (one player), the survey map, warm tokens and unclaimed vests, score-qualified side rooms for collectibles. Keyboard bindings only for the lamp. Tests: `tests/unit/collectibles.test.js`, `tests/finds.cjs`.
+**Not built from these briefs** (the lighting circuit in section 26 came later): reflections and shadows as puzzle elements, perspective alignment, private versus shared hallucinations (one player), warm tokens and unclaimed vests, score-qualified side rooms for collectibles. Keyboard bindings only for the lamp. Tests: `tests/unit/collectibles.test.js`, `tests/finds.cjs`.
 
 ## 25. The raft's arcade layer (implemented)
 
@@ -689,4 +689,30 @@ This is the first **facility state**. Not built: more than two states (power los
 **The Lost & Found** (`src/collectibles.js`). A hatch in the Safe Room's emergency cabinet returns one item per visit for 150 Service Credit. You do not choose what comes back: usually a supply, sometimes more credit than you paid, sometimes one wet sock, rarely a dressing with your handwriting on it. No outcome costs anything but the fee, because a Safe Room is safe.
 
 Limits: the resolution controller is tested as logic and the scale change is tested on the canvas, but it has never run its loop on a real GPU, so the thresholds are unproven. Vibration has not been felt on a physical controller; the tests check the patterns and that the request is made, not that anything shook. Not built: an automatic quality tier beyond resolution (shadows, lamps, bloom), ambient occlusion, volumetrics, auto exposure, trigger-specific vibration, and patterns for most on-foot actions. Tests: `tests/unit/autores.test.js`, `tests/unit/haptics.test.js`, `tests/unit/collectibles.test.js`, `tests/score.cjs`.
+
+## 28. Controller aim help and threat markers (implemented)
+
+Both are screen-space geometry in `src/aim.js` (pure).
+
+**Aim help, controller only, on the raft.** When the reticle is within a small radius of a target, the shot bends part of the way toward it: strongest on the target, nothing at the edge of the radius, never a snap and never across the screen. The right stick also slows as the reticle crosses a target, so a thumb can stop on it. The reticle is drawn where the shot will go, so the help is visible. One setting scales both (0 is off). Mouse aim is untouched; touch keeps its own snap.
+
+**Threat markers.** A Bloom that has noticed you, is within 12 m and is outside the view gets a wedge on the rim pointing toward it; one directly behind is drawn at the bottom. At most three, the nearest first, larger when closer. Blooms that have not noticed you get no marker: the HUD reports what is coming, not what is waiting. A setting turns them off.
+
+Limits: the assist strengths are untuned guesses, never tried with a physical controller. Markers exist on the raft only and only for Blooms; projectiles, the Lifeguard and on-foot threats have none. Tests: `tests/unit/aim.test.js`, `tests/arcade.cjs`.
+
+## 29. Early extraction (implemented)
+
+You could always board the raft at a dock without restoring its circuit; now it is a stated decision. The boarding prompt says what leaving costs before you commit: the bypass exit instead of the service gate, everything earned is kept, and the sector grade stops at B. The debrief adds an EARLY EXTRACTION row and the Attendant notes that the party left before the attraction concluded. A poor grade is not raised by it. Going back and restoring the circuit before boarding clears the mark.
+
+Not built: extraction anywhere but the moored raft, a countdown or pursuit that makes leaving hard, partial payouts tied to how much of the objective was done. Tests: `tests/unit/score.test.js`, `tests/unit/memory.test.js`, `tests/score.cjs`.
+
+The facility remembers it. On the next expedition a dock you left early (and have never restored) carries a notice by the mooring: YOUR PARTY STOPPED HERE, PLEASE CONTINUE, with the visit number. It changes nothing about the map or the difficulty, and it goes away once the circuit has been restored.
+
+## 30. The survey map (implemented)
+
+On foot, M opens a small map in the corner (`src/survey.js`, pure). It is drawn only from where you have stood: the cell you are in and the open cells in the four straight lines from it, up to two cells, stopping at a wall. Walls appear only where they border something seen. It shows you with your facing, the raft, and the service panel and the gate once their cells have been seen. Nothing on it is ever false, so it is the one thing on a dock that can be relied on.
+
+Seeing 85% of the cells you can walk to completes the survey: a SURVEYED award once per dock, a line in the field ledger. The map stays open while the world keeps moving. It is saved with a resume.
+
+Not built: the map on the raft, sharing a survey between expeditions, marks for finds or hazards, the map disagreeing with a room under a different facility state (the lighting circuit's hidden cell is simply drawn once you have stood by it), and a controller binding. Tests: `tests/unit/survey.test.js`, `tests/finds.cjs`.
 

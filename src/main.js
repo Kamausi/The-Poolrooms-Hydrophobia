@@ -272,6 +272,8 @@ const events = {
   /** Scenes report observations for the playtest log. */
   log(type, data) { playlog.record(type, data); },
   board() {
+    // An early extraction is remembered once per expedition: the dock keeps your place.
+    if (state.early?.[state.sectorKey] && !state.endless && !state.custom && !(state.memDone ||= {})[`e${state.sectorKey}`]) { state.memDone[`e${state.sectorKey}`] = true; recordSector(state.sectorKey, 'left'); }
     // A pressure canister found on foot goes into the softest chamber the moment you are back aboard.
     if (state.canisters > 0 && state.chambers) {
       const k = Object.keys(state.chambers).sort((a, b) => state.chambers[a] - state.chambers[b])[0];
@@ -476,8 +478,8 @@ function enterSafeRoom() {
     state.pressure = Math.min(1.6, (state.pressure || 1) + 0.1);
   }
   // The sector debrief: what the score was made of, and a grade weighted by what the sector asked.
-  const report = debrief(state, { par: 4500 + state.sectorIndex * 500, raft: state.raft ?? 100, crewIntact: !Object.values(state.crewState || {}).some((v) => v === 'hurt' || v === 'grabbed') });
-  report.verdict = attendantVerdict(report.grade);
+  const report = debrief(state, { par: 4500 + state.sectorIndex * 500, raft: state.raft ?? 100, crewIntact: !Object.values(state.crewState || {}).some((v) => v === 'hurt' || v === 'grabbed'), early: !!state.early?.[state.sectorKey] });
+  report.verdict = attendantVerdict(report.grade, report.early);
   report.total = Math.round(state.score);
   report.sector = sector.name;
   state.lastDebrief = report;
@@ -913,6 +915,8 @@ function frame(now) {
     if (st && now - lastLogged > 60000) { lastLogged = now; playlog.record('frames', st); }
   }
   pollGamepad(dt);
+  if (mode !== 'ride') hud.wedges([]);
+  if (mode !== 'explore') hud.survey(null);
   input.context = mode === 'explore' ? 'explore' : 'ride';
   if ($('modal').hidden && (wasPressed('escape') || wasPressed('p')) && now - pausedAt > 250) setPaused(!paused);
   if (mode === 'menu' && $('modal').hidden && !$('start-menu').hidden && wasPressed('escape')) showMenuList('main');

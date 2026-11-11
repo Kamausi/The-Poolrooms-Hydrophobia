@@ -49,5 +49,12 @@ const { open, newCampaign, check, finish } = require('./lib.cjs');
     for (let k = 0; k < 60; k++) { u.setState({ health: 1e6 }); E.player.pos = [away[0], 0, away[2]]; u.step(1); }
     return { d0, d1: Math.hypot(b.pos[0] - lamp[0], b.pos[2] - lamp[2]), playerFar: Math.hypot(away[0] - lamp[0], away[2] - lamp[2]) }; });
   check('a lamp left burning draws a Bloom that has not committed to you', r.none || (r.playerFar > 8 && r.d1 < r.d0 - 1), JSON.stringify(r));
+  r = await page.evaluate(() => { const u = window.__underflow; u.beginSector(0); u.startExplore(); u.step(3); const E = window.__explore;
+    const c0 = E.surveyCoverage; u.press('m'); u.step(2); const el = document.getElementById('survey'); const shown = !el.hidden, text = el.textContent;
+    const s0 = u.state.score; const aw0 = u.state.tally.awards.survey || 0;
+    for (const [x, z] of E.surveyOpen) { u.setState({ health: 1e6, drift: 0 }); const c = E.center(x, z); E.player.pos = [c[0], 0, c[2]]; u.step(1); if (E.survey.done) break; }
+    const text2 = el.textContent; u.press('m'); u.step(1);
+    return { c0, shown, you: /[▲▶▼◀]/.test(text), raft: /R/.test(text.split('\n').slice(1, -1).join('')), small: text.length, grew: text2.length > text.length, c1: E.surveyCoverage, done: E.survey.done, paid: (u.state.tally.awards.survey || 0) - aw0, hidden: el.hidden }; });
+  check('the survey map starts with what you can see from the dock, grows as you walk, and a full survey is scored once', r.c0 > 0 && r.c0 < 0.5 && r.shown && r.you && r.grew && r.c1 >= 0.85 && r.done && r.paid === 1 && r.hidden, JSON.stringify(r));
   await finish(browser, errors);
 })();
