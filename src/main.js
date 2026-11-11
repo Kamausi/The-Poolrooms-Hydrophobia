@@ -476,8 +476,8 @@ function enterSafeRoom() {
     state.pressure = Math.min(1.6, (state.pressure || 1) + 0.1);
   }
   // The sector debrief: what the score was made of, and a grade weighted by what the sector asked.
-  const report = debrief(state, { par: 4500 + state.sectorIndex * 500, raft: state.raft ?? 100, crewIntact: !Object.values(state.crewState || {}).some((v) => v === 'hurt' || v === 'grabbed') });
-  report.verdict = attendantVerdict(report.grade);
+  const report = debrief(state, { par: 4500 + state.sectorIndex * 500, raft: state.raft ?? 100, crewIntact: !Object.values(state.crewState || {}).some((v) => v === 'hurt' || v === 'grabbed'), early: !!state.early?.[state.sectorKey] });
+  report.verdict = attendantVerdict(report.grade, report.early);
   report.total = Math.round(state.score);
   report.sector = sector.name;
   state.lastDebrief = report;

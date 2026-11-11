@@ -74,3 +74,17 @@ describe('DOUBLE FLOW', () => {
     expect(a).toBe(b * 2);
   });
 });
+
+describe('early extraction', () => {
+  it('keeps the points and credit, caps the grade at B, and the Attendant says so', () => {
+    const play = () => { const s = ensureScore({}); for (let i = 0; i < 80; i++) { award(s, 'kill'); shot(s, true); } return s; };
+    const full = debrief(play(), { par: 3000 }), left = debrief(play(), { par: 3000, early: true });
+    expect(['S', 'A']).toContain(full.grade);
+    expect(left.grade).toBe('B');
+    expect(left.points).toBe(full.points);
+    expect(left.early).toBe(true);
+    expect(attendantVerdict(left.grade, true)).toMatch(/left before/);
+    expect(attendantVerdict('B')).not.toMatch(/left before/);
+  });
+  it('does not raise a poor grade', () => { expect(debrief(ensureScore({}), { par: 6000, raft: 10, crewIntact: false, early: true }).grade).toMatch(/[CD]/); });
+});

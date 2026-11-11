@@ -1508,7 +1508,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
           hud.toast('DRAINED BY HAND · IT TAKES EFFECT NEXT TIME YOU LAND HERE');
         }
       }
-      ask(2, powered() ? 'E · Board the raft (service gate open)' : 'E · Board the raft (no power: bypass only)');
+      ask(2, powered() ? 'E · Board the raft (service gate open)' : 'E · Leave early (circuit dark: bypass exit, you keep what you earned, grade capped at B)');
       if (wasPressed('e') && surge && !surge.done) {
         // Leaving before the surge passes: the line goes, and the way out floods behind you.
         (state.routeMod ||= {})[key] = 'flooded';
@@ -1525,6 +1525,8 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
           sound.wrong();
           hud.toast('THE PUMP IS OFF · NO WATER IN THE CHANNEL · RESTART IT');
         } else {
+          if (!powered()) { (state.early ||= {})[key] = true; events.log('extract', { sector: key, early: true }); }
+          else if (state.early) delete state.early[key];
           events.board();
           return;
         }

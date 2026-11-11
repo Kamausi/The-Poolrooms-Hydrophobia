@@ -119,22 +119,26 @@ export function spend(state, cost) {
 /**
  * End of a sector: the debrief and a grade. Weights differ by what the sector asked of you, so a careful
  * exploration is not marked down for not being a speedrun.
- * info: { par, raft (0..100), crewIntact (bool), kind: 'rail' | 'explore' }
+ * info: { par, raft (0..100), crewIntact (bool), kind: 'rail' | 'explore', early (left a dock unfinished) }
  */
-export function debrief(state, { par = 6000, raft = 100, crewIntact = true, kind = 'rail' } = {}) {
+export function debrief(state, { par = 6000, raft = 100, crewIntact = true, kind = 'rail', early = false } = {}) {
   ensureScore(state);
   const t = state.tally;
   const accuracy = t.shots ? t.hits / t.shots : 1;
   const w = kind === 'explore' ? { points: 0.3, acc: 0.1, crew: 0.35, raft: 0.25 } : { points: 0.45, acc: 0.2, crew: 0.2, raft: 0.15 };
   const g = w.points * Math.min(1, t.points / par) + w.acc * accuracy + w.crew * (crewIntact && !t.incaps ? 1 : t.incaps > 1 ? 0.2 : 0.5) + w.raft * (raft / 100);
-  const grade = g >= 0.9 ? 'S' : g >= 0.75 ? 'A' : g >= 0.55 ? 'B' : g >= 0.35 ? 'C' : 'D';
-  const out = { points: t.points, accuracy, maxFlow: t.maxFlow, saves: t.saves, rescues: t.rescues, incaps: t.incaps, raft, grade, value: g };
+  // Leaving a dock with its circuit dark is allowed and keeps everything you earned, but it is not a full
+  // inspection: the grade stops at B.
+  let grade = g >= 0.9 ? 'S' : g >= 0.75 ? 'A' : g >= 0.55 ? 'B' : g >= 0.35 ? 'C' : 'D';
+  if (early && (grade === 'S' || grade === 'A')) grade = 'B';
+  const out = { early, points: t.points, accuracy, maxFlow: t.maxFlow, saves: t.saves, rescues: t.rescues, incaps: t.incaps, raft, grade, value: g };
   state.tally = newTally();
   return out;
 }
 
 /** The facility's view of your performance: a qualification, said kindly. */
-export function attendantVerdict(grade) {
+export function attendantVerdict(grade, early = false) {
+  if (early) return 'Your party left before the attraction concluded. The attraction has noted where you stopped.';
   return {
     S: 'Guest performance exceeds expected operating parameters. Your party has qualified for advanced circulation.',
     A: 'Your party has qualified for advanced circulation.',

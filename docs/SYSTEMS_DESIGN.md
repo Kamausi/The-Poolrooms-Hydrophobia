@@ -631,7 +631,7 @@ The "signal rating" that earns a maintenance override is the unmultiplied sector
 | Shove | immediate | weapon thrust (existing) | — | contact | knockback | haptics |
 | Walk / wade | immediate | — | step bob (existing) | tile, metal steps | — | wet-tile and deep-water step sounds |
 
-**From the same briefs, not built:** a free-aim reticle envelope on the raft (controller aim help and threat markers came later, section 28); early extraction; score-qualified routes beyond the existing override; per-player contribution lines (there is one player); leaderboards. Token lines, drops, assessments, the Lost & Found and haptic patterns came later (sections 25 and 27). Tests: `tests/unit/score.test.js`, `tests/score.cjs`, `tests/feel.cjs`. Whether any of this feels good is a question for people playing it.
+**From the same briefs, not built:** a free-aim reticle envelope on the raft (controller aim help and threat markers came later, section 28; early extraction, section 29); score-qualified routes beyond the existing override; per-player contribution lines (there is one player); leaderboards. Token lines, drops, assessments, the Lost & Found and haptic patterns came later (sections 25 and 27). Tests: `tests/unit/score.test.js`, `tests/score.cjs`, `tests/feel.cjs`. Whether any of this feels good is a question for people playing it.
 
 ## 24. Things worth picking up, and the work lamp (implemented)
 
@@ -699,4 +699,10 @@ Both are screen-space geometry in `src/aim.js` (pure).
 **Threat markers.** A Bloom that has noticed you, is within 12 m and is outside the view gets a wedge on the rim pointing toward it; one directly behind is drawn at the bottom. At most three, the nearest first, larger when closer. Blooms that have not noticed you get no marker: the HUD reports what is coming, not what is waiting. A setting turns them off.
 
 Limits: the assist strengths are untuned guesses, never tried with a physical controller. Markers exist on the raft only and only for Blooms; projectiles, the Lifeguard and on-foot threats have none. Tests: `tests/unit/aim.test.js`, `tests/arcade.cjs`.
+
+## 29. Early extraction (implemented)
+
+You could always board the raft at a dock without restoring its circuit; now it is a stated decision. The boarding prompt says what leaving costs before you commit: the bypass exit instead of the service gate, everything earned is kept, and the sector grade stops at B. The debrief adds an EARLY EXTRACTION row and the Attendant notes that the party left before the attraction concluded. A poor grade is not raised by it. Going back and restoring the circuit before boarding clears the mark.
+
+Not built: extraction anywhere but the moored raft, a countdown or pursuit that makes leaving hard, partial payouts tied to how much of the objective was done, and any memory of where you stopped in later expeditions (the Attendant's line claims this; nothing reads it yet). Tests: `tests/unit/score.test.js`, `tests/score.cjs`.
 
