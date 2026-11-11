@@ -704,5 +704,7 @@ Limits: the assist strengths are untuned guesses, never tried with a physical co
 
 You could always board the raft at a dock without restoring its circuit; now it is a stated decision. The boarding prompt says what leaving costs before you commit: the bypass exit instead of the service gate, everything earned is kept, and the sector grade stops at B. The debrief adds an EARLY EXTRACTION row and the Attendant notes that the party left before the attraction concluded. A poor grade is not raised by it. Going back and restoring the circuit before boarding clears the mark.
 
-Not built: extraction anywhere but the moored raft, a countdown or pursuit that makes leaving hard, partial payouts tied to how much of the objective was done, and any memory of where you stopped in later expeditions (the Attendant's line claims this; nothing reads it yet). Tests: `tests/unit/score.test.js`, `tests/score.cjs`.
+Not built: extraction anywhere but the moored raft, a countdown or pursuit that makes leaving hard, partial payouts tied to how much of the objective was done. Tests: `tests/unit/score.test.js`, `tests/unit/memory.test.js`, `tests/score.cjs`.
+
+The facility remembers it. On the next expedition a dock you left early (and have never restored) carries a notice by the mooring: YOUR PARTY STOPPED HERE, PLEASE CONTINUE, with the visit number. It changes nothing about the map or the difficulty, and it goes away once the circuit has been restored.
 

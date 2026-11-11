@@ -161,6 +161,8 @@ export function authorExpedition(sectors) {
     if (m.restored) { v.plaque = true; v.lockers = true; }
     // Where people died, the facility remembers: a warning, a vest at the spot, a notice, a cache. Not harder.
     if ((m.deaths || 0) >= 1 && m.lastDeath) { v.dangerous = true; v.deathAt = m.lastDeath; v.notes.push('it remembers where you died'); }
+    // Leaving a dock unfinished: it keeps your place. (The Attendant said it had noted where you stopped.)
+    if (m.left && !m.restored) { v.left = m.left; v.notes.push('it kept your place at the dock you left early'); }
     if (m.bypassed && !m.restored) { v.waiting = true; v.notes.push('the dock you skipped is waiting with its lights on'); }
     facility.accepted[sector.id] = v;
     facility.history.push({ expedition: facility.expeditions, sector: sector.id, notes: v.notes });

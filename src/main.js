@@ -272,6 +272,8 @@ const events = {
   /** Scenes report observations for the playtest log. */
   log(type, data) { playlog.record(type, data); },
   board() {
+    // An early extraction is remembered once per expedition: the dock keeps your place.
+    if (state.early?.[state.sectorKey] && !state.endless && !state.custom && !(state.memDone ||= {})[`e${state.sectorKey}`]) { state.memDone[`e${state.sectorKey}`] = true; recordSector(state.sectorKey, 'left'); }
     // A pressure canister found on foot goes into the softest chamber the moment you are back aboard.
     if (state.canisters > 0 && state.chambers) {
       const k = Object.keys(state.chambers).sort((a, b) => state.chambers[a] - state.chambers[b])[0];

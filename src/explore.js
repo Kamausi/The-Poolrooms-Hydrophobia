@@ -480,6 +480,12 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     label(visitor ? visitor.toUpperCase() : `DRAINER ${state.band}`, 'count', add(vestAt, add(scale(w.normal, 0.17), [0, 0.12, 0])), w.normal, 0.36, 0.08, 384, 64);
     remembered.push({ pos: vestAt, cap: visitor ? `[locker 0417: a dry flotation vest. The name in the collar is ${visitor}.]` : `[locker 0417: a dry flotation vest with your wristband number in the collar. You are wearing your vest.]`, ledger: `${sector.name}: a second changing room with the same lockers, the same hinge, the same cup` });
   }
+  if (variant.left) {
+    // You left this dock unfinished: a notice on the wall by the mooring, wall side, where the raft ties up.
+    const at = [dockC[0] + dockWall[0] * (CELL / 2 - 0.04), 1.7, dockC[2] + dockWall[1] * (CELL / 2 - 0.04)];
+    label(`YOUR PARTY STOPPED HERE\nPLEASE CONTINUE · VISIT ${variant.left + 1}`, 'rule', at, [-dockWall[0], 0, -dockWall[1]], 1.1, 0.42, 512, 192);
+    remembered.push({ pos: [dockC[0], 0, dockC[2]], cap: '[a notice by the mooring: YOUR PARTY STOPPED HERE. PLEASE CONTINUE. It is dated the day you left.]', ledger: `${sector.name}: the dock kept our place` });
+  }
   if (variant.waiting) {
     // The dock you skipped last time: every light on, the tether post polished.
     for (let i = 0; i < 4; i++) prop(`Waiting light ${i}`, { color: [1, 1, 1], metallic: 0, roughness: 1, emission: 7, emissiveColor: linear('#d8d6a6') }, add(dockC, [Math.cos(i * 1.57) * 1.6, 3.2, Math.sin(i * 1.57) * 1.6]), [0.9, 0.05, 0.25]);
@@ -3077,7 +3083,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     for (let i = 0; i < (r.valves || 0); i++) { const v = pumpValves.find((x) => x.id === valveOrder[i]); if (v) v.open = true; }
     valveStep = r.valves || 0;
   }
-  if (import.meta.env.DEV) window.__explore = { omen: (k) => startFomen(k), circuit, setEmergency, get emergency() { return emergency; }, blocked, isWall, finds, found, get lampPlaced() { return lampPlaced; }, lights: () => gatherLights(add(player.pos, [0, 1.6, 0])), get hesitation() { return hesitation; }, get lastOmen() { return lastFomen; }, get marcoAct() { return marcoAct; }, set marcoAct(v) { marcoAct = v; }, marcos, columns, wavePool, get basin() { return basin; }, isWater, floorTop, get operating() { return operating; }, set operating(v) { operating = v; }, panelFront, holdT, shoot, spawnBloom, occupant, lockers, noise, violate, get omenState() { return fomen; }, door, blooms, lamps, director, followers, get dockKind() { return dockKind; }, get valves() { return { order: valveOrder, step: valveStep, list: pumpValves }; }, june: juneEvent, thread, get clock() { return clock; }, stagnant, player, center, undertow, lifeguard, cellPos, panelPos, raftPos, code, find, floaters, restorePower };
+  if (import.meta.env.DEV) window.__explore = { get remembered() { return remembered; }, omen: (k) => startFomen(k), circuit, setEmergency, get emergency() { return emergency; }, blocked, isWall, finds, found, get lampPlaced() { return lampPlaced; }, lights: () => gatherLights(add(player.pos, [0, 1.6, 0])), get hesitation() { return hesitation; }, get lastOmen() { return lastFomen; }, get marcoAct() { return marcoAct; }, set marcoAct(v) { marcoAct = v; }, marcos, columns, wavePool, get basin() { return basin; }, isWater, floorTop, get operating() { return operating; }, set operating(v) { operating = v; }, panelFront, holdT, shoot, spawnBloom, occupant, lockers, noise, violate, get omenState() { return fomen; }, door, blooms, lamps, director, followers, get dockKind() { return dockKind; }, get valves() { return { order: valveOrder, step: valveStep, list: pumpValves }; }, june: juneEvent, thread, get clock() { return clock; }, stagnant, player, center, undertow, lifeguard, cellPos, panelPos, raftPos, code, find, floaters, restorePower };
 
   return {
     update,
