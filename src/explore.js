@@ -86,7 +86,10 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
   const at = (x, z) => (z < 0 || z >= H || x < 0 || x >= W ? '#' : grid[z][x]);
   const cellOf = (x, z) => [Math.floor(x / CELL), Math.floor(z / CELL)];
   const center = (x, z) => [x * CELL + CELL / 2, 0, z * CELL + CELL / 2];
-  const isWall = (x, z) => at(x, z) === '#';
+  // Facility state: under the emergency lighting circuit one wall is a doorway. Nothing animates; the light
+  // changes and the room is simply different. eCell is that wall; emergency is which circuit is live.
+  let emergency = false, eCell = null;
+  const isWall = (x, z) => at(x, z) === '#' && !(emergency && eCell && x === eCell[0] && z === eCell[1]);
 
   // Mutable world state
   let highWater = false; // floating bridge raised
@@ -120,7 +123,8 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
   };
   const blocked = (x, z) => {
     const c = at(x, z);
-    return c === '#' || c === 'x' || c === 'o' || (c === 'B' && !highWater) || (c === 'K' && !keypadOpen) || (c === 'G' && !gateOpen);
+    if (c === '#') return isWall(x, z);
+    return c === 'x' || c === 'o' || (c === 'B' && !highWater) || (c === 'K' && !keypadOpen) || (c === 'G' && !gateOpen);
   };
   const inWaterAt = (px, pz) => isWater(...cellOf(px, pz));
 
@@ -148,6 +152,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
   };
 
   let vignetteExtra = null;
+  const wallParts = new Map();
   const waterParts = [];
   const tidal = [];
   const lamps = [];
@@ -155,7 +160,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     for (let x = 0; x < W; x++) {
       const c = center(x, z);
       if (isWall(x, z)) {
-        if (DIRS.some(([dx, dz]) => !isWall(x + dx, z + dz))) writeYaw(P(`Wall ${x},${z}`, slab, tileMat).matrix, [c[0], wallH / 2 - 0.5, c[2]], 0, CELL, wallH + 1, CELL);
+        if (DIRS.some(([dx, dz]) => !isWall(x + dx, z + dz))) { const wp = P(`Wall ${x},${z}`, slab, tileMat); writeYaw(wp.matrix, [c[0], wallH / 2 - 0.5, c[2]], 0, CELL, wallH + 1, CELL); wallParts.set(`${x},${z}`, wp); }
         continue;
       }
       const ch = at(x, z);
@@ -313,6 +318,51 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
   };
   const floorCells = find('.').filter(([x, z]) => Math.abs(x - dx0) + Math.abs(z - dz0) > 3);
   const takeCell = () => floorCells.splice(Math.floor(random() * floorCells.length), 1)[0];
+
+  // ---------- The lighting circuit ----------
+  // A relay on the wall switches the dock between its main lights and the emergency strips. Under emergency
+  // light a wall between two rooms is a doorway, with a service cache in it. The dark costs composure.
+  const circuit = rules.openSky ? null : (() => {
+    const plain = (x, z) => at(x, z) === '.';
+    const cands = [];
+    for (let z = 1; z < H - 1; z++) for (let x = 1; x < W - 1; x++) {
+      if (at(x, z) !== '#' || !wallParts.has(`${x},${z}`)) continue;
+      const ew = plain(x - 1, z) && plain(x + 1, z), ns = plain(x, z - 1) && plain(x, z + 1);
+      if ((ew || ns) && Math.abs(x - dx0) + Math.abs(z - dz0) > 2) cands.push([x, z, ew ? 1 : 0]);
+    }
+    const relayCells = find('.').filter(([x, z]) => { const md = Math.abs(x - dx0) + Math.abs(z - dz0); return md >= 2 && md <= 6 && DIRS.some(([ddx, ddz]) => at(x + ddx, z + ddz) === '#'); });
+    if (!cands.length || !relayCells.length) return null;
+    const [ex, ez, ew] = cands[Math.floor(hash(3.3, 9.1) * cands.length)];
+    // The relay is never beside the doorway it opens: you switch it, then go and look.
+    const apart = relayCells.filter(([x, z]) => Math.abs(x - ex) + Math.abs(z - ez) >= 3);
+    const rcPool = apart.length ? apart : relayCells;
+    const rc = rcPool[Math.floor(hash(5.7, 2.2) * rcPool.length)];
+    const rs = wallSpot(...rc);
+    const c = center(ex, ez);
+    const floor = P('Emergency doorway floor', slab, tileMat);
+    const trim = { color: linear('#3c3a36'), metallic: 0.3, roughness: 0.7 };
+    const along = ew ? [0, 0, 1] : [1, 0, 0]; // the doorway's width runs across the passage
+    const frame = [-1, 1].map((k) => ({ part: P('Emergency doorway jamb', slab, trim), pos: [c[0] + along[0] * k * (CELL / 2 - 0.1), wallH / 2, c[2] + along[2] * k * (CELL / 2 - 0.1)], size: ew ? [CELL, wallH, 0.2] : [0.2, wallH, CELL] }));
+    const relay = P('Lighting relay', box(0.03, 2), glow(linear('#b19a50'), 1.4, { color: [0.3, 0.3, 0.28], metallic: 0.7, roughness: 0.4 }));
+    writeYaw(relay.matrix, [rs.pos[0], 1.35, rs.pos[2]], Math.atan2(rs.normal[0], rs.normal[2]), 0.34, 0.46, 0.1);
+    label('LIGHTING\nMAIN · EMERGENCY', 'amber', [rs.pos[0] + rs.normal[0] * 0.02, 1.95, rs.pos[2] + rs.normal[2] * 0.02], rs.normal, 0.7, 0.3, 256, 110);
+    const cache = P('Service cache (emergency side)', box(0.06, 2), glow([0.6, 1, 0.8], 0.5, { color: [0.3, 0.36, 0.34], metallic: 0.6, roughness: 0.4 }));
+    return { cell: [ex, ez], c, floor, frame, relay, relayPos: [rs.pos[0], 1.35, rs.pos[2]], cache, cacheTaken: false, crossed: false, told: false, switches: 0 };
+  })();
+  if (circuit) eCell = circuit.cell;
+  function setEmergency(v) {
+    if (!circuit || v === emergency) return false;
+    const [px, pz] = cellOf(player.pos[0], player.pos[2]);
+    if (!v && px === eCell[0] && pz === eCell[1]) { hud.toast('NOT WHILE YOU ARE STANDING IN IT'); return false; }
+    emergency = v;
+    circuit.switches += 1;
+    sound.switchOn(); sound.lever();
+    if (v) {
+      hud.caption(circuit.told ? '[the main lights drop out. Coral strips. The doorway is there again]' : '[the main lights drop out and the emergency strips come up coral. There is a doorway in the wall that was not a doorway]');
+      if (!circuit.told) { circuit.told = true; director.omen(0.5, 16); hud.hush(10, followers[0]?.id.toUpperCase() || null, 'That was a wall. I had my hand on it.'); events.ledger?.('changes', `${sector.name}: under emergency light there is a doorway where the main lights show a wall`); }
+    } else hud.caption('[the lights come back. The wall is a wall]');
+    return true;
+  }
   // Pump sequence (water-control and repair stops): three valves, an order on a diagram at the dock that varies by run.
   // The diagram shows four pumps. You will only ever find three.
   const valvesOn = dockKind === 'water' || dockKind === 'repair';
@@ -1125,6 +1175,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
         if (f.hp <= 0) { f.state = 'gone'; sound.burst(); events.score(150, 'FLOATER DISPERSED'); events.cleared(); }
       }
     });
+    if (circuit) test(circuit.relayPos, 0.4, () => { sound.hit(); setEmergency(!emergency); });
     if (lifeguard && lifeguard.breakerPos && !lifeguard.stopped) test(lifeguard.breakerPos, 0.5, () => {
       if (lifeguard.rule === 'fire' && lifeguard.lampOn) return;
       lifeguard.stopped = true;
@@ -1508,6 +1559,33 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
         state.scrap += 1;
         sound.pickup();
         hud.toast('+1 PART');
+      }
+    }
+    if (circuit) {
+      const C = circuit;
+      C.relay.material.emission = emergency ? 0.5 : 1.2 + Math.sin(time * 2) * 0.2;
+      const atCache = emergency && !C.cacheTaken && Math.hypot(C.c[0] - eye[0], C.c[2] - eye[2]) < 1.9;
+      if (!atCache && Math.hypot(C.relayPos[0] - eye[0], C.relayPos[2] - eye[2]) < 2.3) {
+        ask(2, emergency ? 'E · Lighting relay: back to MAIN' : 'E · Lighting relay: switch to EMERGENCY (or shoot it)');
+        if (wasPressed('e')) { setEmergency(!emergency); return; }
+      }
+      const wp = wallParts.get(`${eCell[0]},${eCell[1]}`);
+      if (emergency) {
+        hide(wp);
+        writeYaw(C.floor.matrix, [C.c[0], -0.25, C.c[2]], 0, CELL, 0.5, CELL);
+        for (const f of C.frame) writeYaw(f.part.matrix, f.pos, 0, ...f.size);
+        if (!C.cacheTaken) {
+          writeYaw(C.cache.matrix, [C.c[0], 0.3, C.c[2]], 0.5, 0.6, 0.5, 0.4);
+          if (Math.hypot(C.c[0] - eye[0], C.c[2] - eye[2]) < 1.9) {
+            ask(2, 'E · Open the service cache');
+            if (wasPressed('e')) { C.cacheTaken = true; state.cells = Math.min(3, state.cells + 1); state.credit = (state.credit || 0) + 100; sound.pickup(); hud.toast('SERVICE CACHE · +1 CELL · +100 CREDIT'); return; }
+          }
+        } else hide(C.cache);
+        const [px, pz] = cellOf(player.pos[0], player.pos[2]);
+        if (!C.crossed && px === eCell[0] && pz === eCell[1]) { C.crossed = true; events.award('route', 'ROUTE FOUND · EMERGENCY DOORWAY'); }
+      } else {
+        writeYaw(wp.matrix, [C.c[0], wallH / 2 - 0.5, C.c[2]], 0, CELL, wallH + 1, CELL);
+        hide(C.floor); hide(C.cache); for (const f of C.frame) hide(f.part);
       }
     }
     for (const f of finds) {
@@ -2102,6 +2180,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
   function takenState() {
     return {
       finds: finds.map((x, i) => (x.taken ? i : -1)).filter((i) => i >= 0),
+      circuitCache: !!circuit?.cacheTaken,
       scrap: scrap.map((x, i) => (x.taken ? i : -1)).filter((i) => i >= 0),
       lockers: lockers.map((x, i) => (x.opened ? i : -1)).filter((i) => i >= 0),
       container: !!container?.taken, cache: !!deathCache?.taken, june: juneEvent.state, valves: valveStep,
@@ -2373,7 +2452,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
           } else l.broken = 3;
         }
       }
-      const on = !l.broken && !l.out && (!l.dark || powered());
+      const on = !emergency && !l.broken && !l.out && (!l.dark || powered());
       const flick = l.flicker > 0.88 ? (Math.sin(time * 41 + l.flicker * 50) > 0.5 ? 0.12 : 1) : 1;
       if (on) {
         writeYaw(l.part.matrix, [l.pos[0], wallH - 0.03, l.pos[2]], 0, 1.4, 0.06, 0.5);
@@ -2390,6 +2469,8 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     if (lifeguard && lifeguard.lampOn) out.push({ position: add(lifeguard.base, [0, 4.6, 0]), color: lifeguard.rule === 'swim' ? [1, 0.25, 0.12] : [1, 0.9, 0.7], intensity: 9, radius: 0.3, range: 16 });
     if (lifeguard?.spot) out.push({ position: add(lifeguard.spot, [0, 1.6, 0]), color: [1, 0.93, 0.8], intensity: 14, radius: 0.5, range: 5 });
     if (rules.uv) out.push({ position: [eye[0], 3.5, eye[2]], color: [0.5, 0.25, 1], intensity: 3, radius: 1, range: 12 });
+    // Emergency strips: a few dim coral lights where the fixtures are. Enough to see shapes, not distances.
+    if (emergency) for (const l of lamps.map((l) => ({ l, d: distance(l.pos, eye) })).sort((a, b) => a.d - b.d).slice(0, 4)) out.push({ position: [l.l.pos[0], 2.2, l.l.pos[2]], color: [1, 0.3, 0.22], intensity: 2.6, radius: 0.3, range: 7.5 });
     if (lampOn()) out.push(state.lamp.mode === 2 ? { position: lampAt(), color: [0.5, 0.25, 1], intensity: 5, radius: 0.3, range: 9 } : { position: lampAt(), color: [1, 0.95, 0.85], intensity: 8, radius: 0.3, range: 11 });
     return out;
   }
@@ -2986,13 +3067,14 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     for (const i of r.scrap || []) if (scrap[i]) scrap[i].taken = true;
     for (const i of r.lockers || []) if (lockers[i]) lockers[i].opened = true;
     for (const i of r.finds || []) if (finds[i]) finds[i].taken = true;
+    if (circuit && r.circuitCache) circuit.cacheTaken = true;
     if (r.container && container) container.taken = true;
     if (r.cache && deathCache) { deathCache.taken = true; hide(deathCache.part); }
     if (r.june && r.june !== 'waiting') juneEvent.state = r.june === 'sitting' ? 'waiting' : r.june;
     for (let i = 0; i < (r.valves || 0); i++) { const v = pumpValves.find((x) => x.id === valveOrder[i]); if (v) v.open = true; }
     valveStep = r.valves || 0;
   }
-  if (import.meta.env.DEV) window.__explore = { omen: (k) => startFomen(k), finds, found, get lampPlaced() { return lampPlaced; }, lights: () => gatherLights(add(player.pos, [0, 1.6, 0])), get hesitation() { return hesitation; }, get lastOmen() { return lastFomen; }, get marcoAct() { return marcoAct; }, set marcoAct(v) { marcoAct = v; }, marcos, columns, wavePool, get basin() { return basin; }, isWater, floorTop, get operating() { return operating; }, set operating(v) { operating = v; }, panelFront, holdT, shoot, spawnBloom, occupant, lockers, noise, violate, get omenState() { return fomen; }, door, blooms, lamps, director, followers, get dockKind() { return dockKind; }, get valves() { return { order: valveOrder, step: valveStep, list: pumpValves }; }, june: juneEvent, thread, get clock() { return clock; }, stagnant, player, center, undertow, lifeguard, cellPos, panelPos, raftPos, code, find, floaters, restorePower };
+  if (import.meta.env.DEV) window.__explore = { omen: (k) => startFomen(k), circuit, setEmergency, get emergency() { return emergency; }, blocked, isWall, finds, found, get lampPlaced() { return lampPlaced; }, lights: () => gatherLights(add(player.pos, [0, 1.6, 0])), get hesitation() { return hesitation; }, get lastOmen() { return lastFomen; }, get marcoAct() { return marcoAct; }, set marcoAct(v) { marcoAct = v; }, marcos, columns, wavePool, get basin() { return basin; }, isWater, floorTop, get operating() { return operating; }, set operating(v) { operating = v; }, panelFront, holdT, shoot, spawnBloom, occupant, lockers, noise, violate, get omenState() { return fomen; }, door, blooms, lamps, director, followers, get dockKind() { return dockKind; }, get valves() { return { order: valveOrder, step: valveStep, list: pumpValves }; }, june: juneEvent, thread, get clock() { return clock; }, stagnant, player, center, undertow, lifeguard, cellPos, panelPos, raftPos, code, find, floaters, restorePower };
 
   return {
     update,

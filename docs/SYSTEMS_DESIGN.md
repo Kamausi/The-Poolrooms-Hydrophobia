@@ -656,7 +656,7 @@ A collectible is worth 250 (a dry thing 750) to the Expedition Score, is written
 - a lit lamp in your hand lets the Lifeguard see you from further; in the dark with it off you are harder to see;
 - a lamp left burning on the floor draws Blooms that have not committed to you: a decoy, at the cost of your light.
 
-**Not built from these briefs:** rooms whose route depends on which lighting circuit is live ("facility states"), reflections and shadows as puzzle elements, perspective alignment, private versus shared hallucinations (one player), the survey map, warm tokens and unclaimed vests, score-qualified side rooms for collectibles, the Lost & Found. Keyboard bindings only for the lamp. Tests: `tests/unit/collectibles.test.js`, `tests/finds.cjs`.
+**Not built from these briefs** (the lighting circuit in section 26 came later): reflections and shadows as puzzle elements, perspective alignment, private versus shared hallucinations (one player), the survey map, warm tokens and unclaimed vests, score-qualified side rooms for collectibles, the Lost & Found. Keyboard bindings only for the lamp. Tests: `tests/unit/collectibles.test.js`, `tests/finds.cjs`.
 
 ## 25. The raft's arcade layer (implemented)
 
@@ -665,3 +665,17 @@ A collectible is worth 250 (a dry thing 750) to the Expedition Score, is written
 - **Assessments.** Once a sector, about twenty seconds in, the Attendant selects your party for a circulation assessment: reach the next dock as firm as you are now, reach FLOW ×3, or take two perfect lines. Participation is voluntary. Passing pays 1,500 (multiplied by FLOW) and 150 credit; only the hull test can be failed, and failing costs nothing.
 
 Not built: token lines that deliberately lead somewhere wrong, drops on foot, assessments with stranger conditions (darkness, a named profile), and "three guests have qualified" when there are four. Test: `tests/arcade.cjs`.
+
+## 26. The lighting circuit: light decides which room you are in (implemented)
+
+Every enclosed dock has a **lighting relay** on a wall a short walk from the raft, labelled `LIGHTING · MAIN · EMERGENCY`. Use it (E) or shoot it. It switches the whole dock between two authored states:
+
+| | Main | Emergency |
+|---|---|---|
+| Light | The fixtures | Fixtures out; a few dim coral strips where they were. Shapes, not distances |
+| Architecture | One particular wall between two rooms is a wall | That wall is a doorway, with a service cache in it (a cell and 100 credit) |
+| Cost | — | The dark raises Drift unless you carry the work lamp |
+
+Nothing animates. The light changes and the room is different; the crew says so once ("That was a wall. I had my hand on it."). The first time through the doorway is a ROUTE FOUND. The relay is never placed beside the doorway it opens, so you switch it and then go and look. You cannot switch back to main while standing in the doorway. The base map is never altered, so the dock stays solvable under either state.
+
+This is the first **facility state**. Not built: more than two states (power loss, flooded, high Drift, remembered), states that change signage or sound, a bridge that exists only under one circuit, reflections and shadows that disagree with the room, perspective alignment, and rooms that differ per player. Test: `tests/circuit.cjs`.
