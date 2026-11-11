@@ -27,5 +27,23 @@ const { open, newCampaign, check, finish } = require('./lib.cjs');
     return { cache, cells, route, refused, still, ok, wall: E.isWall(x, z), blocked: E.blocked(x, z), lit: E.lamps.filter((l) => l.on).length, credit: (u.state.credit || 0) - credit0 }; });
   check('the cache in the doorway can be taken, and crossing it is a route found', r.cache && r.cells === 1 && r.route === 1 && r.credit >= 100, JSON.stringify(r));
   check('it will not switch back while you stand in it; from outside it does, and the wall is a wall again', r.refused && r.still && r.ok && r.wall && r.blocked && r.lit > 0, JSON.stringify(r));
+  r = await page.evaluate(() => { const u = window.__underflow, E = window.__explore, C = E.circuit; u.setState({ health: 1e6, drift: 0 });
+    E.blooms.forEach((b) => { b.active = false; });
+    E.player.pos = [C.relayPos[0], 0, C.relayPos[2]]; u.step(1);
+    // Two throws so far (to emergency and back). The third is allowed and warns; the fourth trips it.
+    const third = E.setEmergency(true); u.step(1); const before = E.blackout; const fourth = E.setEmergency(false); u.step(2);
+    const out = { switches: C.switches, third, before, fourth, blackout: E.blackout, emergency: E.emergency, lit: E.lamps.filter((l) => l.on).length,
+      coral: E.lights().filter((l) => l.color[0] === 1 && l.color[1] < 0.4 && l.range === 7.5).length, signsDark: E.signParts.filter((s) => s.style !== 'uv').every((s) => s.part.material.emission < 0.1), signs: E.signParts.length,
+      refused: !E.setEmergency(false) };
+    const m0 = u.state.tally.awards.machine || 0;
+    u.press('e'); u.step(2); out.winding = E.resetT > 0;
+    // Walk away: it winds back.
+    const far = E.find('.').map(([x, z]) => E.center(x, z)).sort((a, b) => Math.hypot(b[0] - C.relayPos[0], b[2] - C.relayPos[2]) - Math.hypot(a[0] - C.relayPos[0], a[2] - C.relayPos[2]))[0];
+    E.player.pos = [far[0], 0, far[2]]; u.step(2); out.cancelled = E.resetT === 0 && E.blackout;
+    E.player.pos = [C.relayPos[0], 0, C.relayPos[2]]; u.step(1); u.press('e'); for (let k = 0; k < 30 && E.blackout; k++) { u.setState({ health: 1e6, drift: 0 }); E.player.pos = [C.relayPos[0], 0, C.relayPos[2]]; u.step(6); }
+    out.restored = !E.blackout; out.paid = (u.state.tally.awards.machine || 0) - m0; out.coralBack = E.lights().filter((l) => l.range === 7.5).length; out.signsLit = E.signParts.some((s) => s.part.material.emission > 0.5); out.again = E.setEmergency(false);
+    return out; });
+  check('the relay trips on the fourth throw: fixtures, strips and lit signs all go out, and it will not switch', r.third && !r.before && !r.fourth && r.blackout && r.emergency && r.lit === 0 && r.coral === 0 && r.signs > 0 && r.signsDark && r.refused, JSON.stringify(r));
+  check('resetting the breaker takes time at the relay, winds back if you leave, and brings the circuit back as it was', r.winding && r.cancelled && r.restored && r.paid === 1 && r.coralBack > 0 && r.signsLit && r.again, JSON.stringify(r));
   await finish(browser, errors);
 })();

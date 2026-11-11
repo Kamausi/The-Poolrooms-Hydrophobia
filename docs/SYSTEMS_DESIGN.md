@@ -678,7 +678,7 @@ Every enclosed dock has a **lighting relay** on a wall a short walk from the raf
 
 Nothing animates. The light changes and the room is different; the crew says so once ("That was a wall. I had my hand on it."). The first time through the doorway is a ROUTE FOUND. The relay is never placed beside the doorway it opens, so you switch it and then go and look. You cannot switch back to main while standing in the doorway. The base map is never altered, so the dock stays solvable under either state.
 
-This is the first **facility state**. Not built: more than two states (power loss, flooded, high Drift, remembered), states that change signage or sound, a bridge that exists only under one circuit, reflections and shadows that disagree with the room, perspective alignment, and rooms that differ per player. Test: `tests/circuit.cjs`.
+This is the first **facility state**; power loss (section 31) is the second. Not built: flooded, high-Drift and remembered states, a bridge that exists only under one circuit, reflections and shadows that disagree with the room, perspective alignment, and rooms that differ per player. Test: `tests/circuit.cjs`.
 
 ## 27. Automatic resolution, controller vibration, and the Lost & Found (implemented)
 
@@ -715,4 +715,12 @@ On foot, M opens a small map in the corner (`src/survey.js`, pure). It is drawn 
 Seeing 85% of the cells you can walk to completes the survey: a SURVEYED award once per dock, a line in the field ledger. The map stays open while the world keeps moving. It is saved with a resume.
 
 Not built: the map on the raft, sharing a survey between expeditions, marks for finds or hazards, the map disagreeing with a room under a different facility state (the lighting circuit's hidden cell is simply drawn once you have stood by it), and a controller binding. Tests: `tests/unit/survey.test.js`, `tests/finds.cjs`.
+
+## 31. Power loss: the relay trips (implemented)
+
+The lighting relay takes three throws. The third brings a warning (the housing is hot); the fourth does not switch anything: a breaker lets go and the dock loses power. The fixtures and the emergency strips are both out, every lit sign goes dark, and the relay refuses to switch. Blacklight lettering was never on the circuit, so it is the only writing left. The architecture stays as it was at the moment the power went: if the doorway was open it stays open. Your work lamp, the Lifeguard's lamp and anything that glows on its own are unaffected. The dark raises Drift as it does under emergency light.
+
+To bring it back, start a reset at the relay (E) and stay there for four seconds; step away and it winds back. A reset restores the circuit that was live, clears the throw count and is scored once as machinery. The crew reacts the first time, and the ledger notes that the relay trips on the fourth throw. A blackout is saved with a resume.
+
+It is caused only by the player and warned one throw ahead. Not built: a blackout the facility causes itself, different sound under power loss beyond the trip and a brief duck, creatures behaving differently in it, and signage that changes meaning rather than only going dark. Test: `tests/circuit.cjs`.
 
