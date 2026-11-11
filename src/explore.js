@@ -2,6 +2,7 @@
 // The goal: carry the power cell to the service panel (which opens the gate to the Safe Room's arrival
 // bay), then return to the moored raft. Each attraction adds its own rules (see sectors.js).
 import { rumble } from './haptics.js';
+import { createSurvey, visit as surveyVisit, mark as surveyMark, coverage as surveyCoverage, render as surveyRender, seenList } from './survey.js';
 import { Renderer67, box, sphere, cylinder, torus } from '67js';
 import { writeYaw, writeBasis, writeSegment, hide, add, sub, scale, normalize, clamp, damp, rng, raySphere, rayPlaneY, linear, distance, cross, display, angleTo, soundDir } from './math.js';
 import { tileTexture, tileNormal } from './textures.js';
@@ -2014,6 +2015,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     updateFollowers(dt);
     updateWavePool(dt, eye, dir);
     updateLamp(dt, eye, ask);
+    updateSurvey();
     if (attendant0417T > 0 && (attendant0417T -= dt) <= 0) hud.say('THE ATTENDANT', 'Thank you. The item removed from Locker 0417 has been returned.', 'attendant', true);
     // Where you stand still the longest: the Safe Room window remembers it.
     if (sector.chapter) { const sp = Math.hypot(player.pos[0] - (lastStill?.[0] ?? 0), player.pos[2] - (lastStill?.[2] ?? 0)); if (sp < 0.3) { stillHere += dt; if (stillHere > (state.hesitation?.t || 0)) state.hesitation = { t: stillHere, near: nearestFeature(player.pos) }; } else { stillHere = 0; lastStill = [...player.pos]; } }
@@ -2186,8 +2188,42 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     } else hide(lampPart);
   }
 
+  // The survey map: drawn from the cells you have stood in and what you could see in straight lines from them.
+  const survey = createSurvey(W, H);
+  const surveyOpen = (() => {
+    // Only cells you can actually walk to count toward a complete survey.
+    const out = [], seen = new Set([`${dx0},${dz0}`]), q = [[dx0, dz0]];
+    while (q.length) { const [x, z] = q.pop(); out.push([x, z]); for (const [ax, az] of DIRS) { const k = `${x + ax},${z + az}`; if (!seen.has(k) && at(x + ax, z + az) !== '#' && at(x + ax, z + az) !== 'o') { seen.add(k); q.push([x + ax, z + az]); } } }
+    return out;
+  })();
+  if (cellP) surveyMark(survey, 'P', cellP[0], cellP[1]);
+  surveyMark(survey, 'S', scx, scz);
+  let surveyCell = '', surveyShown = false;
+  function updateSurvey() {
+    const [cx, cz] = cellOf(player.pos[0], player.pos[2]);
+    const here = `${cx},${cz}`;
+    let changed = false;
+    if (here !== surveyCell) {
+      surveyCell = here;
+      changed = true;
+      if (surveyVisit(survey, cx, cz, isWall) && !survey.done && surveyCoverage(survey, surveyOpen) >= 0.85) {
+        survey.done = true;
+        events.award('survey', 'DOCK SURVEYED');
+        events.ledger('places', `${sector.name}: surveyed`);
+        hud.toast('SURVEY COMPLETE · the map is the crew\'s own, and it is right');
+      }
+    }
+    if (wasPressed('m')) { surveyShown = !surveyShown; changed = true; if (!surveyShown) hud.survey(null); }
+    if (surveyShown && changed) {
+      const f = forwardVec();
+      const facing = Math.abs(f[0]) > Math.abs(f[2]) ? (f[0] > 0 ? 1 : 3) : f[2] < 0 ? 0 : 2;
+      hud.survey(surveyRender(survey, at, isWall, { you: [cx, cz, facing], raft: [dx0, dz0] }), surveyCoverage(survey, surveyOpen));
+    }
+  }
+
   function takenState() {
     return {
+      survey: seenList(survey), surveyDone: survey.done,
       finds: finds.map((x, i) => (x.taken ? i : -1)).filter((i) => i >= 0),
       circuitCache: !!circuit?.cacheTaken,
       scrap: scrap.map((x, i) => (x.taken ? i : -1)).filter((i) => i >= 0),
@@ -3076,6 +3112,8 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     for (const i of r.scrap || []) if (scrap[i]) scrap[i].taken = true;
     for (const i of r.lockers || []) if (lockers[i]) lockers[i].opened = true;
     for (const i of r.finds || []) if (finds[i]) finds[i].taken = true;
+    for (const i of r.survey || []) survey.seen[i] = 1;
+    survey.done = !!r.surveyDone;
     if (circuit && r.circuitCache) circuit.cacheTaken = true;
     if (r.container && container) container.taken = true;
     if (r.cache && deathCache) { deathCache.taken = true; hide(deathCache.part); }
@@ -3083,7 +3121,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     for (let i = 0; i < (r.valves || 0); i++) { const v = pumpValves.find((x) => x.id === valveOrder[i]); if (v) v.open = true; }
     valveStep = r.valves || 0;
   }
-  if (import.meta.env.DEV) window.__explore = { get remembered() { return remembered; }, omen: (k) => startFomen(k), circuit, setEmergency, get emergency() { return emergency; }, blocked, isWall, finds, found, get lampPlaced() { return lampPlaced; }, lights: () => gatherLights(add(player.pos, [0, 1.6, 0])), get hesitation() { return hesitation; }, get lastOmen() { return lastFomen; }, get marcoAct() { return marcoAct; }, set marcoAct(v) { marcoAct = v; }, marcos, columns, wavePool, get basin() { return basin; }, isWater, floorTop, get operating() { return operating; }, set operating(v) { operating = v; }, panelFront, holdT, shoot, spawnBloom, occupant, lockers, noise, violate, get omenState() { return fomen; }, door, blooms, lamps, director, followers, get dockKind() { return dockKind; }, get valves() { return { order: valveOrder, step: valveStep, list: pumpValves }; }, june: juneEvent, thread, get clock() { return clock; }, stagnant, player, center, undertow, lifeguard, cellPos, panelPos, raftPos, code, find, floaters, restorePower };
+  if (import.meta.env.DEV) window.__explore = { get remembered() { return remembered; }, survey, get surveyCoverage() { return surveyCoverage(survey, surveyOpen); }, surveyOpen, omen: (k) => startFomen(k), circuit, setEmergency, get emergency() { return emergency; }, blocked, isWall, finds, found, get lampPlaced() { return lampPlaced; }, lights: () => gatherLights(add(player.pos, [0, 1.6, 0])), get hesitation() { return hesitation; }, get lastOmen() { return lastFomen; }, get marcoAct() { return marcoAct; }, set marcoAct(v) { marcoAct = v; }, marcos, columns, wavePool, get basin() { return basin; }, isWater, floorTop, get operating() { return operating; }, set operating(v) { operating = v; }, panelFront, holdT, shoot, spawnBloom, occupant, lockers, noise, violate, get omenState() { return fomen; }, door, blooms, lamps, director, followers, get dockKind() { return dockKind; }, get valves() { return { order: valveOrder, step: valveStep, list: pumpValves }; }, june: juneEvent, thread, get clock() { return clock; }, stagnant, player, center, undertow, lifeguard, cellPos, panelPos, raftPos, code, find, floaters, restorePower };
 
   return {
     update,

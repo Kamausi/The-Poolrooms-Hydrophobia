@@ -916,6 +916,7 @@ function frame(now) {
   }
   pollGamepad(dt);
   if (mode !== 'ride') hud.wedges([]);
+  if (mode !== 'explore') hud.survey(null);
   input.context = mode === 'explore' ? 'explore' : 'ride';
   if ($('modal').hidden && (wasPressed('escape') || wasPressed('p')) && now - pausedAt > 250) setPaused(!paused);
   if (mode === 'menu' && $('modal').hidden && !$('start-menu').hidden && wasPressed('escape')) showMenuList('main');

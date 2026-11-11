@@ -68,6 +68,13 @@ export const hud = {
   carry(text) {
     el.carry.textContent = text ? ` · ${text}` : '';
   },
+  /** The survey map on foot: rows of text, or null to put it away. pct: fraction surveyed. */
+  survey(rows, pct = 0) {
+    const m = document.getElementById('survey');
+    if (!m) return;
+    m.hidden = !rows;
+    if (rows) m.textContent = `SURVEY · ${Math.round(pct * 100)}%\n${rows.join('\n')}\n▲ you · R raft · P panel · S gate`;
+  },
   /** Threats out of view: up to three wedges on the rim. list: { x, y, angle, urgency } in screen space (−1…1). */
   wedges(list) {
     const box = document.getElementById('wedges');

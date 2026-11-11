@@ -13,5 +13,5 @@
     "skipLibCheck": true,
     "types": []
   },
-  "files": ["src/director.js", "src/math.js", "src/hull.js", "src/memory.js", "src/track.js", "src/plans.js", "src/sectors.js", "src/poolrooms.js", "src/score.js", "src/aim.js", "src/autores.js"]
+  "files": ["src/director.js", "src/math.js", "src/hull.js", "src/memory.js", "src/track.js", "src/plans.js", "src/sectors.js", "src/poolrooms.js", "src/score.js", "src/aim.js", "src/survey.js", "src/autores.js"]
 }

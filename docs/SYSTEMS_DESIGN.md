@@ -656,7 +656,7 @@ A collectible is worth 250 (a dry thing 750) to the Expedition Score, is written
 - a lit lamp in your hand lets the Lifeguard see you from further; in the dark with it off you are harder to see;
 - a lamp left burning on the floor draws Blooms that have not committed to you: a decoy, at the cost of your light.
 
-**Not built from these briefs** (the lighting circuit in section 26 came later): reflections and shadows as puzzle elements, perspective alignment, private versus shared hallucinations (one player), the survey map, warm tokens and unclaimed vests, score-qualified side rooms for collectibles. Keyboard bindings only for the lamp. Tests: `tests/unit/collectibles.test.js`, `tests/finds.cjs`.
+**Not built from these briefs** (the lighting circuit in section 26 came later): reflections and shadows as puzzle elements, perspective alignment, private versus shared hallucinations (one player), warm tokens and unclaimed vests, score-qualified side rooms for collectibles. Keyboard bindings only for the lamp. Tests: `tests/unit/collectibles.test.js`, `tests/finds.cjs`.
 
 ## 25. The raft's arcade layer (implemented)
 
@@ -707,4 +707,12 @@ You could always board the raft at a dock without restoring its circuit; now it 
 Not built: extraction anywhere but the moored raft, a countdown or pursuit that makes leaving hard, partial payouts tied to how much of the objective was done. Tests: `tests/unit/score.test.js`, `tests/unit/memory.test.js`, `tests/score.cjs`.
 
 The facility remembers it. On the next expedition a dock you left early (and have never restored) carries a notice by the mooring: YOUR PARTY STOPPED HERE, PLEASE CONTINUE, with the visit number. It changes nothing about the map or the difficulty, and it goes away once the circuit has been restored.
+
+## 30. The survey map (implemented)
+
+On foot, M opens a small map in the corner (`src/survey.js`, pure). It is drawn only from where you have stood: the cell you are in and the open cells in the four straight lines from it, up to two cells, stopping at a wall. Walls appear only where they border something seen. It shows you with your facing, the raft, and the service panel and the gate once their cells have been seen. Nothing on it is ever false, so it is the one thing on a dock that can be relied on.
+
+Seeing 85% of the cells you can walk to completes the survey: a SURVEYED award once per dock, a line in the field ledger. The map stays open while the world keeps moving. It is saved with a resume.
+
+Not built: the map on the raft, sharing a survey between expeditions, marks for finds or hazards, the map disagreeing with a room under a different facility state (the lighting circuit's hidden cell is simply drawn once you have stood by it), and a controller binding. Tests: `tests/unit/survey.test.js`, `tests/finds.cjs`.
 
