@@ -21,6 +21,8 @@ import { rng } from './math.js';
 import { playlog, createFrameStats } from './playlog.js';
 import { facility, recordSector, recordDeath, note, nameVisitor, commitVisitors, authorExpedition, saveFacility } from './memory.js';
 import { settings } from './settings.js';
+import { createAutoRes } from './autores.js';
+import { rumble } from './haptics.js';
 import { showModal, hideModal, applyDisplaySettings, ledgerView, showSafeRoom, showDocument, showKeypad, settingsView, logbookView, journalView } from './ui.js';
 const el2 = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text) e.textContent = text; return e; };
 import { CREW, crewById, loadLoops, saveLoop } from './crew.js';
@@ -129,7 +131,7 @@ const events = {
     state.health = Math.max(0, state.health - n);
     state.lastHurt = reason;
     if (n < 999 && !quiet) scoreHurt(state, n); // a hit costs FLOW; slow drains (Drift, a hold) do not
-    if (!quiet) { hud.damage(); sound.hurt(); }
+    if (!quiet) { hud.damage(); sound.hurt(); rumble('hurt', Math.min(1.4, 0.5 + n / 20)); }
   },
   heal(n) { state.health = Math.min(100, state.health + n); },
   /** Points for something done. kind names a row in score.js (kill, weak, save, gate…); FLOW multiplies it. */
@@ -145,6 +147,8 @@ const events = {
   award(kind, label) {
     const a = award(state, kind, { label });
     hud.feed(a);
+    if (kind === 'landing' || kind === 'hop') rumble(kind);
+    else if (kind === 'nearMiss') rumble('scrape', 0.6);
     return a;
   },
   cleared() { state.cleared += 1; },
@@ -879,6 +883,11 @@ function setPaused(on) {
 }
 
 const frames = createFrameStats();
+// Automatic resolution: only where there is a GPU to spare (the software tier is already at its floor) and never
+// while a test is stepping the game by hand.
+const autoRes = createAutoRes();
+let resScale = 1, resScene = null;
+function applyResScale(k) { resScale = k; scene?.setScale?.(k); }
 let perfT = 0, lastLogged = 0;
 function frame(now) {
   // The constrained 30 FPS profile: deliver every other display frame, evenly.
@@ -886,13 +895,21 @@ function frame(now) {
   const ms = now - last;
   const dt = Math.min(0.05, ms / 1000);
   last = now;
-  if (mode === 'ride' || mode === 'explore') frames.push(ms);
+  if (mode === 'ride' || mode === 'explore') {
+    frames.push(ms);
+    if (scene !== resScene) { resScene = scene; if (resScale !== 1) scene?.setScale?.(resScale); } // a new scene starts at the scale the last one settled on
+    if (settings.autoRes && !quality.low && !manual && !paused) {
+      autoRes.target = settings.fpsCap === 30 ? 33.3 : 16.7;
+      const k = autoRes.push(ms);
+      if (k !== null) { applyResScale(k); playlog.record('resolution', { scale: k }); }
+    } else if (!settings.autoRes && resScale !== 1) { autoRes.reset(); applyResScale(1); }
+  }
   perfT -= dt;
   if (perfT <= 0) {
     perfT = 0.5;
     const st = frames.stats(settings.fpsCap === 30 ? 33.3 : 16.7);
     $('perf').hidden = !settings.perfOverlay;
-    if (settings.perfOverlay && st) $('perf').textContent = `${settings.fpsCap === 30 ? '30' : '60'} FPS TIER · avg ${st.avg} ms · p95 ${st.p95} · p99 ${st.p99} · slow ${st.slow}/${st.n}${performance.memory ? ` · heap ${Math.round(performance.memory.usedJSHeapSize / 1048576)} MB` : ''}`;
+    if (settings.perfOverlay && st) $('perf').textContent = `${settings.fpsCap === 30 ? '30' : '60'} FPS TIER · avg ${st.avg} ms · p95 ${st.p95} · p99 ${st.p99} · slow ${st.slow}/${st.n} · res ${Math.round(resScale * 100)}%${performance.memory ? ` · heap ${Math.round(performance.memory.usedJSHeapSize / 1048576)} MB` : ''}`;
     if (st && now - lastLogged > 60000) { lastLogged = now; playlog.record('frames', st); }
   }
   pollGamepad(dt);
@@ -976,6 +993,10 @@ window.__underflow = {
   get scene() { return scene; },
   startExplore, enterSafeRoom, startRide, newCampaign, startEndless, beginSector, events, startChallenge, startCustom, parseRoute, expeditionRecord,
   setState(patch) { Object.assign(state, patch); },
+  /** Tests: drive the render scale directly, and read what it is. */
+  setResScale(k) { applyResScale(k); return resScale; },
+  get resScale() { return resScale; },
+  rumble,
   step(n, dt = 1 / 30) {
     manual = true;
     for (let i = 0; i < n && scene && !paused && ['ride', 'explore', 'safe', 'menu'].includes(mode); i++) {

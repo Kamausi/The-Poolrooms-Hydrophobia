@@ -31,6 +31,17 @@ const { open, newCampaign, check, finish } = require('./lib.cjs');
     return { bought: (u.state.dressings || 0) - before, credit: u.state.credit, patchDisabled, head: document.querySelector('.cabinet p').textContent }; });
   check('the emergency cabinet sells for Service Credit and refuses what you cannot afford', r.bought === 1 && r.credit === 0 && r.patchDisabled, JSON.stringify(r));
 
+  r = await page.evaluate(() => { const u = window.__underflow; u.setState({ credit: 200, lostClaimed: null }); u.enterSafeRoom(); u.step(1);
+    const lf = document.querySelector('.cabinet .lost-found'); const snap = () => JSON.stringify([u.state.dressings, u.state.cells, u.state.filters, u.state.patchKits, u.state.canisters || 0]);
+    const before = snap(), was = lf.disabled; lf.click();
+    return { was, credit: u.state.credit, got: u.state.lastLost, tag: document.querySelector('.lost-tag').textContent, closed: lf.disabled && /CLOSED/.test(lf.textContent), changed: snap() !== before }; });
+  check('the Lost & Found returns one item per visit for credit, and says what it was', !r.was && [50, 350].includes(r.credit) && !!r.got && /RETURNED TO GUEST/.test(r.tag) && r.closed && (r.changed || r.got === 'sock' || r.got === 'refund'), JSON.stringify(r));
+
+  r = await page.evaluate(() => { const u = window.__underflow; u.beginSector(0); u.startRide(); u.step(5); const c = document.querySelector('canvas');
+    const w0 = c.width; const k = u.setResScale(0.5); u.step(1); const w1 = c.width; u.setResScale(1); u.step(1);
+    const fx = u.rumble('scatter'); return { w0, w1, w2: c.width, k, fx }; });
+  check('the render scale can be lowered and restored without rebuilding the scene; a shot asks for its own rumble', r.k === 0.5 && r.w1 < r.w0 * 0.6 && r.w2 === r.w0 && r.fx && r.fx.strongMagnitude > 0.9, JSON.stringify(r));
+
   r = await page.evaluate(async () => { const m = await import('/src/blaster.js'); const F = m.FEEL; return { scatter: F.scatter.kick, pulse: F.pulse.kick, rep: F.repeater.walk, recS: F.scatter.rec, recP: F.pulse.rec }; });
   check('each blaster profile has its own kick: Scatter shoves and recovers slowly, Pulse is sharp, the Repeater rattles', r.scatter > r.pulse * 3 && r.recS < r.recP && r.rep > 0, JSON.stringify(r));
 

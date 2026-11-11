@@ -1,5 +1,6 @@
 // Overlays: the shared modal, the Safe Room, the logbook, documents, the keypad, settings.
 import { settings, saveSettings, SETTING_LABELS, ACTIONS } from './settings.js';
+import { claimLost, LOST_FOUND_COST } from './collectibles.js';
 import { sound } from './audio.js';
 import { input, applyBindings, PAD_ACTIONS, PAD_NAMES } from './input.js';
 import { COMFORTS, SECTORS } from './sectors.js';
@@ -393,6 +394,24 @@ export function showSafeRoom(state, sector, nextSector, nextPlan, onLeave, onSav
       row.append(b);
     }
     cab.append(row);
+    {
+      // The Lost & Found: one item per visit, and you do not choose which.
+      const visit = `${state.sectorIndex}:${state.attempt || 0}`;
+      const lf = el('button', 'choice lost-found');
+      const tag = el('p', 'mono lost-tag', '');
+      const draw = () => { lf.replaceChildren(el('span', null, state.lostClaimed === visit ? 'LOST & FOUND · HATCH CLOSED' : 'LOST & FOUND · CLAIM AN ITEM'), el('span', 'deal', `−${LOST_FOUND_COST} CREDIT`)); lf.disabled = state.lostClaimed === visit || (state.credit || 0) < LOST_FOUND_COST; };
+      lf.onclick = () => {
+        const n = (state.sectorIndex + 1) * 12.9898 + (state.score || 0) * 0.0137 + (state.attempt || 0) * 78.233;
+        const got = claimLost(state, Math.abs(Math.sin(n) * 43758.5453) % 1, visit);
+        if (!got) return;
+        tag.textContent = `RETURNED TO GUEST · ${got.text}`;
+        state.lastLost = got.id;
+        refresh(); draw(); onSave();
+      };
+      buttons.push([lf, LOST_FOUND_COST, () => state.lostClaimed === visit]);
+      draw();
+      cab.append(lf, tag);
+    }
     refresh();
     s1.append(cab);
   }
@@ -695,6 +714,7 @@ export function settingsView(onChange) {
   range(controls, 'Steering sensitivity', 'steer', 0.4, 2);
   check(controls, 'paddleToggle');
   check(controls, 'braceToggle');
+  range(controls, 'Controller vibration (0 = off)', 'rumble', 0, 1);
 
   const iface = group('INTERFACE');
   range(iface, 'Text size', 'textScale', 0.85, 1.6);

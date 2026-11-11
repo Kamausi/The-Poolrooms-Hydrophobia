@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { SETS, POWERUPS, plan, collect, progress, allItems, headcountLine } from '../../src/collectibles.js';
+import { claimLost, LOST_FOUND, LOST_FOUND_COST } from '../../src/collectibles.js';
 
 const hash = (a, b) => { const v = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return v - Math.floor(v); };
 const cells = Array.from({ length: 12 }, (_, i) => [i, i % 4]);
@@ -45,5 +46,32 @@ describe('collectibles and power-ups', () => {
   });
   it('power-ups are named objects with a stated effect', () => {
     for (const p of Object.values(POWERUPS)) { expect(p.name).toBeTruthy(); expect(p.note.length).toBeGreaterThan(10); }
+  });
+});
+
+describe('the Lost & Found', () => {
+  it('costs credit, gives exactly one item per visit, and refuses without credit', () => {
+    const s = { credit: LOST_FOUND_COST * 2 };
+    expect(claimLost(s, 0, 'a').id).toBe('dressing');
+    expect(s.dressings).toBe(1);
+    expect(s.credit).toBe(LOST_FOUND_COST);
+    expect(claimLost(s, 0, 'a')).toBeNull();
+    expect(claimLost(s, 0.5, 'b')).not.toBeNull();
+    expect(claimLost(s, 0.5, 'c')).toBeNull();
+  });
+  it('never takes anything but the fee: every outcome leaves supplies and health no worse', () => {
+    for (let i = 0; i < LOST_FOUND.length * 20; i++) {
+      const s = { credit: LOST_FOUND_COST, dressings: 1, cells: 2, filters: 1, patchKits: 1, health: 60, drift: 30 };
+      const got = claimLost(s, i / (LOST_FOUND.length * 20), 'v');
+      expect(got.text.length).toBeGreaterThan(10);
+      expect(s.dressings).toBeGreaterThanOrEqual(1); expect(s.cells).toBeGreaterThanOrEqual(2); expect(s.cells).toBeLessThanOrEqual(3);
+      expect(s.filters).toBeGreaterThanOrEqual(1); expect(s.patchKits).toBeGreaterThanOrEqual(1);
+      expect(s.health).toBe(60); expect(s.drift).toBe(30); expect(s.credit).toBeGreaterThanOrEqual(0);
+    }
+  });
+  it('every row is reachable', () => {
+    const seen = new Set();
+    for (let i = 0; i < 1000; i++) seen.add(claimLost({ credit: 1000 }, i / 1000, i).id);
+    expect(seen.size).toBe(LOST_FOUND.length);
   });
 });

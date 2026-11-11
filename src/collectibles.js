@@ -111,3 +111,35 @@ export function headcountLine(found, crew) {
   if (n < SETS.headcount.items.length) return `HEADCOUNT · ${n} of ${SETS.headcount.items.length} records. The facility's numbers do not agree with each other.`;
   return `HEADCOUNT · every record found. The facility has counted five since before you arrived. There are ${crew} of you. You counted.`;
 }
+
+/**
+ * The Lost & Found: a hatch in the Safe Room that returns one item per visit for Service Credit. You do not
+ * choose what comes back. It is never harmful (a Safe Room is safe); it is sometimes useless, and sometimes yours.
+ * Each row: [weight, id, what the tag says, what it gives].
+ */
+export const LOST_FOUND_COST = 150;
+export const LOST_FOUND = [
+  [22, 'dressing', 'A field dressing, sealed. Tagged: FOUND, SECTOR UNKNOWN.', (s) => { s.dressings = (s.dressings || 0) + 1; }],
+  [18, 'cell', 'A charge cell, half warm.', (s) => { s.cells = Math.min(3, (s.cells || 0) + 1); }],
+  [14, 'filter', 'A filter, still in its paper.', (s) => { s.filters = Math.min(3, (s.filters || 0) + 1); }],
+  [10, 'patch', 'A patch kit. Someone used one of the patches.', (s) => { s.patchKits = (s.patchKits || 0) + 1; }],
+  [10, 'canister', 'A pressure canister. It will top up the raft when you board.', (s) => { s.canisters = (s.canisters || 0) + 1; }],
+  [8, 'refund', 'An envelope of credit slips, more than you paid. Tagged with your party\'s name.', (s) => { s.credit = (s.credit || 0) + 300; }],
+  [12, 'sock', 'One wet sock. It is returned to you with a form to sign.', () => {}],
+  [6, 'yours', 'A dressing with your handwriting on the wrapper. You have not written on a dressing.', (s) => { s.dressings = (s.dressings || 0) + 2; }],
+];
+
+/**
+ * Claim from the Lost & Found. r is a number in [0, 1) (the caller supplies a deterministic one).
+ * Returns { id, text } or null if it cannot be claimed (no credit, or already claimed this visit).
+ */
+export function claimLost(state, r, visit) {
+  if ((state.credit || 0) < LOST_FOUND_COST || state.lostClaimed === visit) return null;
+  state.credit -= LOST_FOUND_COST;
+  state.lostClaimed = visit;
+  const total = LOST_FOUND.reduce((n, row) => n + row[0], 0);
+  let x = Math.max(0, Math.min(0.999999, r)) * total;
+  const row = LOST_FOUND.find((it) => (x -= it[0]) < 0) || LOST_FOUND[0];
+  row[3](state);
+  return { id: row[1], text: row[2] };
+}
