@@ -2,6 +2,7 @@
 // The goal: carry the power cell to the service panel (which opens the gate to the Safe Room's arrival
 // bay), then return to the moored raft. Each attraction adds its own rules (see sectors.js).
 import { rumble } from './haptics.js';
+import { wedges as threatWedges } from './aim.js';
 import { createSurvey, visit as surveyVisit, mark as surveyMark, coverage as surveyCoverage, render as surveyRender, seenList } from './survey.js';
 import { Renderer67, box, sphere, cylinder, torus } from '67js';
 import { writeYaw, writeBasis, writeSegment, hide, add, sub, scale, normalize, clamp, damp, rng, raySphere, rayPlaneY, linear, distance, cross, display, angleTo, soundDir } from './math.js';
@@ -94,6 +95,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
   // Power loss: the relay trips if it is thrown too often. No fixtures, no strips, no lit signs, until the breaker
   // is reset at the relay. The architecture stays as it was when the power went.
   let blackout = false, resetT = 0;
+  let lastWedges = [];
   const signParts = [];
   const isWall = (x, z) => at(x, z) === '#' && !(emergency && eCell && x === eCell[0] && z === eCell[1]);
 
@@ -1877,6 +1879,21 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     }
     events.tick(dt);
 
+    // Rim markers for a Bloom that has committed to you and is out of view. Ones that are only circling get none.
+    {
+      const near = [];
+      if (settings.threatWedges !== false) for (const b of blooms) {
+        if (!b.active || b.dying || b.dormant || !b.commit) continue;
+        const rel = sub(b.pos, eye), d = Math.hypot(...rel);
+        if (d < 10) near.push({ rel, urgency: 1 / Math.max(0.5, d) });
+      }
+      if (near.length) {
+        const fwd = normalize(sub(target, eye)), rgt = normalize(cross(fwd, [0, 1, 0])), up = cross(rgt, fwd);
+        lastWedges = threatWedges(near, fwd, rgt, up, Math.tan((FOV * Math.PI) / 360), canvas.clientWidth / Math.max(1, canvas.clientHeight));
+      } else lastWedges = [];
+      hud.wedges(lastWedges);
+    }
+
     if (quality.skipRender) return;
     renderer.updateParts(parts);
     renderer.render({
@@ -3164,7 +3181,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     for (let i = 0; i < (r.valves || 0); i++) { const v = pumpValves.find((x) => x.id === valveOrder[i]); if (v) v.open = true; }
     valveStep = r.valves || 0;
   }
-  if (import.meta.env.DEV) window.__explore = { get remembered() { return remembered; }, survey, get surveyCoverage() { return surveyCoverage(survey, surveyOpen); }, surveyOpen, omen: (k) => startFomen(k), circuit, setEmergency, setBlackout, get blackout() { return blackout; }, signParts, get resetT() { return resetT; }, get emergency() { return emergency; }, blocked, isWall, finds, found, get lampPlaced() { return lampPlaced; }, lights: () => gatherLights(add(player.pos, [0, 1.6, 0])), get hesitation() { return hesitation; }, get lastOmen() { return lastFomen; }, get marcoAct() { return marcoAct; }, set marcoAct(v) { marcoAct = v; }, marcos, columns, wavePool, get basin() { return basin; }, isWater, floorTop, get operating() { return operating; }, set operating(v) { operating = v; }, panelFront, holdT, shoot, spawnBloom, occupant, lockers, noise, violate, get omenState() { return fomen; }, door, blooms, lamps, director, followers, get dockKind() { return dockKind; }, get valves() { return { order: valveOrder, step: valveStep, list: pumpValves }; }, june: juneEvent, thread, get clock() { return clock; }, stagnant, player, center, undertow, lifeguard, cellPos, panelPos, raftPos, code, find, floaters, restorePower };
+  if (import.meta.env.DEV) window.__explore = { get remembered() { return remembered; }, get wedges() { return lastWedges; }, survey, get surveyCoverage() { return surveyCoverage(survey, surveyOpen); }, surveyOpen, omen: (k) => startFomen(k), circuit, setEmergency, setBlackout, get blackout() { return blackout; }, signParts, get resetT() { return resetT; }, get emergency() { return emergency; }, blocked, isWall, finds, found, get lampPlaced() { return lampPlaced; }, lights: () => gatherLights(add(player.pos, [0, 1.6, 0])), get hesitation() { return hesitation; }, get lastOmen() { return lastFomen; }, get marcoAct() { return marcoAct; }, set marcoAct(v) { marcoAct = v; }, marcos, columns, wavePool, get basin() { return basin; }, isWater, floorTop, get operating() { return operating; }, set operating(v) { operating = v; }, panelFront, holdT, shoot, spawnBloom, occupant, lockers, noise, violate, get omenState() { return fomen; }, door, blooms, lamps, director, followers, get dockKind() { return dockKind; }, get valves() { return { order: valveOrder, step: valveStep, list: pumpValves }; }, june: juneEvent, thread, get clock() { return clock; }, stagnant, player, center, undertow, lifeguard, cellPos, panelPos, raftPos, code, find, floaters, restorePower };
 
   return {
     update,

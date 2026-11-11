@@ -915,7 +915,7 @@ function frame(now) {
     if (st && now - lastLogged > 60000) { lastLogged = now; playlog.record('frames', st); }
   }
   pollGamepad(dt);
-  if (mode !== 'ride') hud.wedges([]);
+  if (mode !== 'ride' && mode !== 'explore') hud.wedges([]);
   if (mode !== 'explore') hud.survey(null);
   input.context = mode === 'explore' ? 'explore' : 'ride';
   if ($('modal').hidden && (wasPressed('escape') || wasPressed('p')) && now - pausedAt > 250) setPaused(!paused);

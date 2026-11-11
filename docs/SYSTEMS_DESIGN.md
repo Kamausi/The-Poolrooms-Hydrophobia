@@ -698,7 +698,7 @@ Both are screen-space geometry in `src/aim.js` (pure).
 
 **Threat markers.** A Bloom that has noticed you, is within 12 m and is outside the view gets a wedge on the rim pointing toward it; one directly behind is drawn at the bottom. At most three, the nearest first, larger when closer. Blooms that have not noticed you get no marker: the HUD reports what is coming, not what is waiting. A setting turns them off.
 
-Limits: the assist strengths are untuned guesses, never tried with a physical controller. Markers exist on the raft only and only for Blooms; projectiles, the Lifeguard and on-foot threats have none. Tests: `tests/unit/aim.test.js`, `tests/arcade.cjs`.
+Limits: the assist strengths are untuned guesses, never tried with a physical controller. Markers cover Blooms and thrown projectiles on the raft (a projectile outranks anything merely approaching) and, on foot, a Bloom that has committed to you within 10 m; ones still circling get none. The Lifeguard, the Undertow and other entities have no marker. Tests: `tests/unit/aim.test.js`, `tests/arcade.cjs`.
 
 ## 29. Early extraction (implemented)
 
