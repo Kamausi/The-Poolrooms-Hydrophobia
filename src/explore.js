@@ -91,6 +91,10 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
   // Facility state: under the emergency lighting circuit one wall is a doorway. Nothing animates; the light
   // changes and the room is simply different. eCell is that wall; emergency is which circuit is live.
   let emergency = false, eCell = null;
+  // Power loss: the relay trips if it is thrown too often. No fixtures, no strips, no lit signs, until the breaker
+  // is reset at the relay. The architecture stays as it was when the power went.
+  let blackout = false, resetT = 0;
+  const signParts = [];
   const isWall = (x, z) => at(x, z) === '#' && !(emergency && eCell && x === eCell[0] && z === eCell[1]);
 
   // Mutable world state
@@ -312,7 +316,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
   const facility = facilityMem;
 
   // ---------- Exploration pass: puzzles, architecture, the thread, the crew ----------
-  const label = (text, style, pos, normal, w, h, px = 384, py = 160) => facing(P(`Sign ${text.slice(0, 12)}`, plane, { ...signMaterial(text, style, 0.8, px, py), doubleSided: true }), pos, normal, w, h);
+  const label = (text, style, pos, normal, w, h, px = 384, py = 160) => { const part = P(`Sign ${text.slice(0, 12)}`, plane, { ...signMaterial(text, style, 0.8, px, py), doubleSided: true }); signParts.push({ part, style }); return facing(part, pos, normal, w, h); };
   const wallSpot = (x, z) => {
     const wd = DIRS.find(([dx, dz]) => isWall(x + dx, z + dz)) || [0, 1];
     const c = center(x, z);
@@ -356,13 +360,36 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     if (!circuit || v === emergency) return false;
     const [px, pz] = cellOf(player.pos[0], player.pos[2]);
     if (!v && px === eCell[0] && pz === eCell[1]) { hud.toast('NOT WHILE YOU ARE STANDING IN IT'); return false; }
+    if (blackout) { sound.wrong(); hud.toast('NO POWER · RESET THE BREAKER AT THE RELAY'); return false; }
+    // The relay takes three throws. It warns on the third and trips on the fourth.
+    if (circuit.switches >= 3) { setBlackout(true); return false; }
     emergency = v;
     circuit.switches += 1;
+    if (circuit.switches === 3) hud.caption('[the relay housing is hot. It will not take another throw]');
     sound.switchOn(); sound.lever();
     if (v) {
       hud.caption(circuit.told ? '[the main lights drop out. Coral strips. The doorway is there again]' : '[the main lights drop out and the emergency strips come up coral. There is a doorway in the wall that was not a doorway]');
       if (!circuit.told) { circuit.told = true; director.omen(0.5, 16); hud.hush(10, followers[0]?.id.toUpperCase() || null, 'That was a wall. I had my hand on it.'); events.ledger?.('changes', `${sector.name}: under emergency light there is a doorway where the main lights show a wall`); }
     } else hud.caption('[the lights come back. The wall is a wall]');
+    return true;
+  }
+  function setBlackout(v) {
+    if (!circuit || v === blackout) return false;
+    blackout = v;
+    resetT = 0;
+    // Lit signs go dark with the power. Blacklight paint was never on the circuit: it is all you can read.
+    for (const s of signParts) s.part.material.emission = v ? (s.style === 'uv' ? 1.4 : 0.02) : 0.8;
+    if (v) {
+      sound.lever(); sound.duck(4); sound.thump(0);
+      hud.caption('[a breaker lets go somewhere in the wall. Everything is out: the fixtures, the strips, the signs]');
+      director.omen(0.6, 20);
+      if (!circuit.tripped) { circuit.tripped = true; hud.hush(12, followers[0]?.id.toUpperCase() || null, 'Nobody touch anything. Back to the relay.'); events.ledger?.('machinery', `${sector.name}: the lighting relay trips on the fourth throw`); }
+    } else {
+      circuit.switches = 0;
+      sound.switchOn(); sound.pump(0);
+      hud.caption(emergency ? '[the breaker holds. The coral strips come back]' : '[the breaker holds. The lights come back]');
+      events.award('machine', 'BREAKER RESET');
+    }
     return true;
   }
   // Pump sequence (water-control and repair stops): three valves, an order on a diagram at the dock that varies by run.
@@ -1573,9 +1600,19 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     }
     if (circuit) {
       const C = circuit;
-      C.relay.material.emission = emergency ? 0.5 : 1.2 + Math.sin(time * 2) * 0.2;
+      C.relay.material.emission = blackout ? 0.02 : emergency ? 0.5 : 1.2 + Math.sin(time * 2) * 0.2;
       const atCache = emergency && !C.cacheTaken && Math.hypot(C.c[0] - eye[0], C.c[2] - eye[2]) < 1.9;
-      if (!atCache && Math.hypot(C.relayPos[0] - eye[0], C.relayPos[2] - eye[2]) < 2.3) {
+      const atRelay = Math.hypot(C.relayPos[0] - eye[0], C.relayPos[2] - eye[2]) < 2.3;
+      if (blackout) {
+        // Resetting takes a few seconds with your hands on it, in the dark. Step away and it winds back.
+        if (resetT > 0) {
+          if (!atRelay) { resetT = 0; hud.toast('THE BREAKER WINDS BACK'); }
+          else { resetT -= dt; ask(3, `Resetting the breaker · ${Math.max(0, resetT).toFixed(1)} s · stay at the relay`); if (resetT <= 0) setBlackout(false); }
+        } else if (atRelay && !atCache) {
+          ask(2, 'E · Reset the breaker (4 s, stay at the relay)');
+          if (wasPressed('e')) { resetT = 4; sound.lever(); return; }
+        }
+      } else if (!atCache && atRelay) {
         ask(2, emergency ? 'E · Lighting relay: back to MAIN' : 'E · Lighting relay: switch to EMERGENCY (or shoot it)');
         if (wasPressed('e')) { setEmergency(!emergency); return; }
       }
@@ -2225,7 +2262,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     return {
       survey: seenList(survey), surveyDone: survey.done,
       finds: finds.map((x, i) => (x.taken ? i : -1)).filter((i) => i >= 0),
-      circuitCache: !!circuit?.cacheTaken,
+      circuitCache: !!circuit?.cacheTaken, blackout,
       scrap: scrap.map((x, i) => (x.taken ? i : -1)).filter((i) => i >= 0),
       lockers: lockers.map((x, i) => (x.opened ? i : -1)).filter((i) => i >= 0),
       container: !!container?.taken, cache: !!deathCache?.taken, june: juneEvent.state, valves: valveStep,
@@ -2497,7 +2534,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
           } else l.broken = 3;
         }
       }
-      const on = !emergency && !l.broken && !l.out && (!l.dark || powered());
+      const on = !emergency && !blackout && !l.broken && !l.out && (!l.dark || powered());
       const flick = l.flicker > 0.88 ? (Math.sin(time * 41 + l.flicker * 50) > 0.5 ? 0.12 : 1) : 1;
       if (on) {
         writeYaw(l.part.matrix, [l.pos[0], wallH - 0.03, l.pos[2]], 0, 1.4, 0.06, 0.5);
@@ -2515,7 +2552,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     if (lifeguard?.spot) out.push({ position: add(lifeguard.spot, [0, 1.6, 0]), color: [1, 0.93, 0.8], intensity: 14, radius: 0.5, range: 5 });
     if (rules.uv) out.push({ position: [eye[0], 3.5, eye[2]], color: [0.5, 0.25, 1], intensity: 3, radius: 1, range: 12 });
     // Emergency strips: a few dim coral lights where the fixtures are. Enough to see shapes, not distances.
-    if (emergency) for (const l of lamps.map((l) => ({ l, d: distance(l.pos, eye) })).sort((a, b) => a.d - b.d).slice(0, 4)) out.push({ position: [l.l.pos[0], 2.2, l.l.pos[2]], color: [1, 0.3, 0.22], intensity: 2.6, radius: 0.3, range: 7.5 });
+    if (emergency && !blackout) for (const l of lamps.map((l) => ({ l, d: distance(l.pos, eye) })).sort((a, b) => a.d - b.d).slice(0, 4)) out.push({ position: [l.l.pos[0], 2.2, l.l.pos[2]], color: [1, 0.3, 0.22], intensity: 2.6, radius: 0.3, range: 7.5 });
     if (lampOn()) out.push(state.lamp.mode === 2 ? { position: lampAt(), color: [0.5, 0.25, 1], intensity: 5, radius: 0.3, range: 9 } : { position: lampAt(), color: [1, 0.95, 0.85], intensity: 8, radius: 0.3, range: 11 });
     return out;
   }
@@ -2574,8 +2611,13 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
       }
       // A lamp left burning on the floor draws the ones that have not committed to you.
       const lure = lampPlaced && lampOn() && !b.commit && distance(lampPlaced, b.pos) < 10 && distance(lampPlaced, b.pos) < distance(eye, b.pos) * 1.3;
-      const to = lure ? sub(add(lampPlaced, [0, 0.9, 0]), b.pos) : sub(add(eye, [0, -0.3, 0]), b.pos);
-      const d = lure ? distance(add(eye, [0, -0.3, 0]), b.pos) : Math.hypot(...to); // contact and slots are always about you
+      const d = distance(add(eye, [0, -0.3, 0]), b.pos); // contact and slots are always about you
+      // With the power out they find you by your light. One that has not committed, and is not already on top of
+      // you, loses you while your lamp is off (or set down elsewhere) and drifts to where it last had you.
+      const carrying = lampOn() && !lampPlaced;
+      b.blind = blackout && !lure && !b.commit && !carrying && d > 3.8;
+      if (!b.blind) b.lastSeen = [eye[0], eye[1] - 0.3, eye[2]];
+      const to = lure ? sub(add(lampPlaced, [0, 0.9, 0]), b.pos) : b.blind ? sub(b.lastSeen || b.pos, b.pos) : sub(add(eye, [0, -0.3, 0]), b.pos);
       b.stagger = Math.max(0, (b.stagger || 0) - dt);
       b.flash = Math.max(0, (b.flash || 0) - dt);
       if (b.retreat) {
@@ -2586,15 +2628,15 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
         // Swarm movement: close in, but spread around you instead of queueing in one line.
         // Freshly filled, it launches: a short fast lunge before it settles into the swarm's pace.
         b.lunge = Math.max(0, b.lunge - dt);
-        const v = (d < 18 || lure ? 1.5 + sector.index * 0.2 : 0.4) * (state.visible ? 1.3 : 1) * (b.lunge > 0 ? 4 : 1);
-        const side = cross(normalize(to), UP);
+        const v = b.blind ? (Math.hypot(...to) > 0.6 ? 0.6 : 0) : (d < (blackout && carrying ? 26 : 18) || lure ? 1.5 + sector.index * 0.2 : 0.4) * (state.visible ? 1.3 : 1) * (b.lunge > 0 ? 4 : 1);
+        const side = cross(normalize(Math.hypot(...to) > 1e-3 ? to : [1, 0, 0]), UP);
         const orbit = d > 3 ? Math.sin(b.phase * 0.4 + b.hp) * 0.6 : 0;
         // Attack slots: only a couple may commit at once. The rest circle just out of reach, readable and waiting,
         // so five Blooms around you are a threat you can see, not five unavoidable hits.
         if (!b.commit && d < 3.8 && committed < maxCommit) { b.commit = true; committed += 1; }
         if (b.commit && d > 6.5) b.commit = false;
         const holdOff = !b.commit && d < 3.4 && b.lunge <= 0;
-        const next = holdOff ? add(b.pos, add(scale(normalize(to), -0.4 * dt), scale(side, (b.hp % 2 ? 1 : -1) * 1.6 * dt))) : add(b.pos, add(scale(normalize(to), v * dt), scale(side, orbit * dt)));
+        const next = holdOff ? add(b.pos, add(scale(normalize(to), -0.4 * dt), scale(side, (b.hp % 2 ? 1 : -1) * 1.6 * dt))) : v === 0 ? b.pos : add(b.pos, add(scale(normalize(to), v * dt), scale(side, (b.blind ? 0 : orbit) * dt)));
         if (!isWall(...cellOf(next[0], next[2]))) b.pos = next;
         pushOutOfColumns(b.pos, columns, 0.4);
       }
@@ -3115,13 +3157,14 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     for (const i of r.survey || []) survey.seen[i] = 1;
     survey.done = !!r.surveyDone;
     if (circuit && r.circuitCache) circuit.cacheTaken = true;
+    if (circuit && r.blackout) { circuit.tripped = true; setBlackout(true); }
     if (r.container && container) container.taken = true;
     if (r.cache && deathCache) { deathCache.taken = true; hide(deathCache.part); }
     if (r.june && r.june !== 'waiting') juneEvent.state = r.june === 'sitting' ? 'waiting' : r.june;
     for (let i = 0; i < (r.valves || 0); i++) { const v = pumpValves.find((x) => x.id === valveOrder[i]); if (v) v.open = true; }
     valveStep = r.valves || 0;
   }
-  if (import.meta.env.DEV) window.__explore = { get remembered() { return remembered; }, survey, get surveyCoverage() { return surveyCoverage(survey, surveyOpen); }, surveyOpen, omen: (k) => startFomen(k), circuit, setEmergency, get emergency() { return emergency; }, blocked, isWall, finds, found, get lampPlaced() { return lampPlaced; }, lights: () => gatherLights(add(player.pos, [0, 1.6, 0])), get hesitation() { return hesitation; }, get lastOmen() { return lastFomen; }, get marcoAct() { return marcoAct; }, set marcoAct(v) { marcoAct = v; }, marcos, columns, wavePool, get basin() { return basin; }, isWater, floorTop, get operating() { return operating; }, set operating(v) { operating = v; }, panelFront, holdT, shoot, spawnBloom, occupant, lockers, noise, violate, get omenState() { return fomen; }, door, blooms, lamps, director, followers, get dockKind() { return dockKind; }, get valves() { return { order: valveOrder, step: valveStep, list: pumpValves }; }, june: juneEvent, thread, get clock() { return clock; }, stagnant, player, center, undertow, lifeguard, cellPos, panelPos, raftPos, code, find, floaters, restorePower };
+  if (import.meta.env.DEV) window.__explore = { get remembered() { return remembered; }, survey, get surveyCoverage() { return surveyCoverage(survey, surveyOpen); }, surveyOpen, omen: (k) => startFomen(k), circuit, setEmergency, setBlackout, get blackout() { return blackout; }, signParts, get resetT() { return resetT; }, get emergency() { return emergency; }, blocked, isWall, finds, found, get lampPlaced() { return lampPlaced; }, lights: () => gatherLights(add(player.pos, [0, 1.6, 0])), get hesitation() { return hesitation; }, get lastOmen() { return lastFomen; }, get marcoAct() { return marcoAct; }, set marcoAct(v) { marcoAct = v; }, marcos, columns, wavePool, get basin() { return basin; }, isWater, floorTop, get operating() { return operating; }, set operating(v) { operating = v; }, panelFront, holdT, shoot, spawnBloom, occupant, lockers, noise, violate, get omenState() { return fomen; }, door, blooms, lamps, director, followers, get dockKind() { return dockKind; }, get valves() { return { order: valveOrder, step: valveStep, list: pumpValves }; }, june: juneEvent, thread, get clock() { return clock; }, stagnant, player, center, undertow, lifeguard, cellPos, panelPos, raftPos, code, find, floaters, restorePower };
 
   return {
     update,
