@@ -38,5 +38,19 @@ const { open, newCampaign, check, finish } = require('./lib.cjs');
     for (let i = 0; i < 12; i++) R.fireAt(); const busy = R.flashes.lights().length;
     return { before, lit, all, after, busy }; });
   check('a shot lights the room for a moment from a fixed pool of four, within the engine limit of 16 lights', r.before === 0 && r.lit >= 1 && r.all <= 16 && r.after === 0 && r.busy <= 4, JSON.stringify(r));
+  r = await page.evaluate(() => { const u = window.__underflow; u.beginSector(0); u.startExplore(); u.setState({ health: 1e6, drift: 0, noise: 0 }); u.step(3); const E = window.__explore;
+    E.blooms.forEach((b) => { b.active = false; });
+    const me = [...E.player.pos], eye = [me[0], 1.6, me[2]];
+    // A cell out of sight of the player, 9 to 15 m away.
+    const hidden = E.find('.').map(([x, z]) => E.center(x, z)).find((c) => { const d = Math.hypot(c[0] - me[0], c[2] - me[2]); return d > 9 && d < 15 && !E.lineOfSight([c[0], 1.3, c[2]], [eye[0], 1.2, eye[2]]); });
+    if (!hidden) return { none: true };
+    const b = E.spawnBloom([hidden[0], 1.3, hidden[2]], false); b.perc.awareness = 0; b.perc.lastKnown = null; b.perc.state = 'unaware';
+    const hold = () => { u.setState({ health: 1e6, drift: 0 }); E.player.pos = [...me]; };
+    const start = [...b.pos]; for (let k = 0; k < 60; k++) { hold(); u.setState({ noise: 0 }); u.step(1); }
+    const quiet = { state: b.perc.state, moved: Math.hypot(b.pos[0] - start[0], b.pos[2] - start[2]) };
+    for (let k = 0; k < 10; k++) { hold(); u.setState({ noise: 60 }); u.step(1); } const heard = b.perc.state, toward = b.perc.lastKnown && Math.hypot(b.perc.lastKnown[0] - me[0], b.perc.lastKnown[2] - me[2]) < 1;
+    b.active = false; u.setState({ noise: 0 });
+    return { quiet, heard, toward }; });
+  check('on foot a Bloom that cannot see or hear you does not come; a loud shot and it knows where you were', r.none || (r.quiet.state === 'unaware' && r.quiet.moved < 0.5 && r.heard !== 'unaware' && r.toward), JSON.stringify(r));
   await finish(browser, errors);
 })();

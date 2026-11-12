@@ -7,6 +7,7 @@ import { driftSign, driftState } from './driftsign.js';
 import { createBudget } from './pressure.js';
 import { createLightPool, mergeLights } from './lightpool.js';
 import { scoreSpawns } from './spawnscore.js';
+import { createPerceiver, sense } from './perception.js';
 import { lightAtEye, targetExposure, adapt as adaptExposure, hazeVolume } from './exposure.js';
 import { buildChain, shaftSource } from './postchain.js';
 import { installUserPasses } from '67js/addons/user-pass';
@@ -990,6 +991,8 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
 
   const spawnBloom = (pos, dormant = false) => {
     const b = blooms.find((x) => !x.active);
+    // A wave arrives suspicious, heading for where you were; one lying on the floor knows nothing yet.
+    if (b) b.perc = createPerceiver(dormant ? {} : { awareness: 0.6, lastKnown: [...player.pos] });
     if (b) Object.assign(b, { active: true, pos: [...pos], hp: 2 + (sector.index > 3 ? 1 : 0), phase: random() * 6, dying: 0, stagger: 0, flash: 0, retreat: false, ch: [1, 1], dormant, waking: 0, lunge: 0, woken: false, floorY: pos[1] });
     return b;
   };
@@ -2714,9 +2717,17 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
       // With the power out they find you by your light. One that has not committed, and is not already on top of
       // you, loses you while your lamp is off (or set down elsewhere) and drifts to where it last had you.
       const carrying = lampOn() && !lampPlaced;
+      // Perception (perception.js): what it can see from where it is, and what it can hear. Light makes you easier
+      // to see; with the power out only your lamp does. Shots and noise carry through walls.
+      b.perc ||= createPerceiver({ awareness: 1 });
+      const seen = d < 26 && lineOfSight(b.pos, add(eye, [0, -0.4, 0]));
+      const lit = blackout ? (carrying ? 1 : 0.05) : (lastLit ? 1 : 0.3) + (carrying ? 0.3 : 0);
+      sense(b.perc, { seen, distance: d, lit: Math.min(1, lit), noise: Math.min(1, state.noise / 60), at: [eye[0], eye[1] - 0.3, eye[2]] }, dt);
+      const knows = b.perc.state === 'aware' || b.commit;
       b.blind = blackout && !lure && !b.commit && !carrying && d > 3.8;
       if (!b.blind) b.lastSeen = [eye[0], eye[1] - 0.3, eye[2]];
-      const to = lure ? sub(add(lampPlaced, [0, 0.9, 0]), b.pos) : b.blind ? sub(b.lastSeen || b.pos, b.pos) : sub(add(eye, [0, -0.3, 0]), b.pos);
+      const unsure = !lure && !b.blind && !knows;
+      const to = lure ? sub(add(lampPlaced, [0, 0.9, 0]), b.pos) : b.blind ? sub(b.lastSeen || b.pos, b.pos) : unsure ? sub(b.perc.lastKnown || b.pos, b.pos) : sub(add(eye, [0, -0.3, 0]), b.pos);
       b.stagger = Math.max(0, (b.stagger || 0) - dt);
       b.flash = Math.max(0, (b.flash || 0) - dt);
       if (b.retreat) {
@@ -2727,12 +2738,12 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
         // Swarm movement: close in, but spread around you instead of queueing in one line.
         // Freshly filled, it launches: a short fast lunge before it settles into the swarm's pace.
         b.lunge = Math.max(0, b.lunge - dt);
-        const v = b.blind ? (Math.hypot(...to) > 0.6 ? 0.6 : 0) : (d < (blackout && carrying ? 26 : 18) || lure ? 1.5 + sector.index * 0.2 : 0.4) * (state.visible ? 1.3 : 1) * (b.lunge > 0 ? 4 : 1);
+        const v = b.blind ? (Math.hypot(...to) > 0.6 ? 0.6 : 0) : unsure ? (b.perc.state === 'suspicious' && Math.hypot(...to) > 0.8 ? 0.9 : 0) : (d < (blackout && carrying ? 26 : 18) || lure ? 1.5 + sector.index * 0.2 : 0.4) * (state.visible ? 1.3 : 1) * (b.lunge > 0 ? 4 : 1);
         const side = cross(normalize(Math.hypot(...to) > 1e-3 ? to : [1, 0, 0]), UP);
         const orbit = d > 3 ? Math.sin(b.phase * 0.4 + b.hp) * 0.6 : 0;
         // Attack slots: only a couple may commit at once. The rest circle just out of reach, readable and waiting,
         // so five Blooms around you are a threat you can see, not five unavoidable hits.
-        if (!b.commit && d < 3.8 && budget.request(b, 'melee', crowd)) b.commit = true;
+        if (!b.commit && knows && d < 3.8 && budget.request(b, 'melee', crowd)) b.commit = true;
         if (b.commit && d > 6.5) { b.commit = false; budget.release(b); }
         const holdOff = !b.commit && d < 3.4 && b.lunge <= 0;
         const next = holdOff ? add(b.pos, add(scale(normalize(to), -0.4 * dt), scale(side, (b.hp % 2 ? 1 : -1) * 1.6 * dt))) : v === 0 ? b.pos : add(b.pos, add(scale(normalize(to), v * dt), scale(side, (b.blind ? 0 : orbit) * dt)));

@@ -17,7 +17,7 @@ A first-person cooperative horror rail-shooter and explorer set in the Poolrooms
 | `src/ui.js`, `src/hud.js`, `src/input.js`, `src/padmap.js`, `src/settings.js` | Menus, HUD, input and bindings (controller tables by context are pure and unit-tested), settings |
 | `src/tiers.js`, `src/quality.js` | Quality tiers and Auto (pure, unit-tested); applying a tier in the browser |
 | `src/postchain.js`, `src/exposure.js`, `src/bench.js` | The four post passes and their uniforms, eye adaptation and haze, the `?bench` report (pure, unit-tested) |
-| `src/spring.js`, `src/pressure.js`, `src/spawnscore.js`, `src/lightpool.js` | Damped springs, the attack-slot budget, spawn-point scoring, brief shot lights from a fixed pool (pure, unit-tested) |
+| `src/spring.js`, `src/pressure.js`, `src/spawnscore.js`, `src/lightpool.js`, `src/perception.js` | Damped springs, the attack-slot budget, spawn-point scoring, brief shot lights from a fixed pool, awareness from sight and sound (pure, unit-tested) |
 | `src/driftsign.js` | Which signs change at high Drift and what they say (pure, unit-tested) |
 | `src/survey.js` | The on-foot survey map: what has been seen, coverage, text rendering (pure, unit-tested) |
 | `src/aim.js` | Controller aim help and threat-marker geometry (pure, unit-tested) |
