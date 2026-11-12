@@ -13,7 +13,7 @@ Status words used below:
 - **Recorded**: an audio file from the Oculus Audio Pack (CC BY 4.0). **Synth**: sound synthesised in `src/audio.js`.
 - **Not built**: nothing yet.
 
-Nothing here has been checked by human play or on target GPUs. "Model" means it loads and stands in place in a headless browser.
+Nothing here has been checked by human play or on target GPUs. Generated models are made with Tripo 3D H3.1 at a game triangle count (about 4,000 to 20,000) with PBR maps, and their geometry is used as generated: earlier SAM 3D meshes and heavily simplified ones were replaced because they looked rough. "Model" means it loads and stands in place in a headless browser.
 
 ## Reachable sources
 
@@ -38,7 +38,7 @@ From this environment: Poly Haven (models and textures, CC0), ambientCG (materia
 |---|---|---|
 | Pool ladders | P0 | **Model** (generated, at the basin edge) |
 | Drains, grates, overflow channels, skimmers, coping, handrails | P0 | Drains and overflow grates **Model** (generated); gallery rail primitive in brushed stainless; skimmers and coping not built |
-| Lane anchors, depth markers, starting platforms | P0 | Depth markers: procedural deck markings (1.2 M, NO DIVING) along the pool edges plus wall signs; starting block and skimmer references generated but their mesh conversion failed (Higgsfield SAM 3D returned failures four times); lane anchors not built |
+| Lane anchors, depth markers, starting platforms | P0 | Depth markers: procedural deck markings (1.2 M, NO DIVING) along the pool edges plus wall signs; starting blocks **Model** (generated, a row of three at one straight pool edge); a skimmer reference is made but not converted; lane anchors not built |
 | Wave basin, filtration outlets, pump intakes, emergency shutoffs | P0 | Primitive (the Closed Wave Pool basin, outlet, pump control panel) |
 | Diving boards, showers, foot-wash, cubicles, hooks, benches | P1 | Bench: **Model** (CC0); a vest hook vignette is primitive; the rest not built |
 | Jacuzzi, splash pad, cannons, fountains, level rulers | P1 | Not built |
@@ -192,7 +192,7 @@ The Marco reflection and Drift effects are coded. There are no reflection-specif
 
 ## Next, in order
 
-1. Starting block and skimmer meshes (references are made; retry the conversion), lane anchors.
+1. Skimmer lid and lane anchors.
 2. ambientCG's downloads come from a host the network policy blocks; Poly Haven has no brushed-steel or rubber set, so those stay factor materials.
 3. More Higgsfield image-to-mesh for rigid custom props: per-profile blaster attachments, a pump housing, rescue hooks, collectibles (wristband, token, photo).
 4. The custom families (raft, blaster, work lamp, crew, Lifeguard, Blooms, slide kit) need a modelling and rigging pipeline outside this environment. The game is ready to load them: `src/props.js` takes any GLB, and the importer supports skinning and animation clips.

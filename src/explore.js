@@ -63,8 +63,8 @@ const DOCK = {
 
 const CELL = 4;
 const FOV = 74;
-// The generated lifeguard chair: total height and width-to-height scale so its seat sits at 3.7 m.
-const TOWER_H = 5.9, TOWER_ASPECT = 0.33;
+// The generated lifeguard tower at its own proportions: total height so its seat sits at 3.7 m.
+const TOWER_H = 4.45, TOWER_ASPECT = 1;
 const EYE = 1.65;
 const POOL = -0.65;
 const DEEP = -2.2;
@@ -270,6 +270,15 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
       // Along the edge: the grate's width runs with the coping, its depth is a narrow gutter.
       const g = M('drain', `Overflow grate ${x},${z},${dx},${dz}`), h = 0.05, k = h / dm.size[1];
       placeModel(g, add(center(x, z), [dx * (CELL / 2 - 0.2), sink(h), dz * (CELL / 2 - 0.2)]), Math.atan2(dx, dz), h, [CELL * 0.9 / (dm.size[0] * k), 0.2 / (dm.size[2] * k)]);
+    }
+  }
+  // Starting blocks: a row of up to three along one straight edge of the pool, facing the water (generated model).
+  if (model('startingBlock')) {
+    const edges = find('.').flatMap(([x, z]) => DIRS.filter(([dx, dz]) => at(x + dx, z + dz) === '~').map(([dx, dz]) => ({ x, z, dx, dz })));
+    const run = edges.filter((e) => edges.some((f) => f.dx === e.dx && f.dz === e.dz && Math.abs(f.x - e.x) + Math.abs(f.z - e.z) === 1)).sort((a, b) => hash(a.x, a.z) - hash(b.x, b.z))[0];
+    if (run) {
+      const along = [run.dz, 0, -run.dx], c = center(run.x, run.z);
+      [-1, 0, 1].forEach((k, i) => { const g = M('startingBlock', `Starting block ${i + 4}`); placeModel(g, add(c, [run.dx * (CELL / 2 - 0.55) + along[0] * k * 1.2, 0, run.dz * (CELL / 2 - 0.55) + along[2] * k * 1.2]), Math.atan2(run.dx, run.dz), 0.75); });
     }
   }
   // Depth markings on the deck behind the gutter, read from the deck toward the water. One shared material per text,
@@ -2933,7 +2942,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     if (!L) return;
     const b = L.base;
     if (L.tower) {
-      // Stretched upright so its seat meets the Lifeguard at 3.7 m, the height the primitive tower had.
+      // Sized so its seat meets the Lifeguard at 3.7 m, the height the primitive tower had.
       placeModel(L.tower, [b[0], b[1], b[2] - 0.15], 0, TOWER_H, TOWER_ASPECT);
       hide(L.legs[0]); hide(L.legs[1]); hide(L.seat);
     } else {

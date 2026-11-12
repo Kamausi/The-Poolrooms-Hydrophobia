@@ -7,7 +7,7 @@ const { open, newCampaign, check, finish } = require('./lib.cjs');
   const { browser, page, errors } = await open({ width: 800, height: 450 });
   await newCampaign(page);
   const st = await page.evaluate(async () => { await window.__underflow.modelsReady; return window.__underflow.modelState(); });
-  check('every model loads (generated and CC0)', st.ready.length === 24 && !Object.keys(st.failed).length, JSON.stringify(st));
+  check('every model loads (generated and CC0)', st.ready.length === 25 && !Object.keys(st.failed).length, JSON.stringify(st));
   const seen = {};
   let sample = null;
   for (let i = 0; i < 8; i++) {
@@ -32,7 +32,7 @@ const { open, newCampaign, check, finish } = require('./lib.cjs');
     for (let i = 0; i < 8; i++) { u.beginSector(i); u.startRide(); u.startExplore(); u.step(1); for (const p of window.__explore.parts) { if (/^Deck marking depth/.test(p.name)) { depth++; maps.add(p.material.map); } if (/^Deck marking dive/.test(p.name)) { dive++; maps.add(p.material.map); } } }
     return { depth, dive, distinctMaps: maps.size }; });
   check('the deck carries depth and no-diving markings at the pool edge, sharing one texture per text', marks.depth > 2 && marks.dive > 2 && marks.distinctMaps <= 16, JSON.stringify(marks));
-  check('custom models: the lifeguard chair, ring buoys at the ladders, and the blaster in your hand', seen.tower > 0 && seen.buoy > 0 && seen.blaster > 0, JSON.stringify(seen));
+  check('custom models: the lifeguard tower, ring buoys at the ladders, starting blocks at a pool edge, and the blaster in your hand', seen.tower > 0 && seen.buoy > 0 && seen.blaster > 0 && seen.startingBlock >= 3, JSON.stringify(seen));
   check('rooms are dressed: light fixtures, the cabinet and junction box at the panel, lamps over valves, extinguishers, tools, chairs', ['fluorescent', 'utilityBox', 'powerBox', 'wallLamp', 'extinguisher', 'toolCart', 'chair'].every((n) => seen[n] > 0), JSON.stringify(seen));
   // Instancing: parts that share one geometry (and texture maps) draw as one batch. Shapes come from src/shapes.js,
   // models share their geometry across placements, so a scene of well over a thousand parts draws in a few dozen batches.

@@ -543,12 +543,12 @@
    "files": [
     "src/assets/models/gen-locker.glb"
    ],
-   "source": "Higgsfield (Z Image model for the reference image, SAM 3D model for the mesh), generated for UNDERFLOW from a text prompt",
+   "source": "Higgsfield (Z Image model for the reference image, Tripo 3D H3.1 for the mesh), generated for UNDERFLOW from a text prompt",
    "creator": "generated for this project",
    "url": "https://higgsfield.ai",
    "license": "Generated",
    "modified": true,
-   "changes": "textured GLB repacked: its 1024 px PNG colour texture re-encoded as a 512 px JPEG; reference image kept in assets/generated/models/",
+   "changes": "generated at a game triangle count (Tripo face limit) with PBR maps; colour map 512 px JPEG (1024 px for the blaster), normal map 512 px PNG, metallic-roughness 256 px JPEG; geometry untouched; reference image kept in assets/generated/models/",
    "gameUse": [
     "model: supply lockers on foot and the open locker 0417 vignette"
    ]
@@ -559,12 +559,12 @@
    "files": [
     "src/assets/models/gen-ladder.glb"
    ],
-   "source": "Higgsfield (Z Image model for the reference image, SAM 3D model for the mesh), generated for UNDERFLOW from a text prompt",
+   "source": "Higgsfield (Z Image model for the reference image, Tripo 3D H3.1 for the mesh), generated for UNDERFLOW from a text prompt",
    "creator": "generated for this project",
    "url": "https://higgsfield.ai",
    "license": "Generated",
    "modified": true,
-   "changes": "textured GLB repacked: its 1024 px PNG colour texture re-encoded as a 512 px JPEG; reference image kept in assets/generated/models/",
+   "changes": "generated at a game triangle count (Tripo face limit) with PBR maps; colour map 512 px JPEG (1024 px for the blaster), normal map 512 px PNG, metallic-roughness 256 px JPEG; geometry untouched; reference image kept in assets/generated/models/",
    "gameUse": [
     "model: pool ladders at the basin edge (the Lifeguard inspects them)"
    ]
@@ -591,12 +591,12 @@
    "files": [
     "src/assets/models/gen-valve.glb"
    ],
-   "source": "Higgsfield (Z Image model for the reference image, SAM 3D model for the mesh), generated for UNDERFLOW from a text prompt",
+   "source": "Higgsfield (Z Image model for the reference image, Tripo 3D H3.1 for the mesh), generated for UNDERFLOW from a text prompt",
    "creator": "generated for this project",
    "url": "https://higgsfield.ai",
    "license": "Generated",
    "modified": true,
-   "changes": "textured GLB repacked: its 1024 px PNG colour texture re-encoded as a 512 px JPEG; reference image kept in assets/generated/models/",
+   "changes": "generated at a game triangle count (Tripo face limit) with PBR maps; colour map 512 px JPEG (1024 px for the blaster), normal map 512 px PNG, metallic-roughness 256 px JPEG; geometry untouched; reference image kept in assets/generated/models/",
    "gameUse": [
     "model: the pump valves A, B and C on foot"
    ]
@@ -799,12 +799,12 @@
    "files": [
     "src/assets/models/gen-lifeguard-chair.glb"
    ],
-   "source": "Higgsfield (GPT Image 2.6 model for the reference image, Tripo 3D H3.1 model for the mesh), generated for UNDERFLOW from a text prompt",
+   "source": "Higgsfield (GPT Image 2.6 model for the reference image, Tripo 3D H3.1 for the mesh), generated for UNDERFLOW from a text prompt",
    "creator": "generated for this project",
    "url": "https://higgsfield.ai",
    "license": "Generated",
    "modified": true,
-   "changes": "textured GLB repacked: textures re-encoded as 512 px JPEG, mesh simplified with gltfpack (to about 8,000 triangles for the Tripo models, 4,000 for the others); reference image kept in assets/generated/models/",
+   "changes": "generated at a game triangle count (Tripo face limit) with PBR maps; colour map 512 px JPEG (1024 px for the blaster), normal map 512 px PNG, metallic-roughness 256 px JPEG; geometry untouched; reference image kept in assets/generated/models/",
    "gameUse": [
     "lifeguard tower chair on foot (the Lifeguard sits on it)"
    ]
@@ -815,12 +815,12 @@
    "files": [
     "src/assets/models/gen-blaster.glb"
    ],
-   "source": "Higgsfield (GPT Image 2.6 model for the reference image, Tripo 3D H3.1 model for the mesh), generated for UNDERFLOW from a text prompt",
+   "source": "Higgsfield (GPT Image 2.6 model for the reference image, Tripo 3D H3.1 for the mesh), generated for UNDERFLOW from a text prompt",
    "creator": "generated for this project",
    "url": "https://higgsfield.ai",
    "license": "Generated",
    "modified": true,
-   "changes": "textured GLB repacked: textures re-encoded as 512 px JPEG, mesh simplified with gltfpack (to about 8,000 triangles for the Tripo models, 4,000 for the others); reference image kept in assets/generated/models/",
+   "changes": "generated at a game triangle count (Tripo face limit) with PBR maps; colour map 512 px JPEG (1024 px for the blaster), normal map 512 px PNG, metallic-roughness 256 px JPEG; geometry untouched; reference image kept in assets/generated/models/",
    "gameUse": [
     "the first-person blaster: the tool you hold all game"
    ]
@@ -831,12 +831,12 @@
    "files": [
     "src/assets/models/gen-work-lamp.glb"
    ],
-   "source": "Higgsfield (GPT Image 2.6 model for the reference image, SAM 3D model for the mesh), generated for UNDERFLOW from a text prompt",
+   "source": "Higgsfield (GPT Image 2.6 model for the reference image, Tripo 3D H3.1 for the mesh), generated for UNDERFLOW from a text prompt",
    "creator": "generated for this project",
    "url": "https://higgsfield.ai",
    "license": "Generated",
    "modified": true,
-   "changes": "textured GLB repacked: textures re-encoded as 512 px JPEG, mesh simplified with gltfpack (to about 8,000 triangles for the Tripo models, 4,000 for the others); reference image kept in assets/generated/models/",
+   "changes": "generated at a game triangle count (Tripo face limit) with PBR maps; colour map 512 px JPEG (1024 px for the blaster), normal map 512 px PNG, metallic-roughness 256 px JPEG; geometry untouched; reference image kept in assets/generated/models/",
    "gameUse": [
     "the portable work lamp when you set it down"
    ]
@@ -847,12 +847,12 @@
    "files": [
     "src/assets/models/gen-ring-buoy.glb"
    ],
-   "source": "Higgsfield (GPT Image 2.6 model for the reference image, SAM 3D model for the mesh), generated for UNDERFLOW from a text prompt",
+   "source": "Higgsfield (GPT Image 2.6 model for the reference image, Tripo 3D H3.1 for the mesh), generated for UNDERFLOW from a text prompt",
    "creator": "generated for this project",
    "url": "https://higgsfield.ai",
    "license": "Generated",
    "modified": true,
-   "changes": "textured GLB repacked: textures re-encoded as 512 px JPEG, mesh simplified with gltfpack (to about 8,000 triangles for the Tripo models, 4,000 for the others); reference image kept in assets/generated/models/",
+   "changes": "generated at a game triangle count (Tripo face limit) with PBR maps; colour map 512 px JPEG (1024 px for the blaster), normal map 512 px PNG, metallic-roughness 256 px JPEG; geometry untouched; rotated so the ring lies flat; reference image kept in assets/generated/models/",
    "gameUse": [
     "ring buoys on the deck beside the pool ladders"
    ]
@@ -943,14 +943,30 @@
    "files": [
     "src/assets/models/gen-drain.glb"
    ],
-   "source": "Higgsfield (Z Image model for the reference image, SAM 3D model for the mesh), generated for UNDERFLOW from a text prompt",
+   "source": "Higgsfield (Z Image model for the reference image, Tripo 3D H3.1 for the mesh), generated for UNDERFLOW from a text prompt",
    "creator": "generated for this project",
    "url": "https://higgsfield.ai",
    "license": "Generated",
    "modified": true,
-   "changes": "textured GLB repacked: textures re-encoded as 512 px JPEG, mesh simplified with gltfpack to about 3,000 triangles; reference image kept in assets/generated/models/",
+   "changes": "generated at a game triangle count (Tripo face limit) with PBR maps; colour map 512 px JPEG (1024 px for the blaster), normal map 512 px PNG, metallic-roughness 256 px JPEG; geometry untouched; reference image kept in assets/generated/models/",
    "gameUse": [
     "the shower drain vignette on foot"
+   ]
+  },
+  {
+   "id": "model/starting-block",
+   "type": "model",
+   "files": [
+    "src/assets/models/gen-starting-block.glb"
+   ],
+   "source": "Higgsfield (Z Image model for the reference image, Tripo 3D H3.1 for the mesh), generated for UNDERFLOW from a text prompt",
+   "creator": "generated for this project",
+   "url": "https://higgsfield.ai",
+   "license": "Generated",
+   "modified": true,
+   "changes": "generated at a game triangle count with PBR maps; colour map 512 px JPEG, normal map 512 px PNG, metallic-roughness 256 px JPEG; geometry untouched; reference image kept in assets/generated/models/",
+   "gameUse": [
+    "starting blocks: a row of three along one straight pool edge"
    ]
   }
  ]
