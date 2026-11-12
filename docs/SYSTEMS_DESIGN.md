@@ -678,7 +678,7 @@ Every enclosed dock has a **lighting relay** on a wall a short walk from the raf
 
 Nothing animates. The light changes and the room is different; the crew says so once ("That was a wall. I had my hand on it."). The first time through the doorway is a ROUTE FOUND. The relay is never placed beside the doorway it opens, so you switch it and then go and look. You cannot switch back to main while standing in the doorway. The base map is never altered, so the dock stays solvable under either state.
 
-This is the first **facility state**; power loss (section 31) is the second. Not built: flooded, high-Drift and remembered states, a bridge that exists only under one circuit, reflections and shadows that disagree with the room, perspective alignment, and rooms that differ per player. Test: `tests/circuit.cjs`.
+This is the first **facility state**; power loss (section 31) is the second and high Drift (section 32) the third. Not built: flooded and remembered states, a bridge that exists only under one circuit, reflections and shadows that disagree with the room, perspective alignment, and rooms that differ per player. Test: `tests/circuit.cjs`.
 
 ## 27. Automatic resolution, controller vibration, and the Lost & Found (implemented)
 
@@ -727,4 +727,12 @@ To bring it back, start a reset at the relay (E) and stay there for four seconds
 **Blooms hunt by your light in it.** With the power out, a Bloom that has not committed to you and is more than a few metres away loses you while your work lamp is off or set down somewhere else: it drifts slowly to where it last had you and waits there. Carry the lamp lit and they find you again, from farther than usual. One already on top of you is not fooled. So in a blackout the lamp is a trade: light keeps Drift down and tells them where you are; a lamp left burning on the floor still draws them to it.
 
 It is caused only by the player and warned one throw ahead. The Lifeguard and other entities do not change behaviour in a blackout. Not built: a blackout the facility causes itself, different sound under power loss beyond the trip and a brief duck, and signage that changes meaning rather than only going dark. Test: `tests/circuit.cjs`.
+
+## 32. High Drift: the signs are about you (implemented)
+
+On foot, when Drift reaches 70 the lit signs on the dock stop being about the building. Each one that is allowed to change is swapped, in place and without any animation, for a panel in the same official lettering that reads GUEST and your wristband number, then PLEASE REMAIN, then YOU ARE EXPECTED, with as many lines as the sign it replaced. They change back when Drift falls below 55. The crew says it once ("Don't read the signs. Read the map.") and the ledger records it.
+
+The rule for which signs may change is in `src/driftsign.js` (pure). Anything you need to read to solve a room never changes: valve and pump labels, the pressure diagram and its order, the lighting relay, locker and plate numbers, and the notice the facility leaves after an early extraction. Handwriting and blacklight paint are not the facility's and do not change either. So the state unsettles a room without withholding information, and the survey map stays right throughout.
+
+Not built: the state changing sound or architecture, signs that give wrong directions (deliberately: that would be unfair without a way to check), the same state on the raft, and any difference between what you and a crewmate see. Tests: `tests/unit/driftsign.test.js`, `tests/circuit.cjs`.
 

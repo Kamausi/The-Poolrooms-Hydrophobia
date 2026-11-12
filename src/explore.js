@@ -3,6 +3,7 @@
 // bay), then return to the moored raft. Each attraction adds its own rules (see sectors.js).
 import { rumble } from './haptics.js';
 import { wedges as threatWedges } from './aim.js';
+import { driftSign, driftState } from './driftsign.js';
 import { createSurvey, visit as surveyVisit, mark as surveyMark, coverage as surveyCoverage, render as surveyRender, seenList } from './survey.js';
 import { Renderer67, box, sphere, cylinder, torus } from '67js';
 import { writeYaw, writeBasis, writeSegment, hide, add, sub, scale, normalize, clamp, damp, rng, raySphere, rayPlaneY, linear, distance, cross, display, angleTo, soundDir } from './math.js';
@@ -318,7 +319,14 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
   const facility = facilityMem;
 
   // ---------- Exploration pass: puzzles, architecture, the thread, the crew ----------
-  const label = (text, style, pos, normal, w, h, px = 384, py = 160) => { const part = P(`Sign ${text.slice(0, 12)}`, plane, { ...signMaterial(text, style, 0.8, px, py), doubleSided: true }); signParts.push({ part, style }); return facing(part, pos, normal, w, h); };
+  const label = (text, style, pos, normal, w, h, px = 384, py = 160) => { const part = P(`Sign ${text.slice(0, 12)}`, plane, { ...signMaterial(text, style, 0.8, px, py), doubleSided: true });
+    // A second panel for high Drift, where the rule allows one (driftsign.js). It waits hidden in the same place.
+    const other = driftSign(text, style, state.band);
+    const alt = other ? P(`Drift sign ${signParts.length}`, plane, { ...signMaterial(other, style, 0.8, px, py), doubleSided: true }) : null;
+    if (alt) hide(alt);
+    signParts.push({ part, style, alt, home: null });
+    return facing(part, pos, normal, w, h);
+  };
   const wallSpot = (x, z) => {
     const wd = DIRS.find(([dx, dz]) => isWall(x + dx, z + dz)) || [0, 1];
     const c = center(x, z);
@@ -375,12 +383,33 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     } else hud.caption('[the lights come back. The wall is a wall]');
     return true;
   }
+  // High Drift: the signs that are allowed to change are about you now. Swapped in place; nothing animates.
+  let driftSigns = false, driftSignsTold = false;
+  function setDriftSigns(v) {
+    driftSigns = v;
+    let n = 0;
+    for (const s of signParts) {
+      if (!s.alt) continue;
+      if (v) {
+        if (s.part.matrix[13] < -100) continue; // not standing anywhere right now
+        s.home = Float32Array.from(s.part.matrix);
+        s.alt.matrix.set(s.home); hide(s.part); n += 1;
+      } else if (s.home) { s.part.matrix.set(s.home); hide(s.alt); s.home = null; }
+    }
+    if (v && n && !driftSignsTold) {
+      driftSignsTold = true;
+      hud.caption('[the signs have your wristband number on them. All of them]');
+      hud.say(followers[0]?.id.toUpperCase() || 'MARS', 'Don\'t read the signs. Read the map.', 'crew');
+      events.ledger?.('changes', `${sector.name}: at high Drift the signs are addressed to you`);
+    }
+    return n;
+  }
   function setBlackout(v) {
     if (!circuit || v === blackout) return false;
     blackout = v;
     resetT = 0;
     // Lit signs go dark with the power. Blacklight paint was never on the circuit: it is all you can read.
-    for (const s of signParts) s.part.material.emission = v ? (s.style === 'uv' ? 1.4 : 0.02) : 0.8;
+    for (const s of signParts) { s.part.material.emission = v ? (s.style === 'uv' ? 1.4 : 0.02) : 0.8; if (s.alt) s.alt.material.emission = s.part.material.emission; }
     if (v) {
       sound.lever(); sound.duck(4); sound.thump(0);
       hud.caption('[a breaker lets go somewhere in the wall. Everything is out: the fixtures, the strips, the signs]');
@@ -2070,6 +2099,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     updateWavePool(dt, eye, dir);
     updateLamp(dt, eye, ask);
     updateSurvey();
+    if (driftState(driftSigns, state.drift) !== driftSigns) setDriftSigns(!driftSigns);
     if (attendant0417T > 0 && (attendant0417T -= dt) <= 0) hud.say('THE ATTENDANT', 'Thank you. The item removed from Locker 0417 has been returned.', 'attendant', true);
     // Where you stand still the longest: the Safe Room window remembers it.
     if (sector.chapter) { const sp = Math.hypot(player.pos[0] - (lastStill?.[0] ?? 0), player.pos[2] - (lastStill?.[2] ?? 0)); if (sp < 0.3) { stillHere += dt; if (stillHere > (state.hesitation?.t || 0)) state.hesitation = { t: stillHere, near: nearestFeature(player.pos) }; } else { stillHere = 0; lastStill = [...player.pos]; } }
@@ -3181,7 +3211,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     for (let i = 0; i < (r.valves || 0); i++) { const v = pumpValves.find((x) => x.id === valveOrder[i]); if (v) v.open = true; }
     valveStep = r.valves || 0;
   }
-  if (import.meta.env.DEV) window.__explore = { get remembered() { return remembered; }, get wedges() { return lastWedges; }, survey, get surveyCoverage() { return surveyCoverage(survey, surveyOpen); }, surveyOpen, omen: (k) => startFomen(k), circuit, setEmergency, setBlackout, get blackout() { return blackout; }, signParts, get resetT() { return resetT; }, get emergency() { return emergency; }, blocked, isWall, finds, found, get lampPlaced() { return lampPlaced; }, lights: () => gatherLights(add(player.pos, [0, 1.6, 0])), get hesitation() { return hesitation; }, get lastOmen() { return lastFomen; }, get marcoAct() { return marcoAct; }, set marcoAct(v) { marcoAct = v; }, marcos, columns, wavePool, get basin() { return basin; }, isWater, floorTop, get operating() { return operating; }, set operating(v) { operating = v; }, panelFront, holdT, shoot, spawnBloom, occupant, lockers, noise, violate, get omenState() { return fomen; }, door, blooms, lamps, director, followers, get dockKind() { return dockKind; }, get valves() { return { order: valveOrder, step: valveStep, list: pumpValves }; }, june: juneEvent, thread, get clock() { return clock; }, stagnant, player, center, undertow, lifeguard, cellPos, panelPos, raftPos, code, find, floaters, restorePower };
+  if (import.meta.env.DEV) window.__explore = { get remembered() { return remembered; }, get driftSigns() { return driftSigns; }, get wedges() { return lastWedges; }, survey, get surveyCoverage() { return surveyCoverage(survey, surveyOpen); }, surveyOpen, omen: (k) => startFomen(k), circuit, setEmergency, setBlackout, get blackout() { return blackout; }, signParts, get resetT() { return resetT; }, get emergency() { return emergency; }, blocked, isWall, finds, found, get lampPlaced() { return lampPlaced; }, lights: () => gatherLights(add(player.pos, [0, 1.6, 0])), get hesitation() { return hesitation; }, get lastOmen() { return lastFomen; }, get marcoAct() { return marcoAct; }, set marcoAct(v) { marcoAct = v; }, marcos, columns, wavePool, get basin() { return basin; }, isWater, floorTop, get operating() { return operating; }, set operating(v) { operating = v; }, panelFront, holdT, shoot, spawnBloom, occupant, lockers, noise, violate, get omenState() { return fomen; }, door, blooms, lamps, director, followers, get dockKind() { return dockKind; }, get valves() { return { order: valveOrder, step: valveStep, list: pumpValves }; }, june: juneEvent, thread, get clock() { return clock; }, stagnant, player, center, undertow, lifeguard, cellPos, panelPos, raftPos, code, find, floaters, restorePower };
 
   return {
     update,
