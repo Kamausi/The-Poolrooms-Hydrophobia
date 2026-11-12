@@ -781,11 +781,23 @@ Written for UNDERFLOW from a description of another game's systems; see `docs/TH
 
 **Shot lights** (`src/lightpool.js`, pure). Every shot on the raft and on foot lights the room for a moment: a flash at the muzzle in the profile's colour (brighter for Scatter) and a smaller one where it lands, fading in a tenth of a second. The lights come from a fixed pool of four that is reused; when all four are lit the dimmest is taken over. They are merged into the frame's lights without going past the engine's sixteen, always keeping room for at least one flash.
 
-Not built from the same brief: a shared perception model for all entities (the Lifeguard has its own states already), effect and entity pools (Blooms, shots and drops already use fixed part lists), procedural material generation, and a fully contextual HUD (parts of it already adapt). Tests: `tests/unit/feelai.test.js`, `tests/systems.cjs`, `tests/shows.cjs`.
+Not built from the same brief: perception for entities other than Blooms on foot (section 37; the Lifeguard has its own states already), effect and entity pools (Blooms, shots and drops already use fixed part lists), procedural material generation, and a fully contextual HUD (parts of it already adapt). Tests: `tests/unit/feelai.test.js`, `tests/systems.cjs`, `tests/shows.cjs`.
 
 ## 36. The voice pool and the limiter (implemented)
 
 Sound already had buses (effects, music, ambience, each with its own volume), a muffle filter shared by everything, and a convolution reverb per acoustic space. What it lacked was a limit. Now every one-shot, recorded or synthesised, asks a voice pool (`src/voicepool.js`, pure) for room: at most 24 at once, and at most three copies of the same sound. When the pool is full, a more important sound takes the place of the least important one playing, which is stopped; an equal or lesser one is simply not played. Being hurt, the Lifeguard's whistle and the Undertow's grip and release are critical; gate, burst, the heavy profiles, the radio and doors are high; footsteps, ticks, bubbles, Grout's clicks and breathing are low; everything else is normal. Beds and music are not counted. A compressor on the master output keeps a scatter blast in a tiled room loud without clipping.
 
 Not built: per-voice distance attenuation and HRTF panning (sounds are panned left-right only), occlusion through walls, and per-space sends other than the one convolver. Tests: `tests/unit/voicepool.test.js`, `tests/audio.cjs`. Nobody has listened to it on speakers or headphones.
+
+## 37. Perception: Blooms on foot have to find you (implemented)
+
+Before this, every Bloom on foot within 18 m came straight for you. Now each one has a perceiver (`src/perception.js`, pure) and has to sense you first.
+
+- **Seeing**: only in line of sight (walls and columns block it), within 26 m, faster when you are close and lit. With the power out, only a carried lamp makes you visible. Within 3.5 m it knows at once.
+- **Hearing**: shots and other noise carry through walls, out to 14 m.
+- **States**: unaware below 0.3 (it stays where it is), suspicious (it goes slowly to where it last sensed you), aware (it comes for you, and only then may it take an attack slot). An aware Bloom holds on for six seconds after losing you, then cools.
+
+A wave arrives suspicious, heading for where you were when it spawned, so it still comes looking; a Bloom lying dormant on the floor starts knowing nothing. Blackout blindness (section 31) and the lamp lure still take precedence.
+
+So staying out of sight and not firing now keeps Blooms off you, and a shot tells every Bloom in earshot roughly where you are. This changes on-foot difficulty and pacing, and nobody has played it. Not built: the same model for the Lifeguard (which has its own hunt states), Marco, the Undertow and the raft. Tests: `tests/unit/perception.test.js`, `tests/systems.cjs`.
 
