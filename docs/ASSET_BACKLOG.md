@@ -86,7 +86,7 @@ These need real modelling, rigging and animation, which Higgsfield's image-to-me
 | Lockers | **Model** (generated: supply lockers, locker 0417, Safe Room) |
 | Tool chest, tool cart, shelving | **Model** (CC0: maintenance platform landing; Safe Room) |
 | Fire extinguisher, bins | **Model** (CC0: every landing) |
-| Pipes, pumps, compressors, tanks, catwalks, ducts, generators, crates, pallets | Primitive or not built. Poly Haven also has modular industrial pipes, plastic crates and a tire pump, downloaded and not yet shipped |
+| Pipes, pumps, compressors, tanks, catwalks, ducts, generators, crates, pallets | Primitive or not built. Pipe sections and plastic crates: **Model** (CC0: spare pipe sections at a maintenance platform, equipment crates at other landings) |
 
 ## 17. Safe Room kit
 
@@ -152,11 +152,11 @@ The Marco reflection and Drift effects are coded. There are no reflection-specif
 | # | Item | Now |
 |---|---|---|
 | 1 | Ivory square-tile PBR | Procedural + CC0 normal map |
-| 2 | Brushed stainless PBR | Not built (factor-only metal) |
-| 3 | Rubber PBR | Not built |
+| 2 | Brushed stainless PBR | Factor material with an anisotropic lobe (rails, gallery rails, ladder fallbacks); no texture |
+| 3 | Rubber / PVC | Generated PVC seam detail map on the raft hulls (keeps the raft's colour) |
 | 4 | Painted metal PBR | Generated texture |
-| 5 | Wet concrete PBR | Generated, kept in `assets/generated/`, not shipped |
-| 6 | Frosted / wired glass | Factor-only glass |
+| 5 | Wet concrete | Generated texture on the landing slab where you dock |
+| 6 | Frosted / wired glass | Transmissive glass (transmission, IOR 1.52, faint green absorption) in the observation windows; no wire pattern |
 | 7 | Fluorescent fixtures | **Model** (CC0) |
 | 8 | Pool ladders | **Model** (generated) |
 | 9 | Handrails | Primitive |
@@ -192,7 +192,7 @@ The Marco reflection and Drift effects are coded. There are no reflection-specif
 
 ## Next, in order
 
-1. CC0 materials from ambientCG and Poly Haven for items 2, 3, 5 and 6 (brushed stainless, rubber, wet concrete, glass), applied to handrails, ladders, the raft and the observation windows.
-2. The rest of the CC0 maintenance kit already downloaded (modular pipes, crates), and Poly Haven's roller shutter for doors.
+1. Poly Haven's roller shutter for doors, and modelled drains and grates.
+2. ambientCG's downloads come from a host the network policy blocks; Poly Haven has no brushed-steel or rubber set, so those stay factor materials.
 3. More Higgsfield image-to-mesh for rigid custom props: per-profile blaster attachments, a pump housing, rescue hooks, collectibles (wristband, token, photo).
 4. The custom families (raft, blaster, work lamp, crew, Lifeguard, Blooms, slide kit) need a modelling and rigging pipeline outside this environment. The game is ready to load them: `src/props.js` takes any GLB, and the importer supports skinning and animation clips.

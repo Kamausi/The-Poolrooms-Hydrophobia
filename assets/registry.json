@@ -856,6 +856,70 @@
    "gameUse": [
     "ring buoys on the deck beside the pool ladders"
    ]
+  },
+  {
+   "id": "model/plastic_crate_02",
+   "type": "model",
+   "files": [
+    "src/assets/models/cc0/plastic_crate_02.glb"
+   ],
+   "source": "Poly Haven (Plastic Crate 02)",
+   "creator": "Fabi_G",
+   "url": "https://polyhaven.com/a/plastic_crate_02",
+   "license": "CC0-1.0",
+   "modified": true,
+   "changes": "1k glTF packed into one GLB: colour map 256 px, normal and ARM maps 128 px (JPEG); meshes simplified with gltfpack",
+   "gameUse": [
+    "crate: equipment crates stacked at landings"
+   ]
+  },
+  {
+   "id": "model/modular_industrial_pipes_01",
+   "type": "model",
+   "files": [
+    "src/assets/models/cc0/modular_industrial_pipes_01.glb"
+   ],
+   "source": "Poly Haven (Modular Industrial Pipes 01)",
+   "creator": "Jorge Camacho",
+   "url": "https://polyhaven.com/a/modular_industrial_pipes_01",
+   "license": "CC0-1.0",
+   "modified": true,
+   "changes": "1k glTF packed into one GLB: colour map 256 px, normal and ARM maps 128 px (JPEG); meshes simplified with gltfpack",
+   "gameUse": [
+    "pipes: spare pipe sections against the wall at a maintenance platform"
+   ]
+  },
+  {
+   "id": "texture/raft-pvc",
+   "type": "texture",
+   "files": [
+    "src/assets/gen-raft-pvc.webp"
+   ],
+   "source": "@pmndrs/assets 1.7.0 (npm)",
+   "creator": "Poimandres",
+   "url": "https://www.npmjs.com/package/@pmndrs/assets",
+   "license": "CC0-1.0",
+   "modified": true,
+   "changes": "2048 px PNG made greyscale and normalised to a detail map, 256 px WebP; source kept at 1024 px in assets/generated/",
+   "gameUse": [
+    "surface: PVC seams on the raft hulls, which keep their own colour"
+   ]
+  },
+  {
+   "id": "texture/concrete-wet",
+   "type": "texture",
+   "files": [
+    "src/assets/gen-concrete-wet.webp"
+   ],
+   "source": "@pmndrs/assets 1.7.0 (npm)",
+   "creator": "Poimandres",
+   "url": "https://www.npmjs.com/package/@pmndrs/assets",
+   "license": "CC0-1.0",
+   "modified": true,
+   "changes": "2048 px PNG resized to 256 px WebP; source kept at 1024 px in assets/generated/",
+   "gameUse": [
+    "surface: the wet concrete landing slab where you dock"
+   ]
   }
  ]
 }

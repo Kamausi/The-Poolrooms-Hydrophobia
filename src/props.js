@@ -24,6 +24,8 @@ import toolCartUrl from './assets/models/cc0/tool_cart.glb?inline';
 import utilityBoxUrl from './assets/models/cc0/utility_box_02.glb?inline';
 import kettleUrl from './assets/models/cc0/vintage_electric_kettle.glb?inline';
 import rackUrl from './assets/models/cc0/worn_metal_rack.glb?inline';
+import crateUrl from './assets/models/cc0/plastic_crate_02.glb?inline';
+import pipesUrl from './assets/models/cc0/modular_industrial_pipes_01.glb?inline';
 
 /**
  * Each model: its source; for generated models a surface finish (those files carry only a colour texture, and glTF's
@@ -52,6 +54,8 @@ export const MODELS = {
   utilityBox: { url: utilityBoxUrl, turn: 0 },
   kettle: { url: kettleUrl, turn: 0 },
   rack: { url: rackUrl, turn: 0 },
+  crate: { url: crateUrl, turn: 0 },
+  pipes: { url: pipesUrl, turn: 0 },
 };
 
 const ready = {};

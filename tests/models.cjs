@@ -7,7 +7,7 @@ const { open, newCampaign, check, finish } = require('./lib.cjs');
   const { browser, page, errors } = await open({ width: 800, height: 450 });
   await newCampaign(page);
   const st = await page.evaluate(async () => { await window.__underflow.modelsReady; return window.__underflow.modelState(); });
-  check('every model loads (generated and CC0)', st.ready.length === 20 && !Object.keys(st.failed).length, JSON.stringify(st));
+  check('every model loads (generated and CC0)', st.ready.length === 22 && !Object.keys(st.failed).length, JSON.stringify(st));
   const seen = {};
   let sample = null;
   for (let i = 0; i < 8; i++) {
@@ -18,6 +18,15 @@ const { open, newCampaign, check, finish } = require('./lib.cjs');
     if ([...r.lockers, ...r.valves, ...r.ducks].some((x) => x === null)) { check(`sector ${i}: every locker, valve and duck uses its model`, false, JSON.stringify(r)); }
   }
   check('lockers, pool ladders and pump valves are models on foot', seen.locker > 0 && seen.ladder > 0 && seen.valve > 0, JSON.stringify({ seen, sample }));
+  check('landings carry equipment crates; a maintenance platform has spare pipe sections', seen.crate > 0 && seen.pipes > 0, JSON.stringify(seen));
+  // Materials: brushed stainless rails, wet concrete where you dock, glass you see through, PVC seams on the raft.
+  const mats = await page.evaluate(() => { const u = window.__underflow; u.beginSector(0); u.startRide(); u.step(2);
+    const raft = window.__ride.parts.find((p) => p.name === 'Raft');
+    u.startExplore(); u.step(2); const E = window.__explore; const parts = E.parts;
+    const find = (re) => parts.find((p) => re.test(p.name));
+    const rail = find(/^Gallery rail|^Pool ladder rail/), glass = find(/^Observation glass/), dock = find(new RegExp(`^Floor ${E.find('D')[0].join(',')}$`)), moored = find(/^Moored raft$/);
+    return { rail: rail && rail.material.anisotropy, glass: glass ? glass.material.transmission : 'none here', dock: dock && !!dock.material.map, moored: moored && !!moored.material.map, raft: !!(raft && raft.material.map) }; });
+  check('materials: wet concrete at the landing, PVC seams on the raft you ride and the moored one, glass that transmits, brushed stainless rails', mats.dock && mats.moored && mats.raft && (mats.glass === 'none here' || mats.glass > 0.5) && (mats.rail === undefined || mats.rail > 0), JSON.stringify(mats));
   check('custom models: the lifeguard chair, ring buoys at the ladders, and the blaster in your hand', seen.tower > 0 && seen.buoy > 0 && seen.blaster > 0, JSON.stringify(seen));
   check('rooms are dressed: light fixtures, the cabinet and junction box at the panel, lamps over valves, extinguishers, tools, chairs', ['fluorescent', 'utilityBox', 'powerBox', 'wallLamp', 'extinguisher', 'toolCart', 'chair'].every((n) => seen[n] > 0), JSON.stringify(seen));
   // Instancing: parts that share one geometry (and texture maps) draw as one batch. Shapes come from src/shapes.js,

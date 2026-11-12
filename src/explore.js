@@ -14,6 +14,7 @@ import { model, modelPart, placeModel } from './props.js';
 import { lightAtEye, targetExposure, adapt as adaptExposure, hazeVolume } from './exposure.js';
 import { buildChain, shaftSource } from './postchain.js';
 import { installUserPasses } from '67js/addons/user-pass';
+import '67js/addons/material-layer-shaders'; // brushed stainless (anisotropy) and transmissive glass
 import { createSurvey, visit as surveyVisit, mark as surveyMark, coverage as surveyCoverage, render as surveyRender, seenList, carryList, disagreements } from './survey.js';
 import { Renderer67 } from '67js';
 import { box, sphere, cylinder, torus } from './shapes.js';
@@ -156,6 +157,11 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
   // Generated surfaces (surfaces.js): stained acoustic ceiling tiles overhead, aqua pool tile under the water.
   const ceilingMat = { color: [0.92, 0.92, 0.9], metallic: 0, roughness: 0.85, map: genSurface('ceiling'), boxMapScale: 0.3 };
   const poolFloorMat = { color: [0.9, 0.95, 0.95], metallic: 0, roughness: 0.25, map: genSurface('aqua'), boxMapScale: 0.45 };
+  // The landing you dock at is a wet concrete service slab, not tile (generated surface).
+  const landingMat = { color: [0.9, 0.9, 0.88], metallic: 0, roughness: 0.35, map: genSurface('concrete'), boxMapScale: 0.4 };
+  const [landX, landZ] = find('D')[0];
+  // Brushed stainless for rails and ladders: the anisotropic lobe stretches highlights along the grain.
+  const stainless = { color: [0.75, 0.77, 0.76], metallic: 0.9, roughness: 0.3, anisotropy: 0.6 };
   const lampColor = linear(sector.lamp);
   const slab = box(0, 1);
   const ball = sphere(28, 18);
@@ -195,18 +201,18 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
         // An observation window: tiled below and above, wired glass between. You see through it; you can't pass.
         writeYaw(P(`Window sill ${x},${z}`, slab, tileMat).matrix, [c[0], 0.5, c[2]], 0, CELL, 1.0, CELL);
         writeYaw(P(`Window head ${x},${z}`, slab, tileMat).matrix, [c[0], (2.6 + wallH) / 2, c[2]], 0, CELL, wallH - 2.6, CELL);
-        writeYaw(P(`Observation glass ${x},${z}`, slab, { color: [0.55, 0.7, 0.7], metallic: 0.3, roughness: 0.05, alphaMode: 'blend', opacity: 0.18 }).matrix, [c[0], 1.8, c[2]], 0, 0.06, 1.6, CELL * 0.9);
+        writeYaw(P(`Observation glass ${x},${z}`, slab, { color: [0.75, 0.85, 0.85], metallic: 0, roughness: 0.12, transmission: 0.92, ior: 1.52, thickness: 0.01, attenuationColor: [0.7, 0.85, 0.8], attenuationDistance: 0.4 }).matrix, [c[0], 1.8, c[2]], 0, 0.06, 1.6, CELL * 0.9);
         continue;
       }
       const top = ch === 'B' ? DEEP : floorTop(x, z);
       // Under the water the floor is the saturated aqua pool tile; dry floor stays the sector's tile.
-      writeYaw(P(`Floor ${x},${z}`, slab, top < 0 || WATERISH.has(ch) ? poolFloorMat : tileMat).matrix, [c[0], top > 0 ? (top - 0.5) / 2 : top - 0.25, c[2]], 0, CELL, top > 0 ? top + 0.5 : 0.5, CELL);
+      writeYaw(P(`Floor ${x},${z}`, slab, top < 0 || WATERISH.has(ch) ? poolFloorMat : x === landX && z === landZ ? landingMat : tileMat).matrix, [c[0], top > 0 ? (top - 0.5) / 2 : top - 0.25, c[2]], 0, CELL, top > 0 ? top + 0.5 : 0.5, CELL);
       // The gallery's open edge over the basin: a low tiled parapet with a steel rail you can see and shoot over.
       if (ch === 'y') for (const [dx, dz] of DIRS) {
         const n = at(x + dx, z + dz);
         if (n !== '~' && n !== 'u' && n !== 'L') continue;
         writeYaw(P(`Gallery parapet ${x},${z}`, slab, tileMat).matrix, [c[0] + dx * (CELL / 2 - 0.08), top + 0.25, c[2] + dz * (CELL / 2 - 0.08)], 0, dx ? 0.16 : CELL, 0.5, dz ? 0.16 : CELL);
-        writeYaw(P(`Gallery rail ${x},${z}`, slab, { color: [0.75, 0.77, 0.76], metallic: 0.9, roughness: 0.25 }).matrix, [c[0] + dx * (CELL / 2 - 0.08), top + 0.95, c[2] + dz * (CELL / 2 - 0.08)], 0, dx ? 0.05 : CELL, 0.05, dz ? 0.05 : CELL);
+        writeYaw(P(`Gallery rail ${x},${z}`, slab, stainless).matrix, [c[0] + dx * (CELL / 2 - 0.08), top + 0.95, c[2] + dz * (CELL / 2 - 0.08)], 0, dx ? 0.05 : CELL, 0.05, dz ? 0.05 : CELL);
       }
       if (WATERISH.has(ch) || ch === 'x' || ch === 'B' || (ch === 'd' && !drained)) waterParts.push({ part: P(`Water ${x},${z}`, slab, waterMat()), x, z });
       if (ch === 'w') tidal.push({ part: P(`Tide ${x},${z}`, slab, waterMat()), x, z });
@@ -247,7 +253,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
   const dockC = center(dx0, dz0);
   const dockWall = DIRS.find(([dx, dz]) => isWall(dx0 + dx, dz0 + dz)) || [-1, 0];
   const raftPos = [dockC[0] + dockWall[0] * 0.8, 0.05, dockC[2] + dockWall[1] * 0.8];
-  writeBasis(P('Moored raft', torus(0.3, 48, 16), { color: [0.75, 0.32, 0.12], metallic: 0, roughness: 0.6 }).matrix, raftPos, [1, 0, 0], [0, 0, -1], UP, 1.05, 1.05, 1.3);
+  writeBasis(P('Moored raft', torus(0.3, 48, 16), { color: [0.75, 0.32, 0.12], metallic: 0, roughness: 0.6, map: genSurface('pvc'), boxMapScale: 1.6 }).matrix, raftPos, [1, 0, 0], [0, 0, -1], UP, 1.05, 1.05, 1.3);
   writeYaw(P('Tether post', cylinder(16, 0.05, 1), { color: [0.75, 0.6, 0.15], metallic: 0.6, roughness: 0.4 }).matrix, [dockC[0] - dockWall[0] * 0.6, 0.6, dockC[2] - dockWall[1] * 0.6], 0, 0.08, 1.2, 0.08);
 
   // ---------- Dock dressing (CC0 models): an extinguisher on every landing; tools on a maintenance platform ----------
@@ -260,8 +266,12 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
       const cart = M('toolCart', 'Tool cart'); if (cart) placeModel(cart, back(-1.2, 0.5), yaw);
       const chest = M('toolChest', 'Tool chest'); if (chest) placeModel(chest, add(back(-1.2, 0.5), [0, model('toolCart').size[1], 0]), yaw);
       const rack = M('rack', 'Parts rack'); if (rack) placeModel(rack, back(0.6, 0.4), yaw);
+      // Spare pipe sections against the wall, and equipment crates stacked by the rack (CC0 models).
+      const pipes = M('pipes', 'Spare pipe sections'); if (pipes) placeModel(pipes, back(1.9, 0.2), yaw);
     } else {
       const bin = M('bin', 'Bins'); if (bin) placeModel(bin, back(-1.0, 0.4), yaw);
+      // Equipment crates: two side by side, one on top (CC0 models).
+      [[0.45, 0], [1.0, 0], [0.72, 1]].forEach(([d, up], k) => { const c = M('crate', `Equipment crate ${k}`); if (c) placeModel(c, add(back(d, 0.35), [0, up * model('crate').size[1], 0]), yaw + (k - 1) * 0.12); });
     }
   }
 
@@ -776,7 +786,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     } },
     { cap: '[a pool ladder bolted to a dry wall. The rungs get closer together toward the floor, and keep going into it]', build: (c, wd) => {
       const w = onWall(c, wd, 0.12); const n = [-wd[0], 0, -wd[1]]; const t = [n[2], 0, -n[0]];
-      const steel = { color: [0.75, 0.77, 0.76], metallic: 0.9, roughness: 0.25 };
+      const steel = stainless;
       for (const sx of [-0.25, 0.25]) writeBasis(P('Ladder rail', box(0.02, 2), steel).matrix, add(w, [t[0] * sx, 0.95, t[2] * sx]), t, UP, n, 0.05, 1.9, 0.05);
       let y = 1.7, gap = 0.32;
       for (let k = 0; k < 9 && y > 0.02; k++) { writeBasis(P(`Ladder rung ${k}`, box(0.02, 2), steel).matrix, add(w, [0, y, 0]), t, UP, n, 0.5, 0.035, 0.05); gap *= 0.7; y -= gap + 0.04; }
@@ -927,7 +937,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     const edge = find('.').filter(([x, z]) => DIRS.some(([dx, dz]) => at(x + dx, z + dz) === '~') && distance(center(x, z), lifeguard.base) > 5);
     const picks = [];
     for (const c of edge) if (picks.every((q) => Math.abs(q[0] - c[0]) + Math.abs(q[1] - c[1]) >= 3) && picks.length < 3) picks.push(c);
-    const steel = { color: [0.75, 0.77, 0.76], metallic: 0.9, roughness: 0.25 };
+    const steel = stainless;
     picks.forEach(([x, z], i) => {
       const [dx, dz] = DIRS.find(([ax, az]) => at(x + ax, z + az) === '~');
       const c = center(x, z);
@@ -3350,7 +3360,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     for (let i = 0; i < (r.valves || 0); i++) { const v = pumpValves.find((x) => x.id === valveOrder[i]); if (v) v.open = true; }
     valveStep = r.valves || 0;
   }
-  if (import.meta.env.DEV) window.__explore = { frameEnv: () => lastEnv, models: () => parts.filter((p) => p.model).map((p) => ({ model: p.model, name: p.name, at: [p.matrix[12], p.matrix[13], p.matrix[14]] })), flashes, budget, wave: (n, f) => wave(n, f), lineOfSight, get remembered() { return remembered; }, get chain() { return lastChain; }, get eyeExposure() { return eyeExposure; }, renderer, get driftSigns() { return driftSigns; }, get wedges() { return lastWedges; }, survey, get surveyCoverage() { return surveyCoverage(survey, surveyOpen); }, surveyOpen, omen: (k) => startFomen(k), circuit, setEmergency, setBlackout, get blackout() { return blackout; }, signParts, get resetT() { return resetT; }, get emergency() { return emergency; }, blocked, isWall, finds, found, get lampPlaced() { return lampPlaced; }, lights: () => gatherLights(add(player.pos, [0, 1.6, 0])), get hesitation() { return hesitation; }, get lastOmen() { return lastFomen; }, get marcoAct() { return marcoAct; }, set marcoAct(v) { marcoAct = v; }, marcos, columns, wavePool, get basin() { return basin; }, isWater, floorTop, get operating() { return operating; }, set operating(v) { operating = v; }, panelFront, holdT, shoot, spawnBloom, occupant, lockers, noise, violate, get omenState() { return fomen; }, door, blooms, lamps, director, followers, get dockKind() { return dockKind; }, get valves() { return { order: valveOrder, step: valveStep, list: pumpValves }; }, june: juneEvent, thread, get clock() { return clock; }, stagnant, player, center, undertow, lifeguard, cellPos, panelPos, raftPos, code, find, floaters, restorePower };
+  if (import.meta.env.DEV) window.__explore = { parts, frameEnv: () => lastEnv, models: () => parts.filter((p) => p.model).map((p) => ({ model: p.model, name: p.name, at: [p.matrix[12], p.matrix[13], p.matrix[14]] })), flashes, budget, wave: (n, f) => wave(n, f), lineOfSight, get remembered() { return remembered; }, get chain() { return lastChain; }, get eyeExposure() { return eyeExposure; }, renderer, get driftSigns() { return driftSigns; }, get wedges() { return lastWedges; }, survey, get surveyCoverage() { return surveyCoverage(survey, surveyOpen); }, surveyOpen, omen: (k) => startFomen(k), circuit, setEmergency, setBlackout, get blackout() { return blackout; }, signParts, get resetT() { return resetT; }, get emergency() { return emergency; }, blocked, isWall, finds, found, get lampPlaced() { return lampPlaced; }, lights: () => gatherLights(add(player.pos, [0, 1.6, 0])), get hesitation() { return hesitation; }, get lastOmen() { return lastFomen; }, get marcoAct() { return marcoAct; }, set marcoAct(v) { marcoAct = v; }, marcos, columns, wavePool, get basin() { return basin; }, isWater, floorTop, get operating() { return operating; }, set operating(v) { operating = v; }, panelFront, holdT, shoot, spawnBloom, occupant, lockers, noise, violate, get omenState() { return fomen; }, door, blooms, lamps, director, followers, get dockKind() { return dockKind; }, get valves() { return { order: valveOrder, step: valveStep, list: pumpValves }; }, june: juneEvent, thread, get clock() { return clock; }, stagnant, player, center, undertow, lifeguard, cellPos, panelPos, raftPos, code, find, floaters, restorePower };
 
   /** ?show=: put the dock into a fixed, readable state for screenshots and visual review. */
   function showcase(name) {

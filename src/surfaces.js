@@ -5,12 +5,17 @@ import ceilingUrl from './assets/gen-ceiling-stained.webp?inline';
 import cloudsUrl from './assets/gen-tile-clouds.webp?inline';
 import metalUrl from './assets/gen-metal-painted.webp?inline';
 import aquaUrl from './assets/gen-tile-aqua.webp?inline';
+import pvcUrl from './assets/gen-raft-pvc.webp?inline';
+import concreteUrl from './assets/gen-concrete-wet.webp?inline';
 
-const SOURCES = { ceiling: [ceilingUrl, '#cfccbf'], clouds: [cloudsUrl, '#8fb7d6'], metal: [metalUrl, '#5f8f86'], aqua: [aquaUrl, '#3fa6a6'] };
+const SOURCES = { ceiling: [ceilingUrl, '#cfccbf'], clouds: [cloudsUrl, '#8fb7d6'], metal: [metalUrl, '#5f8f86'], aqua: [aquaUrl, '#3fa6a6'], pvc: [pvcUrl, '#d9d9d9'], concrete: [concreteUrl, '#8f918c'] };
 const cache = {};
 const loaded = {};
 
-/** A texture descriptor for a named surface: ceiling, clouds, metal or aqua. */
+/**
+ * A texture descriptor for a named surface: ceiling, clouds, metal, aqua, concrete (wet), or pvc (a grey detail map
+ * of raft fabric seams that keeps the material's own colour).
+ */
 export function surface(name) {
   if (cache[name]) return cache[name];
   const [url, fallback] = SOURCES[name];

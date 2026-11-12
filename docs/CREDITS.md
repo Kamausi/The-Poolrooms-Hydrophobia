@@ -46,11 +46,11 @@ The tile relief itself (recessed grout, bevelled edges, tiles set slightly off t
 
 ## Generated textures
 
-Higgsfield (Z Image model): four surface textures generated for UNDERFLOW from text prompts written for it, used in `src/surfaces.js` (stained ceiling tiles, aqua pool floor tile, painted steel, painted cloud tiles). Four more are kept in `assets/generated/` but not shipped (wet concrete, orange raft PVC, porcelain wall tile, and a creature skin that came out looking like corrugated plastic). Their use is governed by the account holder's Higgsfield terms, not an open licence.
+Higgsfield (Z Image model): four surface textures generated for UNDERFLOW from text prompts written for it, used in `src/surfaces.js` (stained ceiling tiles, aqua pool floor tile, painted steel, painted cloud tiles). Two more ship as well: raft PVC (made greyscale so it keeps the raft's colour) and wet concrete. Two are kept in `assets/generated/` but not shipped (porcelain wall tile, and a creature skin that came out looking like corrugated plastic). Their use is governed by the account holder's Higgsfield terms, not an open licence.
 
 ## Models: Poly Haven (CC0)
 
-Twelve props from Poly Haven (polyhaven.com), CC0. Credit is not required, and it is given here. Each was packed into one GLB with smaller textures and simplified with gltfpack, and is loaded by `src/props.js`.
+Fourteen props from Poly Haven (polyhaven.com), CC0. Credit is not required, and it is given here. Each was packed into one GLB with smaller textures and simplified with gltfpack, and is loaded by `src/props.js`.
 
 - Industrial Wall Lamp by Kuutti Siitonen: https://polyhaven.com/a/industrial_wall_lamp
 - Korean Fire Extinguisher 01 by UM JOORIN: https://polyhaven.com/a/korean_fire_extinguisher_01
@@ -64,6 +64,8 @@ Twelve props from Poly Haven (polyhaven.com), CC0. Credit is not required, and i
 - Utility Box 02 by James Ray Cock: https://polyhaven.com/a/utility_box_02
 - Vintage Electric Kettle by SV Garip: https://polyhaven.com/a/vintage_electric_kettle
 - Worn Metal Rack by Luca B: https://polyhaven.com/a/worn_metal_rack
+- Plastic Crate 02 by Fabi_G: https://polyhaven.com/a/plastic_crate_02
+- Modular Industrial Pipes 01 by Jorge Camacho: https://polyhaven.com/a/modular_industrial_pipes_01
 
 ## Generated models
 
