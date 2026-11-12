@@ -744,16 +744,25 @@ If the facility has changed the dock since, the layers disagree and the map show
 
 Limits: a dock whose map changed size between expeditions starts blank; a survey is lost if the crew does not board (a death, a spillway); only the most recent survey of each dock is kept, merged with what it had remembered. The facility's authored variations rarely turn floor into wall, so the `?` is rare in play; the browser test produces one by marking a wall as remembered. Tests: `tests/unit/survey.test.js`, `tests/finds.cjs`.
 
-## 34. The render chain on the full tier: ambient occlusion, haze, eye adaptation (implemented)
+## 34. The render chain: tiers, ambient occlusion, haze, eye adaptation, the post chain, a benchmark (implemented)
 
-The game has two render tiers (`src/quality.js`): light, for software renderers, and full. The full tier now asks the engine for a depth target and uses it for two passes the engine already had, on the raft and on foot:
+**Tiers** (`src/tiers.js`, pure; `src/quality.js` applies them). LOW is the light tier for software renderers. MEDIUM, HIGH and ULTRA add a depth target and progressively more: samples, pixel budget (the device ratio is capped per tier), lamps, bloom, ambient occlusion, haze and its step count, and post passes. The setting is Auto, Low, Medium, High or Ultra; `?quality=` in the URL overrides it. **Auto** starts on HIGH with a GPU and LOW without, and works with automatic resolution (section 27): when the render scale is already at its floor and frames are still long for four seconds it drops a whole tier; after thirty very good seconds at full scale it climbs back, never above HIGH. Lamps, bloom, AO, haze and the post chain change on the next frame; samples, shading and the depth target change when the next scene is built.
 
-- **Ambient occlusion** (strength 0.6, radius 0.6 m): contact darkening where tile meets tile, under the raft, around columns and props.
-- **Haze over the water**: one fog volume that follows the eye, tinted with the sector's fog colour, taller under open sky. The engine scatters only a directional light through it, so indoors it reads as depth and damp air. It is not beams from the fixtures; the engine does not scatter point lights.
+**From the engine, on tiers with depth:** ambient occlusion (HIGH and up) and one haze volume that follows the eye, tinted with the sector's fog colour. The engine scatters only a directional light through fog, so indoors the haze reads as depth and damp air, not beams from the fixtures.
 
-**Eye adaptation** is ours (`src/exposure.js`, pure) and runs on both tiers. The light reaching the eye is estimated from the same list of lights the renderer is given (no pixels are read back), and exposure follows it between 0.85 and 1.45: the dark lifts over several seconds and only part of the way, and a lit room brings it back down quickly. It multiplies the existing exposure, so Drift still dims the picture.
+**Eye adaptation** (`src/exposure.js`, pure, every tier). The light reaching the eye is estimated from the frame's own light list; exposure follows it between 0.85 and 1.45, slowly into the dark and only part of the way, quickly back under light.
 
-Each has a setting. Automatic resolution (section 27) is what holds the frame rate if these cost too much.
+**The post chain** (`src/postchain.js`, pure text and numbers; the engine runs up to four custom passes on the finished frame):
 
-Limits: this was checked by one pair of headless screenshots on a software renderer, where the difference is visible but small, and by a test that the full tier renders with no renderer diagnostics. The strengths are first guesses that nobody has looked at on a real GPU, and the cost on real hardware is unmeasured. Not built: light shafts from fixtures, shadows from point lights, reflections, depth of field, and anything on the menu or Safe Room scenes. Tests: `tests/unit/exposure.test.js`, `tests/render.cjs` (the only browser file that runs the full tier).
+| Pass | Tiers | What it does |
+|---|---|---|
+| optics | HIGH, ULTRA | Water beads on the lens that bend the view (after going overboard, capsizing, or a hard landing; they run off over a few seconds); chromatic fringing toward the corners that grows with Drift and with a hit; horizontal streaks off bright fixtures; lens dirt that shows only where there is glare |
+| grade | MEDIUM and up | A filmic contrast curve; a teal-shadow, warm-highlight split tone; colour draining toward grey-green with Drift; a blue-green tint under water; red closing in from the edges when hit and pulsing at low health; and wet tile on the raft route, a darker band and a pale mineral line on walls just above the water, found from depth |
+| fxaa | HIGH, ULTRA | Edge smoothing |
+| finish | MEDIUM and up | A light sharpen, then dither so dark gradients do not band |
 
+"Reduce flashes" softens the red; the distortion setting removes fringing and beads; one setting turns the whole chain off. Film grain, vignette, saturation, temperature and bloom were already the engine's and are unchanged.
+
+**Benchmark.** `?bench` (or `?bench=30` for seconds) rides the first attraction on Ride Control and then shows the GPU, tier, resolution, render scale, average, median, 99th-percentile and worst frame time, and any errors (`src/bench.js`); the result is also in the playtest log.
+
+Limits. All of this has been drawn only by a software renderer in headless tests: the passes compile and run with no renderer diagnostics, and I compared screenshots with the chain on and off, in high Drift and at low health. Nobody has looked at it on a real GPU, the strengths are first guesses, and the cost on real hardware is unmeasured (`?bench` exists to measure it). From the reference chain, not built: multi-level bloom (the engine's single bloom is used), shadow-aware volumetrics and light shafts from fixtures, point-light shadows, planar reflections, a procedural sky, motion blur and depth of field (the engine has both; unused), generated PBR material sets, per-surface wetness that changes roughness and footsteps (the wet band is a screen-space tint; the engine's material hook is not a public entry point), tiers that also scale shadows, reflections, entity detail and particles, showcase modes (`?show=`), and any of this on the menu and Safe Room scenes. Tests: `tests/unit/tiers.test.js`, `tests/unit/postchain.test.js`, `tests/unit/exposure.test.js`, `tests/unit/bench.test.js`, `tests/render.cjs` (the only browser file that runs a tier with depth).

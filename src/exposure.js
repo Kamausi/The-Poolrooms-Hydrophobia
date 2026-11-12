@@ -39,9 +39,9 @@ export function adapt(current, target, dt, { down = 3, up = 0.45 } = {}) {
 /**
  * Haze over the water for the full tier: one fog volume that follows the eye. The engine scatters only a
  * directional light through it, so indoors it reads as depth and damp air, not as beams from the fixtures.
- * @param {number[]} eye @param {{ density: number, color: number[], sky?: boolean }} o
+ * @param {number[]} eye @param {{ density: number, color: number[], sky?: boolean, steps?: number }} o
  */
-export function hazeVolume(eye, { density, color, sky = false }) {
+export function hazeVolume(eye, { density, color, sky = false, steps = 12 }) {
   if (!(density > 0)) return { density: 0 };
   return {
     density,
@@ -49,6 +49,6 @@ export function hazeVolume(eye, { density, color, sky = false }) {
     maximum: [eye[0] + 70, sky ? 24 : 9, eye[2] + 70],
     color,
     ambient: color.map((c) => c * (sky ? 0.5 : 0.22)),
-    steps: 12, noiseAmount: 0.35, noiseScale: 0.25, drift: [0.02, 0, 0.01], maxDistance: 70, anisotropy: 0.2,
+    steps, noiseAmount: 0.35, noiseScale: 0.25, drift: [0.02, 0, 0.01], maxDistance: 70, anisotropy: 0.2,
   };
 }
