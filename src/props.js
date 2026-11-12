@@ -12,6 +12,7 @@ import towerUrl from './assets/models/gen-lifeguard-chair.glb?inline';
 import blasterUrl from './assets/models/gen-blaster.glb?inline';
 import workLampUrl from './assets/models/gen-work-lamp.glb?inline';
 import buoyUrl from './assets/models/gen-ring-buoy.glb?inline';
+import drainUrl from './assets/models/gen-drain.glb?inline';
 import wallLampUrl from './assets/models/cc0/industrial_wall_lamp.glb?inline';
 import extinguisherUrl from './assets/models/cc0/korean_fire_extinguisher_01.glb?inline';
 import toolChestUrl from './assets/models/cc0/metal_tool_chest.glb?inline';
@@ -43,6 +44,8 @@ export const MODELS = {
   blaster: { url: blasterUrl, turn: 0 },
   workLamp: { url: workLampUrl, turn: 0, finish: { metallic: 0.1, roughness: 0.55 } },
   buoy: { url: buoyUrl, turn: 0, finish: { metallic: 0, roughness: 0.6 } },
+  // The converter gave the grate a deep body; it is sunk into the floor so only the slotted top shows.
+  drain: { url: drainUrl, turn: 0, finish: { metallic: 0.85, roughness: 0.35 } },
   wallLamp: { url: wallLampUrl, turn: 0 },
   extinguisher: { url: extinguisherUrl, turn: 0 },
   toolChest: { url: toolChestUrl, turn: 0 },

@@ -7,7 +7,7 @@ const { open, newCampaign, check, finish } = require('./lib.cjs');
   const { browser, page, errors } = await open({ width: 800, height: 450 });
   await newCampaign(page);
   const st = await page.evaluate(async () => { await window.__underflow.modelsReady; return window.__underflow.modelState(); });
-  check('every model loads (generated and CC0)', st.ready.length === 23 && !Object.keys(st.failed).length, JSON.stringify(st));
+  check('every model loads (generated and CC0)', st.ready.length === 24 && !Object.keys(st.failed).length, JSON.stringify(st));
   const seen = {};
   let sample = null;
   for (let i = 0; i < 8; i++) {

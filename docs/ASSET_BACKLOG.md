@@ -160,7 +160,7 @@ The Marco reflection and Drift effects are coded. There are no reflection-specif
 | 7 | Fluorescent fixtures | **Model** (CC0) |
 | 8 | Pool ladders | **Model** (generated) |
 | 9 | Handrails | Primitive |
-| 10 | Drains / grates | Primitive |
+| 10 | Drains / grates | Shower drain **Model** (generated); pool-floor drains and grates primitive |
 | 11 | Pipes / valves / pumps | Valves **Model**; pipes and pumps primitive |
 | 12 | Electrical cabinet | **Model** (CC0) |
 | 13 | Lockers | **Model** (generated) |
@@ -192,7 +192,7 @@ The Marco reflection and Drift effects are coded. There are no reflection-specif
 
 ## Next, in order
 
-1. Modelled drains and grates (a Higgsfield request timed out twice and was not charged; retry).
+1. Pool-floor drains and overflow grates using the generated drain model.
 2. ambientCG's downloads come from a host the network policy blocks; Poly Haven has no brushed-steel or rubber set, so those stay factor materials.
 3. More Higgsfield image-to-mesh for rigid custom props: per-profile blaster attachments, a pump housing, rescue hooks, collectibles (wristband, token, photo).
 4. The custom families (raft, blaster, work lamp, crew, Lifeguard, Blooms, slide kit) need a modelling and rigging pipeline outside this environment. The game is ready to load them: `src/props.js` takes any GLB, and the importer supports skinning and animation clips.
