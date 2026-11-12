@@ -7,7 +7,7 @@ const reg = JSON.parse(fs.readFileSync(path.join(root, 'assets/registry.json'), 
 const credits = fs.readFileSync(path.join(root, 'docs/CREDITS.md'), 'utf8');
 const shipped = [
   ...fs.readdirSync(path.join(root, 'public/audio')).filter((f) => f.endsWith('.mp3')).map((f) => `public/audio/${f}`),
-  ...fs.readdirSync(path.join(root, 'src/assets')).map((f) => `src/assets/${f}`),
+  ...fs.readdirSync(path.join(root, 'src/assets'), { recursive: true }).filter((f) => /\.\w+$/.test(String(f))).map((f) => `src/assets/${f}`),
   ...(fs.existsSync(path.join(root, 'public/assets')) ? fs.readdirSync(path.join(root, 'public/assets'), { recursive: true }).filter((f) => /\.\w+$/.test(String(f))).map((f) => `public/assets/${f}`) : []),
 ];
 

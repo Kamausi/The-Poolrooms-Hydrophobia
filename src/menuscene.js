@@ -3,7 +3,8 @@
 // green exit sign is reflected in the water. There is no sign above it.
 import { installUserPasses } from '67js/addons/user-pass';
 import { calmChain } from './postchain.js';
-import { Renderer67, box, torus, cylinder } from '67js';
+import { Renderer67 } from '67js';
+import { box, torus, cylinder } from './shapes.js';
 import { writeYaw, writeBasis, writeSegment, linear, display } from './math.js';
 import { tileTexture, tileNormal } from './textures.js';
 import { signMaterial, quad } from './labels.js';

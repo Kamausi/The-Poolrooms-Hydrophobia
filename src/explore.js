@@ -10,11 +10,13 @@ import { scoreSpawns } from './spawnscore.js';
 import { createPerceiver, sense } from './perception.js';
 import { assignShadows, handLamp } from './shadows.js';
 import { surface as genSurface } from './surfaces.js';
+import { model, modelPart, placeModel } from './props.js';
 import { lightAtEye, targetExposure, adapt as adaptExposure, hazeVolume } from './exposure.js';
 import { buildChain, shaftSource } from './postchain.js';
 import { installUserPasses } from '67js/addons/user-pass';
 import { createSurvey, visit as surveyVisit, mark as surveyMark, coverage as surveyCoverage, render as surveyRender, seenList, carryList, disagreements } from './survey.js';
-import { Renderer67, box, sphere, cylinder, torus } from '67js';
+import { Renderer67 } from '67js';
+import { box, sphere, cylinder, torus } from './shapes.js';
 import { writeYaw, writeBasis, writeSegment, hide, add, sub, scale, normalize, clamp, damp, rng, raySphere, rayPlaneY, linear, distance, cross, display, angleTo, soundDir } from './math.js';
 import { tileTexture, tileNormal } from './textures.js';
 import { signMaterial, quad } from './labels.js';
@@ -60,6 +62,8 @@ const DOCK = {
 
 const CELL = 4;
 const FOV = 74;
+// The generated lifeguard chair: total height and width-to-height scale so its seat sits at 3.7 m.
+const TOWER_H = 5.9, TOWER_ASPECT = 0.33;
 const EYE = 1.65;
 const POOL = -0.65;
 const DEEP = -2.2;
@@ -162,6 +166,8 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     parts.push(p);
     return p;
   };
+  // A generated model (props.js) as a part, or null while it loads: callers keep their primitive stand-in.
+  const M = (name, label, extra) => { const p = modelPart(name, label, extra); if (p) parts.push(...p.group); return p; };
   const glow = (color, emission, extra = {}) => ({ color, metallic: 0, roughness: 1, emission, emissiveColor: color, ...extra });
   const dark = (c = [0.02, 0.02, 0.02]) => ({ color: c, metallic: 0.2, roughness: 0.6 });
   const waterMat = () => ({ tag: 'water', color: linear(sector.water), metallic: 0.2, roughness: 0.1, emission: rules.uv ? 0.05 : 0.32, emissiveColor: linear(sector.water) });
@@ -207,7 +213,10 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
       if (ch === 'd' && drained) writeYaw(P(`Marking ${x},${z}`, slab, glow([1, 0.8, 0.2], 0.3, { color: [0.9, 0.75, 0.15], roughness: 0.6 })).matrix, [c[0], POOL + 0.01, c[2]], 0, 0.35, 0.02, CELL * 0.8);
       if ((x + z) % 2 === 0 && !rules.openSky) {
         const lamp = P(`Lamp ${x},${z}`, slab, glow(lampColor, 9));
-        lamps.push({ part: lamp, pos: [c[0], wallH - 0.4, c[2]], x, z, dark: hash(x, z) < (rules.dark || 0), broken: 0, flicker: hash(z, x), on: false, level: 0 });
+        // The fixture housing (CC0 mounted fluorescent lights) stays up whether the tube is lit, flickering or dead.
+        const fixture = M('fluorescent', `Light fixture ${x},${z}`);
+        if (fixture) placeModel(fixture, [c[0], wallH - model('fluorescent').size[1] - 0.01, c[2]], 0);
+        lamps.push({ part: lamp, pos: [c[0], wallH - 0.4, c[2]], x, z, dark: hash(x, z) < (rules.dark || 0), broken: 0, flicker: hash(z, x), on: false, level: 0, fixture: !!fixture });
       }
     }
   }
@@ -240,6 +249,21 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
   const raftPos = [dockC[0] + dockWall[0] * 0.8, 0.05, dockC[2] + dockWall[1] * 0.8];
   writeBasis(P('Moored raft', torus(0.3, 48, 16), { color: [0.75, 0.32, 0.12], metallic: 0, roughness: 0.6 }).matrix, raftPos, [1, 0, 0], [0, 0, -1], UP, 1.05, 1.05, 1.3);
   writeYaw(P('Tether post', cylinder(16, 0.05, 1), { color: [0.75, 0.6, 0.15], metallic: 0.6, roughness: 0.4 }).matrix, [dockC[0] - dockWall[0] * 0.6, 0.6, dockC[2] - dockWall[1] * 0.6], 0, 0.08, 1.2, 0.08);
+
+  // ---------- Dock dressing (CC0 models): an extinguisher on every landing; tools on a maintenance platform ----------
+  {
+    const along = [dockWall[1], 0, -dockWall[0]], yaw = Math.atan2(-dockWall[0], -dockWall[1]);
+    const back = (d, off) => [dockC[0] + dockWall[0] * (CELL / 2 - off) + along[0] * d, floorTop(dx0, dz0), dockC[2] + dockWall[1] * (CELL / 2 - off) + along[2] * d];
+    const ex = M('extinguisher', 'Fire extinguisher');
+    if (ex) placeModel(ex, back(1.5, 0.3), yaw);
+    if (dockKind === 'repair') {
+      const cart = M('toolCart', 'Tool cart'); if (cart) placeModel(cart, back(-1.2, 0.5), yaw);
+      const chest = M('toolChest', 'Tool chest'); if (chest) placeModel(chest, add(back(-1.2, 0.5), [0, model('toolCart').size[1], 0]), yaw);
+      const rack = M('rack', 'Parts rack'); if (rack) placeModel(rack, back(0.6, 0.4), yaw);
+    } else {
+      const bin = M('bin', 'Bins'); if (bin) placeModel(bin, back(-1.0, 0.4), yaw);
+    }
+  }
 
   // ---------- The Poolrooms grammar: grid, circle, arch ----------
   // Round tiled columns rise straight out of floor and water; arches stand where a corridor opens into a room.
@@ -305,6 +329,14 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
   const panelPos = [sC[0] + sWall[0] * (CELL / 2 - 0.05), 1.4, sC[2] + sWall[1] * (CELL / 2 - 0.05)];
   const panel = P('Service panel', slab, glow([1, 0.15, 0.1], 1.2, { color: [0.4, 0.06, 0.05], metallic: 0.5, roughness: 0.35 }));
   writeYaw(panel.matrix, panelPos, 0, sWall[0] ? 0.12 : 1.6, 2.2, sWall[1] ? 0.12 : 1.6);
+  {
+    // Beside the panel: the electrical cabinet that feeds it, a junction box above (CC0 models).
+    const along = [sWall[1], 0, -sWall[0]], out = [-sWall[0], 0, -sWall[1]], yaw = Math.atan2(out[0], out[2]);
+    const cab = M('utilityBox', 'Electrical cabinet');
+    if (cab) placeModel(cab, [panelPos[0] + along[0] * 1.45 + out[0] * 0.25, 0, panelPos[2] + along[2] * 1.45 + out[2] * 0.25], yaw);
+    const jb = M('powerBox', 'Junction box');
+    if (jb) placeModel(jb, [panelPos[0] - along[0] * 1.3 + out[0] * 0.22, 1.5, panelPos[2] - along[2] * 1.3 + out[2] * 0.22], yaw);
+  }
   facing(P('Service sign', plane, { ...signMaterial(K.sign, 'sign', 0.6, 256, 128), doubleSided: true }), add(panelPos, [-sWall[0] * 0.08, 1.6, -sWall[1] * 0.08]), [-sWall[0], 0, -sWall[1]], 1.4, 0.7);
 
   // Fake shelters: amber beacon, no vent tone.
@@ -444,8 +476,12 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     const c = takeCell();
     if (!c) return null;
     const w = wallSpot(...c);
-    const wheel = P(`Pump valve ${id}`, torus(0.1, 32, 10), glow([0.3, 0.65, 1], 1.5, { color: [0.2, 0.5, 1] }));
-    writeBasis(wheel.matrix, add(w.pos, scale(w.normal, 0.1)), normalize(cross(w.normal, UP)), UP, w.normal, 0.45, 0.45, 0.45);
+    // The generated gate valve stands on the floor against the wall; its glow says closed (blue) or open (green).
+    const mv = M('valve', `Pump valve ${id}`, { emission: 0.05, emissiveColor: [0.3, 0.65, 1] });
+    const wheel = mv ? placeModel(mv, [w.pos[0] + w.normal[0] * 0.45, 0, w.pos[2] + w.normal[2] * 0.45], Math.atan2(w.normal[0], w.normal[2]), 1.6) : P(`Pump valve ${id}`, torus(0.1, 32, 10), glow([0.3, 0.65, 1], 1.5, { color: [0.2, 0.5, 1] }));
+    if (!mv) writeBasis(wheel.matrix, add(w.pos, scale(w.normal, 0.1)), normalize(cross(w.normal, UP)), UP, w.normal, 0.45, 0.45, 0.45);
+    const wl = M('wallLamp', `Valve lamp ${id}`);
+    if (wl) placeModel(wl, [w.pos[0] + w.normal[0] * 0.08, 2.35, w.pos[2] + w.normal[2] * 0.08], Math.atan2(w.normal[0], w.normal[2]));
     label(`VALVE ${id}\nPUMP ${'ABC'.indexOf(id) + 1} OF 4`, 'sign', add(w.pos, [0, 0.8, 0]), w.normal, 1, 0.42);
     return { id, pos: w.pos, wheel, open: false };
   }).filter(Boolean) : [];
@@ -644,8 +680,10 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     const wd = DIRS.find(([dx, dz]) => isWall(x + dx, z + dz)) || [0, 1];
     const c = center(x, z);
     const pos = [c[0] + wd[0] * (CELL / 2 - 0.4), 1, c[2] + wd[1] * (CELL / 2 - 0.4)];
-    const part = P(`Supply locker ${i}`, box(0.05, 2), { color: [0.35, 0.45, 0.5], metallic: 0.7, roughness: 0.35, emission: 0.3, emissiveColor: [0.4, 0.9, 1] });
-    writeYaw(part.matrix, pos, 0, 0.8, 2, 0.6);
+    const lit = { emission: 0.3, emissiveColor: [0.4, 0.9, 1] };
+    const mp = M('locker', `Supply locker ${i}`, { ...lit, emission: 0.06 });
+    const part = mp ? placeModel(mp, [c[0] + wd[0] * (CELL / 2 - 0.42), 0, c[2] + wd[1] * (CELL / 2 - 0.42)], Math.atan2(-wd[0], -wd[1]), 2) : P(`Supply locker ${i}`, box(0.05, 2), { color: [0.35, 0.45, 0.5], metallic: 0.7, roughness: 0.35, ...lit });
+    if (!mp) writeYaw(part.matrix, pos, 0, 0.8, 2, 0.6);
     return { part, pos, wd, opened: false, item: random() < 0.55 ? 'cell' : 'filter' };
   });
   // The first supply locker is always 0417.
@@ -660,14 +698,16 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     const pos = [c[0] + (hash(i, 3) - 0.5) * 1.6, floorTop(...it.cell) + 0.1, c[2] + (hash(i, 7) - 0.5) * 1.6];
     const duck = it.set === 'ducks';
     const part = it.type === 'powerup' ? P(`Found ${it.id}`, cylinder(12, 0.1, 2), glow(linear('#4d7472'), 0.5, { color: [0.5, 0.6, 0.58], metallic: 0.7, roughness: 0.3 }))
-      : duck ? P(`Found ${it.id}`, ball, { color: [0.95, 0.8, 0.15], metallic: 0, roughness: 0.4 })
+      : duck ? (M('duck', `Found ${it.id}`) || P(`Found ${it.id}`, ball, { color: [0.95, 0.8, 0.15], metallic: 0, roughness: 0.4 }))
         : P(`Found ${it.id}`, box(0.03, 2), glow([0.85, 0.85, 0.78], 0.1, { color: [0.85, 0.85, 0.8], metallic: 0, roughness: 0.6 }));
-    const head = duck ? P(`Found ${it.id} head`, ball, { color: [0.95, 0.8, 0.15], metallic: 0, roughness: 0.4 }) : null;
+    const head = duck && !part.model ? P(`Found ${it.id} head`, ball, { color: [0.95, 0.8, 0.15], metallic: 0, roughness: 0.4 }) : null;
     return { ...it, pos, part, head, taken: false, yaw: hash(i, 11) * 6 };
   });
   // ---------- The work lamp: carried or set down, white or UV, a limited charge ----------
   state.lamp ||= { charge: 100, mode: 0 }; // mode: 0 off, 1 white, 2 UV
   const lampPart = P('Work lamp', box(0.04, 2), glow([1, 0.95, 0.85], 0.02, { color: [0.75, 0.6, 0.15], metallic: 0.5, roughness: 0.5 }));
+  const lampBody = M('workLamp', 'Work lamp body'); // generated model; the lit face stays an emissive panel
+  if (lampBody) hide(lampBody), lampBody.group.forEach(hide);
   let lampPlaced = null, lampTold = false, lastLit = true;
   const lampOn = () => state.lamp.mode > 0 && state.lamp.charge > 0;
   const lampAt = () => lampPlaced || add(player.pos, [0, 1.3, 0]);
@@ -722,8 +762,8 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
   const VIGNETTES = [
     { cap: '[three plastic chairs, arranged to face the wall]', build: (c, wd) => [0, 1, 2].map((k) => chair(add(c, [(k - 1) * 0.8 * (wd[1] ? 1 : 0), 0, (k - 1) * 0.8 * (wd[0] ? 1 : 0)]), Math.atan2(wd[0], wd[1]))) },
     { cap: '[a pair of sandals at the edge, still wet. Nobody else\'s footprints]', build: (c) => [P('Sandal A', box(0.1, 2), { color: [0.85, 0.3, 0.25], metallic: 0, roughness: 0.6 }), P('Sandal B', box(0.1, 2), { color: [0.85, 0.3, 0.25], metallic: 0, roughness: 0.6 })].map((p, k) => (writeYaw(p.matrix, add(c, [k * 0.28 - 0.14, 0.04, 0]), 0.1 * k, 0.12, 0.04, 0.3), p)) },
-    { cap: '[towels folded on a bench. Still warm]', build: (c) => { const b = P('Bench', slab, { color: [0.55, 0.42, 0.3], metallic: 0, roughness: 0.7 }); writeYaw(b.matrix, add(c, [0, 0.35, 0]), 0, 1.8, 0.1, 0.45); const t = P('Towels', box(0.2, 2), { color: [0.95, 0.95, 0.93], metallic: 0, roughness: 0.9 }); writeYaw(t.matrix, add(c, [0.3, 0.5, 0]), 0, 0.4, 0.2, 0.35); return [b, t]; } },
-    { cap: '[a locker standing open. Number 0417. Empty, except for a folded vest]', build: (c, wd) => { const l = P('Open locker', box(0.05, 2), { color: [0.18, 0.28, 0.38], metallic: 0.6, roughness: 0.4 }); writeYaw(l.matrix, add(c, [wd[0] * 1.5, 1, wd[1] * 1.5]), 0, 0.7, 2, 0.6); const v = P('Locker vest', box(0.2, 2), { color: [1, 0.45, 0.1], metallic: 0, roughness: 0.6 }); writeYaw(v.matrix, add(c, [wd[0] * 1.4, 0.6, wd[1] * 1.4]), 0, 0.4, 0.12, 0.3); return [l, v]; } },
+    { cap: '[towels folded on a bench. Still warm]', build: (c) => { const mb = M('bench', 'Bench'); const b = mb ? placeModel(mb, c, 0) : P('Bench', slab, { color: [0.55, 0.42, 0.3], metallic: 0, roughness: 0.7 }); if (!mb) writeYaw(b.matrix, add(c, [0, 0.35, 0]), 0, 1.8, 0.1, 0.45); const t = P('Towels', box(0.2, 2), { color: [0.95, 0.95, 0.93], metallic: 0, roughness: 0.9 }); writeYaw(t.matrix, add(c, [0.3, mb ? model('bench').size[1] * 0.55 : 0.5, 0]), 0, 0.4, 0.2, 0.35); return [b, t]; } },
+    { cap: '[a locker standing open. Number 0417. Empty, except for a folded vest]', build: (c, wd) => { const ml = M('locker', 'Open locker'); const l = ml ? placeModel(ml, add(c, [wd[0] * 1.5, 0, wd[1] * 1.5]), Math.atan2(-wd[0], -wd[1]), 2) : P('Open locker', box(0.05, 2), { color: [0.18, 0.28, 0.38], metallic: 0.6, roughness: 0.4 }); if (!ml) writeYaw(l.matrix, add(c, [wd[0] * 1.5, 1, wd[1] * 1.5]), 0, 0.7, 2, 0.6); const v = P('Locker vest', box(0.2, 2), { color: [1, 0.45, 0.1], metallic: 0, roughness: 0.6 }); writeYaw(v.matrix, add(c, [wd[0] * 1.4, 0.6, wd[1] * 1.4]), 0, 0.4, 0.12, 0.3); return [l, v]; } },
     { cap: '[a radio on the floor, tuned to a station that reads the weather for a town that does not exist]', build: (c) => { const r = P('Radio', box(0.15, 2), glow([0.4, 1, 0.5], 0.4, { color: [0.2, 0.2, 0.2], metallic: 0.4 })); writeYaw(r.matrix, add(c, [0, 0.15, 0]), 0.4, 0.45, 0.28, 0.18); return [r]; } },
     { cap: '[a shower drain gurgles under your feet, then goes quiet as if it noticed you]', build: (c) => { const d = P('Drain', cylinder(24, 0, 1), { color: [0.25, 0.27, 0.27], metallic: 0.9, roughness: 0.3 }); writeYaw(d.matrix, add(c, [0, 0.01, 0]), 0, 0.3, 0.02, 0.3); return [d]; } },
     // Things maintained for people who are becoming something else.
@@ -769,6 +809,9 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
   ];
   function onWall(c, wd, off) { return add(c, [wd[0] * (CELL / 2 - off), 0, wd[1] * (CELL / 2 - off)]); }
   function chair(pos, yaw) {
+    // The CC0 monobloc chair faces +Z; the primitive's backrest sits behind -yaw, so it faces the same way.
+    const mc = M('chair', 'Plastic chair');
+    if (mc) return placeModel(mc, pos, yaw);
     const seat = P('Plastic chair', box(0.08, 2), { color: [0.93, 0.93, 0.9], metallic: 0, roughness: 0.4 });
     writeYaw(seat.matrix, add(pos, [0, 0.45, 0]), yaw, 0.5, 0.06, 0.5);
     const back = P('Plastic chair back', box(0.08, 2), { color: [0.93, 0.93, 0.9], metallic: 0, roughness: 0.4 });
@@ -860,6 +903,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     rule: rules.lifeguard,
     base: center(...towerCell),
     legs: [P('Tower leg A', cylinder(12, 0, 1), { color: [0.92, 0.92, 0.9], metallic: 0, roughness: 0.4 }), P('Tower leg B', cylinder(12, 0, 1), { color: [0.92, 0.92, 0.9], metallic: 0, roughness: 0.4 })],
+    tower: M('tower', 'Lifeguard chair'), // generated model of a tall wooden lifeguard chair
     seat: P('Tower seat', slab, { color: [0.92, 0.92, 0.9], metallic: 0, roughness: 0.4 }),
     body: P('Lifeguard', cylinder(20, 0.3, 3), { color: linear('#9a5a50'), metallic: 0, roughness: 0.85 }), // a faded red uniform
     head: P('Lifeguard head', ball, { color: [0.78, 0.76, 0.7], metallic: 0, roughness: 0.6 }),
@@ -890,7 +934,13 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
       const lip = [c[0] + dx * (CELL / 2 - 0.1), 0, c[2] + dz * (CELL / 2 - 0.1)];
       const side = [dz, 0, dx];
       const missing = i === picks.length - 1 && picks.length > 1;
-      if (!missing) {
+      const ml = !missing && M('ladder', `Pool ladder ${i}`);
+      // A ring buoy on the deck beside each ladder (generated model).
+      const rb = M('buoy', `Ring buoy ${i}`);
+      if (rb) placeModel(rb, [lip[0] - dx * 0.9 + side[0] * 0.95, 0, lip[2] - dz * 0.9 + side[2] * 0.95], hash(i, 9) * 6, 0.12);
+      // The generated ladder: steps toward the water, handrails curving back over the deck.
+      if (ml) placeModel(ml, [lip[0] + dx * 0.2, -0.6, lip[2] + dz * 0.2], Math.atan2(dx, dz), 1.6);
+      else if (!missing) {
         for (const sg of [-1, 1]) {
           writeYaw(P(`Pool ladder rail ${i}`, cylinder(8, 0, 1), steel).matrix, [lip[0] + side[0] * 0.28 * sg, 0.45, lip[2] + side[2] * 0.28 * sg], 0, 0.025, 0.9, 0.025);
           writeYaw(P(`Pool ladder rail low ${i}`, cylinder(8, 0, 1), steel).matrix, [lip[0] + dx * 0.25 + side[0] * 0.28 * sg, -0.3, lip[2] + dz * 0.25 + side[2] * 0.28 * sg], 0, 0.025, 0.9, 0.025);
@@ -1707,6 +1757,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     for (const f of finds) {
       if (f.taken) { hide(f.part); if (f.head) hide(f.head); continue; }
       if (f.type === 'powerup') writeYaw(f.part.matrix, add(f.pos, [0, 0.12, 0]), time * 0.6, 0.08, 0.3, 0.08);
+      else if (f.part.model === 'duck') placeModel(f.part, add(f.pos, [0, -0.09, 0]), f.id === 'duck-facing' ? Math.atan2(eye[0] - f.pos[0], eye[2] - f.pos[2]) : f.yaw, 0.18);
       else if (f.head) {
         // One of them is always facing you.
         const yaw = f.id === 'duck-facing' ? Math.atan2(eye[0] - f.pos[0], eye[2] - f.pos[2]) : f.yaw;
@@ -2317,10 +2368,13 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     if (lampOn()) lamp.charge = Math.max(0, lamp.charge - dt * (lamp.mode === 2 ? 100 / 150 : 100 / 240));
     if (!lampPlaced && Math.hypot(raftPos[0] - player.pos[0], raftPos[2] - player.pos[2]) < 3) lamp.charge = Math.min(100, lamp.charge + dt * 20);
     if (lampPlaced) {
-      writeYaw(lampPart.matrix, lampPlaced, 0.4, 0.14, 0.3, 0.14);
+      if (lampBody) {
+        placeModel(lampBody, [lampPlaced[0], lampPlaced[1] - 0.25, lampPlaced[2]], 0.4, 0.38);
+        writeYaw(lampPart.matrix, [lampPlaced[0] + Math.sin(0.4) * 0.1, lampPlaced[1] - 0.06, lampPlaced[2] + Math.cos(0.4) * 0.1], 0.4, 0.24, 0.15, 0.02);
+      } else writeYaw(lampPart.matrix, lampPlaced, 0.4, 0.14, 0.3, 0.14);
       lampPart.material.emission = lampOn() ? 3 : 0.02;
       lampPart.material.emissiveColor = lamp.mode === 2 ? [0.55, 0.3, 1] : [1, 0.95, 0.85];
-    } else hide(lampPart);
+    } else { hide(lampPart); if (lampBody) lampBody.group.forEach(hide); }
   }
 
   // The survey map: drawn from the cells you have stood in and what you could see in straight lines from them.
@@ -2643,7 +2697,9 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
       const on = !emergency && !blackout && !l.broken && !l.out && (!l.dark || powered());
       const flick = l.flicker > 0.88 ? (Math.sin(time * 41 + l.flicker * 50) > 0.5 ? 0.12 : 1) : 1;
       if (on) {
-        writeYaw(l.part.matrix, [l.pos[0], wallH - 0.03, l.pos[2]], 0, 1.4, 0.06, 0.5);
+        // With a fixture the lit tube sits inside its housing; without, the bare panel.
+        if (l.fixture) writeYaw(l.part.matrix, [l.pos[0], wallH - 0.05, l.pos[2]], 0, 0.82, 0.02, 0.36);
+        else writeYaw(l.part.matrix, [l.pos[0], wallH - 0.03, l.pos[2]], 0, 1.4, 0.06, 0.5);
         l.part.material.emission = 9 * flick;
       } else hide(l.part);
       l.on = on;
@@ -2835,9 +2891,15 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     const L = lifeguard;
     if (!L) return;
     const b = L.base;
-    writeYaw(L.legs[0].matrix, add(b, [-0.4, 1.6, 0]), 0, 0.08, 4.2, 0.08);
-    writeYaw(L.legs[1].matrix, add(b, [0.4, 1.6, 0]), 0, 0.08, 4.2, 0.08);
-    writeYaw(L.seat.matrix, add(b, [0, 3.7, 0]), 0, 1, 0.08, 0.7);
+    if (L.tower) {
+      // Stretched upright so its seat meets the Lifeguard at 3.7 m, the height the primitive tower had.
+      placeModel(L.tower, [b[0], b[1], b[2] - 0.15], 0, TOWER_H, TOWER_ASPECT);
+      hide(L.legs[0]); hide(L.legs[1]); hide(L.seat);
+    } else {
+      writeYaw(L.legs[0].matrix, add(b, [-0.4, 1.6, 0]), 0, 0.08, 4.2, 0.08);
+      writeYaw(L.legs[1].matrix, add(b, [0.4, 1.6, 0]), 0, 0.08, 4.2, 0.08);
+      writeYaw(L.seat.matrix, add(b, [0, 3.7, 0]), 0, 1, 0.08, 0.7);
+    }
     L.breakerPos = L.rule === 'run' ? null : add(b, [-0.4, 1.2, 0.05]);
     if (L.breakerPos) { writeYaw(L.breaker.matrix, L.breakerPos, 0, 0.3, 0.12, 0.3); L.breaker.material.emission = L.stopped ? 0.1 : 1.6 + Math.sin(time * 6); }
     else hide(L.breaker);
@@ -3288,7 +3350,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     for (let i = 0; i < (r.valves || 0); i++) { const v = pumpValves.find((x) => x.id === valveOrder[i]); if (v) v.open = true; }
     valveStep = r.valves || 0;
   }
-  if (import.meta.env.DEV) window.__explore = { frameEnv: () => lastEnv, flashes, budget, wave: (n, f) => wave(n, f), lineOfSight, get remembered() { return remembered; }, get chain() { return lastChain; }, get eyeExposure() { return eyeExposure; }, renderer, get driftSigns() { return driftSigns; }, get wedges() { return lastWedges; }, survey, get surveyCoverage() { return surveyCoverage(survey, surveyOpen); }, surveyOpen, omen: (k) => startFomen(k), circuit, setEmergency, setBlackout, get blackout() { return blackout; }, signParts, get resetT() { return resetT; }, get emergency() { return emergency; }, blocked, isWall, finds, found, get lampPlaced() { return lampPlaced; }, lights: () => gatherLights(add(player.pos, [0, 1.6, 0])), get hesitation() { return hesitation; }, get lastOmen() { return lastFomen; }, get marcoAct() { return marcoAct; }, set marcoAct(v) { marcoAct = v; }, marcos, columns, wavePool, get basin() { return basin; }, isWater, floorTop, get operating() { return operating; }, set operating(v) { operating = v; }, panelFront, holdT, shoot, spawnBloom, occupant, lockers, noise, violate, get omenState() { return fomen; }, door, blooms, lamps, director, followers, get dockKind() { return dockKind; }, get valves() { return { order: valveOrder, step: valveStep, list: pumpValves }; }, june: juneEvent, thread, get clock() { return clock; }, stagnant, player, center, undertow, lifeguard, cellPos, panelPos, raftPos, code, find, floaters, restorePower };
+  if (import.meta.env.DEV) window.__explore = { frameEnv: () => lastEnv, models: () => parts.filter((p) => p.model).map((p) => ({ model: p.model, name: p.name, at: [p.matrix[12], p.matrix[13], p.matrix[14]] })), flashes, budget, wave: (n, f) => wave(n, f), lineOfSight, get remembered() { return remembered; }, get chain() { return lastChain; }, get eyeExposure() { return eyeExposure; }, renderer, get driftSigns() { return driftSigns; }, get wedges() { return lastWedges; }, survey, get surveyCoverage() { return surveyCoverage(survey, surveyOpen); }, surveyOpen, omen: (k) => startFomen(k), circuit, setEmergency, setBlackout, get blackout() { return blackout; }, signParts, get resetT() { return resetT; }, get emergency() { return emergency; }, blocked, isWall, finds, found, get lampPlaced() { return lampPlaced; }, lights: () => gatherLights(add(player.pos, [0, 1.6, 0])), get hesitation() { return hesitation; }, get lastOmen() { return lastFomen; }, get marcoAct() { return marcoAct; }, set marcoAct(v) { marcoAct = v; }, marcos, columns, wavePool, get basin() { return basin; }, isWater, floorTop, get operating() { return operating; }, set operating(v) { operating = v; }, panelFront, holdT, shoot, spawnBloom, occupant, lockers, noise, violate, get omenState() { return fomen; }, door, blooms, lamps, director, followers, get dockKind() { return dockKind; }, get valves() { return { order: valveOrder, step: valveStep, list: pumpValves }; }, june: juneEvent, thread, get clock() { return clock; }, stagnant, player, center, undertow, lifeguard, cellPos, panelPos, raftPos, code, find, floaters, restorePower };
 
   /** ?show=: put the dock into a fixed, readable state for screenshots and visual review. */
   function showcase(name) {
