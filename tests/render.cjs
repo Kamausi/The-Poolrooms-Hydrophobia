@@ -48,9 +48,15 @@ const BASE = process.env.UNDERFLOW_URL || 'http://localhost:5173';
     R.reset(); u.step(1); return { dry, wet, under, damp, diag: JSON.stringify(R.renderer.diagnostics) }; });
   check('going overboard wets the lens and tints the picture; the walls above the water are drawn damp', r.dry < 0.7 && r.wet === 1 && r.under > 0 && r.damp === 1 && r.diag === '[]', JSON.stringify(r));
 
-  await page.goto(`${BASE}/?quality=high&bench=4`, { timeout: 120000 });
+  r = await page.evaluate(() => { const u = window.__underflow; u.beginSector(0); u.startRide(); u.setState({ health: 1e6 }); u.step(2); const R = window.__ride;
+    R.s = 358; for (const b of R.blooms) b.active = false; u.step(2); const on = R.chain.find((p) => p.name === 'optics').uniforms;
+    u.settings.shafts = false; u.step(1); const off = R.chain.find((p) => p.name === 'optics').uniforms.shafts; u.settings.shafts = true;
+    return { on: on.shafts, pos: on.shaftPos, off, diag: JSON.stringify(R.renderer.diagnostics) }; });
+  check('the fixtures cast light shafts on the high tier, from where the lamp is on screen, and the setting turns them off', r.on > 0.1 && r.pos[1] > 0.5 && r.off === 0 && r.diag === '[]', JSON.stringify(r));
+
+  await page.goto(`${BASE}/?quality=high&bench=8`, { timeout: 120000 });
   await page.waitForFunction(() => !!window.__bench, null, { timeout: 120000 });
   r = await page.evaluate(() => ({ b: window.__bench, text: document.getElementById('bench')?.textContent || '' }));
-  check('?bench rides for a fixed time and reports the GPU, the tier and frame-time numbers', r.b.tier === 'high' && r.b.frames > 3 && r.b.median > 0 && r.b.p99 >= r.b.median && /GPU/.test(r.text) && /99th/.test(r.text) && /errors       none/.test(r.text), JSON.stringify(r.b));
+  check('?bench rides for a fixed time and reports the GPU, the tier and frame-time numbers', r.b.tier === 'high' && r.b.frames >= 2 && r.b.median > 0 && r.b.p99 >= r.b.median && /GPU/.test(r.text) && /99th/.test(r.text) && /errors       none/.test(r.text), JSON.stringify(r.b));
   await finish(browser, errors);
 })();

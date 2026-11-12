@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { FRAGMENTS, TIER_PASSES, buildChain } from '../../src/postchain.js';
+import { FRAGMENTS, TIER_PASSES, buildChain, shaftSource } from '../../src/postchain.js';
 
 const INPUTS = ['sceneColor', 'sceneDepth', 'resolution', 'time'];
 
@@ -14,7 +14,7 @@ describe('the post chain', () => {
     }
   });
   it('every uniform a fragment reads is supplied, and nothing reuses an engine name', () => {
-    for (const tier of ['medium', 'high', 'ultra']) for (const p of buildChain(tier, { drift: 50, health: 20, hurt: 1, wet: 1, under: 1, damp: 1, waterLevel: 0.2 })) {
+    for (const tier of ['medium', 'high', 'ultra']) for (const p of buildChain(tier, { drift: 50, health: 20, hurt: 1, wet: 1, under: 1, damp: 1, waterLevel: 0.2, shaft: { uv: [0.4, 0.7], strength: 0.8, color: [1, 0.9, 0.7] } })) {
       const names = Object.keys(p.uniforms);
       expect(names.length).toBeLessThanOrEqual(16);
       for (const n of names) { expect(n).toMatch(/^[a-z][A-Za-z0-9]{0,31}$/); expect(INPUTS).not.toContain(n); expect(p.fragment).toMatch(new RegExp(`\\b${n}\\b`)); }
@@ -39,5 +39,23 @@ describe('the post chain', () => {
     expect(o({ drift: 100 }).aberration).toBeGreaterThan(o({}).aberration * 3);
     expect(o({ wet: 1 }).wet).toBe(1);
     expect(o({ wet: 1, drift: 100, distortion: false })).toMatchObject({ wet: 0, aberration: 0 });
+  });
+});
+
+describe('light shafts', () => {
+  const cam = { eye: [0, 0, 0], forward: [0, 0, -1], right: [1, 0, 0], up: [0, 1, 0], tanHalf: Math.tan(Math.PI / 6), aspect: 16 / 9 };
+  const lamp = (x, y, z, intensity = 10) => ({ position: [x, y, z], intensity, color: [1, 0.9, 0.7] });
+  it('come from the bright lamp in view, placed where it is on screen', () => {
+    const s = shaftSource([lamp(0, 2, -6), lamp(0, 2, 6, 50)], cam);
+    expect(s.uv[0]).toBeCloseTo(0.5); expect(s.uv[1]).toBeGreaterThan(0.5); expect(s.strength).toBeGreaterThan(0.3);
+  });
+  it('none from a lamp behind you, far off to the side, or too dim', () => {
+    expect(shaftSource([lamp(0, 2, 6, 50)], cam)).toBeNull();
+    expect(shaftSource([lamp(60, 0, -3, 50)], cam)).toBeNull();
+    expect(shaftSource([lamp(0, 0, -40, 0.2)], cam)).toBeNull();
+  });
+  it('the pass is off without a source', () => {
+    const o = buildChain('high', {}).find((p) => p.name === 'optics').uniforms;
+    expect(o.shafts).toBe(0);
   });
 });

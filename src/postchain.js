@@ -46,6 +46,14 @@ vec4 userPass(vec2 uv) {
     c += s * streak * 0.05 * vec3(0.75, 0.92, 1.0);
     c += s * dirt * 0.07 * vnoise(uv * 14.0) * vnoise(uv * 5.0 + 3.0);
   }
+  if (shafts > 0.0) {
+    // Light shafts: march from this pixel toward the brightest fixture on screen, gathering glare that the haze
+    // would scatter. Stronger near the lamp, broken where something stands in front of it.
+    vec2 step = (shaftPos - p) / 24.0;
+    vec2 q = p; float w = 1.0; vec3 sh = vec3(0.0);
+    for (int i = 0; i < 24; i++) { q += step; sh += glare(q) * w; w *= 0.93; }
+    c += sh * shafts * 0.07 * shaftTint;
+  }
   return vec4(c, 1.0);
 }`,
   grade: `
@@ -124,7 +132,7 @@ const clamp01 = (v) => Math.max(0, Math.min(1, v || 0));
 /**
  * The chain for this frame.
  * @param {string} tier low | medium | high | ultra
- * @param {{ drift?: number, health?: number, hurt?: number, wet?: number, under?: number, warm?: boolean, damp?: number, waterLevel?: number,
+ * @param {{ drift?: number, health?: number, hurt?: number, wet?: number, under?: number, warm?: boolean, damp?: number, waterLevel?: number, shaft?: { uv: number[], strength: number, color: number[] } | null,
  *   reduceFlash?: boolean, distortion?: boolean }} g drift and health are 0..100; hurt, wet and under are 0..1
  * @returns {{ name: string, fragment: string, uniforms: Record<string, number | number[]> }[]}
  */
@@ -133,7 +141,8 @@ export function buildChain(tier, g = {}) {
   const calm = g.reduceFlash ? 0.4 : 1; // the "reduce flashes" setting also softens the red
   const lens = g.distortion === false ? 0 : 1; // and "distortion" off removes fringing and beads
   const uniforms = {
-    optics: { aberration: lens * (0.012 + drift * 0.05 + clamp01(g.hurt) * 0.05), streak: tier === 'ultra' ? 1 : 0.7, dirt: 0.8, wet: lens * clamp01(g.wet) },
+    optics: { aberration: lens * (0.012 + drift * 0.05 + clamp01(g.hurt) * 0.05), streak: tier === 'ultra' ? 1 : 0.7, dirt: 0.8, wet: lens * clamp01(g.wet),
+      shafts: g.shaft ? g.shaft.strength * (tier === 'ultra' ? 1.2 : 1) : 0, shaftPos: g.shaft ? g.shaft.uv : [0.5, 0.5], shaftTint: g.shaft ? g.shaft.color : [1, 1, 1] },
     grade: {
       contrast: 0.35, split: 0.6,
       shadowTint: g.warm ? [0.96, 1.0, 1.02] : [0.9, 1.01, 1.07], highTint: g.warm ? [1.07, 1.01, 0.9] : [1.04, 1.01, 0.95],
@@ -146,3 +155,25 @@ export function buildChain(tier, g = {}) {
   return (TIER_PASSES[tier] || []).map((name) => ({ name, fragment: FRAGMENTS[name], uniforms: uniforms[name] }));
 }
 
+
+/**
+ * Where light shafts come from this frame: the fixture that matters most on screen (bright, close, near the
+ * middle of the view). Returns null when no lamp is in front of the camera.
+ * @param {{ position: number[], intensity: number, color: number[] }[]} lights
+ * @param {{ eye: number[], forward: number[], right: number[], up: number[], tanHalf: number, aspect: number }} cam
+ */
+export function shaftSource(lights, { eye, forward, right, up, tanHalf, aspect }) {
+  let best = null, bestScore = 0;
+  for (const l of lights) {
+    const d = [l.position[0] - eye[0], l.position[1] - eye[1], l.position[2] - eye[2]];
+    const z = d[0] * forward[0] + d[1] * forward[1] + d[2] * forward[2];
+    if (z < 0.5) continue;
+    const x = (d[0] * right[0] + d[1] * right[1] + d[2] * right[2]) / (z * tanHalf * aspect);
+    const y = (d[0] * up[0] + d[1] * up[1] + d[2] * up[2]) / (z * tanHalf);
+    if (Math.abs(x) > 1.2 || Math.abs(y) > 1.2) continue;
+    const edge = Math.max(0, 1 - Math.max(Math.abs(x), Math.abs(y)) / 1.2);
+    const score = (l.intensity / (1 + z * z * 0.02)) * edge;
+    if (score > bestScore) { bestScore = score; best = { uv: [x * 0.5 + 0.5, y * 0.5 + 0.5], strength: Math.min(1, score / 2.5), color: l.color }; }
+  }
+  return best && best.strength > 0.05 ? best : null;
+}
