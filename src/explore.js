@@ -256,6 +256,34 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
   writeBasis(P('Moored raft', torus(0.3, 48, 16), { color: [0.75, 0.32, 0.12], metallic: 0, roughness: 0.6, map: genSurface('pvc'), boxMapScale: 1.6 }).matrix, raftPos, [1, 0, 0], [0, 0, -1], UP, 1.05, 1.05, 1.3);
   writeYaw(P('Tether post', cylinder(16, 0.05, 1), { color: [0.75, 0.6, 0.15], metallic: 0.6, roughness: 0.4 }).matrix, [dockC[0] - dockWall[0] * 0.6, 0.6, dockC[2] - dockWall[1] * 0.6], 0, 0.08, 1.2, 0.08);
 
+  // ---------- Pool drains (generated model): main drains in the basin floor, an overflow grate along every deck edge ----------
+  // Sunk so only the slotted top shows; the drained basin shows them plainly.
+  if (model('drain')) {
+    const dm = model('drain'), sink = (h) => 0.008 - h;
+    for (const [x, z] of find('~')) {
+      if (hash(x * 2.3, z * 4.1) > 0.12) continue;
+      const g = M('drain', `Main drain ${x},${z}`), h = 0.07;
+      placeModel(g, add(center(x, z), [0, floorTop(x, z) + sink(h), 0]), 0, h, 0.55 / (dm.size[0] * h / dm.size[1]));
+    }
+    for (const [x, z] of find('.')) for (const [dx, dz] of DIRS) {
+      if (at(x + dx, z + dz) !== '~') continue;
+      // Along the edge: the grate's width runs with the coping, its depth is a narrow gutter.
+      const g = M('drain', `Overflow grate ${x},${z},${dx},${dz}`), h = 0.05, k = h / dm.size[1];
+      placeModel(g, add(center(x, z), [dx * (CELL / 2 - 0.2), sink(h), dz * (CELL / 2 - 0.2)]), Math.atan2(dx, dz), h, [CELL * 0.9 / (dm.size[0] * k), 0.2 / (dm.size[2] * k)]);
+    }
+  }
+  // Depth markings on the deck behind the gutter, read from the deck toward the water. One shared material per text,
+  // so every marking of a kind draws in one batch.
+  {
+    const marks = { depth: { ...signMaterial('1.2 M', 'depth', 0.8, 256, 128), doubleSided: true }, dive: { ...signMaterial('NO\nDIVING', 'rule', 0.8, 256, 128), doubleSided: true } };
+    let n = 0;
+    for (const [x, z] of find('.')) for (const [dx, dz] of DIRS) {
+      if (at(x + dx, z + dz) !== '~' || hash(x * 5.3 + dx, z * 2.9 + dz) > 0.34) continue;
+      const kind = n++ % 2 ? 'dive' : 'depth';
+      writeBasis(P(`Deck marking ${kind} ${x},${z}`, plane, marks[kind]).matrix, add(center(x, z), [dx * (CELL / 2 - 0.75), 0.012, dz * (CELL / 2 - 0.75)]), [-dz, 0, dx], [dx, 0, dz], [0, 1, 0], 0.7, 0.35, 1);
+    }
+  }
+
   // ---------- Dock dressing (CC0 models): an extinguisher on every landing; tools on a maintenance platform ----------
   {
     const along = [dockWall[1], 0, -dockWall[0]], yaw = Math.atan2(-dockWall[0], -dockWall[1]);
@@ -778,7 +806,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     { cap: '[towels folded on a bench. Still warm]', build: (c) => { const mb = M('bench', 'Bench'); const b = mb ? placeModel(mb, c, 0) : P('Bench', slab, { color: [0.55, 0.42, 0.3], metallic: 0, roughness: 0.7 }); if (!mb) writeYaw(b.matrix, add(c, [0, 0.35, 0]), 0, 1.8, 0.1, 0.45); const t = P('Towels', box(0.2, 2), { color: [0.95, 0.95, 0.93], metallic: 0, roughness: 0.9 }); writeYaw(t.matrix, add(c, [0.3, mb ? model('bench').size[1] * 0.55 : 0.5, 0]), 0, 0.4, 0.2, 0.35); return [b, t]; } },
     { cap: '[a locker standing open. Number 0417. Empty, except for a folded vest]', build: (c, wd) => { const ml = M('locker', 'Open locker'); const l = ml ? placeModel(ml, add(c, [wd[0] * 1.5, 0, wd[1] * 1.5]), Math.atan2(-wd[0], -wd[1]), 2) : P('Open locker', box(0.05, 2), { color: [0.18, 0.28, 0.38], metallic: 0.6, roughness: 0.4 }); if (!ml) writeYaw(l.matrix, add(c, [wd[0] * 1.5, 1, wd[1] * 1.5]), 0, 0.7, 2, 0.6); const v = P('Locker vest', box(0.2, 2), { color: [1, 0.45, 0.1], metallic: 0, roughness: 0.6 }); writeYaw(v.matrix, add(c, [wd[0] * 1.4, 0.6, wd[1] * 1.4]), 0, 0.4, 0.12, 0.3); return [l, v]; } },
     { cap: '[a radio on the floor, tuned to a station that reads the weather for a town that does not exist]', build: (c) => { const r = P('Radio', box(0.15, 2), glow([0.4, 1, 0.5], 0.4, { color: [0.2, 0.2, 0.2], metallic: 0.4 })); writeYaw(r.matrix, add(c, [0, 0.15, 0]), 0.4, 0.45, 0.28, 0.18); return [r]; } },
-    { cap: '[a shower drain gurgles under your feet, then goes quiet as if it noticed you]', build: (c) => { const d = P('Drain', cylinder(24, 0, 1), { color: [0.25, 0.27, 0.27], metallic: 0.9, roughness: 0.3 }); writeYaw(d.matrix, add(c, [0, 0.01, 0]), 0, 0.3, 0.02, 0.3); return [d]; } },
+    { cap: '[a shower drain gurgles under your feet, then goes quiet as if it noticed you]', build: (c) => { const md = M('drain', 'Drain'); if (md) { const h = model('drain').size[1] * 0.35 / model('drain').size[0]; return [placeModel(md, add(c, [0, 0.012 - h, 0]), 0, h)]; } const d = P('Drain', cylinder(24, 0, 1), { color: [0.25, 0.27, 0.27], metallic: 0.9, roughness: 0.3 }); writeYaw(d.matrix, add(c, [0, 0.01, 0]), 0, 0.3, 0.02, 0.3); return [d]; } },
     // Things maintained for people who are becoming something else.
     { cap: '[a life vest on a hook. Six armholes, and every strap has been adjusted to fit]', build: (c, wd) => {
       const w = onWall(c, wd, 0.16); const n = [-wd[0], 0, -wd[1]]; const t = [n[2], 0, -n[0]];

@@ -37,8 +37,8 @@ From this environment: Poly Haven (models and textures, CC0), ambientCG (materia
 | Asset | P | Now |
 |---|---|---|
 | Pool ladders | P0 | **Model** (generated, at the basin edge) |
-| Drains, grates, overflow channels, skimmers, coping, handrails | P0 | Primitive (drain vignette, gallery rail); the rest not built |
-| Lane anchors, depth markers, starting platforms | P0 | Depth signs are text; others not built |
+| Drains, grates, overflow channels, skimmers, coping, handrails | P0 | Drains and overflow grates **Model** (generated); gallery rail primitive in brushed stainless; skimmers and coping not built |
+| Lane anchors, depth markers, starting platforms | P0 | Depth markers: procedural deck markings (1.2 M, NO DIVING) along the pool edges plus wall signs; starting block and skimmer references generated but their mesh conversion failed (Higgsfield SAM 3D returned failures four times); lane anchors not built |
 | Wave basin, filtration outlets, pump intakes, emergency shutoffs | P0 | Primitive (the Closed Wave Pool basin, outlet, pump control panel) |
 | Diving boards, showers, foot-wash, cubicles, hooks, benches | P1 | Bench: **Model** (CC0); a vest hook vignette is primitive; the rest not built |
 | Jacuzzi, splash pad, cannons, fountains, level rulers | P1 | Not built |
@@ -160,7 +160,7 @@ The Marco reflection and Drift effects are coded. There are no reflection-specif
 | 7 | Fluorescent fixtures | **Model** (CC0) |
 | 8 | Pool ladders | **Model** (generated) |
 | 9 | Handrails | Primitive |
-| 10 | Drains / grates | Primitive |
+| 10 | Drains / grates | **Model** (generated): the shower drain, main drains in the basin floor, overflow grates along every deck edge |
 | 11 | Pipes / valves / pumps | Valves **Model**; pipes and pumps primitive |
 | 12 | Electrical cabinet | **Model** (CC0) |
 | 13 | Lockers | **Model** (generated) |
@@ -192,7 +192,7 @@ The Marco reflection and Drift effects are coded. There are no reflection-specif
 
 ## Next, in order
 
-1. Modelled drains and grates (a Higgsfield request timed out twice and was not charged; retry).
+1. Starting block and skimmer meshes (references are made; retry the conversion), lane anchors.
 2. ambientCG's downloads come from a host the network policy blocks; Poly Haven has no brushed-steel or rubber set, so those stay factor materials.
 3. More Higgsfield image-to-mesh for rigid custom props: per-profile blaster attachments, a pump housing, rescue hooks, collectibles (wristband, token, photo).
 4. The custom families (raft, blaster, work lamp, crew, Lifeguard, Blooms, slide kit) need a modelling and rigging pipeline outside this environment. The game is ready to load them: `src/props.js` takes any GLB, and the importer supports skinning and animation clips.
