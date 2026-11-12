@@ -9,10 +9,10 @@ export const TIER_ORDER = ['low', 'medium', 'high', 'ultra'];
  * ratioCap caps the device pixel ratio (a pixel budget, not "whatever the screen reports").
  */
 export const TIERS = {
-  low: { shading: 'light', samples: 1, ratioCap: 0.6, depth: false, ao: 0, haze: 0, hazeSteps: 8, lights: 4, bloom: 0 },
-  medium: { shading: 'full', samples: 1, ratioCap: 1, depth: true, ao: 0, haze: 0, hazeSteps: 8, lights: 6, bloom: 0.35 },
-  high: { shading: 'full', samples: 2, ratioCap: 1.5, depth: true, ao: 0.6, haze: 0.012, hazeSteps: 12, lights: 10, bloom: 0.45 },
-  ultra: { shading: 'full', samples: 4, ratioCap: 2, depth: true, ao: 0.7, haze: 0.014, hazeSteps: 20, lights: 14, bloom: 0.5 },
+  low: { shading: 'light', samples: 1, ratioCap: 0.6, depth: false, ao: 0, haze: 0, hazeSteps: 8, lights: 4, bloom: 0, shadows: 0 },
+  medium: { shading: 'full', samples: 1, ratioCap: 1, depth: true, ao: 0, haze: 0, hazeSteps: 8, lights: 6, bloom: 0.35, shadows: 0 },
+  high: { shading: 'full', samples: 2, ratioCap: 1.5, depth: true, ao: 0.6, haze: 0.012, hazeSteps: 12, lights: 10, bloom: 0.45, shadows: 1 },
+  ultra: { shading: 'full', samples: 4, ratioCap: 2, depth: true, ao: 0.7, haze: 0.014, hazeSteps: 20, lights: 14, bloom: 0.5, shadows: 2 },
 };
 
 /** The setting is a number so it can sit on a slider: 0 auto, 1 low, 2 medium, 3 high, 4 ultra. */

@@ -760,7 +760,7 @@ export function settingsView(onChange) {
     display.append(row);
   }
   range(display, 'Quality: 0 auto · 1 low · 2 medium · 3 high · 4 ultra (samples and shading change at the next scene)', 'qualityTier', 0, 4, 1);
-  for (const k of ['perfOverlay', 'autoRes', 'postChain', 'shafts', 'ambientOcclusion', 'haze', 'autoExposure']) check(display, k);
+  for (const k of ['perfOverlay', 'autoRes', 'postChain', 'shafts', 'shadows', 'ambientOcclusion', 'haze', 'autoExposure']) check(display, k);
   // Key bindings: click an action, press a key.
   const keys = el('div', 'bindings');
   keys.append(el('p', 'mono', 'KEYS · click, then press a key'));

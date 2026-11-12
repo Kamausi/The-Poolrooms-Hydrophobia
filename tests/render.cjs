@@ -54,6 +54,22 @@ const BASE = process.env.UNDERFLOW_URL || 'http://localhost:5173';
     return { on: on.shafts, pos: on.shaftPos, off, diag: JSON.stringify(R.renderer.diagnostics) }; });
   check('the fixtures cast light shafts on the high tier, from where the lamp is on screen, and the setting turns them off', r.on > 0.1 && r.pos[1] > 0.5 && r.off === 0 && r.diag === '[]', JSON.stringify(r));
 
+  r = await page.evaluate(() => { const u = window.__underflow; u.startExplore(); u.setState({ health: 1e6, drift: 0 }); u.step(3); const E = window.__explore; E.blooms.forEach((b) => { b.active = false; });
+    u.setState({ lamp: { ...(u.state.lamp || {}), mode: 0, charge: 100 } }); u.step(2);
+    const env0 = E.frameEnv(); const pointsCast = env0.pointLights.filter((l) => l.castShadow).length, spots0 = (env0.spotLights || []).length;
+    u.setState({ lamp: { ...u.state.lamp, mode: 1, charge: 100 } }); u.step(2); const env1 = E.frameEnv();
+    const spot = (env1.spotLights || [])[0];
+    u.setTier('ultra'); u.step(2); const ultraCast = E.frameEnv().pointLights.filter((l) => l.castShadow).length; u.setTier('high');
+    u.settings.shadows = false; u.step(2); const offCast = E.frameEnv().pointLights.filter((l) => l.castShadow).length + (E.frameEnv().spotLights || []).length; u.settings.shadows = true;
+    u.setState({ lamp: { ...u.state.lamp, mode: 0 } }); u.step(1);
+    return { pointsCast, spots0, spot: spot && { cast: spot.castShadow, angle: spot.angle }, ultraCast, offCast, diag: JSON.stringify(E.renderer.diagnostics) }; });
+  check('on the high tier the nearest fixture casts shadows (two on ultra) and the carried lamp is a shadowed spot light; the setting turns them off', r.pointsCast === 1 && r.spots0 === 0 && r.spot && r.spot.cast && r.ultraCast === 2 && r.offCast === 0 && r.diag === '[]', JSON.stringify(r));
+
+  r = await page.evaluate(async () => { const m = await import('/src/surfaces.js'); const loaded = m.surfacesLoaded();
+    const c = m.surface('ceiling').image.getContext('2d').getImageData(0, 0, 256, 256).data; let varied = 0; for (let i = 0; i < c.length; i += 4 * 97) if (Math.abs(c[i] - 0xcf) > 12) varied += 1;
+    return { loaded, varied }; });
+  check('the generated surface textures (ceiling, clouds, painted steel, aqua tile) decode and are drawn, not left as their fallback colour', Object.values(r.loaded).filter(Boolean).length === 4 && r.varied > 10, JSON.stringify(r));
+
   await page.goto(`${BASE}/?quality=high&bench=8`, { timeout: 120000 });
   await page.waitForFunction(() => !!window.__bench, null, { timeout: 120000 });
   r = await page.evaluate(() => ({ b: window.__bench, text: document.getElementById('bench')?.textContent || '' }));

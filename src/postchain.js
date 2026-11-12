@@ -46,6 +46,12 @@ vec4 userPass(vec2 uv) {
     c += s * streak * 0.05 * vec3(0.75, 0.92, 1.0);
     c += s * dirt * 0.07 * vnoise(uv * 14.0) * vnoise(uv * 5.0 + 3.0);
   }
+  if (halo > 0.0) {
+    // A wide, soft second bloom: a ring of glare samples far out, so a bright fixture glows in damp air.
+    vec3 h = vec3(0.0);
+    for (int i = 0; i < 12; i++) { float a = float(i) * 0.5236; h += glare(p + vec2(cos(a), sin(a)) * vec2(resolution.y / resolution.x, 1.0) * 0.045); }
+    c += h * halo * 0.04;
+  }
   if (shafts > 0.0) {
     // Light shafts: march from this pixel toward the brightest fixture on screen, gathering glare that the haze
     // would scatter. Stronger near the lamp, broken where something stands in front of it.
@@ -141,7 +147,7 @@ export function buildChain(tier, g = {}) {
   const calm = g.reduceFlash ? 0.4 : 1; // the "reduce flashes" setting also softens the red
   const lens = g.distortion === false ? 0 : 1; // and "distortion" off removes fringing and beads
   const uniforms = {
-    optics: { aberration: lens * (0.012 + drift * 0.05 + clamp01(g.hurt) * 0.05), streak: tier === 'ultra' ? 1 : 0.7, dirt: 0.8, wet: lens * clamp01(g.wet),
+    optics: { aberration: lens * (0.012 + drift * 0.05 + clamp01(g.hurt) * 0.05), streak: tier === 'ultra' ? 1 : 0.7, dirt: 0.8, wet: lens * clamp01(g.wet), halo: tier === 'ultra' ? 1 : 0.7,
       shafts: g.shaft ? g.shaft.strength * (tier === 'ultra' ? 1.2 : 1) : 0, shaftPos: g.shaft ? g.shaft.uv : [0.5, 0.5], shaftTint: g.shaft ? g.shaft.color : [1, 1, 1] },
     grade: {
       contrast: 0.35, split: 0.6,

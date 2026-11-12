@@ -43,3 +43,8 @@ From the npm package `@pmndrs/assets` 1.7.0 (CC0 1.0, public domain; no credit r
 | `src/assets/normal-0008.webp` | `normals/0008` (diamond plate) | The Safe Room's floor grating |
 
 The tile relief itself (recessed grout, bevelled edges, tiles set slightly off true) is generated in `src/textures.js` from the same grid as the tile colour texture.
+
+## Generated textures
+
+Higgsfield (Z Image model): four surface textures generated for UNDERFLOW from text prompts written for it, used in `src/surfaces.js` (stained ceiling tiles, aqua pool floor tile, painted steel, painted cloud tiles). Four more are kept in `assets/generated/` but not shipped (wet concrete, orange raft PVC, porcelain wall tile, and a creature skin that came out looking like corrugated plastic). Their use is governed by the account holder's Higgsfield terms, not an open licence.
+

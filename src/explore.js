@@ -8,6 +8,8 @@ import { createBudget } from './pressure.js';
 import { createLightPool, mergeLights } from './lightpool.js';
 import { scoreSpawns } from './spawnscore.js';
 import { createPerceiver, sense } from './perception.js';
+import { assignShadows, handLamp } from './shadows.js';
+import { surface as genSurface } from './surfaces.js';
 import { lightAtEye, targetExposure, adapt as adaptExposure, hazeVolume } from './exposure.js';
 import { buildChain, shaftSource } from './postchain.js';
 import { installUserPasses } from '67js/addons/user-pass';
@@ -30,7 +32,7 @@ import { createDirector, AFTERMATH } from './director.js';
 import { compressorRefill } from './hull.js';
 import { facility as facilityMem, saveFacility, recordSurvey, surveyMem } from './memory.js';
 import { plan as planFinds, collect as collectFind, headcountLine } from './collectibles.js';
-import { planColumns, pushOutOfColumns, columnBlocks, planArches, cloudTexture } from './poolrooms.js';
+import { planColumns, pushOutOfColumns, columnBlocks, planArches } from './poolrooms.js';
 import { showModal, hideModal } from './ui.js';
 
 /** Machines whose setting changes the way out: [title, option A, option B] with [label, routeMod, toast]. */
@@ -103,7 +105,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
   // Power loss: the relay trips if it is thrown too often. No fixtures, no strips, no lit signs, until the breaker
   // is reset at the relay. The architecture stays as it was when the power went.
   let blackout = false, resetT = 0;
-  let lastWedges = [], eyeExposure = 1;
+  let lastWedges = [], eyeExposure = 1, lastEnv = null;
   const signParts = [];
   const isWall = (x, z) => at(x, z) === '#' && !(emergency && eCell && x === eCell[0] && z === eCell[1]);
 
@@ -147,6 +149,9 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
   // ---------- Parts ----------
   const map = tileTexture(sector);
   const tileMat = { color: [1, 1, 1], metallic: 0, roughness: 0.22, map, normalMap: tileNormal(), normalScale: [1, 1], boxMapScale: 0.5 };
+  // Generated surfaces (surfaces.js): stained acoustic ceiling tiles overhead, aqua pool tile under the water.
+  const ceilingMat = { color: [0.92, 0.92, 0.9], metallic: 0, roughness: 0.85, map: genSurface('ceiling'), boxMapScale: 0.3 };
+  const poolFloorMat = { color: [0.9, 0.95, 0.95], metallic: 0, roughness: 0.25, map: genSurface('aqua'), boxMapScale: 0.45 };
   const lampColor = linear(sector.lamp);
   const slab = box(0, 1);
   const ball = sphere(28, 18);
@@ -188,7 +193,8 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
         continue;
       }
       const top = ch === 'B' ? DEEP : floorTop(x, z);
-      writeYaw(P(`Floor ${x},${z}`, slab, tileMat).matrix, [c[0], top > 0 ? (top - 0.5) / 2 : top - 0.25, c[2]], 0, CELL, top > 0 ? top + 0.5 : 0.5, CELL);
+      // Under the water the floor is the saturated aqua pool tile; dry floor stays the sector's tile.
+      writeYaw(P(`Floor ${x},${z}`, slab, top < 0 || WATERISH.has(ch) ? poolFloorMat : tileMat).matrix, [c[0], top > 0 ? (top - 0.5) / 2 : top - 0.25, c[2]], 0, CELL, top > 0 ? top + 0.5 : 0.5, CELL);
       // The gallery's open edge over the basin: a low tiled parapet with a steel rail you can see and shoot over.
       if (ch === 'y') for (const [dx, dz] of DIRS) {
         const n = at(x + dx, z + dz);
@@ -205,7 +211,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
       }
     }
   }
-  if (!rules.openSky) writeYaw(P('Ceiling', slab, tileMat).matrix, [(W * CELL) / 2, wallH + 0.25, (H * CELL) / 2], 0, W * CELL, 0.5, H * CELL);
+  if (!rules.openSky) writeYaw(P('Ceiling', slab, ceilingMat).matrix, [(W * CELL) / 2, wallH + 0.25, (H * CELL) / 2], 0, W * CELL, 0.5, H * CELL);
   // Ledges where a pool meets dry floor.
   for (let z = 0; z < H; z++) for (let x = 0; x < W; x++) {
     const top = floorTop(x, z);
@@ -262,7 +268,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
   // The painted room: clouds over the tile grid, three slides into the water, and nobody.
   if (rules.kids) {
     const [kx0, kz0, kx1, kz1] = rules.kids;
-    const cloud = { color: [1, 1, 1], metallic: 0, roughness: 0.4, map: cloudTexture(), boxMapScale: 0, emission: 0.03, emissiveColor: [0.5, 0.75, 0.95] };
+    const cloud = { color: [1, 1, 1], metallic: 0, roughness: 0.4, map: genSurface('clouds'), boxMapScale: 0, emission: 0.03, emissiveColor: [0.5, 0.75, 0.95] };
     // Brightly, evenly lit: the one room where every lamp works.
     for (const l of lamps) if (l.x >= kx0 && l.x <= kx1 && l.z >= kz0 && l.z <= kz1) { l.dark = false; l.always = true; }
     let slideCell = null;
@@ -470,7 +476,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     const n = w.normal, t = [n[2], 0, -n[0]];
     const fl = floorTop(cx, cz);
     const hinge = [w.pos[0] - t[0] * 0.45 + n[0] * 0.02, fl, w.pos[2] - t[2] * 0.45 + n[2] * 0.02];
-    const teal = { color: linear('#6f9694'), metallic: 0.25, roughness: 0.6 };
+    const teal = { color: [0.95, 0.95, 0.95], metallic: 0.25, roughness: 0.6, map: genSurface('metal'), boxMapScale: 0.9 }; // painted steel, chipped
     // A worn safety-yellow frame and a stencilled sign, so the door reads at a glance in poor light.
     const trim = { color: linear('#b19a50'), metallic: 0.1, roughness: 0.7 };
     for (const [nm, off, size] of [['Door jamb L', -0.5, [0.08, 2.1, 0.06]], ['Door jamb R', 0.5, [0.08, 2.1, 0.06]]]) writeBasis(P(nm, box(0.02, 2), trim).matrix, [w.pos[0] + t[0] * off + n[0] * 0.02, fl + 1.05, w.pos[2] + t[2] * off + n[2] * 0.02], t, UP, n, ...size);
@@ -1964,6 +1970,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     renderer.updateParts(parts);
     const frameLights = gatherLights(eye);
     const camF = normalize(sub(target, eye)), camR = normalize(cross(camF, [0, 1, 0])), camU = cross(camR, camF);
+    const frameSpots = spotLightsFor(eye, camF, camR);
     eyeExposure = settings.autoExposure === false ? 1 : adaptExposure(eyeExposure, targetExposure(lightAtEye(frameLights, eye, rules.openSky ? 0.7 : rules.uv ? 0.08 : 0.15)), dt);
     if (undertow.alive && undertow.holding > 0) state.wetLens = 1;
     lastChain = !hasDepth || settings.postChain === false ? [] : buildChain(quality.tier, { shaft: settings.shafts === false ? null : shaftSource(frameLights.filter((l) => l.range > 6), { eye, forward: camF, right: camR, up: camU, tanHalf: Math.tan((FOV * Math.PI) / 360), aspect: canvas.clientWidth / Math.max(1, canvas.clientHeight) }), drift: state.drift, health: state.health, hurt: state.hurtFx, wet: state.wetLens, reduceFlash: settings.flashReduce, distortion: settings.distortion, under: undertow.alive && undertow.holding > 0 ? 0.8 : 0, warm: sector.index === 0 });
@@ -1971,7 +1978,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     renderer.render({
       eye, target, fov: FOV, time,
       waterRipple: ripple, rippleTime: time - rippleTime,
-      environment: { pointLights: frameLights, volumeFog: hazeVolume(eye, { density: !hasDepth || settings.haze === false ? 0 : quality.haze, steps: quality.hazeSteps, color: linear(sector.fog), sky: !!rules.openSky }) },
+      environment: (lastEnv = { pointLights: shadowsOn() ? assignShadows(frameLights, eye, quality.shadows, frameSpots.length) : frameLights, spotLights: frameSpots, volumeFog: hazeVolume(eye, { density: !hasDepth || settings.haze === false ? 0 : quality.haze, steps: quality.hazeSteps, color: linear(sector.fog), sky: !!rules.openSky }) }),
       exposure: ((rules.openSky ? 0.95 : 1.05) - state.drift * 0.002) * eyeExposure,
       effects: {
         ambientOcclusion: !hasDepth || settings.ambientOcclusion === false ? 0 : quality.ao, ambientOcclusionRadius: 0.6,
@@ -2644,6 +2651,12 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     }
   }
 
+  const shadowsOn = () => hasDepth && settings.shadows !== false && (quality.shadows || 0) > 0;
+  const handSpot = () => shadowsOn() && lampOn() && !lampPlaced && state.lamp.mode === 1;
+  /** Spot lights this frame: the carried work lamp, along the view, casting shadows. */
+  function spotLightsFor(eye, forward, right) {
+    return handSpot() ? [handLamp(eye, forward, right)] : [];
+  }
   function gatherLights(eye) {
     const out = lamps.filter((l) => l.on).map((l) => ({ l, d: distance(l.pos, eye) })).sort((a, b) => a.d - b.d).slice(0, quality.lights)
       .map(({ l }) => ({ position: l.pos, color: lampColor, intensity: 10 * l.level, radius: 0.4, range: 9.5 })); // bleached under the fixture, dark between
@@ -2652,7 +2665,8 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     if (rules.uv) out.push({ position: [eye[0], 3.5, eye[2]], color: [0.5, 0.25, 1], intensity: 3, radius: 1, range: 12 });
     // Emergency strips: a few dim coral lights where the fixtures are. Enough to see shapes, not distances.
     if (emergency && !blackout) for (const l of lamps.map((l) => ({ l, d: distance(l.pos, eye) })).sort((a, b) => a.d - b.d).slice(0, 4)) out.push({ position: [l.l.pos[0], 2.2, l.l.pos[2]], color: [1, 0.3, 0.22], intensity: 2.6, radius: 0.3, range: 7.5 });
-    if (lampOn()) out.push(state.lamp.mode === 2 ? { position: lampAt(), color: [0.5, 0.25, 1], intensity: 5, radius: 0.3, range: 9 } : { position: lampAt(), color: [1, 0.95, 0.85], intensity: 8, radius: 0.3, range: 11 });
+    // Carried, the white lamp is a spot light (spotLightsFor) and only a little fill stays here; set down, or UV, it is a point light.
+    if (lampOn()) out.push(state.lamp.mode === 2 ? { position: lampAt(), color: [0.5, 0.25, 1], intensity: 5, radius: 0.3, range: 9 } : handSpot() ? { position: lampAt(), color: [1, 0.95, 0.85], intensity: 1.2, radius: 0.3, range: 3 } : { position: lampAt(), color: [1, 0.95, 0.85], intensity: 8, radius: 0.3, range: 11 });
     return mergeLights(out, flashes.lights(), 16);
   }
 
@@ -3274,7 +3288,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     for (let i = 0; i < (r.valves || 0); i++) { const v = pumpValves.find((x) => x.id === valveOrder[i]); if (v) v.open = true; }
     valveStep = r.valves || 0;
   }
-  if (import.meta.env.DEV) window.__explore = { flashes, budget, wave: (n, f) => wave(n, f), lineOfSight, get remembered() { return remembered; }, get chain() { return lastChain; }, get eyeExposure() { return eyeExposure; }, renderer, get driftSigns() { return driftSigns; }, get wedges() { return lastWedges; }, survey, get surveyCoverage() { return surveyCoverage(survey, surveyOpen); }, surveyOpen, omen: (k) => startFomen(k), circuit, setEmergency, setBlackout, get blackout() { return blackout; }, signParts, get resetT() { return resetT; }, get emergency() { return emergency; }, blocked, isWall, finds, found, get lampPlaced() { return lampPlaced; }, lights: () => gatherLights(add(player.pos, [0, 1.6, 0])), get hesitation() { return hesitation; }, get lastOmen() { return lastFomen; }, get marcoAct() { return marcoAct; }, set marcoAct(v) { marcoAct = v; }, marcos, columns, wavePool, get basin() { return basin; }, isWater, floorTop, get operating() { return operating; }, set operating(v) { operating = v; }, panelFront, holdT, shoot, spawnBloom, occupant, lockers, noise, violate, get omenState() { return fomen; }, door, blooms, lamps, director, followers, get dockKind() { return dockKind; }, get valves() { return { order: valveOrder, step: valveStep, list: pumpValves }; }, june: juneEvent, thread, get clock() { return clock; }, stagnant, player, center, undertow, lifeguard, cellPos, panelPos, raftPos, code, find, floaters, restorePower };
+  if (import.meta.env.DEV) window.__explore = { frameEnv: () => lastEnv, flashes, budget, wave: (n, f) => wave(n, f), lineOfSight, get remembered() { return remembered; }, get chain() { return lastChain; }, get eyeExposure() { return eyeExposure; }, renderer, get driftSigns() { return driftSigns; }, get wedges() { return lastWedges; }, survey, get surveyCoverage() { return surveyCoverage(survey, surveyOpen); }, surveyOpen, omen: (k) => startFomen(k), circuit, setEmergency, setBlackout, get blackout() { return blackout; }, signParts, get resetT() { return resetT; }, get emergency() { return emergency; }, blocked, isWall, finds, found, get lampPlaced() { return lampPlaced; }, lights: () => gatherLights(add(player.pos, [0, 1.6, 0])), get hesitation() { return hesitation; }, get lastOmen() { return lastFomen; }, get marcoAct() { return marcoAct; }, set marcoAct(v) { marcoAct = v; }, marcos, columns, wavePool, get basin() { return basin; }, isWater, floorTop, get operating() { return operating; }, set operating(v) { operating = v; }, panelFront, holdT, shoot, spawnBloom, occupant, lockers, noise, violate, get omenState() { return fomen; }, door, blooms, lamps, director, followers, get dockKind() { return dockKind; }, get valves() { return { order: valveOrder, step: valveStep, list: pumpValves }; }, june: juneEvent, thread, get clock() { return clock; }, stagnant, player, center, undertow, lifeguard, cellPos, panelPos, raftPos, code, find, floaters, restorePower };
 
   /** ?show=: put the dock into a fixed, readable state for screenshots and visual review. */
   function showcase(name) {

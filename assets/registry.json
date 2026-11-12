@@ -1,10 +1,11 @@
 {
- "note": "Every third-party file the game ships. tests/unit/assets.test.js fails if a shipped file is missing here, if a licence is not on the allowed list, or if docs/CREDITS.md does not name the source.",
+ "note": "Every third-party file the game ships. tests/unit/assets.test.js fails if a shipped file is missing here, if a licence is not on the allowed list, or if docs/CREDITS.md does not name the source. 'Generated' means made for this project with an image generator from text prompts written for it; the account holder's terms with the generator apply.",
  "allowed": [
   "CC0-1.0",
   "CC-BY-4.0",
   "MIT",
-  "Zlib"
+  "Zlib",
+  "Generated"
  ],
  "entries": [
   {
@@ -470,6 +471,70 @@
    "changes": "resized to 256 px, WebP",
    "gameUse": [
     "Safe Room floor"
+   ]
+  },
+  {
+   "id": "texture/ceiling",
+   "type": "texture",
+   "files": [
+    "src/assets/gen-ceiling-stained.webp"
+   ],
+   "source": "Higgsfield (Z Image model), generated for UNDERFLOW from a text prompt",
+   "creator": "generated for this project",
+   "url": "https://higgsfield.ai",
+   "license": "Generated",
+   "modified": true,
+   "changes": "2048 px PNG resized to 256 px WebP; source kept at 1024 px in assets/generated/",
+   "gameUse": [
+    "surface: stained acoustic ceiling tiles on the raft route and on foot"
+   ]
+  },
+  {
+   "id": "texture/clouds",
+   "type": "texture",
+   "files": [
+    "src/assets/gen-tile-clouds.webp"
+   ],
+   "source": "Higgsfield (Z Image model), generated for UNDERFLOW from a text prompt",
+   "creator": "generated for this project",
+   "url": "https://higgsfield.ai",
+   "license": "Generated",
+   "modified": true,
+   "changes": "2048 px PNG resized to 256 px WebP; source kept at 1024 px in assets/generated/",
+   "gameUse": [
+    "surface: the painted children's room"
+   ]
+  },
+  {
+   "id": "texture/metal",
+   "type": "texture",
+   "files": [
+    "src/assets/gen-metal-painted.webp"
+   ],
+   "source": "Higgsfield (Z Image model), generated for UNDERFLOW from a text prompt",
+   "creator": "generated for this project",
+   "url": "https://higgsfield.ai",
+   "license": "Generated",
+   "modified": true,
+   "changes": "2048 px PNG resized to 256 px WebP; source kept at 1024 px in assets/generated/",
+   "gameUse": [
+    "surface: the service door"
+   ]
+  },
+  {
+   "id": "texture/aqua",
+   "type": "texture",
+   "files": [
+    "src/assets/gen-tile-aqua.webp"
+   ],
+   "source": "Higgsfield (Z Image model), generated for UNDERFLOW from a text prompt",
+   "creator": "generated for this project",
+   "url": "https://higgsfield.ai",
+   "license": "Generated",
+   "modified": true,
+   "changes": "2048 px PNG resized to 256 px WebP; source kept at 1024 px in assets/generated/",
+   "gameUse": [
+    "surface: pool floor tile under the water on the raft route and on foot"
    ]
   }
  ]
