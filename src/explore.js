@@ -8,7 +8,7 @@ import { createBudget } from './pressure.js';
 import { createLightPool, mergeLights } from './lightpool.js';
 import { scoreSpawns } from './spawnscore.js';
 import { lightAtEye, targetExposure, adapt as adaptExposure, hazeVolume } from './exposure.js';
-import { buildChain } from './postchain.js';
+import { buildChain, shaftSource } from './postchain.js';
 import { installUserPasses } from '67js/addons/user-pass';
 import { createSurvey, visit as surveyVisit, mark as surveyMark, coverage as surveyCoverage, render as surveyRender, seenList, carryList, disagreements } from './survey.js';
 import { Renderer67, box, sphere, cylinder, torus } from '67js';
@@ -1960,9 +1960,10 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     if (quality.skipRender) return;
     renderer.updateParts(parts);
     const frameLights = gatherLights(eye);
+    const camF = normalize(sub(target, eye)), camR = normalize(cross(camF, [0, 1, 0])), camU = cross(camR, camF);
     eyeExposure = settings.autoExposure === false ? 1 : adaptExposure(eyeExposure, targetExposure(lightAtEye(frameLights, eye, rules.openSky ? 0.7 : rules.uv ? 0.08 : 0.15)), dt);
     if (undertow.alive && undertow.holding > 0) state.wetLens = 1;
-    lastChain = !hasDepth || settings.postChain === false ? [] : buildChain(quality.tier, { drift: state.drift, health: state.health, hurt: state.hurtFx, wet: state.wetLens, reduceFlash: settings.flashReduce, distortion: settings.distortion, under: undertow.alive && undertow.holding > 0 ? 0.8 : 0, warm: sector.index === 0 });
+    lastChain = !hasDepth || settings.postChain === false ? [] : buildChain(quality.tier, { shaft: settings.shafts === false ? null : shaftSource(frameLights.filter((l) => l.range > 6), { eye, forward: camF, right: camR, up: camU, tanHalf: Math.tan((FOV * Math.PI) / 360), aspect: canvas.clientWidth / Math.max(1, canvas.clientHeight) }), drift: state.drift, health: state.health, hurt: state.hurtFx, wet: state.wetLens, reduceFlash: settings.flashReduce, distortion: settings.distortion, under: undertow.alive && undertow.holding > 0 ? 0.8 : 0, warm: sector.index === 0 });
     if (hasDepth) renderer.userPasses.set(lastChain);
     renderer.render({
       eye, target, fov: FOV, time,

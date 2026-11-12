@@ -18,7 +18,7 @@ import { planColonnade, archRadius } from './poolrooms.js';
 import { createBudget } from './pressure.js';
 import { createLightPool, mergeLights } from './lightpool.js';
 import { lightAtEye, targetExposure, adapt as adaptExposure, hazeVolume } from './exposure.js';
-import { buildChain } from './postchain.js';
+import { buildChain, shaftSource } from './postchain.js';
 import { installUserPasses } from '67js/addons/user-pass';
 import { magnet, friction, wedges as threatWedges } from './aim.js';
 import { settings } from './settings.js';
@@ -2141,7 +2141,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
     // Eye adaptation: the dark lifts slowly, a lit room clamps down at once.
     eyeExposure = settings.autoExposure === false ? 1 : adaptExposure(eyeExposure, targetExposure(lightAtEye(frameLights, eye, frameAmbient)), dt);
     if (overboard || capsize) state.wetLens = 1; // water on the lens runs off over a few seconds once you are out
-    lastChain = !hasDepth || settings.postChain === false ? [] : buildChain(quality.tier, { drift: state.drift, health: state.health, hurt: state.hurtFx, wet: state.wetLens, reduceFlash: settings.flashReduce, distortion: settings.distortion, under: capsize && capsize.t > 0.8 && capsize.t < 4.4 ? 1 : overboard ? 0.35 : 0, warm: sector.index === 0, damp: sec.sky ? 0 : 1, waterLevel: 0 });
+    lastChain = !hasDepth || settings.postChain === false ? [] : buildChain(quality.tier, { shaft: settings.shafts === false ? null : shaftSource(frameLights.filter((l) => l.range > 6), { eye, forward: fwd, right: rgt, up, tanHalf: Math.tan((fov * Math.PI) / 360), aspect }), drift: state.drift, health: state.health, hurt: state.hurtFx, wet: state.wetLens, reduceFlash: settings.flashReduce, distortion: settings.distortion, under: capsize && capsize.t > 0.8 && capsize.t < 4.4 ? 1 : overboard ? 0.35 : 0, warm: sector.index === 0, damp: sec.sky ? 0 : 1, waterLevel: 0 });
     if (hasDepth) renderer.userPasses.set(lastChain);
     renderer.render({
       eye, target: look, up, fov, time,
