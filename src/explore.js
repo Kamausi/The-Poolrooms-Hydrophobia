@@ -1916,6 +1916,11 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
         const rel = sub(b.pos, eye), d = Math.hypot(...rel);
         if (d < 10) near.push({ rel, urgency: 1 / Math.max(0.5, d) });
       }
+      // The Lifeguard, once it is coming for you: it outranks everything else.
+      if (settings.threatWedges !== false && lifeguard && lifeguard.state === 'pursuit' && lifeguard.pos) {
+        const rel = sub(add(lifeguard.pos, [0, 1.4, 0]), eye);
+        near.push({ rel, urgency: 3 / Math.max(0.5, Math.hypot(...rel)) });
+      }
       if (near.length) {
         const fwd = normalize(sub(target, eye)), rgt = normalize(cross(fwd, [0, 1, 0])), up = cross(rgt, fwd);
         lastWedges = threatWedges(near, fwd, rgt, up, Math.tan((FOV * Math.PI) / 360), canvas.clientWidth / Math.max(1, canvas.clientHeight));

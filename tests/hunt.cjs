@@ -87,5 +87,14 @@ const { open, newCampaign, check, finish } = require('./lib.cjs');
     u.step(1);
     return { used: L.doorUsed, angle: D.angle, state: L.state, near: Math.hypot(L.pos[0] - D.hinge[0], L.pos[2] - D.hinge[2]) < 2 }; });
   check('it comes through the service door to cut you off', r.none || (r.used && r.angle > 1 && r.near), JSON.stringify(r));
+  r = await page.evaluate(() => { const u = window.__underflow, E = window.__explore, L = E.lifeguard; u.setState({ health: 1e6, drift: 0 });
+    E.blooms.forEach((b) => { b.active = false; });
+    const c = E.find('.').map(([x, z]) => E.center(x, z)).find((q) => Math.hypot(q[0] - L.base[0], q[2] - L.base[2]) > 6);
+    L.state = 'watching'; E.player.pos = [c[0], 0, c[2]]; E.player.yaw = 0; E.player.pitch = 0; u.step(1); const calm = E.wedges.length;
+    // Forward at yaw 0 is −z: put it four metres behind, already coming.
+    L.state = 'pursuit'; L.blind = 0; L.lostSight = 0; L.next = null; L.pos = [c[0], 0, c[2] + 4]; E.player.pos = [c[0], 0, c[2]]; E.player.yaw = 0; u.step(1);
+    const w = E.wedges.slice(); const st = L.state; L.state = 'returning'; u.step(1);
+    return { calm, n: w.length, behind: w[0]?.behind, st, after: E.wedges.length }; });
+  check('the Lifeguard gets a rim marker only while it is coming for you from out of view', r.calm === 0 && r.n === 1 && r.behind && r.after === 0, JSON.stringify(r));
   await finish(browser, errors);
 })();
