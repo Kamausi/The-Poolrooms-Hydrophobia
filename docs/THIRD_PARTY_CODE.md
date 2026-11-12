@@ -23,6 +23,8 @@ No other code in `src/` or `tests/` is copied from another project. Three.js is 
 | `src/pressure.js` | Attack tokens: only so many enemies may commit at once | Our own kinds, slot counts and cool-downs |
 | `src/spawnscore.js` | Prefer concealed spawn points; avoid recently used ones | Our own scoring |
 | `src/spring.js` | Spring-driven viewmodel motion | A standard damped spring with substeps |
+| `src/lightpool.js` | Reuse a small pool of dynamic lights for flashes | Our own slot rule and fade |
+| `src/voicepool.js` | Priority-based voice stealing | Our own priorities and limits |
 | `src/bench.js`, `?show=` | Benchmark and showcase modes | Our own report and scenes |
 
 If Saltline source is ever brought in, record here which file it came from, who generated it, and the terms it is used under, before any of it is copied.

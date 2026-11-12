@@ -32,5 +32,11 @@ const { open, newCampaign, check, finish } = require('./lib.cjs');
     for (let w = 0; w < 4; w++) { E.wave(3); for (const b of E.blooms.filter((x) => x.active)) { spots.push({ seen: E.lineOfSight(eye, [b.pos[0], 1, b.pos[2]]), d: Math.hypot(b.pos[0] - eye[0], b.pos[2] - eye[2]) }); b.active = false; } }
     return { n: spots.length, seen: spots.filter((s) => s.seen).length, near: Math.min(...spots.map((s) => s.d)) }; });
   check('a wave on foot comes in out of sight and at a distance', r.n >= 6 && r.seen === 0 && r.near > 11, JSON.stringify(r));
+  r = await page.evaluate(() => { const u = window.__underflow; u.beginSector(0); u.startRide(); u.setState({ health: 1e6 }); u.step(3); const R = window.__ride;
+    const before = R.flashes.lights().length; u.setState({ profile: 'pulse', charge: 100, heat: 0 }); R.fireAt(); const lit = R.flashes.lights().length; const all = R.gatherLights().length;
+    u.step(8); const after = R.flashes.lights().length;
+    for (let i = 0; i < 12; i++) R.fireAt(); const busy = R.flashes.lights().length;
+    return { before, lit, all, after, busy }; });
+  check('a shot lights the room for a moment from a fixed pool of four, within the engine limit of 16 lights', r.before === 0 && r.lit >= 1 && r.all <= 16 && r.after === 0 && r.busy <= 4, JSON.stringify(r));
   await finish(browser, errors);
 })();

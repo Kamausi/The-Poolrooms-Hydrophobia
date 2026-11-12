@@ -5,6 +5,7 @@ import { rumble } from './haptics.js';
 import { wedges as threatWedges } from './aim.js';
 import { driftSign, driftState } from './driftsign.js';
 import { createBudget } from './pressure.js';
+import { createLightPool, mergeLights } from './lightpool.js';
 import { scoreSpawns } from './spawnscore.js';
 import { lightAtEye, targetExposure, adapt as adaptExposure, hazeVolume } from './exposure.js';
 import { buildChain } from './postchain.js';
@@ -913,6 +914,14 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
   let groutTold = false;
 
   const blaster = createBlaster(state);
+  // Shots light the room for a moment (lightpool.js): a flash at the muzzle and a smaller one where it lands.
+  const flashes = createLightPool({ slots: 4 });
+  { const showBeam = blaster.showBeam; blaster.showBeam = (from, to, ...rest) => {
+    const c = PROFILES[state.profile]?.color || [1, 0.85, 0.6];
+    flashes.flash(from, { color: c, intensity: state.profile === 'scatter' ? 9 : 6, range: 7, life: 0.07 });
+    if (to) flashes.flash(to, { color: c, intensity: 3, range: 3.5, life: 0.12 });
+    return showBeam(from, to, ...rest);
+  }; }
   parts.push(...blaster.parts);
   for (const p of parts) if (p.matrix[15] === 0) hide(p);
 
@@ -1411,6 +1420,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
 
   // ---------- Frame ----------
   function update(dt) {
+    flashes.tick(dt);
     time += dt;
     hud.update(dt);
     state.mounted = false;
@@ -2639,7 +2649,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     // Emergency strips: a few dim coral lights where the fixtures are. Enough to see shapes, not distances.
     if (emergency && !blackout) for (const l of lamps.map((l) => ({ l, d: distance(l.pos, eye) })).sort((a, b) => a.d - b.d).slice(0, 4)) out.push({ position: [l.l.pos[0], 2.2, l.l.pos[2]], color: [1, 0.3, 0.22], intensity: 2.6, radius: 0.3, range: 7.5 });
     if (lampOn()) out.push(state.lamp.mode === 2 ? { position: lampAt(), color: [0.5, 0.25, 1], intensity: 5, radius: 0.3, range: 9 } : { position: lampAt(), color: [1, 0.95, 0.85], intensity: 8, radius: 0.3, range: 11 });
-    return out;
+    return mergeLights(out, flashes.lights(), 16);
   }
 
   // Who may commit an attack (pressure.js): two melee slots, three in the deep sectors. The rest circle.
@@ -3252,7 +3262,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     for (let i = 0; i < (r.valves || 0); i++) { const v = pumpValves.find((x) => x.id === valveOrder[i]); if (v) v.open = true; }
     valveStep = r.valves || 0;
   }
-  if (import.meta.env.DEV) window.__explore = { budget, wave: (n, f) => wave(n, f), lineOfSight, get remembered() { return remembered; }, get chain() { return lastChain; }, get eyeExposure() { return eyeExposure; }, renderer, get driftSigns() { return driftSigns; }, get wedges() { return lastWedges; }, survey, get surveyCoverage() { return surveyCoverage(survey, surveyOpen); }, surveyOpen, omen: (k) => startFomen(k), circuit, setEmergency, setBlackout, get blackout() { return blackout; }, signParts, get resetT() { return resetT; }, get emergency() { return emergency; }, blocked, isWall, finds, found, get lampPlaced() { return lampPlaced; }, lights: () => gatherLights(add(player.pos, [0, 1.6, 0])), get hesitation() { return hesitation; }, get lastOmen() { return lastFomen; }, get marcoAct() { return marcoAct; }, set marcoAct(v) { marcoAct = v; }, marcos, columns, wavePool, get basin() { return basin; }, isWater, floorTop, get operating() { return operating; }, set operating(v) { operating = v; }, panelFront, holdT, shoot, spawnBloom, occupant, lockers, noise, violate, get omenState() { return fomen; }, door, blooms, lamps, director, followers, get dockKind() { return dockKind; }, get valves() { return { order: valveOrder, step: valveStep, list: pumpValves }; }, june: juneEvent, thread, get clock() { return clock; }, stagnant, player, center, undertow, lifeguard, cellPos, panelPos, raftPos, code, find, floaters, restorePower };
+  if (import.meta.env.DEV) window.__explore = { flashes, budget, wave: (n, f) => wave(n, f), lineOfSight, get remembered() { return remembered; }, get chain() { return lastChain; }, get eyeExposure() { return eyeExposure; }, renderer, get driftSigns() { return driftSigns; }, get wedges() { return lastWedges; }, survey, get surveyCoverage() { return surveyCoverage(survey, surveyOpen); }, surveyOpen, omen: (k) => startFomen(k), circuit, setEmergency, setBlackout, get blackout() { return blackout; }, signParts, get resetT() { return resetT; }, get emergency() { return emergency; }, blocked, isWall, finds, found, get lampPlaced() { return lampPlaced; }, lights: () => gatherLights(add(player.pos, [0, 1.6, 0])), get hesitation() { return hesitation; }, get lastOmen() { return lastFomen; }, get marcoAct() { return marcoAct; }, set marcoAct(v) { marcoAct = v; }, marcos, columns, wavePool, get basin() { return basin; }, isWater, floorTop, get operating() { return operating; }, set operating(v) { operating = v; }, panelFront, holdT, shoot, spawnBloom, occupant, lockers, noise, violate, get omenState() { return fomen; }, door, blooms, lamps, director, followers, get dockKind() { return dockKind; }, get valves() { return { order: valveOrder, step: valveStep, list: pumpValves }; }, june: juneEvent, thread, get clock() { return clock; }, stagnant, player, center, undertow, lifeguard, cellPos, panelPos, raftPos, code, find, floaters, restorePower };
 
   /** ?show=: put the dock into a fixed, readable state for screenshots and visual review. */
   function showcase(name) {

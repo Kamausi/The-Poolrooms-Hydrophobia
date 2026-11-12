@@ -16,6 +16,7 @@ import { quality } from './quality.js';
 import { rumble } from './haptics.js';
 import { planColonnade, archRadius } from './poolrooms.js';
 import { createBudget } from './pressure.js';
+import { createLightPool, mergeLights } from './lightpool.js';
 import { lightAtEye, targetExposure, adapt as adaptExposure, hazeVolume } from './exposure.js';
 import { buildChain } from './postchain.js';
 import { installUserPasses } from '67js/addons/user-pass';
@@ -396,6 +397,14 @@ export function createRide(canvas, state, sector, events, opts = {}) {
   const ghost = P('Distant figure', cylinder(12, 0.3, 2), dark([0.02, 0.02, 0.03]));
 
   const blaster = createBlaster(state);
+  // Shots light the room for a moment (lightpool.js): a flash at the muzzle and a smaller one where it lands.
+  const flashes = createLightPool({ slots: 4 });
+  { const showBeam = blaster.showBeam; blaster.showBeam = (from, to, ...rest) => {
+    const c = PROFILES[state.profile]?.color || [1, 0.85, 0.6];
+    flashes.flash(from, { color: c, intensity: state.profile === 'scatter' ? 9 : 6, range: 7, life: 0.07 });
+    if (to) flashes.flash(to, { color: c, intensity: 3, range: 3.5, life: 0.12 });
+    return showBeam(from, to, ...rest);
+  }; }
   parts.push(...blaster.parts);
   for (const p of parts) if (p.matrix[15] === 0) hide(p);
 
@@ -1631,6 +1640,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
 
   // ---------- Frame ----------
   function update(dt) {
+    flashes.tick(dt);
     budget.tick(dt);
     budget.sweep((b) => b.active && !b.dying);
     time += dt;
@@ -3185,7 +3195,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
       lights.push({ position: pos, color: [1, 0.25, 0.12], intensity: 8, radius: 0.3, range: 18, d: distance(pos, eye) - 50 });
     }
     lights.sort((a, b) => a.d - b.d);
-    const out = lights.slice(0, quality.lights).map(({ d, ...l }) => l);
+    const out = mergeLights(lights.slice(0, quality.lights).map(({ d, ...l }) => l), flashes.lights(), 16);
     if (state.upgrades.includes('headlamp')) out.push({ position: track.lateral(s + 3, offset, 1.2), color: [1, 0.95, 0.85], intensity: 6, radius: 0.3, range: 22 });
     return out;
   }
@@ -3873,7 +3883,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
     bloomAhead() { return spawnBloom(s + 10, offset * 0.6, 1.2); },
     get locks() { return locks.length; },
   };
-  if (import.meta.env.DEV) window.__ride = { budget, blaster, get wedges() { return lastWedges; }, get chain() { return lastChain; }, get eyeExposure() { return eyeExposure; }, renderer, get scenery() { return lastScenery; }, room, shots, set padAssist(v) { padAssistTest = v; }, get aimFriction() { return input.aimFriction; }, parts, blooms, tokens, drop, spawnDrop, get assess() { return assess; }, set assessAt(v) { assessAt = v; }, set tokenCool(v) { tokenCool = v; }, get offset() { return offset; }, set offset(v) { offset = v; }, omen: (k) => startOmen(k), get omenState() { return omen; }, get director() { return director; }, get eye() { return fx.eye; }, track, hull, puncture: (c, cause = 'scrape') => hull.puncture(c, cause), overboard: () => goOverboard('test'), free: () => restrained && !restrained.freed && freeRestrained(), shove: () => shove(fx.eye, fx.fwd), ping: () => ping(fx.eye, fx.fwd), fireAt: (dir) => { fireProfile(fx.eye, fx.look, dir || fx.fwd); return state.profile; }, hitTarget: (key) => { const t = targets().find((x) => x.key === key); if (t) { shotProfile = state.profile; t.fn(); } return !!t; }, get wave() { return wave; }, set bot(v) { devBot = v; }, spawnEnc: (kind, extra = {}) => spawn({ e: { kind, ...extra }, s: s + 10, sec: track.sectionAt(s).sec }), get coop() { return { climber, crewGrab, ballast, restrained, protect, focusing, fov, profile: state.profile, special: state.special }; }, reset: () => { overboard = null; capsize = null; trailGrab = null; hull.state.capsized = false; }, capsize: () => startCapsize(), get swimming() { return overboard; }, get capsized() { return capsize; }, get grab() { return trailGrab; }, valve, linked, lifeguard, locker, wake, passengerStep, burst: () => burst(fx.eye, fx.fwd), get s() { return s; }, set s(v) { s = v; } };
+  if (import.meta.env.DEV) window.__ride = { flashes, gatherLights: () => gatherLights(fx.eye), budget, blaster, get wedges() { return lastWedges; }, get chain() { return lastChain; }, get eyeExposure() { return eyeExposure; }, renderer, get scenery() { return lastScenery; }, room, shots, set padAssist(v) { padAssistTest = v; }, get aimFriction() { return input.aimFriction; }, parts, blooms, tokens, drop, spawnDrop, get assess() { return assess; }, set assessAt(v) { assessAt = v; }, set tokenCool(v) { tokenCool = v; }, get offset() { return offset; }, set offset(v) { offset = v; }, omen: (k) => startOmen(k), get omenState() { return omen; }, get director() { return director; }, get eye() { return fx.eye; }, track, hull, puncture: (c, cause = 'scrape') => hull.puncture(c, cause), overboard: () => goOverboard('test'), free: () => restrained && !restrained.freed && freeRestrained(), shove: () => shove(fx.eye, fx.fwd), ping: () => ping(fx.eye, fx.fwd), fireAt: (dir) => { fireProfile(fx.eye, fx.look, dir || fx.fwd); return state.profile; }, hitTarget: (key) => { const t = targets().find((x) => x.key === key); if (t) { shotProfile = state.profile; t.fn(); } return !!t; }, get wave() { return wave; }, set bot(v) { devBot = v; }, spawnEnc: (kind, extra = {}) => spawn({ e: { kind, ...extra }, s: s + 10, sec: track.sectionAt(s).sec }), get coop() { return { climber, crewGrab, ballast, restrained, protect, focusing, fov, profile: state.profile, special: state.special }; }, reset: () => { overboard = null; capsize = null; trailGrab = null; hull.state.capsized = false; }, capsize: () => startCapsize(), get swimming() { return overboard; }, get capsized() { return capsize; }, get grab() { return trailGrab; }, valve, linked, lifeguard, locker, wake, passengerStep, burst: () => burst(fx.eye, fx.fwd), get s() { return s; }, set s(v) { s = v; } };
 
   /** ?show=: put the ride into a fixed, readable state for screenshots and visual review. */
   function showcase(name) {
