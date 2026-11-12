@@ -811,3 +811,14 @@ So staying out of sight and not firing now keeps Blooms off you, and a shot tell
 
 Each has a setting. Checked by a headless screenshot of the blackout-with-lamp and dock showcases on a software renderer, and by a test that the frame asks for the right shadow casters with no renderer diagnostics. The cost of shadows on real hardware is unmeasured. Not built: shadows on LOW and MEDIUM, the Lifeguard's lamp as a spot light, reflections in the water, a procedural sky, generated materials. Tests: `tests/unit/shadows.test.js`, `tests/render.cjs`.
 
+## 39. 3D props and instancing (implemented)
+
+**Props.** `src/props.js` loads every GLB prop once at start, inlined so the single-file build carries them. There are 20: eight generated for UNDERFLOW with Higgsfield (supply locker, pool ladder, rubber duck, gate valve, lifeguard chair, blaster body, work lamp, ring buoy) and twelve CC0 models from Poly Haven (ceiling light fixture, wall lamp, electrical cabinet, junction box, extinguisher, bins, bench, plastic chair, tool chest, tool cart, parts rack, kettle). A model's meshes are baked into one frame, and pieces that share a material are merged, so a prop costs as many parts as it has materials. `placeModel` stands a model on the floor at a yaw and height. `placeModelBasis` moves it in any frame; the first-person blaster uses it to follow the camera with the same springs as before. Every placement keeps a primitive fallback for a scene built before its model has loaded.
+
+**Instancing.** 67js draws parts that share one geometry object and the same texture maps as one instanced batch. Colour, emission and roughness travel per instance. Two things make that happen here:
+
+- All placements of a model share its geometry and texture descriptors. A placement gets its own copy of the material's scalar values, so a locker can dim when opened and a valve can change colour, without breaking the batch.
+- `src/shapes.js` returns one geometry per distinct `box`, `cylinder`, `sphere` and `torus` call. Previously each call built a new geometry, so every slab, rail and lamp panel was its own batch. Nothing in the game edits geometry after creation; size, placement and deformation are part matrices.
+
+Measured in the headless browser, the raft scene's 1,551 parts dropped from 526 batches to 92, and the on-foot scenes (618–829 parts) from 131–203 batches to 73–87. The 80-odd light fixtures in a dock add no batches. `tests/models.cjs` checks the counts and that the props load and stand in place. Frame-time gains have not been measured on target GPUs.
+

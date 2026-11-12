@@ -25,6 +25,7 @@ import { facility, recordSector, recordDeath, note, nameVisitor, commitVisitors,
 import { settings } from './settings.js';
 import { createAutoRes } from './autores.js';
 import { rumble } from './haptics.js';
+import { modelsReady, modelState } from './props.js';
 import { showModal, hideModal, applyDisplaySettings, ledgerView, showSafeRoom, showDocument, showKeypad, settingsView, logbookView, journalView } from './ui.js';
 const el2 = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text) e.textContent = text; return e; };
 import { CREW, crewById, loadLoops, saveLoop } from './crew.js';
@@ -1059,6 +1060,7 @@ else if (new URLSearchParams(location.search).has('bench')) setTimeout(() => sta
 
 // For automated checks.
 window.__underflow = {
+  modelsReady, modelState,
   get state() { return state; },
   get mode() { return mode; },
   get scene() { return scene; },

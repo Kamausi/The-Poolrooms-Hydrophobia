@@ -4,7 +4,8 @@
 // window is still wrong.
 import { installUserPasses } from '67js/addons/user-pass';
 import { calmChain } from './postchain.js';
-import { Renderer67, box, cylinder, sphere } from '67js';
+import { Renderer67 } from '67js';
+import { box, cylinder, sphere } from './shapes.js';
 import { writeYaw, writeBasis, linear, display } from './math.js';
 import { createCrewFigure, poseStanding, poseSeated } from './crewfigure.js';
 import { tileTexture, tileNormal, plateNormal } from './textures.js';
@@ -12,6 +13,7 @@ import { signMaterial, quad } from './labels.js';
 import { quality } from './quality.js';
 import { settings } from './settings.js';
 import { sound } from './audio.js';
+import { modelPart, placeModel } from './props.js';
 
 export function createSafeRoom(canvas, sector, opts = {}) {
   const parts = [];
@@ -67,7 +69,19 @@ export function createSafeRoom(canvas, sector, opts = {}) {
   put('Radio', { color: [0.12, 0.12, 0.11], metallic: 0.3, roughness: 0.6, emission: 0.5, emissiveColor: [0.5, 0.7, 0.5] }, [-3.85, 1.15, -3.2], [0.4, 0.24, 0.18]);
   put('Towels', { color: [0.82, 0.8, 0.72], metallic: 0, roughness: 0.95 }, [0.6, 0.55, 3.2], [0.5, 0.12, 0.35]);
   put('Cot', { color: [0.3, 0.36, 0.28], metallic: 0, roughness: 0.9 }, [4.4, 0.4, -2.8], [0.8, 0.12, 1.8]);
-  put('Kettle', { color: [0.55, 0.55, 0.52], metallic: 0.7, roughness: 0.4 }, [-3.2, 2.35, -1.5], [0.25, 0.25, 0.25]);
+  // Models where they have loaded (props.js), the primitive where they have not.
+  const M = (name, label, pos, yaw, height) => { const p = modelPart(name, label); if (!p) return null; parts.push(...p.group); return placeModel(p, pos, yaw, height); };
+  if (!M('kettle', 'Kettle', [-3.2, 2.23, -1.5], -0.6)) put('Kettle', { color: [0.55, 0.55, 0.52], metallic: 0.7, roughness: 0.4 }, [-3.2, 2.35, -1.5], [0.25, 0.25, 0.25]);
+  // A lived-in pump room: a parts rack, a tool chest on the workbench, folding chairs at the glass, lockers by the
+  // door, an extinguisher on the wall (CC0 and generated models).
+  M('rack', 'Safe Room rack', [-4.55, 0, 0.9], Math.PI / 2);
+  M('toolChest', 'Safe Room tool chest', [-3.9, 0.96, 3.1], Math.PI);
+  M('chair', 'Safe Room chair A', [-1.6, 0, -2.6], Math.PI + 0.3);
+  M('chair', 'Safe Room chair B', [2.2, 0, -2.4], Math.PI - 0.4);
+  M('locker', 'Safe Room locker A', [4.75, 0, 1.4], -Math.PI / 2, 2);
+  M('locker', 'Safe Room locker B', [4.75, 0, 2.05], -Math.PI / 2, 2);
+  M('extinguisher', 'Safe Room extinguisher', [2.0, 0, 3.75], Math.PI);
+  M('wallLamp', 'Safe Room wall lamp', [-4.95, 2.5, -1.5], Math.PI / 2);
   const beacon = P('Beacon', sphere(16, 10), { color: [0.3, 1, 0.5], metallic: 0, roughness: 1, emission: 6, emissiveColor: [0.3, 1, 0.5] }, writeYaw(new Float32Array(16), [0, 3.6, 3.9], 0, 0.2, 0.2, 0.2));
   // Beyond the glass: an enormous empty pool hall, dim, perfectly still.
   const pool = { tag: 'water', color: linear(sector.water), metallic: 0.55, roughness: 0.05 };

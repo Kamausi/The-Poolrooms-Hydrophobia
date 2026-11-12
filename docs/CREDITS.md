@@ -48,3 +48,23 @@ The tile relief itself (recessed grout, bevelled edges, tiles set slightly off t
 
 Higgsfield (Z Image model): four surface textures generated for UNDERFLOW from text prompts written for it, used in `src/surfaces.js` (stained ceiling tiles, aqua pool floor tile, painted steel, painted cloud tiles). Four more are kept in `assets/generated/` but not shipped (wet concrete, orange raft PVC, porcelain wall tile, and a creature skin that came out looking like corrugated plastic). Their use is governed by the account holder's Higgsfield terms, not an open licence.
 
+## Models: Poly Haven (CC0)
+
+Twelve props from Poly Haven (polyhaven.com), CC0. Credit is not required, and it is given here. Each was packed into one GLB with smaller textures and simplified with gltfpack, and is loaded by `src/props.js`.
+
+- Industrial Wall Lamp by Kuutti Siitonen: https://polyhaven.com/a/industrial_wall_lamp
+- Korean Fire Extinguisher 01 by UM JOORIN: https://polyhaven.com/a/korean_fire_extinguisher_01
+- Metal Tool Chest by Yann Kervran, John Hutcheson: https://polyhaven.com/a/metal_tool_chest
+- Metal Trash Can by GurJas Studios: https://polyhaven.com/a/metal_trash_can
+- Mounted Fluorescent Lights by Ulan Cabanilla: https://polyhaven.com/a/mounted_fluorescent_lights
+- Painted Wooden Bench by Kirill Sannikov: https://polyhaven.com/a/painted_wooden_bench
+- Plastic Monobloc Chair 01 by Kuutti Siitonen: https://polyhaven.com/a/plastic_monobloc_chair_01
+- Power Box 01 by Rico Cilliers, Yann Kervran: https://polyhaven.com/a/power_box_01
+- Tool Cart by Savva Zakharov: https://polyhaven.com/a/tool_cart
+- Utility Box 02 by James Ray Cock: https://polyhaven.com/a/utility_box_02
+- Vintage Electric Kettle by SV Garip: https://polyhaven.com/a/vintage_electric_kettle
+- Worn Metal Rack by Luca B: https://polyhaven.com/a/worn_metal_rack
+
+## Generated models
+
+Higgsfield: eight textured 3D models made for UNDERFLOW. A reference image was generated with the Z Image model from a text prompt written for it, then turned into a mesh with the SAM 3D model. They ship in `src/assets/models/` and are loaded by `src/props.js`: a supply locker, a pool ladder, a rubber duck and a gate valve. Their colour textures were re-encoded as 512 px JPEG. The reference images are kept in `assets/generated/models/`. Four more were made the same way, but from GPT Image 2.6 references: a lifeguard chair and the blaster (meshes by Tripo 3D H3.1), and the work lamp and a ring buoy (meshes by SAM 3D). Tripo returns about 1.4 million triangles, simplified with gltfpack to about 8,000. Earlier tries at the lifeguard chair and a sun lounger with SAM 3D failed to convert. Their use is governed by the account holder's Higgsfield terms, not an open licence.

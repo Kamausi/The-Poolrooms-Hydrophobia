@@ -6,7 +6,10 @@ import { readFileSync, writeFileSync, readdirSync, rmSync } from 'node:fs';
 rmSync('dist', { recursive: true, force: true });
 execSync('npx vite build --logLevel error', { stdio: 'inherit' });
 const assets = readdirSync('dist/assets');
-const js = readFileSync(`dist/assets/${assets.find((f) => f.endsWith('.js'))}`, 'utf8').replaceAll('</script', '<\\/script');
+// The entry is the script index.html loads, not whichever .js sorts first.
+const entry = readFileSync('dist/index.html', 'utf8').match(/<script type="module" crossorigin src="\/assets\/([^"]+)"/)[1];
+if (assets.filter((f) => f.endsWith('.js')).length !== 1) throw new Error(`expected one script in dist/assets, found ${assets.filter((f) => f.endsWith('.js')).join(', ')}`);
+const js = readFileSync(`dist/assets/${entry}`, 'utf8').replaceAll('</script', '<\\/script');
 const css = readFileSync(`dist/assets/${assets.find((f) => f.endsWith('.css'))}`, 'utf8');
 let html = readFileSync('dist/index.html', 'utf8');
 html = html.replace(/<script type="module" crossorigin src="[^"]+"><\/script>/, () => `<script type="module">\n${js}\n</script>`);

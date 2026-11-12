@@ -2,7 +2,8 @@
 // channel sections recycle a fixed pool of segment parts ahead of the camera, and rooms (holding pools,
 // the arrival bay) have their own parts. A 67js renderer keeps the part list it was built with, so every
 // entity here is a pool of parts that are moved, recoloured or hidden.
-import { Renderer67, box, sphere, cylinder, torus } from '67js';
+import { Renderer67 } from '67js';
+import { box, sphere, cylinder, torus } from './shapes.js';
 import { dot, writeYaw, writeBasis, writeSegment, hide, add, sub, scale, normalize, clamp, damp, rng, screenRay, raySphere, rayPlaneY, linear, cross, display, project, angleTo, soundDir, distance } from './math.js';
 import { tileTexture, tileNormal } from './textures.js';
 import { signMaterial, quad } from './labels.js';

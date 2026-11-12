@@ -536,6 +536,326 @@
    "gameUse": [
     "surface: pool floor tile under the water on the raft route and on foot"
    ]
+  },
+  {
+   "id": "model/locker",
+   "type": "model",
+   "files": [
+    "src/assets/models/gen-locker.glb"
+   ],
+   "source": "Higgsfield (Z Image model for the reference image, SAM 3D model for the mesh), generated for UNDERFLOW from a text prompt",
+   "creator": "generated for this project",
+   "url": "https://higgsfield.ai",
+   "license": "Generated",
+   "modified": true,
+   "changes": "textured GLB repacked: its 1024 px PNG colour texture re-encoded as a 512 px JPEG; reference image kept in assets/generated/models/",
+   "gameUse": [
+    "model: supply lockers on foot and the open locker 0417 vignette"
+   ]
+  },
+  {
+   "id": "model/ladder",
+   "type": "model",
+   "files": [
+    "src/assets/models/gen-ladder.glb"
+   ],
+   "source": "Higgsfield (Z Image model for the reference image, SAM 3D model for the mesh), generated for UNDERFLOW from a text prompt",
+   "creator": "generated for this project",
+   "url": "https://higgsfield.ai",
+   "license": "Generated",
+   "modified": true,
+   "changes": "textured GLB repacked: its 1024 px PNG colour texture re-encoded as a 512 px JPEG; reference image kept in assets/generated/models/",
+   "gameUse": [
+    "model: pool ladders at the basin edge (the Lifeguard inspects them)"
+   ]
+  },
+  {
+   "id": "model/duck",
+   "type": "model",
+   "files": [
+    "src/assets/models/gen-duck.glb"
+   ],
+   "source": "Higgsfield (Z Image model for the reference image, SAM 3D model for the mesh), generated for UNDERFLOW from a text prompt",
+   "creator": "generated for this project",
+   "url": "https://higgsfield.ai",
+   "license": "Generated",
+   "modified": true,
+   "changes": "textured GLB repacked: its 1024 px PNG colour texture re-encoded as a 512 px JPEG; reference image kept in assets/generated/models/",
+   "gameUse": [
+    "model: the rubber ducks you can pick up (the ducks collectible set)"
+   ]
+  },
+  {
+   "id": "model/valve",
+   "type": "model",
+   "files": [
+    "src/assets/models/gen-valve.glb"
+   ],
+   "source": "Higgsfield (Z Image model for the reference image, SAM 3D model for the mesh), generated for UNDERFLOW from a text prompt",
+   "creator": "generated for this project",
+   "url": "https://higgsfield.ai",
+   "license": "Generated",
+   "modified": true,
+   "changes": "textured GLB repacked: its 1024 px PNG colour texture re-encoded as a 512 px JPEG; reference image kept in assets/generated/models/",
+   "gameUse": [
+    "model: the pump valves A, B and C on foot"
+   ]
+  },
+  {
+   "id": "model/industrial_wall_lamp",
+   "type": "model",
+   "files": [
+    "src/assets/models/cc0/industrial_wall_lamp.glb"
+   ],
+   "source": "Poly Haven (Industrial Wall Lamp)",
+   "creator": "Kuutti Siitonen",
+   "url": "https://polyhaven.com/a/industrial_wall_lamp",
+   "license": "CC0-1.0",
+   "modified": true,
+   "changes": "1k glTF packed into one GLB: colour map 256 px, normal and ARM maps 128 px (JPEG); meshes simplified with gltfpack to about 2,500 triangles",
+   "gameUse": [
+    "wallLamp: caged wall lamps over the pump valves; a wall lamp in the Safe Room"
+   ]
+  },
+  {
+   "id": "model/korean_fire_extinguisher_01",
+   "type": "model",
+   "files": [
+    "src/assets/models/cc0/korean_fire_extinguisher_01.glb"
+   ],
+   "source": "Poly Haven (Korean Fire Extinguisher 01)",
+   "creator": "UM JOORIN",
+   "url": "https://polyhaven.com/a/korean_fire_extinguisher_01",
+   "license": "CC0-1.0",
+   "modified": true,
+   "changes": "1k glTF packed into one GLB: colour map 256 px, normal and ARM maps 128 px (JPEG); meshes simplified with gltfpack to about 2,500 triangles",
+   "gameUse": [
+    "extinguisher: one at every landing on foot; one in the Safe Room"
+   ]
+  },
+  {
+   "id": "model/metal_tool_chest",
+   "type": "model",
+   "files": [
+    "src/assets/models/cc0/metal_tool_chest.glb"
+   ],
+   "source": "Poly Haven (Metal Tool Chest)",
+   "creator": "Yann Kervran, John Hutcheson",
+   "url": "https://polyhaven.com/a/metal_tool_chest",
+   "license": "CC0-1.0",
+   "modified": true,
+   "changes": "1k glTF packed into one GLB: colour map 256 px, normal and ARM maps 128 px (JPEG); meshes simplified with gltfpack to about 2,500 triangles",
+   "gameUse": [
+    "toolChest: on the tool cart at a maintenance platform; on the Safe Room workbench"
+   ]
+  },
+  {
+   "id": "model/metal_trash_can",
+   "type": "model",
+   "files": [
+    "src/assets/models/cc0/metal_trash_can.glb"
+   ],
+   "source": "Poly Haven (Metal Trash Can)",
+   "creator": "GurJas Studios",
+   "url": "https://polyhaven.com/a/metal_trash_can",
+   "license": "CC0-1.0",
+   "modified": true,
+   "changes": "1k glTF packed into one GLB: colour map 256 px, normal and ARM maps 128 px (JPEG); meshes simplified with gltfpack to about 2,500 triangles",
+   "gameUse": [
+    "bin: bins at landings that are not maintenance platforms"
+   ]
+  },
+  {
+   "id": "model/mounted_fluorescent_lights",
+   "type": "model",
+   "files": [
+    "src/assets/models/cc0/mounted_fluorescent_lights.glb"
+   ],
+   "source": "Poly Haven (Mounted Fluorescent Lights)",
+   "creator": "Ulan Cabanilla",
+   "url": "https://polyhaven.com/a/mounted_fluorescent_lights",
+   "license": "CC0-1.0",
+   "modified": true,
+   "changes": "1k glTF packed into one GLB: colour map 256 px, normal and ARM maps 128 px (JPEG); meshes simplified with gltfpack to about 2,500 triangles",
+   "gameUse": [
+    "fluorescent: the housing of every ceiling light on foot"
+   ]
+  },
+  {
+   "id": "model/painted_wooden_bench",
+   "type": "model",
+   "files": [
+    "src/assets/models/cc0/painted_wooden_bench.glb"
+   ],
+   "source": "Poly Haven (Painted Wooden Bench)",
+   "creator": "Kirill Sannikov",
+   "url": "https://polyhaven.com/a/painted_wooden_bench",
+   "license": "CC0-1.0",
+   "modified": true,
+   "changes": "1k glTF packed into one GLB: colour map 256 px, normal and ARM maps 128 px (JPEG); meshes simplified with gltfpack to about 2,500 triangles",
+   "gameUse": [
+    "bench: the towel bench vignette"
+   ]
+  },
+  {
+   "id": "model/plastic_monobloc_chair_01",
+   "type": "model",
+   "files": [
+    "src/assets/models/cc0/plastic_monobloc_chair_01.glb"
+   ],
+   "source": "Poly Haven (Plastic Monobloc Chair 01)",
+   "creator": "Kuutti Siitonen",
+   "url": "https://polyhaven.com/a/plastic_monobloc_chair_01",
+   "license": "CC0-1.0",
+   "modified": true,
+   "changes": "1k glTF packed into one GLB: colour map 256 px, normal and ARM maps 128 px (JPEG); meshes simplified with gltfpack to about 2,500 triangles",
+   "gameUse": [
+    "chair: plastic pool chairs in the vignettes; folding chairs in the Safe Room"
+   ]
+  },
+  {
+   "id": "model/power_box_01",
+   "type": "model",
+   "files": [
+    "src/assets/models/cc0/power_box_01.glb"
+   ],
+   "source": "Poly Haven (Power Box 01)",
+   "creator": "Rico Cilliers, Yann Kervran",
+   "url": "https://polyhaven.com/a/power_box_01",
+   "license": "CC0-1.0",
+   "modified": true,
+   "changes": "1k glTF packed into one GLB: colour map 256 px, normal and ARM maps 128 px (JPEG); meshes simplified with gltfpack to about 2,500 triangles",
+   "gameUse": [
+    "powerBox: the junction box beside the service panel"
+   ]
+  },
+  {
+   "id": "model/tool_cart",
+   "type": "model",
+   "files": [
+    "src/assets/models/cc0/tool_cart.glb"
+   ],
+   "source": "Poly Haven (Tool Cart)",
+   "creator": "Savva Zakharov",
+   "url": "https://polyhaven.com/a/tool_cart",
+   "license": "CC0-1.0",
+   "modified": true,
+   "changes": "1k glTF packed into one GLB: colour map 256 px, normal and ARM maps 128 px (JPEG); meshes simplified with gltfpack to about 2,500 triangles",
+   "gameUse": [
+    "toolCart: at a maintenance platform landing"
+   ]
+  },
+  {
+   "id": "model/utility_box_02",
+   "type": "model",
+   "files": [
+    "src/assets/models/cc0/utility_box_02.glb"
+   ],
+   "source": "Poly Haven (Utility Box 02)",
+   "creator": "James Ray Cock",
+   "url": "https://polyhaven.com/a/utility_box_02",
+   "license": "CC0-1.0",
+   "modified": true,
+   "changes": "1k glTF packed into one GLB: colour map 256 px, normal and ARM maps 128 px (JPEG); meshes simplified with gltfpack to about 2,500 triangles",
+   "gameUse": [
+    "utilityBox: the electrical cabinet beside the service panel"
+   ]
+  },
+  {
+   "id": "model/vintage_electric_kettle",
+   "type": "model",
+   "files": [
+    "src/assets/models/cc0/vintage_electric_kettle.glb"
+   ],
+   "source": "Poly Haven (Vintage Electric Kettle)",
+   "creator": "SV Garip",
+   "url": "https://polyhaven.com/a/vintage_electric_kettle",
+   "license": "CC0-1.0",
+   "modified": true,
+   "changes": "1k glTF packed into one GLB: colour map 256 px, normal and ARM maps 128 px (JPEG); meshes simplified with gltfpack to about 2,500 triangles",
+   "gameUse": [
+    "kettle: Tubs's kettle on the pump housing in the Safe Room"
+   ]
+  },
+  {
+   "id": "model/worn_metal_rack",
+   "type": "model",
+   "files": [
+    "src/assets/models/cc0/worn_metal_rack.glb"
+   ],
+   "source": "Poly Haven (Worn Metal Rack)",
+   "creator": "Luca B",
+   "url": "https://polyhaven.com/a/worn_metal_rack",
+   "license": "CC0-1.0",
+   "modified": true,
+   "changes": "1k glTF packed into one GLB: colour map 256 px, normal and ARM maps 128 px (JPEG); meshes simplified with gltfpack to about 2,500 triangles",
+   "gameUse": [
+    "rack: parts rack at a maintenance platform; shelving in the Safe Room"
+   ]
+  },
+  {
+   "id": "model/lifeguard-chair",
+   "type": "model",
+   "files": [
+    "src/assets/models/gen-lifeguard-chair.glb"
+   ],
+   "source": "Higgsfield (GPT Image 2.6 model for the reference image, Tripo 3D H3.1 model for the mesh), generated for UNDERFLOW from a text prompt",
+   "creator": "generated for this project",
+   "url": "https://higgsfield.ai",
+   "license": "Generated",
+   "modified": true,
+   "changes": "textured GLB repacked: textures re-encoded as 512 px JPEG, mesh simplified with gltfpack (to about 8,000 triangles for the Tripo models, 4,000 for the others); reference image kept in assets/generated/models/",
+   "gameUse": [
+    "lifeguard tower chair on foot (the Lifeguard sits on it)"
+   ]
+  },
+  {
+   "id": "model/blaster",
+   "type": "model",
+   "files": [
+    "src/assets/models/gen-blaster.glb"
+   ],
+   "source": "Higgsfield (GPT Image 2.6 model for the reference image, Tripo 3D H3.1 model for the mesh), generated for UNDERFLOW from a text prompt",
+   "creator": "generated for this project",
+   "url": "https://higgsfield.ai",
+   "license": "Generated",
+   "modified": true,
+   "changes": "textured GLB repacked: textures re-encoded as 512 px JPEG, mesh simplified with gltfpack (to about 8,000 triangles for the Tripo models, 4,000 for the others); reference image kept in assets/generated/models/",
+   "gameUse": [
+    "the first-person blaster: the tool you hold all game"
+   ]
+  },
+  {
+   "id": "model/work-lamp",
+   "type": "model",
+   "files": [
+    "src/assets/models/gen-work-lamp.glb"
+   ],
+   "source": "Higgsfield (GPT Image 2.6 model for the reference image, SAM 3D model for the mesh), generated for UNDERFLOW from a text prompt",
+   "creator": "generated for this project",
+   "url": "https://higgsfield.ai",
+   "license": "Generated",
+   "modified": true,
+   "changes": "textured GLB repacked: textures re-encoded as 512 px JPEG, mesh simplified with gltfpack (to about 8,000 triangles for the Tripo models, 4,000 for the others); reference image kept in assets/generated/models/",
+   "gameUse": [
+    "the portable work lamp when you set it down"
+   ]
+  },
+  {
+   "id": "model/ring-buoy",
+   "type": "model",
+   "files": [
+    "src/assets/models/gen-ring-buoy.glb"
+   ],
+   "source": "Higgsfield (GPT Image 2.6 model for the reference image, SAM 3D model for the mesh), generated for UNDERFLOW from a text prompt",
+   "creator": "generated for this project",
+   "url": "https://higgsfield.ai",
+   "license": "Generated",
+   "modified": true,
+   "changes": "textured GLB repacked: textures re-encoded as 512 px JPEG, mesh simplified with gltfpack (to about 8,000 triangles for the Tripo models, 4,000 for the others); reference image kept in assets/generated/models/",
+   "gameUse": [
+    "ring buoys on the deck beside the pool ladders"
+   ]
   }
  ]
 }

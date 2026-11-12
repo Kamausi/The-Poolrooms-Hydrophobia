@@ -5,10 +5,11 @@
 //   disruption burst (F)  interrupts entities or forces an emergency mechanism; costs a charge cell; very loud
 import { rumble, PATTERNS } from './haptics.js';
 import { createRig } from './spring.js';
-import { box, cylinder, sphere } from '67js';
+import { box, cylinder, sphere } from './shapes.js';
 import { add, scale, cross, normalize, sub, length, writeBasis, hide, cameraBasis } from './math.js';
 import { sound } from './audio.js';
 import { settings } from './settings.js';
+import { modelPart, placeModelBasis } from './props.js';
 
 const BEAM_TIME = 0.06;
 
@@ -40,6 +41,9 @@ const profileOf = (state) => PROFILES[state.profile] || PROFILES.pulse;
 const SCAN_COLOR = [0.45, 0.85, 1];
 
 export function createBlaster(state) {
+  // The tool itself is a generated model (props.js) where it has loaded; the primitive receiver, shroud, handle,
+  // grip and barrel stand in otherwise. The charge window, lens, flash, beams and the gloved hand stay as they are.
+  const tool = modelPart('blaster', 'Blaster');
   const mat = (color, emission = 0, emissiveColor = color) => ({ color, metallic: 0, roughness: 1, emission, emissiveColor });
   // A maintenance instrument, not a toy: matte painted steel, a vented heat shroud, a worn safety-yellow carry
   // handle, a charge window set into the side, an inspection lens in its own housing. Small bevels so edges read.
@@ -67,7 +71,8 @@ export function createBlaster(state) {
   const thumb = part('Glove thumb', box(0.45, 3), gloveMat);
   const cuff = part('Sleeve', cylinder(16, 0.25, 2), { color: [0.07, 0.09, 0.13], metallic: 0, roughness: 0.85 });
   const band = part('Sleeve reflective band', cylinder(16, 0.2, 2), { color: [0.62, 0.6, 0.48], metallic: 0, roughness: 0.45 });
-  const parts = [body, shroud, ...vents, handle, grip, tube, barrel, collar, housing, lens, flash, beam, scanBeam, burstShell, palm, fingers, thumb, cuff, band];
+  const chassis = tool ? tool.group : [body, shroud, ...vents, handle, grip, barrel, collar, housing];
+  const parts = [...chassis, tube, lens, flash, beam, scanBeam, burstShell, palm, fingers, thumb, cuff, band];
   for (const p of parts) hide(p);
 
   let cooldown = 0;
@@ -225,6 +230,13 @@ export function createBlaster(state) {
       writeBasis(collar.matrix, at([0, -0.005, 0.37]), x, z, y, 0.07 * G, 0.045 * G, 0.07 * G);
       writeBasis(housing.matrix, at([0.078, 0.035, 0.17]), x, z, y, 0.05 * G, 0.06 * G, 0.05 * G);
       writeBasis(lens.matrix, at([0.078, 0.035, 0.2]), x, y, z, 0.034 * G, 0.034 * G, 0.012 * G);
+      if (tool) {
+        // The model: muzzle where the primitive barrel ended, grip under the hand; the charge window and the
+        // inspection lens sit on its flanks so heat, charge and scanning still read.
+        placeModelBasis(tool, at([0, -0.13, 0.057]), x, y, z, 0.66 * G);
+        writeBasis(tube.matrix, at([-0.092, 0.03, 0.05]), y, z, x, 0.016 * G, 0.16 * G, 0.016 * G);
+        writeBasis(lens.matrix, at([0.092, 0.03, 0.12]), x, y, z, 0.03 * G, 0.03 * G, 0.012 * G);
+      }
       lens.material.emission = scanning ? 6 : 0.05;
       // Drift in stages: the strap bites into a glove that is filling (30+), the knuckles round off (50+),
       // and past 55 the hand breathes on its own: slow, even, content, not in time with you.

@@ -1,7 +1,7 @@
 // The crew as figures: one build, two poses (seated in the raft, walking on foot). Read by silhouette first,
 // colour second: Mars's safety helmet, Dez's brimmed cap, Tubs broad in a beanie, June tall in a pale hood and
 // long coat. Procedural, with no skeleton: the stand-in until there are rigged crew models (see docs/PRODUCTION.md).
-import { box, cylinder, sphere } from '67js';
+import { box, cylinder, sphere } from './shapes.js';
 import { add, scale, normalize, cross, writeBasis, writeSegment, hide, linear } from './math.js';
 
 export const CREW_LOOK = {
