@@ -4,7 +4,7 @@
 import { rumble } from './haptics.js';
 import { wedges as threatWedges } from './aim.js';
 import { driftSign, driftState } from './driftsign.js';
-import { createSurvey, visit as surveyVisit, mark as surveyMark, coverage as surveyCoverage, render as surveyRender, seenList } from './survey.js';
+import { createSurvey, visit as surveyVisit, mark as surveyMark, coverage as surveyCoverage, render as surveyRender, seenList, carryList, disagreements } from './survey.js';
 import { Renderer67, box, sphere, cylinder, torus } from '67js';
 import { writeYaw, writeBasis, writeSegment, hide, add, sub, scale, normalize, clamp, damp, rng, raySphere, rayPlaneY, linear, distance, cross, display, angleTo, soundDir } from './math.js';
 import { tileTexture, tileNormal } from './textures.js';
@@ -21,7 +21,7 @@ import { AMBIENT } from './sectors.js';
 import { documentFor } from './documents.js';
 import { createDirector, AFTERMATH } from './director.js';
 import { compressorRefill } from './hull.js';
-import { facility as facilityMem, saveFacility } from './memory.js';
+import { facility as facilityMem, saveFacility, recordSurvey, surveyMem } from './memory.js';
 import { plan as planFinds, collect as collectFind, headcountLine } from './collectibles.js';
 import { planColumns, pushOutOfColumns, columnBlocks, planArches, cloudTexture } from './poolrooms.js';
 import { showModal, hideModal } from './ui.js';
@@ -1590,6 +1590,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
           sound.wrong();
           hud.toast('THE PUMP IS OFF · NO WATER IN THE CHANNEL · RESTART IT');
         } else {
+          if (keepsSurvey) recordSurvey(key, W, H, carryList(survey));
           if (!powered()) { (state.early ||= {})[key] = true; events.log('extract', { sector: key, early: true }); }
           else if (state.early) delete state.early[key];
           events.board();
@@ -2278,7 +2279,9 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
   }
 
   // The survey map: drawn from the cells you have stood in and what you could see in straight lines from them.
-  const survey = createSurvey(W, H);
+  const keepsSurvey = !state.endless && !state.custom;
+  const survey = createSurvey(W, H, [], keepsSurvey ? surveyMem(key, W, H, state.expedition) : []);
+  let surveyDoubt = false;
   const surveyOpen = (() => {
     // Only cells you can actually walk to count toward a complete survey.
     const out = [], seen = new Set([`${dx0},${dz0}`]), q = [[dx0, dz0]];
@@ -2303,6 +2306,12 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
       }
     }
     if (wasPressed('m')) { surveyShown = !surveyShown; changed = true; if (!surveyShown) hud.survey(null); }
+    // The first time the open map shows a place the last crew walked that is a wall now, somebody says so.
+    if (surveyShown && !surveyDoubt && disagreements(survey, isWall) > 0) {
+      surveyDoubt = true;
+      hud.caption('[the old survey has floor where this room has wall. It is marked with a question]');
+      events.ledger?.('changes', `${sector.name}: last expedition's survey shows a place this room does not have`);
+    }
     if (surveyShown && changed) {
       const f = forwardVec();
       const facing = Math.abs(f[0]) > Math.abs(f[2]) ? (f[0] > 0 ? 1 : 3) : f[2] < 0 ? 0 : 2;

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { createSurvey, visit, coverage, render, mark, seenList } from '../../src/survey.js';
+import { createSurvey, visit, coverage, render, mark, seenList, carryList, disagreements } from '../../src/survey.js';
 
 const ROOM = ['#######', '#..#..#', '#.~#..#', '#.....#', '#######'];
 const at = (x, z) => ROOM[z]?.[x] ?? '#';
@@ -43,5 +43,26 @@ describe('the survey map', () => {
     const s = createSurvey(7, 5); visit(s, 4, 2, isWall);
     const t = createSurvey(7, 5, seenList(s));
     expect(render(t, at, isWall)).toEqual(render(s, at, isWall));
+  });
+});
+
+describe('a survey remembered from an earlier expedition', () => {
+  const idx = (x, z) => z * 7 + x;
+  it('is drawn apart from what has been seen this time and does not count as coverage', () => {
+    const s = createSurvey(7, 5, [], [idx(4, 1), idx(5, 1)]);
+    expect(coverage(s, open)).toBe(0);
+    expect(render(s, at, isWall).join('')).toContain('∘');
+    visit(s, 4, 1, isWall);
+    expect(render(s, at, isWall).join('')).not.toContain('∘'); // both cells have now been seen for real
+  });
+  it('marks a remembered place that is a wall now, and counts it', () => {
+    const s = createSurvey(7, 5, [], [idx(3, 1), idx(1, 1)]); // (3,1) is the dividing wall in this room
+    expect(disagreements(s, isWall)).toBe(1);
+    const text = render(s, at, isWall).join('');
+    expect(text).toContain('?'); expect(text).toContain('∘');
+  });
+  it('carries forward everything seen and everything remembered', () => {
+    const s = createSurvey(7, 5, [], [idx(5, 3)]); visit(s, 1, 1, isWall, 0);
+    expect(carryList(s).sort((a, b) => a - b)).toEqual([idx(1, 1), idx(5, 3)]);
   });
 });

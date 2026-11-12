@@ -2,10 +2,22 @@
 // is false, so it can be trusted even when the room cannot. Pure: explore.js feeds it cells, the HUD prints it.
 
 /** @returns {{ W: number, H: number, seen: Uint8Array, marks: Record<string, number[]>, done: boolean }} */
-export function createSurvey(W, H, seenIndices = []) {
-  const s = { W, H, seen: new Uint8Array(W * H), marks: {}, done: false };
+export function createSurvey(W, H, seenIndices = [], rememberedIndices = []) {
+  const s = { W, H, seen: new Uint8Array(W * H), old: new Uint8Array(W * H), marks: {}, done: false };
   for (const i of seenIndices) if (i >= 0 && i < W * H) s.seen[i] = 1;
+  // What an earlier expedition surveyed here. Drawn apart from what has been seen this time, never mixed with it.
+  for (const i of rememberedIndices) if (i >= 0 && i < W * H) s.old[i] = 1;
   return s;
+}
+
+/** Cells to carry to the next expedition: everything seen this time, plus what was already remembered. */
+export const carryList = (s) => { const out = []; for (let i = 0; i < s.seen.length; i++) if (s.seen[i] || s.old[i]) out.push(i); return out; };
+
+/** Remembered cells that are walls now: places the last survey walked that this room does not have. */
+export function disagreements(s, isWall) {
+  let n = 0;
+  for (let i = 0; i < s.old.length; i++) if (s.old[i] && isWall(i % s.W, Math.floor(i / s.W))) n += 1;
+  return n;
 }
 
 /**
@@ -43,7 +55,8 @@ export const seenList = (s) => { const out = []; for (let i = 0; i < s.seen.leng
 
 /**
  * Draw it as text, one string per row. Seen floor is '·', seen water '≈', a wall is drawn only where it borders
- * something seen, everything else is blank. you: [x, z, facing] with facing 0..3 (north, east, south, west).
+ * something seen, everything else is blank. A cell only remembered from an earlier expedition is '∘'; if that
+ * cell is a wall now it is '?': the old survey walked there and this room has no such place. you: [x, z, facing] with facing 0..3 (north, east, south, west).
  * @param {(x: number, z: number) => string} at the room's own cell character
  */
 export function render(s, at, isWall, { you = null, raft = null } = {}) {
@@ -60,7 +73,8 @@ export function render(s, at, isWall, { you = null, raft = null } = {}) {
         if (m) c = String.fromCodePoint(m[2]);
         if (raft && raft[0] === x && raft[1] === z) c = 'R';
         if (you && you[0] === x && you[1] === z) c = '▲▶▼◀'[you[2] ?? 0];
-      } else if (isWall(x, z) && [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]].some(([dx, dz]) => seen(x + dx, z + dz))) c = '█';
+      } else if (s.old[z * s.W + x]) c = isWall(x, z) ? '?' : '∘';
+      else if (isWall(x, z) && [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]].some(([dx, dz]) => seen(x + dx, z + dz))) c = '█';
       row += c;
     }
     rows.push(row);

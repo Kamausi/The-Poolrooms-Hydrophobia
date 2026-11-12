@@ -67,5 +67,22 @@ const { open, newCampaign, check, finish } = require('./lib.cjs');
     b.active = false; u.step(1);
     return { none, n: w.length, behind: w[0]?.behind, commit: b.commit, shown, cleared: E.wedges.length }; });
   check('on foot a Bloom that has committed to you from behind gets a rim marker', r.none === 0 && r.n === 1 && r.behind && r.shown === 1 && r.cleared === 0, JSON.stringify(r));
+  r = await page.evaluate(() => { const u = window.__underflow; const stored = () => JSON.parse(localStorage.getItem('underflow-facility') || '{}');
+    u.beginSector(0); u.startExplore(); u.step(3); let E = window.__explore; const key = u.state.sectorKey; u.setState({ health: 1e6, drift: 0 });
+    const some = E.surveyOpen.slice(0, 12); for (const [x, z] of some) { const c = E.center(x, z); E.player.pos = [c[0], 0, c[2]]; u.step(1); }
+    const seen = E.survey.seen.reduce((a, b) => a + b, 0);
+    E.player.pos = [E.raftPos[0] + 1, 0, E.raftPos[2]]; u.step(2); u.press('e'); u.step(2);
+    const kept = stored().sectors?.[key]?.survey; const out = { seen, kept: kept?.cells.length || 0, boarded: u.mode === 'ride' };
+    if (!kept) return out;
+    // The next expedition, at the same dock.
+    u.setState({ expedition: (u.state.expedition || 0) + 1 }); u.beginSector(0); u.startExplore(); u.step(3); E = window.__explore;
+    out.fresh = E.survey.seen.reduce((a, b) => a + b, 0); out.old = E.survey.old.reduce((a, b) => a + b, 0); out.cov = E.surveyCoverage;
+    // One remembered cell is a wall the room really has: the old survey walked somewhere this room does not have.
+    let wall = -1; for (let i = 0; i < kept.W * kept.H && wall < 0; i++) if (E.isWall(i % kept.W, Math.floor(i / kept.W)) && E.survey.old[i + 1]) wall = i;
+    if (wall >= 0) E.survey.old[wall] = 1;
+    u.press('m'); u.step(2); const text = document.getElementById('survey').textContent; u.press('m'); u.step(1);
+    out.dim = /∘/.test(text); out.gone = wall >= 0 && /\?/.test(text); out.legend = /last survey/.test(text);
+    return out; });
+  check('a survey brought back to the raft is remembered next expedition, drawn apart, and marks a place the room no longer has', r.boarded && r.kept >= r.seen && r.seen > 3 && r.old >= r.kept && r.fresh < r.old && r.cov < 0.5 && r.dim && r.gone && r.legend, JSON.stringify(r));
   await finish(browser, errors);
 })();

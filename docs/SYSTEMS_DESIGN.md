@@ -714,7 +714,7 @@ On foot, M opens a small map in the corner (`src/survey.js`, pure). It is drawn 
 
 Seeing 85% of the cells you can walk to completes the survey: a SURVEYED award once per dock, a line in the field ledger. The map stays open while the world keeps moving. It is saved with a resume.
 
-Not built: the map on the raft, sharing a survey between expeditions, marks for finds or hazards, and the map disagreeing with a room under a different facility state (the lighting circuit's hidden cell is simply drawn once you have stood by it). Tests: `tests/unit/survey.test.js`, `tests/finds.cjs`.
+Not built: the map on the raft, marks for finds or hazards, and the map disagreeing with a room under a different facility state within one visit (the lighting circuit's hidden cell is simply drawn once you have stood by it). Tests: `tests/unit/survey.test.js`, `tests/finds.cjs`.
 
 On a controller every button has a job on the raft, so on foot the two with nothing to do there are reused (`src/padmap.js`): look-back (R3 by default) opens the map and patch (D-pad down) cycles the work lamp. Setting the lamp down has no controller button. The tables are unit-tested (`tests/unit/padmap.test.js`); no physical controller has been used.
 
@@ -735,4 +735,12 @@ On foot, when Drift reaches 70 the lit signs on the dock stop being about the bu
 The rule for which signs may change is in `src/driftsign.js` (pure). Anything you need to read to solve a room never changes: valve and pump labels, the pressure diagram and its order, the lighting relay, locker and plate numbers, and the notice the facility leaves after an early extraction. Handwriting and blacklight paint are not the facility's and do not change either. So the state unsettles a room without withholding information, and the survey map stays right throughout.
 
 Not built: the state changing sound or architecture, signs that give wrong directions (deliberately: that would be unfair without a way to check), the same state on the raft, and any difference between what you and a crewmate see. Tests: `tests/unit/driftsign.test.js`, `tests/circuit.cjs`.
+
+## 33. The survey is remembered (implemented)
+
+A survey is kept only if it gets back to the raft: boarding saves it in the facility's memory (campaign only). On the next expedition the same dock's map opens with that survey already on it as a separate layer, drawn `∘`, with a legend line. It is never mixed with what has been seen this time and does not count toward completing the survey; a remembered cell becomes an ordinary seen cell when you see it again.
+
+If the facility has changed the dock since, the layers disagree and the map shows it: a remembered cell that is a wall now is drawn `?`. The first time the open map shows one, a caption says so and the ledger records it. So the map can contradict the room without ever being wrong about either: it shows what the last crew walked and what this crew has seen, and labels which is which.
+
+Limits: a dock whose map changed size between expeditions starts blank; a survey is lost if the crew does not board (a death, a spillway); only the most recent survey of each dock is kept, merged with what it had remembered. The facility's authored variations rarely turn floor into wall, so the `?` is rare in play; the browser test produces one by marking a wall as remembered. Tests: `tests/unit/survey.test.js`, `tests/finds.cjs`.
 

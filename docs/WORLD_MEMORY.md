@@ -18,7 +18,7 @@ The reference point is Dimension 9's evolving-world process, as you described it
 ## What is built (`src/memory.js`, with hooks in `main.js`, `ride.js`, `explore.js`, `ui.js`)
 
 ### A persistent record
-Kept in the browser across expeditions (`underflow-facility`). Per attraction it counts restorations, water diversions (flooded or drained), bypassed docks, docks left early, deaths, damage, interest, visits and room feedback. It also lists every visitor you brought to safety, by name.
+Kept in the browser across expeditions (`underflow-facility`). Per attraction it counts restorations, water diversions (flooded or drained), bypassed docks, docks left early, the last survey brought back from its dock, deaths, damage, interest, visits and room feedback. It also lists every visitor you brought to safety, by name.
 
 ### Three systems, three jobs
 | System | Responsibility | When |
