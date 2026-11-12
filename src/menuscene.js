@@ -1,6 +1,8 @@
 // The main menu, rendered behind the title: a low tiled corridor, shallow black-green water, one fluorescent
 // fitting lighting only part of the floor, an empty raft just past the light. Far down the corridor a small
 // green exit sign is reflected in the water. There is no sign above it.
+import { installUserPasses } from '67js/addons/user-pass';
+import { calmChain } from './postchain.js';
 import { Renderer67, box, torus, cylinder } from '67js';
 import { writeYaw, writeBasis, writeSegment, linear, display } from './math.js';
 import { tileTexture, tileNormal } from './textures.js';
@@ -75,6 +77,8 @@ export function createMenuScene(canvas) {
     environment: { keyIntensity: 0.02, fillIntensity: 0.05, ambientIntensity: 0.08, fogColor: linear('#080d10'), fogDensity: 0.06, skyTop: display('#080d10'), skyBottom: display('#080d10') },
   });
   renderer.resize();
+  // The same grade as the game on tiers with depth, so moving between scenes does not change the picture's look.
+  if (quality.renderer.depth) installUserPasses(renderer);
   sound.setSpace('tile');
 
   return {
@@ -99,6 +103,7 @@ export function createMenuScene(canvas) {
       lamp.material.emission = Math.sin(time * 0.37) > 0.97 ? 3 : 10;
       if (quality.skipRender) return;
       renderer.updateParts(parts);
+      if (quality.renderer.depth) renderer.userPasses.set(settings.postChain === false ? [] : calmChain(quality.tier));
       renderer.render({
         eye: [-0.35, 1.15, 3.5], target: [0.4, 0.45, -24], fov: 58, time,
         waterRipple: [-0.35, 0, -12.5], rippleTime: time % 6,

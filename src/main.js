@@ -888,6 +888,33 @@ function setPaused(on) {
 }
 
 const frames = createFrameStats();
+// ?show=<name>: a fixed scene for screenshots and visual review. The game pauses once it is set up, with a label.
+const SHOWCASES = {
+  menu: 'The main menu scene', water: 'A pool room on the raft route', architecture: 'Columns and arch in a wide room', entities: 'Three Blooms ahead of the raft',
+  drift: 'High Drift on the raft', hurt: 'Low health and a fresh hit', overboard: 'In the water behind the raft', omen: 'The lights dying in banks',
+  dock: 'On foot at the first dock', emergency: 'Emergency lighting', blackout: 'Power loss', lamp: 'Power loss with the work lamp lit',
+  signs: 'High Drift on foot: the signs', survey: 'The survey map', saferoom: 'The Safe Room',
+};
+function startShowcase(name) {
+  if (!SHOWCASES[name]) return;
+  hideModal();
+  const foot = ['dock', 'emergency', 'blackout', 'lamp', 'signs', 'survey'].includes(name);
+  if (name === 'saferoom') enterSafeRoom();
+  else if (name !== 'menu') { beginSector(0); if (foot) startExplore(); else startRide(); scene?.showcase?.(name); }
+  // Let it run a little first (shaders compile, eye adaptation and the scene settle): a dozen frames and 1.5 s.
+  let n = 0; const t0 = performance.now();
+  const settle = () => {
+    if (n++ < 12 || performance.now() - t0 < 1500) { requestAnimationFrame(settle); return; }
+    if (mode === 'ride' || mode === 'explore') setPaused(true);
+    $('paused').hidden = true;
+    const tag = document.createElement('p'); tag.id = 'showcase'; tag.className = 'mono'; tag.textContent = `SHOWCASE · ${name.toUpperCase()} · ${SHOWCASES[name]} · ${quality.tier}`;
+    tag.style.cssText = 'position:fixed;left:16px;bottom:12px;z-index:99;margin:0;padding:4px 8px;background:#080d10cc;color:#d8d8ca;font-size:12px;letter-spacing:.1em';
+    document.body.append(tag);
+    window.__show = { name, ready: true, tier: quality.tier, mode };
+  };
+  requestAnimationFrame(settle);
+}
+
 // ?bench: ride the first attraction on Ride Control for a fixed time and report frame times, the GPU and the tier.
 let bench = null;
 function startBench(seconds = 20) {
@@ -1027,7 +1054,8 @@ addEventListener('gamepaddisconnected', () => {
   }
 });
 requestAnimationFrame(frame);
-if (new URLSearchParams(location.search).has('bench')) setTimeout(() => startBench(Number(new URLSearchParams(location.search).get('bench')) || 20), 600);
+if (new URLSearchParams(location.search).has('show')) setTimeout(() => startShowcase(new URLSearchParams(location.search).get('show')), 600);
+else if (new URLSearchParams(location.search).has('bench')) setTimeout(() => startBench(Number(new URLSearchParams(location.search).get('bench')) || 20), 600);
 
 // For automated checks.
 window.__underflow = {

@@ -23,6 +23,8 @@ Headless Chromium (software GL, `?quality=low`) driving the game through its DEV
 | `arcade.cjs` | A token line and FULL LINE; each facility drop does what it says when shot; one Attendant assessment a sector, paid when passed | ~1 min |
 | `circuit.cjs` | The lighting relay switches main and emergency light; under emergency one wall is a doorway with a cache; it will not switch back while you stand in it; crossing it is a route found | <1 min |
 | `render.cjs` | A tier with depth (`?quality=high`): ambient occlusion and haze with no renderer diagnostics; eye adaptation; the four post passes on high and two on medium, following Drift, health, damage and water; `?bench` reports | ~3 min |
+| `systems.cjs` | The sprung viewmodel (Scatter shoves further and settles slower than Pulse); at most two spitters wind up at once; on foot only the budgeted Blooms commit; waves come in out of sight | ~2 min |
+| `shows.cjs` | Every `?show=` scene sets up on the high tier and draws without errors; screenshots to `SHOW_DIR` | ~5 min |
 | `audio.cjs` | Every recorded sound in `public/audio/manifest.json` loads and decodes | <1 min |
 | `balance.cjs` | The competent-player bot reaches every dock; reports lowest health and raft condition | several min |
 | `single.cjs` | `dist/UNDERFLOW.html` opens from disk, starts and carries its recorded sound (run `npm run build:single` first) | <1 min |

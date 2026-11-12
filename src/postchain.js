@@ -113,6 +113,9 @@ vec4 userPass(vec2 uv) {
 }`,
 };
 
+/** Menu and Safe Room: the same grade and finish, without lens effects or the game's state. */
+export const calmChain = (tier) => buildChain(tier, {}).filter((p) => p.name !== 'optics');
+
 /** Which passes each quality tier runs. The light tier has no chain at all. */
 export const TIER_PASSES = { low: [], medium: ['grade', 'finish'], high: ['optics', 'grade', 'fxaa', 'finish'], ultra: ['optics', 'grade', 'fxaa', 'finish'] };
 

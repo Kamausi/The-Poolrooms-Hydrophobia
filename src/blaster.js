@@ -4,6 +4,7 @@
 //   inspection beam  (hold right click or Q)  reveals hidden markings and reads targets; makes you visible
 //   disruption burst (F)  interrupts entities or forces an emergency mechanism; costs a charge cell; very loud
 import { rumble, PATTERNS } from './haptics.js';
+import { createRig } from './spring.js';
 import { box, cylinder, sphere } from '67js';
 import { add, scale, cross, normalize, sub, length, writeBasis, hide, cameraBasis } from './math.js';
 import { sound } from './audio.js';
@@ -75,7 +76,11 @@ export function createBlaster(state) {
   let beamTimer = 0;
   let burstTimer = 0;
   let burstAt = [0, 0, 0];
-  let kick = 0, kickRec = 8, kickRise = 0, walk = 0, walkT = 0;
+  let kick = 0, kickRise = 0, walk = 0, walkT = 0;
+  // The viewmodel's response is springs: a shot kicks them and they settle with the profile's own character.
+  // push: back toward you · lift: the muzzle rising · roll: the wrist turning. Recoil of the aim is separate (none
+  // for now: the shot goes where the reticle is), and the camera has its own shake.
+  const rig = createRig({ push: { stiffness: 170, damping: 0.62 }, lift: { stiffness: 120, damping: 0.55 }, roll: { stiffness: 90, damping: 0.45 } });
   let beamFrom = [0, 0, 0];
   let beamTo = [0, 0, 0];
   let scanning = false;
@@ -93,6 +98,8 @@ export function createBlaster(state) {
   return {
     parts,
     recharge,
+    /** The viewmodel springs (tests, tuning). */
+    get springs() { return { push: rig.get('push'), lift: rig.get('lift'), roll: rig.get('roll') }; },
     /**
      * Advance timers and decide whether a pulse leaves the gun this frame.
      * mounted: seated on the raft, where the mount trickles charge back in.
@@ -101,7 +108,8 @@ export function createBlaster(state) {
       cooldown -= dt;
       beamTimer -= dt;
       burstTimer -= dt;
-      kick = Math.max(0, kick - dt * kickRec * Math.max(0.35, kick));
+      rig.step(dt);
+      kick = Math.max(0, rig.get('push'));
       walkT += dt;
       state.noise = Math.max(0, state.noise - dt * 9);
       if (overheat > 0) {
@@ -138,7 +146,13 @@ export function createBlaster(state) {
       cooldown = P.interval;
       {
         const F = FEEL[state.profile] || FEEL.pulse;
-        kick = Math.min(F.kick * 1.6, kick + F.kick); kickRec = F.rec; kickRise = F.rise; walk = F.walk * (1 + state.heat / 60);
+        // rec is how fast it settles: a high rec is a stiff, quick spring; a low one a long recovery.
+        rig.tune('push', { stiffness: F.rec * F.rec * 1.1, damping: 0.6 + Math.min(0.3, F.rec / 60) });
+        rig.tune('lift', { stiffness: F.rec * F.rec * 0.8 });
+        if (rig.get('push') < F.kick * 1.6) rig.kick('push', F.kick * F.rec * 0.9);
+        rig.kick('lift', F.rise * F.rec * 0.9);
+        rig.kick('roll', (Math.random() - 0.5) * F.kick * 1.2);
+        kickRise = 1; walk = F.walk * (1 + state.heat / 60);
         if (state.tally) state.tally.shots += 1;
         rumble(PATTERNS[state.profile] ? state.profile : 'pulse');
       }
@@ -189,13 +203,14 @@ export function createBlaster(state) {
     },
     place(eye, target, aim, bob = 0) {
       const cam = cameraBasis(eye, target, state.cameraUp);
+      const rollK = rig.get('roll') * 0.04;
       const z = normalize(aim);
-      const x = normalize(cross([0, 1, 0], z));
+      const x = normalize(cross(normalize([Math.sin(rollK), 1, 0]), z));
       const y = cross(z, x);
       const G = 0.6;
       // As Drift rises your grip relaxes and the blaster sags out of view.
       const sag = Math.max(0, state.drift - 40) * 0.0025;
-      const base = add(add(add(add(eye, scale(cam.right, 0.24 + sag * 0.3)), scale(cam.up, -0.2 + bob - sag + kick * kickRise * 0.012)), scale(cam.forward, 0.5 - kick * 0.04)), scale(cam.right, kick > 0.05 ? Math.sin(walkT * 61) * walk : 0));
+      const base = add(add(add(add(eye, scale(cam.right, 0.24 + sag * 0.3)), scale(cam.up, -0.2 + bob - sag + rig.get('lift') * kickRise * 0.012)), scale(cam.forward, 0.5 - kick * 0.04)), scale(cam.right, kick > 0.05 ? Math.sin(walkT * 61) * walk : 0));
       const at = (o) => add(add(add(base, scale(x, o[0] * G)), scale(y, o[1] * G)), scale(z, o[2] * G));
       writeBasis(body.matrix, at([0, 0, 0]), x, y, z, 0.12 * G, 0.11 * G, 0.42 * G);
       writeBasis(shroud.matrix, at([0, 0.035, 0.2]), x, y, z, 0.15 * G, 0.075 * G, 0.26 * G);

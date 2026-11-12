@@ -4,6 +4,8 @@
 import { rumble } from './haptics.js';
 import { wedges as threatWedges } from './aim.js';
 import { driftSign, driftState } from './driftsign.js';
+import { createBudget } from './pressure.js';
+import { scoreSpawns } from './spawnscore.js';
 import { lightAtEye, targetExposure, adapt as adaptExposure, hazeVolume } from './exposure.js';
 import { buildChain } from './postchain.js';
 import { installUserPasses } from '67js/addons/user-pass';
@@ -989,13 +991,22 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     const c = center(x, z);
     spawnBloom([c[0] + wd[0] * (CELL / 2 - 0.7), floorTop(x, z) + 0.07, c[2] + wd[1] * (CELL / 2 - 0.7)], true);
   }
+  const spawnRecent = new Map();
   /** A wave spawns out of sight: an open cell at least 14 m away. */
   function wave(count, flank = false) {
     const options = [];
     for (let z = 0; z < H; z++) for (let x = 0; x < W; x++) if (!blocked(x, z) && distance(center(x, z), player.pos) > (flank ? 9 : 14)) options.push(center(x, z));
     if (!options.length) return;
     if (!flank) {
-      for (let k = 0; k < count; k++) spawnBloom(add(options[Math.floor(random() * options.length)], [0, 1.2 + random(), 0]));
+      // Out of sight, at a fair distance, ahead of where you are looking, not where the last one came from
+      // (spawnscore.js). Falls back to any far cell if every candidate is in view.
+      const eye = add(player.pos, [0, 1.6, 0]);
+      const ranked = scoreSpawns(options.map((p) => ({ pos: p })), { eye, forward: forwardVec(), visible: (p) => lineOfSight(eye, add(p, [0, 1, 0])), near: 12, far: 30, recent: spawnRecent, now: time, random });
+      for (let k = 0; k < count; k++) {
+        const c = ranked.filter((r) => r.score > 0)[k % Math.max(1, ranked.filter((r) => r.score > 0).length)] || ranked[0];
+        spawnRecent.set(c.id, time);
+        spawnBloom(add(c.pos, [0, 1.2 + random(), 0]));
+      }
       return;
     }
     // Flanking: spread the group around you by direction, so it comes from more than one side.
@@ -2631,10 +2642,13 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     return out;
   }
 
+  // Who may commit an attack (pressure.js): two melee slots, three in the deep sectors. The rest circle.
+  const budget = createBudget({ extra: { melee: sector.index >= 5 ? 1 : 0 } });
   function updateBlooms(dt, eye) {
-    const maxCommit = 2 + (sector.index >= 5 ? 1 : 0);
-    let committed = 0;
-    for (const b of blooms) { if (!b.active || b.dying || b.dormant) b.commit = false; else if (b.commit) committed += 1; }
+    budget.tick(dt);
+    for (const b of blooms) if (b.commit && (!b.active || b.dying || b.dormant)) { b.commit = false; budget.release(b); }
+    budget.sweep((b) => b.active && !b.dying && !b.dormant);
+    const crowd = blooms.filter((b) => b.active && !b.dying && !b.dormant).length;
     for (const b of blooms) {
       if (!b.active) { hide(b.core); hide(b.spikes); hide(b.heart); hide(b.lobes[0]); hide(b.lobes[1]); continue; }
       const dd0 = Math.hypot(b.pos[0] - eye[0], b.pos[2] - eye[2]);
@@ -2707,8 +2721,8 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
         const orbit = d > 3 ? Math.sin(b.phase * 0.4 + b.hp) * 0.6 : 0;
         // Attack slots: only a couple may commit at once. The rest circle just out of reach, readable and waiting,
         // so five Blooms around you are a threat you can see, not five unavoidable hits.
-        if (!b.commit && d < 3.8 && committed < maxCommit) { b.commit = true; committed += 1; }
-        if (b.commit && d > 6.5) b.commit = false;
+        if (!b.commit && d < 3.8 && budget.request(b, 'melee', crowd)) b.commit = true;
+        if (b.commit && d > 6.5) { b.commit = false; budget.release(b); }
         const holdOff = !b.commit && d < 3.4 && b.lunge <= 0;
         const next = holdOff ? add(b.pos, add(scale(normalize(to), -0.4 * dt), scale(side, (b.hp % 2 ? 1 : -1) * 1.6 * dt))) : v === 0 ? b.pos : add(b.pos, add(scale(normalize(to), v * dt), scale(side, (b.blind ? 0 : orbit) * dt)));
         if (!isWall(...cellOf(next[0], next[2]))) b.pos = next;
@@ -3238,10 +3252,23 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     for (let i = 0; i < (r.valves || 0); i++) { const v = pumpValves.find((x) => x.id === valveOrder[i]); if (v) v.open = true; }
     valveStep = r.valves || 0;
   }
-  if (import.meta.env.DEV) window.__explore = { get remembered() { return remembered; }, get chain() { return lastChain; }, get eyeExposure() { return eyeExposure; }, renderer, get driftSigns() { return driftSigns; }, get wedges() { return lastWedges; }, survey, get surveyCoverage() { return surveyCoverage(survey, surveyOpen); }, surveyOpen, omen: (k) => startFomen(k), circuit, setEmergency, setBlackout, get blackout() { return blackout; }, signParts, get resetT() { return resetT; }, get emergency() { return emergency; }, blocked, isWall, finds, found, get lampPlaced() { return lampPlaced; }, lights: () => gatherLights(add(player.pos, [0, 1.6, 0])), get hesitation() { return hesitation; }, get lastOmen() { return lastFomen; }, get marcoAct() { return marcoAct; }, set marcoAct(v) { marcoAct = v; }, marcos, columns, wavePool, get basin() { return basin; }, isWater, floorTop, get operating() { return operating; }, set operating(v) { operating = v; }, panelFront, holdT, shoot, spawnBloom, occupant, lockers, noise, violate, get omenState() { return fomen; }, door, blooms, lamps, director, followers, get dockKind() { return dockKind; }, get valves() { return { order: valveOrder, step: valveStep, list: pumpValves }; }, june: juneEvent, thread, get clock() { return clock; }, stagnant, player, center, undertow, lifeguard, cellPos, panelPos, raftPos, code, find, floaters, restorePower };
+  if (import.meta.env.DEV) window.__explore = { budget, wave: (n, f) => wave(n, f), lineOfSight, get remembered() { return remembered; }, get chain() { return lastChain; }, get eyeExposure() { return eyeExposure; }, renderer, get driftSigns() { return driftSigns; }, get wedges() { return lastWedges; }, survey, get surveyCoverage() { return surveyCoverage(survey, surveyOpen); }, surveyOpen, omen: (k) => startFomen(k), circuit, setEmergency, setBlackout, get blackout() { return blackout; }, signParts, get resetT() { return resetT; }, get emergency() { return emergency; }, blocked, isWall, finds, found, get lampPlaced() { return lampPlaced; }, lights: () => gatherLights(add(player.pos, [0, 1.6, 0])), get hesitation() { return hesitation; }, get lastOmen() { return lastFomen; }, get marcoAct() { return marcoAct; }, set marcoAct(v) { marcoAct = v; }, marcos, columns, wavePool, get basin() { return basin; }, isWater, floorTop, get operating() { return operating; }, set operating(v) { operating = v; }, panelFront, holdT, shoot, spawnBloom, occupant, lockers, noise, violate, get omenState() { return fomen; }, door, blooms, lamps, director, followers, get dockKind() { return dockKind; }, get valves() { return { order: valveOrder, step: valveStep, list: pumpValves }; }, june: juneEvent, thread, get clock() { return clock; }, stagnant, player, center, undertow, lifeguard, cellPos, panelPos, raftPos, code, find, floaters, restorePower };
+
+  /** ?show=: put the dock into a fixed, readable state for screenshots and visual review. */
+  function showcase(name) {
+    blooms.forEach((b) => { b.active = false; });
+    state.health = 100; state.drift = 0;
+    if (name === 'blackout' && circuit) setBlackout(true);
+    if (name === 'emergency' && circuit) setEmergency(true);
+    if (name === 'signs') state.drift = 80;
+    if (name === 'lamp') { state.lamp = { ...(state.lamp || {}), mode: 1, charge: 100 }; if (circuit) setBlackout(true); }
+    if (name === 'survey') { for (const [x, z] of surveyOpen.slice(0, 30)) surveyVisit(survey, x, z, isWall); surveyShown = true; surveyCell = ''; }
+    return true;
+  }
 
   return {
     update,
+    showcase,
     resize: () => renderer.resize(),
     /** Render scale relative to the quality tier's own pixel ratio (automatic resolution). */
     setScale: (k) => { renderer.pixelRatio = quality.renderer.pixelRatio * k; renderer.resize(); },

@@ -2,6 +2,8 @@
 // light, checkpoint-green strips and signs that people actually live here. Through reinforced glass, an
 // enormous empty pool hall in deep water and stale light. Finite, dry, occupied, understandable — and the
 // window is still wrong.
+import { installUserPasses } from '67js/addons/user-pass';
+import { calmChain } from './postchain.js';
 import { Renderer67, box, cylinder, sphere } from '67js';
 import { writeYaw, writeBasis, linear, display } from './math.js';
 import { createCrewFigure, poseStanding, poseSeated } from './crewfigure.js';
@@ -108,6 +110,8 @@ export function createSafeRoom(canvas, sector, opts = {}) {
     environment: { keyIntensity: 0.05, fillIntensity: 0.3, ambientIntensity: 0.45, fogColor: linear('#080d10'), fogDensity: 0.014, skyTop: display('#080d10'), skyBottom: display('#080d10') },
   });
   renderer.resize();
+  // The same grade as the game on tiers with depth, so moving between scenes does not change the picture's look.
+  if (quality.renderer.depth) installUserPasses(renderer);
   sound.pumpRoom(true);
   sound.setSpace('dry');
 
@@ -129,6 +133,7 @@ export function createSafeRoom(canvas, sector, opts = {}) {
       const target = [Math.sin(pan) * 6 - 0.5, 1.4, -6];
       if (quality.skipRender) return;
       renderer.updateParts(parts);
+      if (quality.renderer.depth) renderer.userPasses.set(settings.postChain === false ? [] : calmChain(quality.tier));
       renderer.render({
         eye, target, fov: 68, time,
         environment: { pointLights: [[-3, 3.6, 0], [0, 3.6, 0], [3, 3.6, 0]].map((position) => ({ position, color: [1, 0.92, 0.8], intensity: 9, radius: 0.5, range: 12 })).concat([{ position: [0, 12, -30], color: linear(sector.lamp), intensity: 420, radius: 3, range: 140 }, { position: [-25, 12, -70], color: linear(sector.lamp), intensity: 300, radius: 3, range: 140 }]) },

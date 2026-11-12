@@ -17,6 +17,7 @@ A first-person cooperative horror rail-shooter and explorer set in the Poolrooms
 | `src/ui.js`, `src/hud.js`, `src/input.js`, `src/padmap.js`, `src/settings.js` | Menus, HUD, input and bindings (controller tables by context are pure and unit-tested), settings |
 | `src/tiers.js`, `src/quality.js` | Quality tiers and Auto (pure, unit-tested); applying a tier in the browser |
 | `src/postchain.js`, `src/exposure.js`, `src/bench.js` | The four post passes and their uniforms, eye adaptation and haze, the `?bench` report (pure, unit-tested) |
+| `src/spring.js`, `src/pressure.js`, `src/spawnscore.js` | Damped springs, the attack-slot budget, spawn-point scoring (pure, unit-tested) |
 | `src/driftsign.js` | Which signs change at high Drift and what they say (pure, unit-tested) |
 | `src/survey.js` | The on-foot survey map: what has been seen, coverage, text rendering (pure, unit-tested) |
 | `src/aim.js` | Controller aim help and threat-marker geometry (pure, unit-tested) |
@@ -26,7 +27,7 @@ A first-person cooperative horror rail-shooter and explorer set in the Poolrooms
 | `tests/` | Headless tests (`tests/README.md`) |
 | `public/legacy/` | The original prototype. Do not edit |
 
-Local notes: `src/CLAUDE.md` (engine and module rules). Skills in `.claude/skills/`: design-pass, review, debug, balance, release, untangle. Start with `docs/ARCHITECTURE.md`; decisions are in `docs/decisions/`, and tools and assets considered for the project are in `docs/TOOLS_AND_ASSETS.md`.
+Local notes: `src/CLAUDE.md` (engine and module rules). Skills in `.claude/skills/`: design-pass, review, debug, balance, release, untangle. Start with `docs/ARCHITECTURE.md`; code provenance is in `docs/THIRD_PARTY_CODE.md`; decisions are in `docs/decisions/`, and tools and assets considered for the project are in `docs/TOOLS_AND_ASSETS.md`.
 
 ## Commands
 

@@ -15,6 +15,7 @@ import { sound } from './audio.js';
 import { quality } from './quality.js';
 import { rumble } from './haptics.js';
 import { planColonnade, archRadius } from './poolrooms.js';
+import { createBudget } from './pressure.js';
 import { lightAtEye, targetExposure, adapt as adaptExposure, hazeVolume } from './exposure.js';
 import { buildChain } from './postchain.js';
 import { installUserPasses } from '67js/addons/user-pass';
@@ -1331,6 +1332,8 @@ export function createRide(canvas, state, sector, events, opts = {}) {
 
   // ---------- Shooting ----------
   let eyeExposure = 1;
+  // Ranged pressure (pressure.js): two spitters may wind up at once; the rest hold their shot.
+  const budget = createBudget();
   let lastWedges = [], padAssistTest = false, lastScenery = { columns: 0, arch: 0 };
   function targets() {
     const list = [];
@@ -1628,6 +1631,8 @@ export function createRide(canvas, state, sector, events, opts = {}) {
 
   // ---------- Frame ----------
   function update(dt) {
+    budget.tick(dt);
+    budget.sweep((b) => b.active && !b.dying);
     time += dt;
     frameDt = dt;
     hud.update(dt);
@@ -3234,11 +3239,15 @@ export function createRide(canvas, state, sector, events, opts = {}) {
       if (b.spitter && !b.goal) {
         if (d < 16) closing = -speed * 0.0 + (d < 13 ? -1.5 : 0);
         b.spit -= dt;
-        if (b.spit < 0.7 && b.spit + dt >= 0.7) { sound.tick?.(8); b.flash = 0.7; }
+        if (b.spit < 0.7 && b.spit + dt >= 0.7) {
+          const spitters = blooms.filter((x) => x.active && !x.dying && x.spitter).length;
+          if (budget.request(b, 'ranged', spitters)) { sound.tick?.(8); b.flash = 0.7; } else b.spit = 1 + random() * 0.6; // no slot: hold the shot
+        }
         if (b.spit <= 0 && d < 30) {
           b.spit = 3.2 + random() * 1.5;
           const sh = shots.find((x) => !x.active);
           if (sh) Object.assign(sh, { active: true, pos: [...b.pos], from: b, reflect: false, t: 0 });
+          budget.release(b);
         }
       }
       // Some Blooms go for someone else: a stranded Drainer, or the crew's raft.
@@ -3864,10 +3873,28 @@ export function createRide(canvas, state, sector, events, opts = {}) {
     bloomAhead() { return spawnBloom(s + 10, offset * 0.6, 1.2); },
     get locks() { return locks.length; },
   };
-  if (import.meta.env.DEV) window.__ride = { get wedges() { return lastWedges; }, get chain() { return lastChain; }, get eyeExposure() { return eyeExposure; }, renderer, get scenery() { return lastScenery; }, room, shots, set padAssist(v) { padAssistTest = v; }, get aimFriction() { return input.aimFriction; }, parts, blooms, tokens, drop, spawnDrop, get assess() { return assess; }, set assessAt(v) { assessAt = v; }, set tokenCool(v) { tokenCool = v; }, get offset() { return offset; }, set offset(v) { offset = v; }, omen: (k) => startOmen(k), get omenState() { return omen; }, get director() { return director; }, get eye() { return fx.eye; }, track, hull, puncture: (c, cause = 'scrape') => hull.puncture(c, cause), overboard: () => goOverboard('test'), free: () => restrained && !restrained.freed && freeRestrained(), shove: () => shove(fx.eye, fx.fwd), ping: () => ping(fx.eye, fx.fwd), fireAt: (dir) => { fireProfile(fx.eye, fx.look, dir || fx.fwd); return state.profile; }, hitTarget: (key) => { const t = targets().find((x) => x.key === key); if (t) { shotProfile = state.profile; t.fn(); } return !!t; }, get wave() { return wave; }, set bot(v) { devBot = v; }, spawnEnc: (kind, extra = {}) => spawn({ e: { kind, ...extra }, s: s + 10, sec: track.sectionAt(s).sec }), get coop() { return { climber, crewGrab, ballast, restrained, protect, focusing, fov, profile: state.profile, special: state.special }; }, reset: () => { overboard = null; capsize = null; trailGrab = null; hull.state.capsized = false; }, capsize: () => startCapsize(), get swimming() { return overboard; }, get capsized() { return capsize; }, get grab() { return trailGrab; }, valve, linked, lifeguard, locker, wake, passengerStep, burst: () => burst(fx.eye, fx.fwd), get s() { return s; }, set s(v) { s = v; } };
+  if (import.meta.env.DEV) window.__ride = { budget, blaster, get wedges() { return lastWedges; }, get chain() { return lastChain; }, get eyeExposure() { return eyeExposure; }, renderer, get scenery() { return lastScenery; }, room, shots, set padAssist(v) { padAssistTest = v; }, get aimFriction() { return input.aimFriction; }, parts, blooms, tokens, drop, spawnDrop, get assess() { return assess; }, set assessAt(v) { assessAt = v; }, set tokenCool(v) { tokenCool = v; }, get offset() { return offset; }, set offset(v) { offset = v; }, omen: (k) => startOmen(k), get omenState() { return omen; }, get director() { return director; }, get eye() { return fx.eye; }, track, hull, puncture: (c, cause = 'scrape') => hull.puncture(c, cause), overboard: () => goOverboard('test'), free: () => restrained && !restrained.freed && freeRestrained(), shove: () => shove(fx.eye, fx.fwd), ping: () => ping(fx.eye, fx.fwd), fireAt: (dir) => { fireProfile(fx.eye, fx.look, dir || fx.fwd); return state.profile; }, hitTarget: (key) => { const t = targets().find((x) => x.key === key); if (t) { shotProfile = state.profile; t.fn(); } return !!t; }, get wave() { return wave; }, set bot(v) { devBot = v; }, spawnEnc: (kind, extra = {}) => spawn({ e: { kind, ...extra }, s: s + 10, sec: track.sectionAt(s).sec }), get coop() { return { climber, crewGrab, ballast, restrained, protect, focusing, fov, profile: state.profile, special: state.special }; }, reset: () => { overboard = null; capsize = null; trailGrab = null; hull.state.capsized = false; }, capsize: () => startCapsize(), get swimming() { return overboard; }, get capsized() { return capsize; }, get grab() { return trailGrab; }, valve, linked, lifeguard, locker, wake, passengerStep, burst: () => burst(fx.eye, fx.fwd), get s() { return s; }, set s(v) { s = v; } };
+
+  /** ?show=: put the ride into a fixed, readable state for screenshots and visual review. */
+  function showcase(name) {
+    const room = track.rooms.find((r) => r.sec.half >= 5 && !r.sec.sky) || track.rooms[0];
+    for (const b of blooms) b.active = false;
+    state.health = 100; state.drift = 0; state.hurtFx = 0; state.wetLens = 0;
+    if (name === 'water' || name === 'architecture') s = room ? room.s0 + 4 : s;
+    if (name === 'entities') {
+      s = room ? room.s0 - 14 : s;
+      blooms.filter((b) => !b.active).slice(0, 3).forEach((b, i) => Object.assign(b, { active: true, dying: 0, hp: 3, noticed: true, pos: track.lateral(s + 7 + i * 2.5, (i - 1) * 1.4, 0.8) }));
+    }
+    if (name === 'drift') { s = room ? room.s0 - 6 : s; state.drift = 85; }
+    if (name === 'hurt') { s = room ? room.s0 - 6 : s; state.health = 14; state.hurtFx = 1; }
+    if (name === 'overboard') { s = room ? room.s0 - 6 : s; goOverboard('test'); }
+    if (name === 'omen') { s = room ? room.s0 - 20 : s; startOmen('lights'); }
+    return true;
+  }
 
   return {
     update,
+    showcase,
     resize: () => renderer.resize(),
     /** Render scale relative to the quality tier's own pixel ratio (automatic resolution). */
     setScale: (k) => { renderer.pixelRatio = quality.renderer.pixelRatio * k; renderer.resize(); },
