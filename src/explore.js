@@ -256,6 +256,23 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
   writeBasis(P('Moored raft', torus(0.3, 48, 16), { color: [0.75, 0.32, 0.12], metallic: 0, roughness: 0.6, map: genSurface('pvc'), boxMapScale: 1.6 }).matrix, raftPos, [1, 0, 0], [0, 0, -1], UP, 1.05, 1.05, 1.3);
   writeYaw(P('Tether post', cylinder(16, 0.05, 1), { color: [0.75, 0.6, 0.15], metallic: 0.6, roughness: 0.4 }).matrix, [dockC[0] - dockWall[0] * 0.6, 0.6, dockC[2] - dockWall[1] * 0.6], 0, 0.08, 1.2, 0.08);
 
+  // ---------- Pool drains (generated model): main drains in the basin floor, an overflow grate along every deck edge ----------
+  // Sunk so only the slotted top shows; the drained basin shows them plainly.
+  if (model('drain')) {
+    const dm = model('drain'), sink = (h) => 0.008 - h;
+    for (const [x, z] of find('~')) {
+      if (hash(x * 2.3, z * 4.1) > 0.12) continue;
+      const g = M('drain', `Main drain ${x},${z}`), h = 0.07;
+      placeModel(g, add(center(x, z), [0, floorTop(x, z) + sink(h), 0]), 0, h, 0.55 / (dm.size[0] * h / dm.size[1]));
+    }
+    for (const [x, z] of find('.')) for (const [dx, dz] of DIRS) {
+      if (at(x + dx, z + dz) !== '~') continue;
+      // Along the edge: the grate's width runs with the coping, its depth is a narrow gutter.
+      const g = M('drain', `Overflow grate ${x},${z},${dx},${dz}`), h = 0.05, k = h / dm.size[1];
+      placeModel(g, add(center(x, z), [dx * (CELL / 2 - 0.2), sink(h), dz * (CELL / 2 - 0.2)]), Math.atan2(dx, dz), h, [CELL * 0.9 / (dm.size[0] * k), 0.2 / (dm.size[2] * k)]);
+    }
+  }
+
   // ---------- Dock dressing (CC0 models): an extinguisher on every landing; tools on a maintenance platform ----------
   {
     const along = [dockWall[1], 0, -dockWall[0]], yaw = Math.atan2(-dockWall[0], -dockWall[1]);

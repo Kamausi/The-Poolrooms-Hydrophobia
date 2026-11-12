@@ -27,6 +27,7 @@ const { open, newCampaign, check, finish } = require('./lib.cjs');
     const rail = find(/^Gallery rail|^Pool ladder rail/), glass = find(/^Observation glass/), dock = find(new RegExp(`^Floor ${E.find('D')[0].join(',')}$`)), moored = find(/^Moored raft$/);
     return { rail: rail && rail.material.anisotropy, glass: glass ? glass.material.transmission : 'none here', dock: dock && !!dock.material.map, moored: moored && !!moored.material.map, raft: !!(raft && raft.material.map) }; });
   check('materials: wet concrete at the landing, PVC seams on the raft you ride and the moored one, glass that transmits, brushed stainless rails', mats.dock && mats.moored && mats.raft && (mats.glass === 'none here' || mats.glass > 0.5) && (mats.rail === undefined || mats.rail > 0), JSON.stringify(mats));
+  check('pool drains: overflow grates line the deck edges and main drains sit in the basin floor', (seen.drain || 0) > 8, JSON.stringify(seen));
   check('custom models: the lifeguard chair, ring buoys at the ladders, and the blaster in your hand', seen.tower > 0 && seen.buoy > 0 && seen.blaster > 0, JSON.stringify(seen));
   check('rooms are dressed: light fixtures, the cabinet and junction box at the panel, lamps over valves, extinguishers, tools, chairs', ['fluorescent', 'utilityBox', 'powerBox', 'wallLamp', 'extinguisher', 'toolCart', 'chair'].every((n) => seen[n] > 0), JSON.stringify(seen));
   // Instancing: parts that share one geometry (and texture maps) draw as one batch. Shapes come from src/shapes.js,

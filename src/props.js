@@ -164,18 +164,20 @@ export function modelPart(name, label, extra = {}) {
 }
 
 /**
- * Place a model: base on `pos`, turned by `yaw` (front along +Z at yaw 0), scaled uniformly so it stands `height`
- * tall, or at its own size when `height` is omitted. Returns the handle part.
+ * Place a model: base on `pos`, turned by `yaw` (front along +Z at yaw 0), scaled so it stands `height` tall (or at its
+ * own size when `height` is omitted), with width and depth scaled by `aspect`. Returns the handle part.
  */
 export function placeModel(part, pos, yaw, height, aspect = 1) {
   const m = ready[part.model];
-  const k = height ? height / m.size[1] : 1, kw = k * aspect;
+  // aspect scales width and depth against height: one number for both, or [width, depth] to stretch a grate along a gutter.
+  const [ax, az] = Array.isArray(aspect) ? aspect : [aspect, aspect];
+  const k = height ? height / m.size[1] : 1, kw = k * ax, kd = k * az;
   const t = yaw + MODELS[part.model].turn;
   const c = Math.cos(t), s = Math.sin(t);
   const x = [c, 0, -s], z = [s, 0, c];
   const o = m.offset;
-  const p = [pos[0] + kw * (x[0] * o[0] + z[0] * o[2]), pos[1] + k * o[1], pos[2] + kw * (x[2] * o[0] + z[2] * o[2])];
-  for (const q of part.group || [part]) writeBasis(q.matrix, p, x, [0, 1, 0], z, kw, k, kw);
+  const p = [pos[0] + kw * x[0] * o[0] + kd * z[0] * o[2], pos[1] + k * o[1], pos[2] + kw * x[2] * o[0] + kd * z[2] * o[2]];
+  for (const q of part.group || [part]) writeBasis(q.matrix, p, x, [0, 1, 0], z, kw, k, kd);
   return part;
 }
 
