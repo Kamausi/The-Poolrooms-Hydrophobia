@@ -272,6 +272,17 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
       placeModel(g, add(center(x, z), [dx * (CELL / 2 - 0.2), sink(h), dz * (CELL / 2 - 0.2)]), Math.atan2(dx, dz), h, [CELL * 0.9 / (dm.size[0] * k), 0.2 / (dm.size[2] * k)]);
     }
   }
+  // Depth markings on the deck behind the gutter, read from the deck toward the water. One shared material per text,
+  // so every marking of a kind draws in one batch.
+  {
+    const marks = { depth: { ...signMaterial('1.2 M', 'depth', 0.8, 256, 128), doubleSided: true }, dive: { ...signMaterial('NO\nDIVING', 'rule', 0.8, 256, 128), doubleSided: true } };
+    let n = 0;
+    for (const [x, z] of find('.')) for (const [dx, dz] of DIRS) {
+      if (at(x + dx, z + dz) !== '~' || hash(x * 5.3 + dx, z * 2.9 + dz) > 0.34) continue;
+      const kind = n++ % 2 ? 'dive' : 'depth';
+      writeBasis(P(`Deck marking ${kind} ${x},${z}`, plane, marks[kind]).matrix, add(center(x, z), [dx * (CELL / 2 - 0.75), 0.012, dz * (CELL / 2 - 0.75)]), [-dz, 0, dx], [dx, 0, dz], [0, 1, 0], 0.7, 0.35, 1);
+    }
+  }
 
   // ---------- Dock dressing (CC0 models): an extinguisher on every landing; tools on a maintenance platform ----------
   {
