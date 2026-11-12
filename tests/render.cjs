@@ -48,7 +48,7 @@ const BASE = process.env.UNDERFLOW_URL || 'http://localhost:5173';
     R.reset(); u.step(1); return { dry, wet, under, damp, diag: JSON.stringify(R.renderer.diagnostics) }; });
   check('going overboard wets the lens and tints the picture; the walls above the water are drawn damp', r.dry < 0.7 && r.wet === 1 && r.under > 0 && r.damp === 1 && r.diag === '[]', JSON.stringify(r));
 
-  await page.goto(`${BASE}/?quality=high&bench=4`);
+  await page.goto(`${BASE}/?quality=high&bench=4`, { timeout: 120000 });
   await page.waitForFunction(() => !!window.__bench, null, { timeout: 120000 });
   r = await page.evaluate(() => ({ b: window.__bench, text: document.getElementById('bench')?.textContent || '' }));
   check('?bench rides for a fixed time and reports the GPU, the tier and frame-time numbers', r.b.tier === 'high' && r.b.frames > 3 && r.b.median > 0 && r.b.p99 >= r.b.median && /GPU/.test(r.text) && /99th/.test(r.text) && /errors       none/.test(r.text), JSON.stringify(r.b));

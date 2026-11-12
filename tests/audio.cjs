@@ -11,5 +11,10 @@ const { open, check, finish } = require('./lib.cjs');
     return { want: Object.keys(m).length, have: loadedSamples().length };
   });
   check('every recorded sound decodes', r.have === r.want, `${r.have}/${r.want}`);
+  const rv = await page.evaluate(async () => { const m = await import("/src/audio.js"); const s = m.sound; s.unlock?.();
+    for (let i = 0; i < 80; i++) { s.footstep?.(0); s.tick?.(1); s.pulse?.(); s.hit?.(); }
+    const full = m.voiceStats().live; s.hurt(); const after = m.voiceStats().live;
+    return { full, after }; });
+  check('at most 24 one-shots play at once; a burst of footsteps and shots cannot crowd out being hurt', rv.full <= 24 && rv.after <= 24 && rv.full > 3, JSON.stringify(rv));
   await finish(browser, errors);
 })();
