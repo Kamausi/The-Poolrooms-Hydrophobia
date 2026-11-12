@@ -94,7 +94,7 @@ Kettle, rack, tool chest, two chairs, two lockers, extinguisher, wall lamp: **Mo
 
 ## 18. Doors and barriers
 
-The tiled service door (handle, crack, keyhole, hold shut, forced), shelter doors, gates and the winch gate are **primitive** with coded states. No modelled doors, hatches or shutters. Poly Haven has a roller-shutter door (not yet fetched).
+The tiled service door (handle, crack, keyhole, hold shut, forced), shelter doors, gates and the winch gate are **primitive** with coded states. No modelled doors, hatches or shutters. The fake shelters are closed roller shutters: **Model** (CC0, Poly Haven).
 
 ## 19. Children's aquatic area
 
@@ -192,7 +192,7 @@ The Marco reflection and Drift effects are coded. There are no reflection-specif
 
 ## Next, in order
 
-1. Poly Haven's roller shutter for doors, and modelled drains and grates.
+1. Modelled drains and grates (a Higgsfield request timed out twice and was not charged; retry).
 2. ambientCG's downloads come from a host the network policy blocks; Poly Haven has no brushed-steel or rubber set, so those stay factor materials.
 3. More Higgsfield image-to-mesh for rigid custom props: per-profile blaster attachments, a pump housing, rescue hooks, collectibles (wristband, token, photo).
 4. The custom families (raft, blaster, work lamp, crew, Lifeguard, Blooms, slide kit) need a modelling and rigging pipeline outside this environment. The game is ready to load them: `src/props.js` takes any GLB, and the importer supports skinning and animation clips.

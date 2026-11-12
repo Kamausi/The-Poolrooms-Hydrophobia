@@ -920,6 +920,22 @@
    "gameUse": [
     "surface: the wet concrete landing slab where you dock"
    ]
+  },
+  {
+   "id": "model/rollershutter_door",
+   "type": "model",
+   "files": [
+    "src/assets/models/cc0/rollershutter_door.glb"
+   ],
+   "source": "Poly Haven (Roller Shutter Door)",
+   "creator": "MP",
+   "url": "https://polyhaven.com/a/rollershutter_door",
+   "license": "CC0-1.0",
+   "modified": true,
+   "changes": "1k glTF packed into one GLB (colour map 256 px, normal and ARM maps 128 px); the graffiti variant in the same file removed, only the plain shutter kept",
+   "gameUse": [
+    "shutter: the closed roller shutters of the fake shelters on foot"
+   ]
   }
  ]
 }

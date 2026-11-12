@@ -354,7 +354,10 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     const wd = DIRS.find(([dx, dz]) => isWall(x + dx, z + dz)) || [0, 1];
     const c = center(x, z);
     const pos = [c[0] + wd[0] * (CELL / 2 - 0.05), 1.4, c[2] + wd[1] * (CELL / 2 - 0.05)];
-    writeYaw(P('Shelter door', slab, { color: [0.15, 0.25, 0.18], metallic: 0.7, roughness: 0.4 }).matrix, pos, 0, wd[0] ? 0.14 : 2, 2.8, wd[1] ? 0.14 : 2);
+    // A closed roller shutter (CC0 model), stretched to the opening; the primitive slab stands in until it loads.
+    const sh = M('shutter', 'Shelter shutter');
+    if (sh) placeModel(sh, [c[0] + wd[0] * (CELL / 2 - 0.22), 0, c[2] + wd[1] * (CELL / 2 - 0.22)], Math.atan2(-wd[0], -wd[1]), 2.8, 1.59);
+    else writeYaw(P('Shelter door', slab, { color: [0.15, 0.25, 0.18], metallic: 0.7, roughness: 0.4 }).matrix, pos, 0, wd[0] ? 0.14 : 2, 2.8, wd[1] ? 0.14 : 2);
     writeYaw(P('Shelter beacon', ball, glow([1, 0.65, 0.15], 4)).matrix, add(pos, [-wd[0] * 0.15, 1.9, -wd[1] * 0.15]), 0, 0.22, 0.22, 0.22);
     facing(P('Shelter sign', plane, { ...signMaterial('SHELTER\nPRESSURE SEALED', 'amber', 0.7, 256, 128), doubleSided: true }), add(pos, [-wd[0] * 0.09, 1.7, -wd[1] * 0.09]), [-wd[0], 0, -wd[1]], 1.3, 0.6);
     return { pos, used: false };

@@ -50,7 +50,7 @@ Higgsfield (Z Image model): four surface textures generated for UNDERFLOW from t
 
 ## Models: Poly Haven (CC0)
 
-Fourteen props from Poly Haven (polyhaven.com), CC0. Credit is not required, and it is given here. Each was packed into one GLB with smaller textures and simplified with gltfpack, and is loaded by `src/props.js`.
+Fifteen props from Poly Haven (polyhaven.com), CC0. Credit is not required, and it is given here. Each was packed into one GLB with smaller textures and simplified with gltfpack, and is loaded by `src/props.js`.
 
 - Industrial Wall Lamp by Kuutti Siitonen: https://polyhaven.com/a/industrial_wall_lamp
 - Korean Fire Extinguisher 01 by UM JOORIN: https://polyhaven.com/a/korean_fire_extinguisher_01
@@ -66,6 +66,7 @@ Fourteen props from Poly Haven (polyhaven.com), CC0. Credit is not required, and
 - Worn Metal Rack by Luca B: https://polyhaven.com/a/worn_metal_rack
 - Plastic Crate 02 by Fabi_G: https://polyhaven.com/a/plastic_crate_02
 - Modular Industrial Pipes 01 by Jorge Camacho: https://polyhaven.com/a/modular_industrial_pipes_01
+- Roller Shutter Door by MP: https://polyhaven.com/a/rollershutter_door
 
 ## Generated models
 

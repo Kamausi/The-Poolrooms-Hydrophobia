@@ -7,7 +7,7 @@ const { open, newCampaign, check, finish } = require('./lib.cjs');
   const { browser, page, errors } = await open({ width: 800, height: 450 });
   await newCampaign(page);
   const st = await page.evaluate(async () => { await window.__underflow.modelsReady; return window.__underflow.modelState(); });
-  check('every model loads (generated and CC0)', st.ready.length === 22 && !Object.keys(st.failed).length, JSON.stringify(st));
+  check('every model loads (generated and CC0)', st.ready.length === 23 && !Object.keys(st.failed).length, JSON.stringify(st));
   const seen = {};
   let sample = null;
   for (let i = 0; i < 8; i++) {
@@ -18,7 +18,7 @@ const { open, newCampaign, check, finish } = require('./lib.cjs');
     if ([...r.lockers, ...r.valves, ...r.ducks].some((x) => x === null)) { check(`sector ${i}: every locker, valve and duck uses its model`, false, JSON.stringify(r)); }
   }
   check('lockers, pool ladders and pump valves are models on foot', seen.locker > 0 && seen.ladder > 0 && seen.valve > 0, JSON.stringify({ seen, sample }));
-  check('landings carry equipment crates; a maintenance platform has spare pipe sections', seen.crate > 0 && seen.pipes > 0, JSON.stringify(seen));
+  check('landings carry equipment crates; a maintenance platform has spare pipe sections; fake shelters are closed roller shutters', seen.crate > 0 && seen.pipes > 0 && seen.shutter > 0, JSON.stringify(seen));
   // Materials: brushed stainless rails, wet concrete where you dock, glass you see through, PVC seams on the raft.
   const mats = await page.evaluate(() => { const u = window.__underflow; u.beginSector(0); u.startRide(); u.step(2);
     const raft = window.__ride.parts.find((p) => p.name === 'Raft');
