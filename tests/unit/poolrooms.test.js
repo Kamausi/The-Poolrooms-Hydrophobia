@@ -33,3 +33,22 @@ describe('Poolrooms grammar', () => {
     expect(arches.length).toBeGreaterThan(0);
   });
 });
+
+import { planColonnade, archRadius } from '../../src/poolrooms.js';
+describe('the colonnade on the raft route', () => {
+  it('gives narrow, short and open-sky rooms no columns', () => {
+    expect(planColonnade({ length: 60, half: 3 })).toEqual([]);
+    expect(planColonnade({ length: 10, half: 8 })).toEqual([]);
+    expect(planColonnade({ length: 60, half: 8, sky: true })).toEqual([]);
+  });
+  it('stands pairs against both walls, clear of the mouths and of the middle of the room', () => {
+    const c = planColonnade({ length: 60, half: 8 });
+    expect(c.length).toBeGreaterThan(0); expect(c.length).toBeLessThanOrEqual(8); expect(c.length % 2).toBe(0);
+    for (const k of c) { expect(k.u).toBeGreaterThanOrEqual(4); expect(k.u).toBeLessThanOrEqual(56); expect(Math.abs(k.v)).toBeCloseTo(7.3); expect(Math.abs(k.v) + k.r).toBeLessThan(8); }
+    expect(c.filter((k) => k.v < 0).length).toBe(c.length / 2);
+  });
+  it('an arch fits under the ceiling or is left out', () => {
+    expect(archRadius(2.6, 5)).toBeCloseTo(3.15);
+    expect(archRadius(4.8, 5)).toBe(0);
+  });
+});

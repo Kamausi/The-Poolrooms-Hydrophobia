@@ -101,3 +101,26 @@ export function cloudTexture() {
   }
   return { image: canvas, colorSpace: 'srgb' };
 }
+
+/**
+ * A colonnade for a room the raft passes through: round columns in two rows hard against the side walls, evenly
+ * spaced, never in the first or last few metres where the channel mouths are. Narrow rooms and open-sky rooms get
+ * none. Returns [{ u (along the room), v (across, signed), r }], at most `max` of them.
+ * @param {{ length: number, half: number, sky?: boolean, max?: number }} o
+ */
+export function planColonnade({ length, half, sky = false, max = 8 }) {
+  if (sky || half < 5 || length < 16) return [];
+  const perSide = Math.min(Math.floor(max / 2), Math.max(1, Math.floor((length - 8) / 9)));
+  const out = [];
+  for (let k = 0; k < perSide; k++) {
+    const u = 4 + ((length - 8) * (k + 0.5)) / perSide;
+    for (const side of [-1, 1]) out.push({ u, v: side * (half - 0.7), r: 0.42 });
+  }
+  return out;
+}
+
+/** The radius of the tiled hoop over a channel mouth, or 0 if the ceiling is too low for one. */
+export function archRadius(mouthHalf, ceiling) {
+  const r = mouthHalf + 0.55;
+  return r <= ceiling - 0.15 ? r : 0;
+}

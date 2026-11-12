@@ -56,5 +56,16 @@ const { open, newCampaign, check, finish } = require('./lib.cjs');
     const text2 = el.textContent; u.press('m'); u.step(1);
     return { c0, shown, you: /[▲▶▼◀]/.test(text), raft: /R/.test(text.split('\n').slice(1, -1).join('')), small: text.length, grew: text2.length > text.length, c1: E.surveyCoverage, done: E.survey.done, paid: (u.state.tally.awards.survey || 0) - aw0, hidden: el.hidden }; });
   check('the survey map starts with what you can see from the dock, grows as you walk, and a full survey is scored once', r.c0 > 0 && r.c0 < 0.5 && r.shown && r.you && r.grew && r.c1 >= 0.85 && r.done && r.paid === 1 && r.hidden, JSON.stringify(r));
+  r = await page.evaluate(() => { const u = window.__underflow; u.beginSector(0); u.startExplore(); u.step(3); const E = window.__explore; u.setState({ health: 1e6, drift: 0 });
+    E.blooms.forEach((b) => { b.active = false; }); u.step(1); const none = E.wedges.length;
+    const spot = E.find('.').map(([x, z]) => E.center(x, z)).sort((a, b) => Math.hypot(b[0] - E.raftPos[0], b[2] - E.raftPos[2]) - Math.hypot(a[0] - E.raftPos[0], a[2] - E.raftPos[2]))[3];
+    E.player.pos = [spot[0], 0, spot[2]]; E.player.yaw = 0; E.player.pitch = 0; u.step(1);
+    // Forward at yaw 0 is −z, so +z is behind.
+    const n0 = E.blooms.length; E.spawnBloom([spot[0], 1.3, spot[2] + 1.6]); const b = E.blooms.find((x) => x.active);
+    let w = []; for (let k = 0; k < 20 && !w.length; k++) { u.setState({ health: 1e6, drift: 0 }); E.player.pos = [spot[0], 0, spot[2]]; E.player.yaw = 0; u.step(1); w = E.wedges.slice(); }
+    const shown = [...document.querySelectorAll('#wedges i')].filter((x) => !x.hidden).length;
+    b.active = false; u.step(1);
+    return { none, n: w.length, behind: w[0]?.behind, commit: b.commit, shown, cleared: E.wedges.length }; });
+  check('on foot a Bloom that has committed to you from behind gets a rim marker', r.none === 0 && r.n === 1 && r.behind && r.shown === 1 && r.cleared === 0, JSON.stringify(r));
   await finish(browser, errors);
 })();

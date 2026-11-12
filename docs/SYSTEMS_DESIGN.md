@@ -656,7 +656,7 @@ A collectible is worth 250 (a dry thing 750) to the Expedition Score, is written
 - a lit lamp in your hand lets the Lifeguard see you from further; in the dark with it off you are harder to see;
 - a lamp left burning on the floor draws Blooms that have not committed to you: a decoy, at the cost of your light.
 
-**Not built from these briefs** (the lighting circuit in section 26 came later): reflections and shadows as puzzle elements, perspective alignment, private versus shared hallucinations (one player), warm tokens and unclaimed vests, score-qualified side rooms for collectibles. Keyboard bindings only for the lamp. Tests: `tests/unit/collectibles.test.js`, `tests/finds.cjs`.
+**Not built from these briefs** (the lighting circuit in section 26 came later): reflections and shadows as puzzle elements, perspective alignment, private versus shared hallucinations (one player), warm tokens and unclaimed vests, score-qualified side rooms for collectibles. The lamp's cycle has a controller button on foot (section 30); setting it down is keyboard only. Tests: `tests/unit/collectibles.test.js`, `tests/finds.cjs`.
 
 ## 25. The raft's arcade layer (implemented)
 
@@ -678,7 +678,7 @@ Every enclosed dock has a **lighting relay** on a wall a short walk from the raf
 
 Nothing animates. The light changes and the room is different; the crew says so once ("That was a wall. I had my hand on it."). The first time through the doorway is a ROUTE FOUND. The relay is never placed beside the doorway it opens, so you switch it and then go and look. You cannot switch back to main while standing in the doorway. The base map is never altered, so the dock stays solvable under either state.
 
-This is the first **facility state**; power loss (section 31) is the second. Not built: flooded, high-Drift and remembered states, a bridge that exists only under one circuit, reflections and shadows that disagree with the room, perspective alignment, and rooms that differ per player. Test: `tests/circuit.cjs`.
+This is the first **facility state**; power loss (section 31) is the second and high Drift (section 32) the third. Not built: flooded and remembered states, a bridge that exists only under one circuit, reflections and shadows that disagree with the room, perspective alignment, and rooms that differ per player. Test: `tests/circuit.cjs`.
 
 ## 27. Automatic resolution, controller vibration, and the Lost & Found (implemented)
 
@@ -698,7 +698,7 @@ Both are screen-space geometry in `src/aim.js` (pure).
 
 **Threat markers.** A Bloom that has noticed you, is within 12 m and is outside the view gets a wedge on the rim pointing toward it; one directly behind is drawn at the bottom. At most three, the nearest first, larger when closer. Blooms that have not noticed you get no marker: the HUD reports what is coming, not what is waiting. A setting turns them off.
 
-Limits: the assist strengths are untuned guesses, never tried with a physical controller. Markers exist on the raft only and only for Blooms; projectiles, the Lifeguard and on-foot threats have none. Tests: `tests/unit/aim.test.js`, `tests/arcade.cjs`.
+Limits: the assist strengths are untuned guesses, never tried with a physical controller. Markers cover Blooms and thrown projectiles on the raft (a projectile outranks anything merely approaching) and, on foot, a Bloom that has committed to you within 10 m; ones still circling get none. The Lifeguard, the Undertow and other entities have no marker. Tests: `tests/unit/aim.test.js`, `tests/arcade.cjs`.
 
 ## 29. Early extraction (implemented)
 
@@ -714,7 +714,9 @@ On foot, M opens a small map in the corner (`src/survey.js`, pure). It is drawn 
 
 Seeing 85% of the cells you can walk to completes the survey: a SURVEYED award once per dock, a line in the field ledger. The map stays open while the world keeps moving. It is saved with a resume.
 
-Not built: the map on the raft, sharing a survey between expeditions, marks for finds or hazards, the map disagreeing with a room under a different facility state (the lighting circuit's hidden cell is simply drawn once you have stood by it), and a controller binding. Tests: `tests/unit/survey.test.js`, `tests/finds.cjs`.
+Not built: the map on the raft, sharing a survey between expeditions, marks for finds or hazards, and the map disagreeing with a room under a different facility state (the lighting circuit's hidden cell is simply drawn once you have stood by it). Tests: `tests/unit/survey.test.js`, `tests/finds.cjs`.
+
+On a controller every button has a job on the raft, so on foot the two with nothing to do there are reused (`src/padmap.js`): look-back (R3 by default) opens the map and patch (D-pad down) cycles the work lamp. Setting the lamp down has no controller button. The tables are unit-tested (`tests/unit/padmap.test.js`); no physical controller has been used.
 
 ## 31. Power loss: the relay trips (implemented)
 
@@ -725,4 +727,12 @@ To bring it back, start a reset at the relay (E) and stay there for four seconds
 **Blooms hunt by your light in it.** With the power out, a Bloom that has not committed to you and is more than a few metres away loses you while your work lamp is off or set down somewhere else: it drifts slowly to where it last had you and waits there. Carry the lamp lit and they find you again, from farther than usual. One already on top of you is not fooled. So in a blackout the lamp is a trade: light keeps Drift down and tells them where you are; a lamp left burning on the floor still draws them to it.
 
 It is caused only by the player and warned one throw ahead. The Lifeguard and other entities do not change behaviour in a blackout. Not built: a blackout the facility causes itself, different sound under power loss beyond the trip and a brief duck, and signage that changes meaning rather than only going dark. Test: `tests/circuit.cjs`.
+
+## 32. High Drift: the signs are about you (implemented)
+
+On foot, when Drift reaches 70 the lit signs on the dock stop being about the building. Each one that is allowed to change is swapped, in place and without any animation, for a panel in the same official lettering that reads GUEST and your wristband number, then PLEASE REMAIN, then YOU ARE EXPECTED, with as many lines as the sign it replaced. They change back when Drift falls below 55. The crew says it once ("Don't read the signs. Read the map.") and the ledger records it.
+
+The rule for which signs may change is in `src/driftsign.js` (pure). Anything you need to read to solve a room never changes: valve and pump labels, the pressure diagram and its order, the lighting relay, locker and plate numbers, and the notice the facility leaves after an early extraction. Handwriting and blacklight paint are not the facility's and do not change either. So the state unsettles a room without withholding information, and the survey map stays right throughout.
+
+Not built: the state changing sound or architecture, signs that give wrong directions (deliberately: that would be unfair without a way to check), the same state on the raft, and any difference between what you and a crewmate see. Tests: `tests/unit/driftsign.test.js`, `tests/circuit.cjs`.
 
