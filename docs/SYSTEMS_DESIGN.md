@@ -688,7 +688,7 @@ This is the first **facility state**; power loss (section 31) is the second and 
 
 **The Lost & Found** (`src/collectibles.js`). A hatch in the Safe Room's emergency cabinet returns one item per visit for 150 Service Credit. You do not choose what comes back: usually a supply, sometimes more credit than you paid, sometimes one wet sock, rarely a dressing with your handwriting on it. No outcome costs anything but the fee, because a Safe Room is safe.
 
-Limits: the resolution controller is tested as logic and the scale change is tested on the canvas, but it has never run its loop on a real GPU, so the thresholds are unproven. Vibration has not been felt on a physical controller; the tests check the patterns and that the request is made, not that anything shook. Not built: an automatic quality tier beyond resolution (shadows, lamps, bloom), ambient occlusion, volumetrics, auto exposure, trigger-specific vibration, and patterns for most on-foot actions. Tests: `tests/unit/autores.test.js`, `tests/unit/haptics.test.js`, `tests/unit/collectibles.test.js`, `tests/score.cjs`.
+Limits: the resolution controller is tested as logic and the scale change is tested on the canvas, but it has never run its loop on a real GPU, so the thresholds are unproven. Vibration has not been felt on a physical controller; the tests check the patterns and that the request is made, not that anything shook. Not built: an automatic quality tier beyond resolution (shadows, lamps, bloom), trigger-specific vibration (ambient occlusion, haze and eye adaptation came later, section 34), and patterns for most on-foot actions. Tests: `tests/unit/autores.test.js`, `tests/unit/haptics.test.js`, `tests/unit/collectibles.test.js`, `tests/score.cjs`.
 
 ## 28. Controller aim help and threat markers (implemented)
 
@@ -744,3 +744,25 @@ If the facility has changed the dock since, the layers disagree and the map show
 
 Limits: a dock whose map changed size between expeditions starts blank; a survey is lost if the crew does not board (a death, a spillway); only the most recent survey of each dock is kept, merged with what it had remembered. The facility's authored variations rarely turn floor into wall, so the `?` is rare in play; the browser test produces one by marking a wall as remembered. Tests: `tests/unit/survey.test.js`, `tests/finds.cjs`.
 
+## 34. The render chain: tiers, ambient occlusion, haze, eye adaptation, the post chain, a benchmark (implemented)
+
+**Tiers** (`src/tiers.js`, pure; `src/quality.js` applies them). LOW is the light tier for software renderers. MEDIUM, HIGH and ULTRA add a depth target and progressively more: samples, pixel budget (the device ratio is capped per tier), lamps, bloom, ambient occlusion, haze and its step count, and post passes. The setting is Auto, Low, Medium, High or Ultra; `?quality=` in the URL overrides it. **Auto** starts on HIGH with a GPU and LOW without, and works with automatic resolution (section 27): when the render scale is already at its floor and frames are still long for four seconds it drops a whole tier; after thirty very good seconds at full scale it climbs back, never above HIGH. Lamps, bloom, AO, haze and the post chain change on the next frame; samples, shading and the depth target change when the next scene is built.
+
+**From the engine, on tiers with depth:** ambient occlusion (HIGH and up) and one haze volume that follows the eye, tinted with the sector's fog colour. The engine scatters only a directional light through fog, so indoors the haze reads as depth and damp air, not beams from the fixtures.
+
+**Eye adaptation** (`src/exposure.js`, pure, every tier). The light reaching the eye is estimated from the frame's own light list; exposure follows it between 0.85 and 1.45, slowly into the dark and only part of the way, quickly back under light.
+
+**The post chain** (`src/postchain.js`, pure text and numbers; the engine runs up to four custom passes on the finished frame):
+
+| Pass | Tiers | What it does |
+|---|---|---|
+| optics | HIGH, ULTRA | Water beads on the lens that bend the view (after going overboard, capsizing, or a hard landing; they run off over a few seconds); chromatic fringing toward the corners that grows with Drift and with a hit; horizontal streaks off bright fixtures; lens dirt that shows only where there is glare |
+| grade | MEDIUM and up | A filmic contrast curve; a teal-shadow, warm-highlight split tone; colour draining toward grey-green with Drift; a blue-green tint under water; red closing in from the edges when hit and pulsing at low health; and wet tile on the raft route, a darker band and a pale mineral line on walls just above the water, found from depth |
+| fxaa | HIGH, ULTRA | Edge smoothing |
+| finish | MEDIUM and up | A light sharpen, then dither so dark gradients do not band |
+
+"Reduce flashes" softens the red; the distortion setting removes fringing and beads; one setting turns the whole chain off. Film grain, vignette, saturation, temperature and bloom were already the engine's and are unchanged.
+
+**Benchmark.** `?bench` (or `?bench=30` for seconds) rides the first attraction on Ride Control and then shows the GPU, tier, resolution, render scale, average, median, 99th-percentile and worst frame time, and any errors (`src/bench.js`); the result is also in the playtest log.
+
+Limits. All of this has been drawn only by a software renderer in headless tests: the passes compile and run with no renderer diagnostics, and I compared screenshots with the chain on and off, in high Drift and at low health. Nobody has looked at it on a real GPU, the strengths are first guesses, and the cost on real hardware is unmeasured (`?bench` exists to measure it). From the reference chain, not built: multi-level bloom (the engine's single bloom is used), shadow-aware volumetrics and light shafts from fixtures, point-light shadows, planar reflections, a procedural sky, motion blur and depth of field (the engine has both; unused), generated PBR material sets, per-surface wetness that changes roughness and footsteps (the wet band is a screen-space tint; the engine's material hook is not a public entry point), tiers that also scale shadows, reflections, entity detail and particles, showcase modes (`?show=`), and any of this on the menu and Safe Room scenes. Tests: `tests/unit/tiers.test.js`, `tests/unit/postchain.test.js`, `tests/unit/exposure.test.js`, `tests/unit/bench.test.js`, `tests/render.cjs` (the only browser file that runs a tier with depth).

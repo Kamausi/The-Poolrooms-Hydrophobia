@@ -16,7 +16,9 @@ import { createMenuScene } from './menuscene.js';
 import { initInput, input, endFrame, releaseLock, wasPressed, pollGamepad } from './input.js';
 import { initHud, hud } from './hud.js';
 import { sound } from './audio.js';
-import { quality } from './quality.js';
+import { quality, setTier, applyQualitySetting } from './quality.js';
+import { createAutoTier } from './tiers.js';
+import { summarize, report as benchReport } from './bench.js';
 import { rng } from './math.js';
 import { playlog, createFrameStats } from './playlog.js';
 import { facility, recordSector, recordDeath, note, nameVisitor, commitVisitors, authorExpedition, saveFacility } from './memory.js';
@@ -129,6 +131,7 @@ const events = {
     else if (state.protectT > 0) return; // just rescued or revived: a moment's grace
     else if (state.downed) { state.downed.bleed -= n * 0.25; state.downed.revive = Math.max(0, state.downed.revive - 1); if (!quiet) sound.hurt(); return; }
     state.health = Math.max(0, state.health - n);
+    if (n < 999 && !quiet) state.hurtFx = Math.min(1, Math.max(state.hurtFx || 0, 0.35 + n / 25));
     state.lastHurt = reason;
     if (n < 999 && !quiet) scoreHurt(state, n); // a hit costs FLOW; slow drains (Drift, a hold) do not
     if (!quiet) { hud.damage(); sound.hurt(); rumble('hurt', Math.min(1.4, 0.5 + n / 20)); }
@@ -885,9 +888,38 @@ function setPaused(on) {
 }
 
 const frames = createFrameStats();
+// ?bench: ride the first attraction on Ride Control for a fixed time and report frame times, the GPU and the tier.
+let bench = null;
+function startBench(seconds = 20) {
+  const errors = [];
+  window.addEventListener('error', (e) => errors.push(String(e.message).slice(0, 120)));
+  hideModal();
+  beginSector(0); startRide();
+  state.autopilot = true;
+  bench = { frames: [], start: 0, seconds, errors };
+  $('perf').hidden = false; $('perf').textContent = `BENCHMARK · ${seconds} s`;
+}
+function benchFrame(ms, now) {
+  bench.start ||= now;
+  state.health = 100; state.drift = 0; // measure rendering, not survival
+  if (now - bench.start > 2000) bench.frames.push(ms); // the first two seconds compile shaders
+  if (now - bench.start < bench.seconds * 1000) return;
+  const info = { gpu: quality.gpu, tier: quality.tier, auto: !!quality.auto, width: canvas.width, height: canvas.height, dpr: Math.round((window.devicePixelRatio || 1) * 100) / 100, scale: resScale, errors: bench.errors };
+  const stats = summarize(bench.frames);
+  window.__bench = { ...info, ...stats };
+  const text = benchReport(info, stats);
+  bench = null;
+  setPaused(true);
+  const pre = document.createElement('pre'); pre.id = 'bench'; pre.className = 'mono'; pre.textContent = text;
+  pre.style.cssText = 'position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:99;margin:0;padding:18px 22px;background:#080d10f2;color:#d8d8ca;border:1px solid #4d7472;white-space:pre;font-size:14px;line-height:1.5';
+  document.body.append(pre);
+  playlog.record('bench', window.__bench);
+}
 // Automatic resolution: only where there is a GPU to spare (the software tier is already at its floor) and never
 // while a test is stepping the game by hand.
 const autoRes = createAutoRes();
+// Automatic quality: when the lowest render scale still cannot hold the frame rate, drop a whole tier.
+let autoTier = createAutoTier({ start: quality.tier }), tierSetting = settings.qualityTier ?? 0;
 let resScale = 1, resScene = null;
 function applyResScale(k) { resScale = k; scene?.setScale?.(k); }
 let perfT = 0, lastLogged = 0;
@@ -897,21 +929,27 @@ function frame(now) {
   const ms = now - last;
   const dt = Math.min(0.05, ms / 1000);
   last = now;
+  if (bench && mode === 'ride') benchFrame(ms, now);
   if (mode === 'ride' || mode === 'explore') {
     frames.push(ms);
     if (scene !== resScene) { resScene = scene; if (resScale !== 1) scene?.setScale?.(resScale); } // a new scene starts at the scale the last one settled on
+    if ((settings.qualityTier ?? 0) !== tierSetting) { tierSetting = settings.qualityTier ?? 0; applyQualitySetting(); autoTier = createAutoTier({ start: quality.tier }); autoRes.reset(); applyResScale(1); }
     if (settings.autoRes && !quality.low && !manual && !paused) {
-      autoRes.target = settings.fpsCap === 30 ? 33.3 : 16.7;
+      autoRes.target = autoTier.target = settings.fpsCap === 30 ? 33.3 : 16.7;
       const k = autoRes.push(ms);
       if (k !== null) { applyResScale(k); playlog.record('resolution', { scale: k }); }
+      if (quality.auto) { const t = autoTier.push(ms, resScale); if (t) { setTier(t); autoRes.reset(); applyResScale(1); playlog.record('quality', { tier: t }); hud.toast(`QUALITY · ${t.toUpperCase()}`); } }
     } else if (!settings.autoRes && resScale !== 1) { autoRes.reset(); applyResScale(1); }
+    // Lens and grade inputs fade on their own: the red of a hit, water running off the lens.
+    state.hurtFx = Math.max(0, (state.hurtFx || 0) - dt * 1.6);
+    state.wetLens = Math.max(0, (state.wetLens || 0) - dt * 0.22);
   }
   perfT -= dt;
   if (perfT <= 0) {
     perfT = 0.5;
     const st = frames.stats(settings.fpsCap === 30 ? 33.3 : 16.7);
     $('perf').hidden = !settings.perfOverlay;
-    if (settings.perfOverlay && st) $('perf').textContent = `${settings.fpsCap === 30 ? '30' : '60'} FPS TIER · avg ${st.avg} ms · p95 ${st.p95} · p99 ${st.p99} · slow ${st.slow}/${st.n} · res ${Math.round(resScale * 100)}%${performance.memory ? ` · heap ${Math.round(performance.memory.usedJSHeapSize / 1048576)} MB` : ''}`;
+    if (settings.perfOverlay && st) $('perf').textContent = `${settings.fpsCap === 30 ? '30' : '60'} FPS TIER · avg ${st.avg} ms · p95 ${st.p95} · p99 ${st.p99} · slow ${st.slow}/${st.n} · ${quality.tier}${quality.auto ? ' (auto)' : ''} · res ${Math.round(resScale * 100)}%${performance.memory ? ` · heap ${Math.round(performance.memory.usedJSHeapSize / 1048576)} MB` : ''}`;
     if (st && now - lastLogged > 60000) { lastLogged = now; playlog.record('frames', st); }
   }
   pollGamepad(dt);
@@ -937,7 +975,7 @@ canvas.addEventListener('webglcontextlost', (e) => {
   showModal('The graphics device was reset.', 'Your exact position was saved. Reload to pick up where you were.', [['RELOAD AND RESUME ↗', () => location.reload(), true]], 'RECOVERY');
 });
 initHud();
-$('engine').textContent = `RENDERED WITH 67JS ${VERSION}${quality.low ? ' · LIGHT MODE' : ''}`;
+$('engine').textContent = `RENDERED WITH 67JS ${VERSION}${quality.low ? ' · LIGHT MODE' : ` · ${quality.tier.toUpperCase()}`}`;
 refreshMenu();
 swap(() => createMenuScene(canvas));
 const begin = () => { sound.unlock(); sound.startHum(); $('menu').hidden = true; };
@@ -989,6 +1027,7 @@ addEventListener('gamepaddisconnected', () => {
   }
 });
 requestAnimationFrame(frame);
+if (new URLSearchParams(location.search).has('bench')) setTimeout(() => startBench(Number(new URLSearchParams(location.search).get('bench')) || 20), 600);
 
 // For automated checks.
 window.__underflow = {
@@ -997,6 +1036,7 @@ window.__underflow = {
   get scene() { return scene; },
   startExplore, enterSafeRoom, startRide, newCampaign, startEndless, beginSector, events, startChallenge, startCustom, parseRoute, expeditionRecord,
   setState(patch) { Object.assign(state, patch); },
+  settings, quality, setTier,
   /** Tests: drive the render scale directly, and read what it is. */
   setResScale(k) { applyResScale(k); return resScale; },
   get resScale() { return resScale; },

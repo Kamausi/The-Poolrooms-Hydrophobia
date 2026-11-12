@@ -4,6 +4,9 @@
 import { rumble } from './haptics.js';
 import { wedges as threatWedges } from './aim.js';
 import { driftSign, driftState } from './driftsign.js';
+import { lightAtEye, targetExposure, adapt as adaptExposure, hazeVolume } from './exposure.js';
+import { buildChain } from './postchain.js';
+import { installUserPasses } from '67js/addons/user-pass';
 import { createSurvey, visit as surveyVisit, mark as surveyMark, coverage as surveyCoverage, render as surveyRender, seenList, carryList, disagreements } from './survey.js';
 import { Renderer67, box, sphere, cylinder, torus } from '67js';
 import { writeYaw, writeBasis, writeSegment, hide, add, sub, scale, normalize, clamp, damp, rng, raySphere, rayPlaneY, linear, distance, cross, display, angleTo, soundDir } from './math.js';
@@ -96,7 +99,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
   // Power loss: the relay trips if it is thrown too often. No fixtures, no strips, no lit signs, until the breaker
   // is reset at the relay. The architecture stays as it was when the power went.
   let blackout = false, resetT = 0;
-  let lastWedges = [];
+  let lastWedges = [], eyeExposure = 1;
   const signParts = [];
   const isWall = (x, z) => at(x, z) === '#' && !(emergency && eCell && x === eCell[0] && z === eCell[1]);
 
@@ -921,6 +924,10 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     },
   });
   renderer.resize();
+  // The depth target is fixed for the life of this scene: AO, haze and the post chain all need it.
+  const hasDepth = !!quality.renderer.depth;
+  let lastChain = [];
+  if (hasDepth) installUserPasses(renderer);
 
   // ---------- Player ----------
   const player = { pos: opts.pos ? [...opts.pos] : [dockC[0] - dockWall[0] * 1.2, 0, dockC[2] - dockWall[1] * 1.2], yaw: 0, pitch: 0, floor: 0 };
@@ -1931,12 +1938,18 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
 
     if (quality.skipRender) return;
     renderer.updateParts(parts);
+    const frameLights = gatherLights(eye);
+    eyeExposure = settings.autoExposure === false ? 1 : adaptExposure(eyeExposure, targetExposure(lightAtEye(frameLights, eye, rules.openSky ? 0.7 : rules.uv ? 0.08 : 0.15)), dt);
+    if (undertow.alive && undertow.holding > 0) state.wetLens = 1;
+    lastChain = !hasDepth || settings.postChain === false ? [] : buildChain(quality.tier, { drift: state.drift, health: state.health, hurt: state.hurtFx, wet: state.wetLens, reduceFlash: settings.flashReduce, distortion: settings.distortion, under: undertow.alive && undertow.holding > 0 ? 0.8 : 0, warm: sector.index === 0 });
+    if (hasDepth) renderer.userPasses.set(lastChain);
     renderer.render({
       eye, target, fov: FOV, time,
       waterRipple: ripple, rippleTime: time - rippleTime,
-      environment: { pointLights: gatherLights(eye) },
-      exposure: (rules.openSky ? 0.95 : 1.05) - state.drift * 0.002,
+      environment: { pointLights: frameLights, volumeFog: hazeVolume(eye, { density: !hasDepth || settings.haze === false ? 0 : quality.haze, steps: quality.hazeSteps, color: linear(sector.fog), sky: !!rules.openSky }) },
+      exposure: ((rules.openSky ? 0.95 : 1.05) - state.drift * 0.002) * eyeExposure,
       effects: {
+        ambientOcclusion: !hasDepth || settings.ambientOcclusion === false ? 0 : quality.ao, ambientOcclusionRadius: 0.6,
         bloom: { strength: quality.bloom, threshold: 1, radius: 1.3 },
         vignette: settings.distortion ? Math.min(1, 0.35 + state.drift * 0.004 + (held ? 0.3 : 0)) : 0.28,
         grain: settings.grain ? 0.04 : 0,
@@ -3225,7 +3238,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     for (let i = 0; i < (r.valves || 0); i++) { const v = pumpValves.find((x) => x.id === valveOrder[i]); if (v) v.open = true; }
     valveStep = r.valves || 0;
   }
-  if (import.meta.env.DEV) window.__explore = { get remembered() { return remembered; }, get driftSigns() { return driftSigns; }, get wedges() { return lastWedges; }, survey, get surveyCoverage() { return surveyCoverage(survey, surveyOpen); }, surveyOpen, omen: (k) => startFomen(k), circuit, setEmergency, setBlackout, get blackout() { return blackout; }, signParts, get resetT() { return resetT; }, get emergency() { return emergency; }, blocked, isWall, finds, found, get lampPlaced() { return lampPlaced; }, lights: () => gatherLights(add(player.pos, [0, 1.6, 0])), get hesitation() { return hesitation; }, get lastOmen() { return lastFomen; }, get marcoAct() { return marcoAct; }, set marcoAct(v) { marcoAct = v; }, marcos, columns, wavePool, get basin() { return basin; }, isWater, floorTop, get operating() { return operating; }, set operating(v) { operating = v; }, panelFront, holdT, shoot, spawnBloom, occupant, lockers, noise, violate, get omenState() { return fomen; }, door, blooms, lamps, director, followers, get dockKind() { return dockKind; }, get valves() { return { order: valveOrder, step: valveStep, list: pumpValves }; }, june: juneEvent, thread, get clock() { return clock; }, stagnant, player, center, undertow, lifeguard, cellPos, panelPos, raftPos, code, find, floaters, restorePower };
+  if (import.meta.env.DEV) window.__explore = { get remembered() { return remembered; }, get chain() { return lastChain; }, get eyeExposure() { return eyeExposure; }, renderer, get driftSigns() { return driftSigns; }, get wedges() { return lastWedges; }, survey, get surveyCoverage() { return surveyCoverage(survey, surveyOpen); }, surveyOpen, omen: (k) => startFomen(k), circuit, setEmergency, setBlackout, get blackout() { return blackout; }, signParts, get resetT() { return resetT; }, get emergency() { return emergency; }, blocked, isWall, finds, found, get lampPlaced() { return lampPlaced; }, lights: () => gatherLights(add(player.pos, [0, 1.6, 0])), get hesitation() { return hesitation; }, get lastOmen() { return lastFomen; }, get marcoAct() { return marcoAct; }, set marcoAct(v) { marcoAct = v; }, marcos, columns, wavePool, get basin() { return basin; }, isWater, floorTop, get operating() { return operating; }, set operating(v) { operating = v; }, panelFront, holdT, shoot, spawnBloom, occupant, lockers, noise, violate, get omenState() { return fomen; }, door, blooms, lamps, director, followers, get dockKind() { return dockKind; }, get valves() { return { order: valveOrder, step: valveStep, list: pumpValves }; }, june: juneEvent, thread, get clock() { return clock; }, stagnant, player, center, undertow, lifeguard, cellPos, panelPos, raftPos, code, find, floaters, restorePower };
 
   return {
     update,
