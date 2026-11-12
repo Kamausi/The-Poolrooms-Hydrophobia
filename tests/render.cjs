@@ -68,7 +68,7 @@ const BASE = process.env.UNDERFLOW_URL || 'http://localhost:5173';
   r = await page.evaluate(async () => { const m = await import('/src/surfaces.js'); const loaded = m.surfacesLoaded();
     const c = m.surface('ceiling').image.getContext('2d').getImageData(0, 0, 256, 256).data; let varied = 0; for (let i = 0; i < c.length; i += 4 * 97) if (Math.abs(c[i] - 0xcf) > 12) varied += 1;
     return { loaded, varied }; });
-  check('the generated surface textures (ceiling, clouds, painted steel, aqua tile) decode and are drawn, not left as their fallback colour', Object.values(r.loaded).filter(Boolean).length === 4 && r.varied > 10, JSON.stringify(r));
+  check('the generated surface textures (ceiling, clouds, painted steel, aqua tile, raft PVC, wet concrete) decode and are drawn, not left as their fallback colour', ['ceiling', 'clouds', 'metal', 'aqua', 'pvc', 'concrete'].every((k) => r.loaded[k]) && r.varied > 10, JSON.stringify(r));
 
   await page.goto(`${BASE}/?quality=high&bench=8`, { timeout: 120000 });
   await page.waitForFunction(() => !!window.__bench, null, { timeout: 120000 });
