@@ -6,7 +6,7 @@ export const ATLAS_TILES = 24;
 export const tilesFor = (points, spots) => points * 6 + spots;
 
 /**
- * @param {{ position: number[], range?: number, castShadow?: boolean }[]} points the frame's point lights
+ * @param {{ position: number[], range?: number, intensity?: number, castShadow?: boolean }[]} points the frame's point lights
  * @param {number[]} eye
  * @param {number} count how many point lights may cast (from the quality tier)
  * @param {number} spots spot lights that will cast this frame

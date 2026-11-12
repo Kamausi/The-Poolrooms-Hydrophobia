@@ -176,3 +176,8 @@ The pause journal keeps three accounts apart so they can be compared: crew obser
 - **Bright effects:** signals, pickups and lock marks moved onto the palette (checkpoint green, coral) and were dimmed. The muzzle flash is smaller and dimmer (emission 12 → 4.5), and the beam is dimmer (14 → 8). In a staged firing capture, the beam is a thin line and the Blooms' coral hearts remain the strongest colour in the frame. Motion on a GPU is still unreviewed.
 - **Crew on foot:** a staged capture confirms a crewmate following your yellow thread behind you.
 - **Not built:** condensation on glass; anatomical tile in the final drain (the drain is reached through the ending text, not a level).
+
+## Generated surface textures
+
+Four textures generated with Higgsfield from text prompts written for this project are in the game (`src/surfaces.js`, recorded in `assets/registry.json` and `docs/CREDITS.md`): water-stained acoustic ceiling tiles on every ceiling, saturated aqua pool tile on floors under the water, chipped teal-painted steel on the service door, and painted cloud tiles in the children's room (replacing the canvas-drawn clouds). The procedural wall tile is unchanged, because its relief map is drawn to match its grid. Three more from the same batch (wet concrete, orange raft PVC, porcelain wall tile) are kept in `assets/generated/` for later use; the raft PVC is orange, not the raft's safety yellow, so it is not used as is. The textures are not guaranteed seamless; on large surfaces the repeat may show. Checked in a headless screenshot looking up at a ceiling on foot; not on a real GPU.
+

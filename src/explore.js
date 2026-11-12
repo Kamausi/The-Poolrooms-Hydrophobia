@@ -9,6 +9,7 @@ import { createLightPool, mergeLights } from './lightpool.js';
 import { scoreSpawns } from './spawnscore.js';
 import { createPerceiver, sense } from './perception.js';
 import { assignShadows, handLamp } from './shadows.js';
+import { surface as genSurface } from './surfaces.js';
 import { lightAtEye, targetExposure, adapt as adaptExposure, hazeVolume } from './exposure.js';
 import { buildChain, shaftSource } from './postchain.js';
 import { installUserPasses } from '67js/addons/user-pass';
@@ -31,7 +32,7 @@ import { createDirector, AFTERMATH } from './director.js';
 import { compressorRefill } from './hull.js';
 import { facility as facilityMem, saveFacility, recordSurvey, surveyMem } from './memory.js';
 import { plan as planFinds, collect as collectFind, headcountLine } from './collectibles.js';
-import { planColumns, pushOutOfColumns, columnBlocks, planArches, cloudTexture } from './poolrooms.js';
+import { planColumns, pushOutOfColumns, columnBlocks, planArches } from './poolrooms.js';
 import { showModal, hideModal } from './ui.js';
 
 /** Machines whose setting changes the way out: [title, option A, option B] with [label, routeMod, toast]. */
@@ -148,6 +149,9 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
   // ---------- Parts ----------
   const map = tileTexture(sector);
   const tileMat = { color: [1, 1, 1], metallic: 0, roughness: 0.22, map, normalMap: tileNormal(), normalScale: [1, 1], boxMapScale: 0.5 };
+  // Generated surfaces (surfaces.js): stained acoustic ceiling tiles overhead, aqua pool tile under the water.
+  const ceilingMat = { color: [0.92, 0.92, 0.9], metallic: 0, roughness: 0.85, map: genSurface('ceiling'), boxMapScale: 0.3 };
+  const poolFloorMat = { color: [0.9, 0.95, 0.95], metallic: 0, roughness: 0.25, map: genSurface('aqua'), boxMapScale: 0.45 };
   const lampColor = linear(sector.lamp);
   const slab = box(0, 1);
   const ball = sphere(28, 18);
@@ -189,7 +193,8 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
         continue;
       }
       const top = ch === 'B' ? DEEP : floorTop(x, z);
-      writeYaw(P(`Floor ${x},${z}`, slab, tileMat).matrix, [c[0], top > 0 ? (top - 0.5) / 2 : top - 0.25, c[2]], 0, CELL, top > 0 ? top + 0.5 : 0.5, CELL);
+      // Under the water the floor is the saturated aqua pool tile; dry floor stays the sector's tile.
+      writeYaw(P(`Floor ${x},${z}`, slab, top < 0 || WATERISH.has(ch) ? poolFloorMat : tileMat).matrix, [c[0], top > 0 ? (top - 0.5) / 2 : top - 0.25, c[2]], 0, CELL, top > 0 ? top + 0.5 : 0.5, CELL);
       // The gallery's open edge over the basin: a low tiled parapet with a steel rail you can see and shoot over.
       if (ch === 'y') for (const [dx, dz] of DIRS) {
         const n = at(x + dx, z + dz);
@@ -206,7 +211,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
       }
     }
   }
-  if (!rules.openSky) writeYaw(P('Ceiling', slab, tileMat).matrix, [(W * CELL) / 2, wallH + 0.25, (H * CELL) / 2], 0, W * CELL, 0.5, H * CELL);
+  if (!rules.openSky) writeYaw(P('Ceiling', slab, ceilingMat).matrix, [(W * CELL) / 2, wallH + 0.25, (H * CELL) / 2], 0, W * CELL, 0.5, H * CELL);
   // Ledges where a pool meets dry floor.
   for (let z = 0; z < H; z++) for (let x = 0; x < W; x++) {
     const top = floorTop(x, z);
@@ -263,7 +268,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
   // The painted room: clouds over the tile grid, three slides into the water, and nobody.
   if (rules.kids) {
     const [kx0, kz0, kx1, kz1] = rules.kids;
-    const cloud = { color: [1, 1, 1], metallic: 0, roughness: 0.4, map: cloudTexture(), boxMapScale: 0, emission: 0.03, emissiveColor: [0.5, 0.75, 0.95] };
+    const cloud = { color: [1, 1, 1], metallic: 0, roughness: 0.4, map: genSurface('clouds'), boxMapScale: 0, emission: 0.03, emissiveColor: [0.5, 0.75, 0.95] };
     // Brightly, evenly lit: the one room where every lamp works.
     for (const l of lamps) if (l.x >= kx0 && l.x <= kx1 && l.z >= kz0 && l.z <= kz1) { l.dark = false; l.always = true; }
     let slideCell = null;
@@ -471,7 +476,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     const n = w.normal, t = [n[2], 0, -n[0]];
     const fl = floorTop(cx, cz);
     const hinge = [w.pos[0] - t[0] * 0.45 + n[0] * 0.02, fl, w.pos[2] - t[2] * 0.45 + n[2] * 0.02];
-    const teal = { color: linear('#6f9694'), metallic: 0.25, roughness: 0.6 };
+    const teal = { color: [0.95, 0.95, 0.95], metallic: 0.25, roughness: 0.6, map: genSurface('metal'), boxMapScale: 0.9 }; // painted steel, chipped
     // A worn safety-yellow frame and a stencilled sign, so the door reads at a glance in poor light.
     const trim = { color: linear('#b19a50'), metallic: 0.1, roughness: 0.7 };
     for (const [nm, off, size] of [['Door jamb L', -0.5, [0.08, 2.1, 0.06]], ['Door jamb R', 0.5, [0.08, 2.1, 0.06]]]) writeBasis(P(nm, box(0.02, 2), trim).matrix, [w.pos[0] + t[0] * off + n[0] * 0.02, fl + 1.05, w.pos[2] + t[2] * off + n[2] * 0.02], t, UP, n, ...size);

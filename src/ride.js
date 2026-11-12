@@ -17,6 +17,7 @@ import { rumble } from './haptics.js';
 import { planColonnade, archRadius } from './poolrooms.js';
 import { createBudget } from './pressure.js';
 import { assignShadows } from './shadows.js';
+import { surface } from './surfaces.js';
 import { createLightPool, mergeLights } from './lightpool.js';
 import { lightAtEye, targetExposure, adapt as adaptExposure, hazeVolume } from './exposure.js';
 import { buildChain, shaftSource } from './postchain.js';
@@ -41,6 +42,9 @@ export function createRide(canvas, state, sector, events, opts = {}) {
   const random = rng(1000 + sector.index * 31 + state.attempt * 7 + (state.seed || 0));
   const map = tileTexture(sector);
   const tileMat = { color: [1, 1, 1], metallic: 0, roughness: 0.22, map, normalMap: tileNormal(), normalScale: [1, 1], boxMapScale: 0.5 };
+  // Generated surfaces (surfaces.js): stained acoustic ceiling tiles overhead, aqua pool tile under the water.
+  const ceilingMat = { color: [0.92, 0.92, 0.9], metallic: 0, roughness: 0.85, map: surface('ceiling'), boxMapScale: 0.3 };
+  const poolFloorMat = { color: [0.9, 0.95, 0.95], metallic: 0, roughness: 0.25, map: surface('aqua'), boxMapScale: 0.45 };
   const lampColor = linear(sector.lamp);
   const bandMat = { color: linear(sector.band || '#4d7472'), metallic: 0, roughness: 0.35 };
   const waterMat = () => ({ tag: 'water', color: linear(sector.water), metallic: 0.3, roughness: 0.08, emission: 0.22, emissiveColor: linear(sector.water) }); // rich against the ivory, lit a little from within
@@ -69,7 +73,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
     segments.push({
       s: i * SEG,
       left: P(`Wall L${i}`, slab, tileMat), right: P(`Wall R${i}`, slab, tileMat),
-      ceiling: P(`Ceiling ${i}`, slab, tileMat), floor: P(`Floor ${i}`, slab, tileMat),
+      ceiling: P(`Ceiling ${i}`, slab, ceilingMat), floor: P(`Floor ${i}`, slab, poolFloorMat),
       water: P(`Water ${i}`, slab, waterMat()),
       belt: P(`Lift belt ${i}`, slab, { color: [0.12, 0.13, 0.12], metallic: 0.5, roughness: 0.5 }),
       lamp: P(`Lamp ${i}`, slab, glow(lampColor, 9)),
@@ -98,7 +102,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
 
   // ---------- Rooms: one set of parts placed at the nearest pool or bay ----------
   const room = {
-    floor: P('Room floor', slab, tileMat), water: P('Room water', slab, waterMat()), ceiling: P('Room ceiling', slab, tileMat),
+    floor: P('Room floor', slab, poolFloorMat), water: P('Room water', slab, waterMat()), ceiling: P('Room ceiling', slab, ceilingMat),
     wallL: P('Room wall L', slab, tileMat), wallR: P('Room wall R', slab, tileMat),
     back1: P('Room back 1', slab, tileMat), back2: P('Room back 2', slab, tileMat),
     front1: P('Room front 1', slab, tileMat), front2: P('Room front 2', slab, tileMat), front3: P('Room front 3', slab, tileMat),
