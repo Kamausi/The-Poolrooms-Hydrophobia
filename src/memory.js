@@ -77,6 +77,17 @@ export function recordDeath(key, where) {
   saveFacility();
 }
 
+/** The survey a crew brought back from a dock, kept for the next expedition. */
+export function recordSurvey(key, W, H, cells) {
+  sectorMem(key).survey = { W, H, exp: facility.expeditions, cells };
+  saveFacility();
+}
+/** A survey of this dock from an earlier expedition, if the dock is still the same size. */
+export function surveyMem(key, W, H, expedition) {
+  const s = facility.sectors[key]?.survey;
+  return s && s.W === W && s.H === H && s.exp !== expedition ? s.cells : [];
+}
+
 /** The crew's reliable record: a discovery catalogue that only ever says what actually happened. */
 export function note(kind, item) {
   const list = facility.ledger[kind];
