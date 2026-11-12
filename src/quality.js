@@ -21,7 +21,11 @@ export const quality = {
   low,
   renderer: low
     ? { samples: 1, pixelRatio: 0.6, shading: 'light' }
-    : { samples: 2, pixelRatio: Math.min(devicePixelRatio || 1, 1.5), shading: 'full' },
+    : { samples: 2, pixelRatio: Math.min(devicePixelRatio || 1, 1.5), shading: 'full', depth: true },
+  // The full tier's render chain: contact darkening where tile meets tile, and haze over the water. Both need the
+  // depth target above, so the light tier has neither.
+  ao: low ? 0 : 0.6,
+  haze: low ? 0 : 0.012,
   lights: low ? 4 : 10,
   bloom: low ? 0 : 0.45,
 };

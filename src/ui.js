@@ -759,7 +759,7 @@ export function settingsView(onChange) {
     row.append(sel);
     display.append(row);
   }
-  check(display, 'perfOverlay');
+  for (const k of ['perfOverlay', 'autoRes', 'ambientOcclusion', 'haze', 'autoExposure']) check(display, k);
   // Key bindings: click an action, press a key.
   const keys = el('div', 'bindings');
   keys.append(el('p', 'mono', 'KEYS · click, then press a key'));

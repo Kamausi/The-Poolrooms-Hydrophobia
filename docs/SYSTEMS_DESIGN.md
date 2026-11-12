@@ -688,7 +688,7 @@ This is the first **facility state**; power loss (section 31) is the second and 
 
 **The Lost & Found** (`src/collectibles.js`). A hatch in the Safe Room's emergency cabinet returns one item per visit for 150 Service Credit. You do not choose what comes back: usually a supply, sometimes more credit than you paid, sometimes one wet sock, rarely a dressing with your handwriting on it. No outcome costs anything but the fee, because a Safe Room is safe.
 
-Limits: the resolution controller is tested as logic and the scale change is tested on the canvas, but it has never run its loop on a real GPU, so the thresholds are unproven. Vibration has not been felt on a physical controller; the tests check the patterns and that the request is made, not that anything shook. Not built: an automatic quality tier beyond resolution (shadows, lamps, bloom), ambient occlusion, volumetrics, auto exposure, trigger-specific vibration, and patterns for most on-foot actions. Tests: `tests/unit/autores.test.js`, `tests/unit/haptics.test.js`, `tests/unit/collectibles.test.js`, `tests/score.cjs`.
+Limits: the resolution controller is tested as logic and the scale change is tested on the canvas, but it has never run its loop on a real GPU, so the thresholds are unproven. Vibration has not been felt on a physical controller; the tests check the patterns and that the request is made, not that anything shook. Not built: an automatic quality tier beyond resolution (shadows, lamps, bloom), trigger-specific vibration (ambient occlusion, haze and eye adaptation came later, section 34), and patterns for most on-foot actions. Tests: `tests/unit/autores.test.js`, `tests/unit/haptics.test.js`, `tests/unit/collectibles.test.js`, `tests/score.cjs`.
 
 ## 28. Controller aim help and threat markers (implemented)
 
@@ -743,4 +743,17 @@ A survey is kept only if it gets back to the raft: boarding saves it in the faci
 If the facility has changed the dock since, the layers disagree and the map shows it: a remembered cell that is a wall now is drawn `?`. The first time the open map shows one, a caption says so and the ledger records it. So the map can contradict the room without ever being wrong about either: it shows what the last crew walked and what this crew has seen, and labels which is which.
 
 Limits: a dock whose map changed size between expeditions starts blank; a survey is lost if the crew does not board (a death, a spillway); only the most recent survey of each dock is kept, merged with what it had remembered. The facility's authored variations rarely turn floor into wall, so the `?` is rare in play; the browser test produces one by marking a wall as remembered. Tests: `tests/unit/survey.test.js`, `tests/finds.cjs`.
+
+## 34. The render chain on the full tier: ambient occlusion, haze, eye adaptation (implemented)
+
+The game has two render tiers (`src/quality.js`): light, for software renderers, and full. The full tier now asks the engine for a depth target and uses it for two passes the engine already had, on the raft and on foot:
+
+- **Ambient occlusion** (strength 0.6, radius 0.6 m): contact darkening where tile meets tile, under the raft, around columns and props.
+- **Haze over the water**: one fog volume that follows the eye, tinted with the sector's fog colour, taller under open sky. The engine scatters only a directional light through it, so indoors it reads as depth and damp air. It is not beams from the fixtures; the engine does not scatter point lights.
+
+**Eye adaptation** is ours (`src/exposure.js`, pure) and runs on both tiers. The light reaching the eye is estimated from the same list of lights the renderer is given (no pixels are read back), and exposure follows it between 0.85 and 1.45: the dark lifts over several seconds and only part of the way, and a lit room brings it back down quickly. It multiplies the existing exposure, so Drift still dims the picture.
+
+Each has a setting. Automatic resolution (section 27) is what holds the frame rate if these cost too much.
+
+Limits: this was checked by one pair of headless screenshots on a software renderer, where the difference is visible but small, and by a test that the full tier renders with no renderer diagnostics. The strengths are first guesses that nobody has looked at on a real GPU, and the cost on real hardware is unmeasured. Not built: light shafts from fixtures, shadows from point lights, reflections, depth of field, and anything on the menu or Safe Room scenes. Tests: `tests/unit/exposure.test.js`, `tests/render.cjs` (the only browser file that runs the full tier).
 

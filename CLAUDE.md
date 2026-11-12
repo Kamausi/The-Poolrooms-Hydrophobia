@@ -15,6 +15,7 @@ A first-person cooperative horror rail-shooter and explorer set in the Poolrooms
 | `src/memory.js` | The facility's memory between expeditions (see `docs/WORLD_MEMORY.md`) |
 | `src/sectors.js`, `src/plans.js`, `src/track.js` | Content as data: attractions, track plans, track geometry |
 | `src/ui.js`, `src/hud.js`, `src/input.js`, `src/padmap.js`, `src/settings.js` | Menus, HUD, input and bindings (controller tables by context are pure and unit-tested), settings |
+| `src/quality.js`, `src/exposure.js` | The two render tiers; eye adaptation and the haze volume (pure, unit-tested) |
 | `src/driftsign.js` | Which signs change at high Drift and what they say (pure, unit-tested) |
 | `src/survey.js` | The on-foot survey map: what has been seen, coverage, text rendering (pure, unit-tested) |
 | `src/aim.js` | Controller aim help and threat-marker geometry (pure, unit-tested) |
