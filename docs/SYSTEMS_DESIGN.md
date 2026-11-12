@@ -656,7 +656,7 @@ A collectible is worth 250 (a dry thing 750) to the Expedition Score, is written
 - a lit lamp in your hand lets the Lifeguard see you from further; in the dark with it off you are harder to see;
 - a lamp left burning on the floor draws Blooms that have not committed to you: a decoy, at the cost of your light.
 
-**Not built from these briefs** (the lighting circuit in section 26 came later): reflections and shadows as puzzle elements, perspective alignment, private versus shared hallucinations (one player), warm tokens and unclaimed vests, score-qualified side rooms for collectibles. Keyboard bindings only for the lamp. Tests: `tests/unit/collectibles.test.js`, `tests/finds.cjs`.
+**Not built from these briefs** (the lighting circuit in section 26 came later): reflections and shadows as puzzle elements, perspective alignment, private versus shared hallucinations (one player), warm tokens and unclaimed vests, score-qualified side rooms for collectibles. The lamp's cycle has a controller button on foot (section 30); setting it down is keyboard only. Tests: `tests/unit/collectibles.test.js`, `tests/finds.cjs`.
 
 ## 25. The raft's arcade layer (implemented)
 
@@ -714,7 +714,9 @@ On foot, M opens a small map in the corner (`src/survey.js`, pure). It is drawn 
 
 Seeing 85% of the cells you can walk to completes the survey: a SURVEYED award once per dock, a line in the field ledger. The map stays open while the world keeps moving. It is saved with a resume.
 
-Not built: the map on the raft, sharing a survey between expeditions, marks for finds or hazards, the map disagreeing with a room under a different facility state (the lighting circuit's hidden cell is simply drawn once you have stood by it), and a controller binding. Tests: `tests/unit/survey.test.js`, `tests/finds.cjs`.
+Not built: the map on the raft, sharing a survey between expeditions, marks for finds or hazards, and the map disagreeing with a room under a different facility state (the lighting circuit's hidden cell is simply drawn once you have stood by it). Tests: `tests/unit/survey.test.js`, `tests/finds.cjs`.
+
+On a controller every button has a job on the raft, so on foot the two with nothing to do there are reused (`src/padmap.js`): look-back (R3 by default) opens the map and patch (D-pad down) cycles the work lamp. Setting the lamp down has no controller button. The tables are unit-tested (`tests/unit/padmap.test.js`); no physical controller has been used.
 
 ## 31. Power loss: the relay trips (implemented)
 

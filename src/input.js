@@ -1,5 +1,6 @@
 // Keyboard, mouse, pointer lock and touch, collected into one state object read once per frame.
 // Rebinding: the game reads each action's default key; settings.bindings maps the physical key onto it.
+import { padTables } from './padmap.js';
 import { settings, ACTIONS } from './settings.js';
 
 let remap = new Map(); // physical → default key
@@ -284,12 +285,13 @@ export function pollGamepad(dt) {
   if (b(1)) bDown += dt;
   else if (bDown > 0) { if (bDown < 0.2) input.pressed.add('z'); if (settings.braceToggle && bDown < 0.2) input.braceHeld = !input.braceHeld; bDown = 0; }
   input.scanHeld = b(3);
-  input.patchHeld = b(M.patch);
+  const T = padTables(input.context === 'explore' ? 'explore' : 'ride', M);
+  input.patchHeld = T.patchHeld && b(M.patch);
   if (b(M.paddle) && !prev[M.paddle]) input.paddleHeld = !input.paddleHeld;
   if (input.firing && input.paddleHeld && input.context === 'ride') input.paddleHeld = false;
-  const EDGE = { [M.hop]: ' ', [M.use]: 'e', [M.burst]: 'f', 9: 'escape', [M.recharge]: 'r', [M.dressing]: 'h', [M.cycle]: 'tab' };
-  // Ping is held, not pressed: a tap pings, a hold opens the callout strip.
-  const HOLD = { [M.boost]: 'shift', [M.lookback]: 'x', [M.hop]: ' ', [M.ping]: 'b' };
+  // Ping is held, not pressed: a tap pings, a hold opens the callout strip. The tables differ on foot (padmap.js).
+  const EDGE = T.edge, HOLD = T.hold;
+  if (input.context === 'explore') input.keys.delete('x');
   for (const [i, k] of Object.entries(EDGE)) if (b(+i) && !prev[i]) input.pressed.add(k);
   for (const [i, k] of Object.entries(HOLD)) b(+i) ? input.keys.add(k) : prev[i] && input.keys.delete(k);
   pad.buttons.forEach((x, i) => (prev[i] = x.pressed));
