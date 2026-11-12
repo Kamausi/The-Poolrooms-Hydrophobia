@@ -17,7 +17,9 @@ const NAMES = ['menu', 'water', 'architecture', 'entities', 'drift', 'hurt', 'ov
     await page.goto(`${BASE}/?quality=high&show=${name}`, { timeout: 120000 });
     try { await page.waitForFunction(() => window.__show?.ready, null, { timeout: 120000 }); } catch { ok.push(`${name}: never ready`); continue; }
     const r = await page.evaluate(() => ({ ...window.__show, label: document.getElementById('showcase')?.textContent || '' }));
-    await page.screenshot({ path: path.join(dir, `${name}.png`) });
+    const t0 = Date.now();
+    try { await page.screenshot({ path: path.join(dir, `${name}.png`), timeout: 120000 }); } catch (e) { ok.push(`${name}: screenshot ${String(e.message).split('\n')[0]}`); continue; }
+    if (Date.now() - t0 > 20000) console.log(`  slow screenshot: ${name} ${Date.now() - t0} ms`);
     if (r.name !== name || !/SHOWCASE/.test(r.label)) ok.push(`${name}: ${JSON.stringify(r)}`);
   }
   check(`every showcase (${NAMES.length}) sets up on the high tier, labels itself and draws without errors; screenshots in ${dir}`, ok.length === 0, ok.join(' | '));
