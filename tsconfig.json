@@ -13,5 +13,5 @@
     "skipLibCheck": true,
     "types": []
   },
-  "files": ["src/director.js", "src/math.js", "src/hull.js", "src/memory.js", "src/track.js", "src/plans.js", "src/sectors.js", "src/poolrooms.js", "src/score.js", "src/aim.js", "src/perception.js", "src/lightpool.js", "src/voicepool.js", "src/spring.js", "src/pressure.js", "src/spawnscore.js", "src/tiers.js", "src/bench.js", "src/exposure.js", "src/postchain.js", "src/survey.js", "src/autores.js"]
+  "files": ["src/director.js", "src/math.js", "src/hull.js", "src/memory.js", "src/track.js", "src/plans.js", "src/sectors.js", "src/poolrooms.js", "src/score.js", "src/aim.js", "src/shadows.js", "src/perception.js", "src/lightpool.js", "src/voicepool.js", "src/spring.js", "src/pressure.js", "src/spawnscore.js", "src/tiers.js", "src/bench.js", "src/exposure.js", "src/postchain.js", "src/survey.js", "src/autores.js"]
 }

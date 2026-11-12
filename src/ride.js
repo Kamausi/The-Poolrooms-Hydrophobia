@@ -16,6 +16,7 @@ import { quality } from './quality.js';
 import { rumble } from './haptics.js';
 import { planColonnade, archRadius } from './poolrooms.js';
 import { createBudget } from './pressure.js';
+import { assignShadows } from './shadows.js';
 import { createLightPool, mergeLights } from './lightpool.js';
 import { lightAtEye, targetExposure, adapt as adaptExposure, hazeVolume } from './exposure.js';
 import { buildChain, shaftSource } from './postchain.js';
@@ -2146,7 +2147,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
     renderer.render({
       eye, target: look, up, fov, time,
       waterRipple: ripple, rippleTime: time - rippleTime,
-      environment: { pointLights: frameLights, ambientIntensity: frameAmbient, volumeFog: hazeVolume(eye, { density: !hasDepth || settings.haze === false ? 0 : quality.haze, steps: quality.hazeSteps, color: linear(sector.fog), sky: !!sec.sky }) },
+      environment: { pointLights: hasDepth && settings.shadows !== false && quality.shadows > 0 ? assignShadows(frameLights, eye, quality.shadows) : frameLights, ambientIntensity: frameAmbient, volumeFog: hazeVolume(eye, { density: !hasDepth || settings.haze === false ? 0 : quality.haze, steps: quality.hazeSteps, color: linear(sector.fog), sky: !!sec.sky }) },
       exposure: ((sec.sky ? 0.95 : 1.05) - state.drift * 0.002) * eyeExposure,
       effects: {
         ambientOcclusion: !hasDepth || settings.ambientOcclusion === false ? 0 : quality.ao, ambientOcclusionRadius: 0.6,
