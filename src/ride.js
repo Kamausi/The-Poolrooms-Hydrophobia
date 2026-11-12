@@ -14,6 +14,7 @@ import { hud } from './hud.js';
 import { sound } from './audio.js';
 import { quality } from './quality.js';
 import { rumble } from './haptics.js';
+import { planColonnade, archRadius } from './poolrooms.js';
 import { magnet, friction, wedges as threatWedges } from './aim.js';
 import { settings } from './settings.js';
 import { AMBIENT } from './sectors.js';
@@ -96,6 +97,9 @@ export function createRide(canvas, state, sector, events, opts = {}) {
     back1: P('Room back 1', slab, tileMat), back2: P('Room back 2', slab, tileMat),
     front1: P('Room front 1', slab, tileMat), front2: P('Room front 2', slab, tileMat), front3: P('Room front 3', slab, tileMat),
     lamps: [0, 1, 2, 3].map((i) => P(`Room lamp ${i}`, slab, glow(lampColor, 9))),
+    // The Poolrooms grammar on the route: a colonnade along the walls of the wide rooms, a tiled hoop over the mouth.
+    columns: Array.from({ length: 8 }, (_, i) => P(`Room column ${i}`, cylinder(28, 0, 1), tileMat)),
+    arch: P('Room arch', torus(0.14, 48, 12), tileMat),
     gates: [0, 1].map((i) => P(`Gate ${i}`, slab, { color: [0.3, 0.32, 0.3], metallic: 0.8, roughness: 0.35 })),
     arrows: [0, 1].map((i) => ({
       shaft: P(`Arrow shaft ${i}`, slab, glow([1, 0.7, 0.2], 3)),
@@ -1319,7 +1323,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
   }
 
   // ---------- Shooting ----------
-  let lastWedges = [], padAssistTest = false;
+  let lastWedges = [], padAssistTest = false, lastScenery = { columns: 0, arch: 0 };
   function targets() {
     const list = [];
     const T = (pos, r, fn, key = null) => list.push({ pos, r, fn, key });
@@ -3041,7 +3045,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
     } else { hide(seg.bigWin); hide(seg.farRaft); }
   }
 
-  const roomParts = () => [room.floor, room.water, room.ceiling, room.wallL, room.wallR, room.back1, room.back2, room.front1, room.front2, room.front3, ...room.lamps, ...room.gates, ...room.arrows.flatMap((a) => [a.shaft, a.headA, a.headB]), ...room.stub.flatMap((x) => [x.left, x.right, x.ceiling, x.water]), room.platform, room.tether, room.beacon, room.lampPost, room.figure, room.door, room.doorFrame];
+  const roomParts = () => [...room.columns, room.arch, room.floor, room.water, room.ceiling, room.wallL, room.wallR, room.back1, room.back2, room.front1, room.front2, room.front3, ...room.lamps, ...room.gates, ...room.arrows.flatMap((a) => [a.shaft, a.headA, a.headB]), ...room.stub.flatMap((x) => [x.left, x.right, x.ceiling, x.water]), room.platform, room.tether, room.beacon, room.lampPost, room.figure, room.door, room.doorFrame];
   function placeRoom(r) {
     for (const set of roomSigns.values()) {
       for (const ex of set.exits || []) hide(ex);
@@ -3067,6 +3071,12 @@ export function createRide(canvas, state, sector, events, opts = {}) {
     put(room.back1, -0.3, -(inHalf + 0.6 + backW / 2), Ht / 2 - 0.6, backW, Ht + 1.2, 0.6);
     put(room.back2, -0.3, inHalf + 0.6 + backW / 2, Ht / 2 - 0.6, backW, Ht + 1.2, 0.6);
     room.lamps.forEach((lamp, i) => (p.sky ? hide(lamp) : put(lamp, L * (0.2 + i * 0.2), (i % 2 ? 1 : -1) * Hf * 0.4, Ht - 0.02, 1.6, 0.06, 0.6)));
+    // Columns stand in the water against the walls; they are scenery, clear of the line the raft can take.
+    const colonnade = planColonnade({ length: L, half: Hf, sky: !!p.sky });
+    room.columns.forEach((c, i) => { const k = colonnade[i]; if (k) put(c, k.u, k.v, Ht / 2 - 0.3, k.r, Ht + 0.6, k.r); else hide(c); });
+    const aR = p.sky ? 0 : archRadius(inHalf, Ht);
+    if (aR) writeBasis(room.arch.matrix, F.at(0.05, 0, 0), F.right, UP, F.dir, aR, aR, 1.6); else hide(room.arch);
+    lastScenery = { columns: colonnade.length, arch: aR };
     const signs = roomSigns.get(p.id) || {};
     const toRaft = scale(F.dir, -1);
     if (p.type === 'pool') {
@@ -3838,7 +3848,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
     bloomAhead() { return spawnBloom(s + 10, offset * 0.6, 1.2); },
     get locks() { return locks.length; },
   };
-  if (import.meta.env.DEV) window.__ride = { get wedges() { return lastWedges; }, shots, set padAssist(v) { padAssistTest = v; }, get aimFriction() { return input.aimFriction; }, parts, blooms, tokens, drop, spawnDrop, get assess() { return assess; }, set assessAt(v) { assessAt = v; }, set tokenCool(v) { tokenCool = v; }, get offset() { return offset; }, set offset(v) { offset = v; }, omen: (k) => startOmen(k), get omenState() { return omen; }, get director() { return director; }, get eye() { return fx.eye; }, track, hull, puncture: (c, cause = 'scrape') => hull.puncture(c, cause), overboard: () => goOverboard('test'), free: () => restrained && !restrained.freed && freeRestrained(), shove: () => shove(fx.eye, fx.fwd), ping: () => ping(fx.eye, fx.fwd), fireAt: (dir) => { fireProfile(fx.eye, fx.look, dir || fx.fwd); return state.profile; }, hitTarget: (key) => { const t = targets().find((x) => x.key === key); if (t) { shotProfile = state.profile; t.fn(); } return !!t; }, get wave() { return wave; }, set bot(v) { devBot = v; }, spawnEnc: (kind, extra = {}) => spawn({ e: { kind, ...extra }, s: s + 10, sec: track.sectionAt(s).sec }), get coop() { return { climber, crewGrab, ballast, restrained, protect, focusing, fov, profile: state.profile, special: state.special }; }, reset: () => { overboard = null; capsize = null; trailGrab = null; hull.state.capsized = false; }, capsize: () => startCapsize(), get swimming() { return overboard; }, get capsized() { return capsize; }, get grab() { return trailGrab; }, valve, linked, lifeguard, locker, wake, passengerStep, burst: () => burst(fx.eye, fx.fwd), get s() { return s; }, set s(v) { s = v; } };
+  if (import.meta.env.DEV) window.__ride = { get wedges() { return lastWedges; }, get scenery() { return lastScenery; }, room, shots, set padAssist(v) { padAssistTest = v; }, get aimFriction() { return input.aimFriction; }, parts, blooms, tokens, drop, spawnDrop, get assess() { return assess; }, set assessAt(v) { assessAt = v; }, set tokenCool(v) { tokenCool = v; }, get offset() { return offset; }, set offset(v) { offset = v; }, omen: (k) => startOmen(k), get omenState() { return omen; }, get director() { return director; }, get eye() { return fx.eye; }, track, hull, puncture: (c, cause = 'scrape') => hull.puncture(c, cause), overboard: () => goOverboard('test'), free: () => restrained && !restrained.freed && freeRestrained(), shove: () => shove(fx.eye, fx.fwd), ping: () => ping(fx.eye, fx.fwd), fireAt: (dir) => { fireProfile(fx.eye, fx.look, dir || fx.fwd); return state.profile; }, hitTarget: (key) => { const t = targets().find((x) => x.key === key); if (t) { shotProfile = state.profile; t.fn(); } return !!t; }, get wave() { return wave; }, set bot(v) { devBot = v; }, spawnEnc: (kind, extra = {}) => spawn({ e: { kind, ...extra }, s: s + 10, sec: track.sectionAt(s).sec }), get coop() { return { climber, crewGrab, ballast, restrained, protect, focusing, fov, profile: state.profile, special: state.special }; }, reset: () => { overboard = null; capsize = null; trailGrab = null; hull.state.capsized = false; }, capsize: () => startCapsize(), get swimming() { return overboard; }, get capsized() { return capsize; }, get grab() { return trailGrab; }, valve, linked, lifeguard, locker, wake, passengerStep, burst: () => burst(fx.eye, fx.fwd), get s() { return s; }, set s(v) { s = v; } };
 
   return {
     update,

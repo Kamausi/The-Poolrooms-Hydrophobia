@@ -49,5 +49,15 @@ const { open, newCampaign, check, finish } = require('./lib.cjs');
     const w = R.wedges.slice(); sh.active = false; u.step(1);
     return { n: w.length, behind: w[0]?.behind, after: R.wedges.length }; });
   check('something thrown from behind the raft gets a rim marker until it is gone', r.n === 1 && r.behind && r.after === 0, JSON.stringify(r));
+  r = await page.evaluate(() => { const u = window.__underflow; u.beginSector(0); u.startRide(); u.setState({ health: 1e6 }); u.step(3); const R = window.__ride;
+    const far = { cols: R.room.columns.filter((c) => c.matrix[13] > -100).length, arch: R.room.arch.matrix[13] > -100 };
+    const wide = R.track.rooms.find((x) => x.sec.half >= 5 && !x.sec.sky && x.sec.length >= 16); if (!wide) return { none: true };
+    R.s = wide.s0 - 8; u.setState({ health: 1e6 }); u.step(2);
+    const cols = R.room.columns.filter((c) => c.matrix[13] > -100);
+    const F = { dx: Math.sin(wide.yaw), dz: Math.cos(wide.yaw) };
+    // Every column is against a side wall: its distance across the room from the centre line is near the half width.
+    const across = cols.map((c) => Math.abs(-(c.matrix[12] - wide.origin[0]) * F.dz + (c.matrix[14] - wide.origin[2]) * F.dx));
+    return { far, n: cols.length, plan: R.scenery.columns, arch: R.scenery.arch, archShown: R.room.arch.matrix[13] > -100, half: wide.sec.half, minAcross: Math.min(...across), height: wide.sec.height }; });
+  check('a wide room on the route has a colonnade against its walls and a tiled arch over its mouth; the channel before it has neither', !r.none && r.far.cols === 0 && !r.far.arch && r.n === r.plan && r.n >= 2 && r.minAcross > r.half - 1.2 && r.arch > 0 && r.arch < r.height && r.archShown, JSON.stringify(r));
   await finish(browser, errors);
 })();
