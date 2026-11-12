@@ -2,6 +2,18 @@
 // as the fallback while recordings load. Beds (water, machinery, the vent, underwater, the drone) follow the space.
 import { loadSamples, playSample, createBed, hasSample } from './samples.js';
 import { settings } from './settings.js';
+import { createVoicePool, priorityOf } from './voicepool.js';
+
+// At most 24 one-shots at once; the least important give way (voicepool.js). Beds and music are not counted.
+const voices = createVoicePool({ max: 24, perName: 3 });
+let current = 'other'; // the sound being played: set by the wrapper around `sound` at the bottom
+/** Ask the pool for room. Returns false if this one should not play; stops a lower-priority voice if needed. */
+function admit(seconds, handle) {
+  if (!ctx) return true;
+  const r = voices.admit(current, priorityOf(current), seconds, ctx.currentTime, handle);
+  if (r.victim?.handle) { try { r.victim.handle.stop(); } catch {} }
+  return r.ok;
+}
 
 let ctx = null;
 let master = null;
@@ -32,7 +44,10 @@ function ensure() {
   ctx = new AC();
   master = ctx.createGain();
   master.gain.value = 0.55;
-  master.connect(ctx.destination);
+  // A gentle compressor on the way out: a scatter blast in a tiled room should be loud, not clip.
+  const limiter = ctx.createDynamicsCompressor();
+  limiter.threshold.value = -14; limiter.knee.value = 12; limiter.ratio.value = 4; limiter.attack.value = 0.004; limiter.release.value = 0.22;
+  master.connect(limiter).connect(ctx.destination);
   muffle = ctx.createBiquadFilter();
   muffle.type = 'lowpass';
   muffle.frequency.value = 20000;
@@ -78,7 +93,12 @@ function bed(name, level) {
 /** A recorded one-shot, panned; false if it hasn't loaded, so the caller synthesises instead. */
 function rec(name, { pan = 0, ...o } = {}) {
   if (!enabled || !ensure()) return false;
-  return playSample(ctx, out(pan), name, o);
+  if (!hasSample(name)) return false;
+  if (!admit(1.2, null)) return true; // refused for room: treat as played, so nothing synthesises in its place
+  const src = playSample(ctx, out(pan), name, o);
+  const v = voices.live[voices.live.length - 1];
+  if (src && v && v.handle === null) { v.handle = src; v.ends = ctx.currentTime + (src.buffer?.duration || 1) / (src.playbackRate?.value || 1); }
+  return !!src;
 }
 // Bed levels per acoustic space: open water rings louder in big rooms; the Safe Room is machinery and a vent.
 const SPACE_BEDS = {
@@ -109,6 +129,7 @@ function tone({ type = 'sine', from = 440, to = from, time = 0.15, gain = 0.2, d
   if (!enabled || !ensure()) return;
   const t = ctx.currentTime + delay;
   const osc = ctx.createOscillator();
+  if (!admit(time + delay + 0.02, osc)) return;
   const g = ctx.createGain();
   osc.type = type;
   osc.frequency.setValueAtTime(from, t);
@@ -124,6 +145,7 @@ function noise({ time = 0.3, gain = 0.3, freq = 800, q = 0.8, type = 'bandpass',
   if (!enabled || !ensure()) return;
   const t = ctx.currentTime + delay;
   const src = ctx.createBufferSource();
+  if (!admit(time + delay, src)) return;
   src.buffer = noiseBuffer(time);
   const filter = ctx.createBiquadFilter();
   filter.type = type;
@@ -477,3 +499,11 @@ export const sound = {
     tone({ type: 'sawtooth', from: 140, to: 90, time: 0.6, gain: 0.03, pan });
   },
 };
+// Every sound method runs with its own name current, so the voice pool knows what it is weighing.
+for (const [k, fn] of Object.entries(sound)) {
+  if (typeof fn !== 'function' || ['unlock', 'setEnabled', 'setVolumes', 'setHum', 'setMuffle', 'music', 'setSpace', 'duck', 'startHum', 'pumpRoom'].includes(k)) continue;
+  sound[k] = function (...a) { const prev = current; current = k; try { return fn.apply(this, a); } finally { current = prev; } };
+}
+/** For tests: how many one-shots are playing and how many the pool allows. */
+export const voiceStats = () => ({ live: voices.count });
+

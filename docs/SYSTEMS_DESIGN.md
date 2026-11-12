@@ -779,5 +779,11 @@ Written for UNDERFLOW from a description of another game's systems; see `docs/TH
 
 **Showcase modes.** `?show=NAME` sets up a fixed scene, pauses and labels it, for screenshots and visual review: `menu`, `water`, `architecture`, `entities`, `drift`, `hurt`, `overboard`, `omen`, `dock`, `emergency`, `blackout`, `lamp`, `signs`, `survey`, `saferoom`. Combine with `?quality=` to compare tiers. The menu and Safe Room scenes now use the same grade and finish passes as the game on tiers with depth.
 
-Not built from the same brief: a shared perception model for all entities (the Lifeguard has its own states already), light, effect and entity pools, audio buses with voice stealing and environment sends, procedural material generation, and a fully contextual HUD (parts of it already adapt). Tests: `tests/unit/feelai.test.js`, `tests/systems.cjs`, `tests/shows.cjs`.
+Not built from the same brief: a shared perception model for all entities (the Lifeguard has its own states already), light, effect and entity pools, procedural material generation, and a fully contextual HUD (parts of it already adapt). Tests: `tests/unit/feelai.test.js`, `tests/systems.cjs`, `tests/shows.cjs`.
+
+## 36. The voice pool and the limiter (implemented)
+
+Sound already had buses (effects, music, ambience, each with its own volume), a muffle filter shared by everything, and a convolution reverb per acoustic space. What it lacked was a limit. Now every one-shot, recorded or synthesised, asks a voice pool (`src/voicepool.js`, pure) for room: at most 24 at once, and at most three copies of the same sound. When the pool is full, a more important sound takes the place of the least important one playing, which is stopped; an equal or lesser one is simply not played. Being hurt, the Lifeguard's whistle and the Undertow's grip and release are critical; gate, burst, the heavy profiles, the radio and doors are high; footsteps, ticks, bubbles, Grout's clicks and breathing are low; everything else is normal. Beds and music are not counted. A compressor on the master output keeps a scatter blast in a tiled room loud without clipping.
+
+Not built: per-voice distance attenuation and HRTF panning (sounds are panned left-right only), occlusion through walls, and per-space sends other than the one convolver. Tests: `tests/unit/voicepool.test.js`, `tests/audio.cjs`. Nobody has listened to it on speakers or headphones.
 

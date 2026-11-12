@@ -50,7 +50,7 @@ export function playSample(ctx, dest, name, { gain = 0.5, rate = 1, vary = 0.06,
   g.gain.value = gain;
   src.connect(g).connect(dest);
   src.start(ctx.currentTime + delay);
-  return true;
+  return src;
 }
 
 /**

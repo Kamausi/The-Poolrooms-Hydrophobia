@@ -22,7 +22,7 @@ A first-person cooperative horror rail-shooter and explorer set in the Poolrooms
 | `src/survey.js` | The on-foot survey map: what has been seen, coverage, text rendering (pure, unit-tested) |
 | `src/aim.js` | Controller aim help and threat-marker geometry (pure, unit-tested) |
 | `src/autores.js`, `src/haptics.js`, `src/collectibles.js` | Automatic render scale (pure, unit-tested), controller vibration patterns, pickups and the Lost & Found (pure, unit-tested) |
-| `src/audio.js`, `src/samples.js` | Sound: recorded files in `public/audio/` (credited in `docs/CREDITS.md`) with synthesis as the fallback |
+| `src/audio.js`, `src/samples.js`, `src/voicepool.js` | Sound (the voice cap and priorities are pure and unit-tested): recorded files in `public/audio/` (credited in `docs/CREDITS.md`) with synthesis as the fallback |
 | `docs/` | Design, art direction, production standard, memory contract, tool notes, decisions |
 | `tests/` | Headless tests (`tests/README.md`) |
 | `public/legacy/` | The original prototype. Do not edit |
