@@ -13,6 +13,7 @@ import blasterUrl from './assets/models/gen-blaster.glb?inline';
 import workLampUrl from './assets/models/gen-work-lamp.glb?inline';
 import buoyUrl from './assets/models/gen-ring-buoy.glb?inline';
 import drainUrl from './assets/models/gen-drain.glb?inline';
+import startingBlockUrl from './assets/models/gen-starting-block.glb?inline';
 import wallLampUrl from './assets/models/cc0/industrial_wall_lamp.glb?inline';
 import extinguisherUrl from './assets/models/cc0/korean_fire_extinguisher_01.glb?inline';
 import toolChestUrl from './assets/models/cc0/metal_tool_chest.glb?inline';
@@ -28,24 +29,32 @@ import rackUrl from './assets/models/cc0/worn_metal_rack.glb?inline';
 import crateUrl from './assets/models/cc0/plastic_crate_02.glb?inline';
 import pipesUrl from './assets/models/cc0/modular_industrial_pipes_01.glb?inline';
 import shutterUrl from './assets/models/cc0/rollershutter_door.glb?inline';
+import firstAidUrl from './assets/models/cc0/medical_box.glb?inline';
+import hoseUrl from './assets/models/cc0/garden_hose_wall_mounted_01.glb?inline';
+import fireAlarmUrl from './assets/models/cc0/fire_alarm.glb?inline';
+import radioUrl from './assets/models/cc0/boombox.glb?inline';
+import pumpUrl from './assets/models/cc0/tire_pump.glb?inline';
+import jerrycanUrl from './assets/models/cc0/metal_jerrycan.glb?inline';
 
 /**
- * Each model: its source; for generated models a surface finish (those files carry only a colour texture, and glTF's
- * default of fully metallic reads as dark paint); `turn`, a yaw that makes the model's front face +Z, found by
+ * Each model: its source; a surface finish where the file carries only a colour texture (glTF's default of fully
+ * metallic reads as dark paint); `turn`, a yaw that makes the model's front face +Z, found by
  * looking at the imported mesh. CC0 models keep their own materials and their real size in metres.
  */
 export const MODELS = {
-  locker: { url: lockerUrl, turn: 0, finish: { metallic: 0.35, roughness: 0.45 } },
-  ladder: { url: ladderUrl, turn: 0, finish: { metallic: 0.95, roughness: 0.2 } },
+  locker: { url: lockerUrl, turn: -Math.PI / 2 },
+  ladder: { url: ladderUrl, turn: -Math.PI / 2 },
   duck: { url: duckUrl, turn: 0, finish: { metallic: 0, roughness: 0.45 } },
-  valve: { url: valveUrl, turn: 0, finish: { metallic: 0.4, roughness: 0.5 } },
-  // The chair's ladder faces +X in the file.
+  valve: { url: valveUrl, turn: Math.PI / 2 },
+  // The tower's ladder faces +X in the file.
   tower: { url: towerUrl, turn: -Math.PI / 2 },
   blaster: { url: blasterUrl, turn: 0 },
-  workLamp: { url: workLampUrl, turn: 0, finish: { metallic: 0.1, roughness: 0.55 } },
-  buoy: { url: buoyUrl, turn: 0, finish: { metallic: 0, roughness: 0.6 } },
-  // The converter gave the grate a deep body; it is sunk into the floor so only the slotted top shows.
-  drain: { url: drainUrl, turn: 0, finish: { metallic: 0.85, roughness: 0.35 } },
+  workLamp: { url: workLampUrl, turn: -Math.PI / 2 },
+  buoy: { url: buoyUrl, turn: 0 },
+  // A drain box under its grate; it is sunk into the floor so only the slotted top shows.
+  drain: { url: drainUrl, turn: 0 },
+  // The block's front (grab handle, lane number) faces +X in the file.
+  startingBlock: { url: startingBlockUrl, turn: -Math.PI / 2 },
   wallLamp: { url: wallLampUrl, turn: 0 },
   extinguisher: { url: extinguisherUrl, turn: 0 },
   toolChest: { url: toolChestUrl, turn: 0 },
@@ -61,6 +70,13 @@ export const MODELS = {
   crate: { url: crateUrl, turn: 0 },
   pipes: { url: pipesUrl, turn: 0 },
   shutter: { url: shutterUrl, turn: 0 },
+  // Wall-mounted ones (hose reel, fire alarm) have their back on the wall at z = 0 and face +Z.
+  firstAid: { url: firstAidUrl, turn: 0 },
+  hose: { url: hoseUrl, turn: 0 },
+  fireAlarm: { url: fireAlarmUrl, turn: 0 },
+  radio: { url: radioUrl, turn: 0 },
+  pump: { url: pumpUrl, turn: 0 },
+  jerrycan: { url: jerrycanUrl, turn: 0 },
 };
 
 const ready = {};

@@ -50,7 +50,7 @@ Higgsfield (Z Image model): four surface textures generated for UNDERFLOW from t
 
 ## Models: Poly Haven (CC0)
 
-Fifteen props from Poly Haven (polyhaven.com), CC0. Credit is not required, and it is given here. Each was packed into one GLB with smaller textures and simplified with gltfpack, and is loaded by `src/props.js`.
+Twenty-one props from Poly Haven (polyhaven.com), CC0. Credit is not required, and it is given here. Each was packed into one GLB with smaller textures and simplified with gltfpack, and is loaded by `src/props.js`.
 
 - Industrial Wall Lamp by Kuutti Siitonen: https://polyhaven.com/a/industrial_wall_lamp
 - Korean Fire Extinguisher 01 by UM JOORIN: https://polyhaven.com/a/korean_fire_extinguisher_01
@@ -67,7 +67,13 @@ Fifteen props from Poly Haven (polyhaven.com), CC0. Credit is not required, and 
 - Plastic Crate 02 by Fabi_G: https://polyhaven.com/a/plastic_crate_02
 - Modular Industrial Pipes 01 by Jorge Camacho: https://polyhaven.com/a/modular_industrial_pipes_01
 - Roller Shutter Door by MP: https://polyhaven.com/a/rollershutter_door
+- Medical Box by Ulan Cabanilla: https://polyhaven.com/a/medical_box
+- Garden Hose Wall Mounted 01 by Kuutti Siitonen: https://polyhaven.com/a/garden_hose_wall_mounted_01
+- Fire Alarm by Slinc: https://polyhaven.com/a/fire_alarm
+- Boombox by Thomas Paul Mouilleron: https://polyhaven.com/a/boombox
+- Tire Pump by Garrison Gager: https://polyhaven.com/a/tire_pump
+- Metal Jerrycan by Sean Buckley: https://polyhaven.com/a/metal_jerrycan
 
 ## Generated models
 
-Higgsfield: nine textured 3D models made for UNDERFLOW. A reference image was generated with the Z Image model from a text prompt written for it, then turned into a mesh with the SAM 3D model. They ship in `src/assets/models/` and are loaded by `src/props.js`: a supply locker, a pool ladder, a rubber duck and a gate valve. Their colour textures were re-encoded as 512 px JPEG. The reference images are kept in `assets/generated/models/`. Four more were made the same way, but from GPT Image 2.6 references: a lifeguard chair and the blaster (meshes by Tripo 3D H3.1), and the work lamp and a ring buoy (meshes by SAM 3D). A floor drain grate followed (Z Image reference, SAM 3D mesh). Tripo returns about 1.4 million triangles, simplified with gltfpack to about 8,000. Earlier tries at the lifeguard chair and a sun lounger with SAM 3D failed to convert. Their use is governed by the account holder's Higgsfield terms, not an open licence.
+Higgsfield: ten textured 3D models made for UNDERFLOW. Each started from a generated reference image (Z Image or GPT Image 2.6) and was turned into a mesh by Tripo 3D H3.1 at a game triangle count with PBR maps: supply locker, pool ladder, gate valve, floor drain, work lamp, ring buoy, the blaster, the lifeguard tower and a starting block. The rubber duck was made with SAM 3D. The geometry is used as generated: textures were re-encoded smaller, and the ring buoy was rotated flat. The reference images are kept in `assets/generated/models/`. Earlier versions of seven of them were made with SAM 3D, or simplified heavily from very dense meshes, and looked rough; they were replaced. Their use is governed by the account holder's Higgsfield terms, not an open licence.
