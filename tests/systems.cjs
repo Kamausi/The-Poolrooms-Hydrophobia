@@ -79,5 +79,11 @@ const { open, newCampaign, check, finish } = require('./lib.cjs');
     const drain = (near) => { m.timer = 100; for (let k = 0; k < 30; k++) { E.player.pos = [...me]; E.followers.forEach((f) => { f.pos = near ? [me[0] + 1, 0, me[2]] : [me[0] + 40, 0, me[2] + 40]; }); u.step(1); } return { used: +(100 - m.timer).toFixed(2), apart: E.marcoApart }; };
     return { together: drain(true), alone: drain(false) }; });
   check('Marco calls faster when you are apart from every crewmate', r.none || (r.together.apart === false && r.alone.apart === true && r.alone.used > r.together.used * 1.5), JSON.stringify(r));
+  // One grab at a time (pressure.js 'grab'): a crewmate cannot be taken while a climber has the raft.
+  r = await page.evaluate(() => { const u = window.__underflow; u.beginSector(2); u.startRide(); u.setState({ health: 1e6 }); u.step(3); const R = window.__ride;
+    R.spawnEnc('climber'); u.step(1); let both = 0, climbed = !!R.coop.climber, slotHeld = R.budget.holds('climber');
+    for (let k = 0; k < 120; k++) { if (k % 20 === 0) R.spawnEnc('crewGrab'); u.setState({ health: 1e6 }); u.step(1); if (R.coop.climber && R.coop.crewGrab) both++; }
+    return { climbed, slotHeld, both, grabCap: R.budget.cap('grab') }; });
+  check('only one thing grabs the raft at a time: a crewmate is not taken while a climber is on', r.climbed && r.slotHeld && r.both === 0 && r.grabCap === 1, JSON.stringify(r));
   await finish(browser, errors);
 })();

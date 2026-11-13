@@ -542,6 +542,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
     sound.splash();
     shake = 0.9;
     trailGrab = null;
+    budget.release('trailGrab');
     hud.caption(cause === 'dragged' ? '[the trailing edge goes under and takes you with it]' : cause === 'knocked' ? '[it hits you square — you go over the side]' : '[the raft bucks — you go over the side]');
     if (solo) hud.say(state.name.toUpperCase(), 'Nobody\'s going to throw a line. Swim. The handle. Get the handle.', 'crew');
     else hud.say(crewName(), 'Overboard! Swim for the handle — line coming!', 'crew');
@@ -630,6 +631,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
     hull.state.capsized = true;
     overboard = null;
     trailGrab = null;
+    budget.release('trailGrab');
     capsize = { t: 0, said: 0 };
     sound.splash();
     shake = 1.2;
@@ -784,6 +786,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
     hud.caption(how === 'shove' ? '[you shove it off the side — it goes under without a splash]' : '[it lets go of the raft]');
     events.score(120, 'CLIMBER REPELLED');
     climber = null;
+    budget.release('climber');
     protect = Math.max(protect, 1.5);
   }
 
@@ -1136,8 +1139,13 @@ export function createRide(canvas, state, sector, events, opts = {}) {
   }
 
   // ---------- Encounters ----------
+  // Grabs on the raft (a climber, a crewmate taken, the Undertow on the trailing edge) take the one grab slot. One
+  // that finds it taken is not dropped: it stays pending (the encounter loop asks again every frame) and comes when
+  // the other lets go, so the ride is as hard as it was, just never two grabs at once.
+  const GRABS = new Set(['climber', 'crewGrab', 'trailGrab']);
   function spawn(enc) {
     const e = enc.e;
+    if (GRABS.has(e.kind) && !budget.request(e.kind, 'grab', 1)) return;
     e.done = true;
     const at = enc.s;
     const sec = enc.sec;
@@ -1656,7 +1664,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
   function update(dt) {
     flashes.tick(dt);
     budget.tick(dt);
-    budget.sweep((b) => b.active && !b.dying);
+    budget.sweep((b) => typeof b !== 'object' || b.active === undefined || (b.active && !b.dying)); // only Blooms are swept; grab and surge slots are given back by their owners
     time += dt;
     frameDt = dt;
     hud.update(dt);
@@ -1780,9 +1788,11 @@ export function createRide(canvas, state, sector, events, opts = {}) {
       if (trailGrab.lean > 2.6 || trailGrab.hp <= 0) {
         hud.toast(trailGrab.hp <= 0 ? 'SHOT THE GRIP · THE TRAILING EDGE COMES UP' : 'COUNTERWEIGHT · THE TRAILING EDGE COMES UP');
         trailGrab = null;
+        budget.release('trailGrab');
         held = 0;
       } else if (trailGrab.t > 6) {
         trailGrab = null;
+        budget.release('trailGrab');
         goOverboard('dragged');
       }
     }
@@ -1882,6 +1892,10 @@ export function createRide(canvas, state, sector, events, opts = {}) {
     // The director: quiet, warning, build-up, peak, fade, recovery.
     runDirector(dt, sec, curRoom);
 
+    // A grab slot whose grabber never came (overboard, capsized) or has gone is given back.
+    if (budget.holds('climber') && !climber) budget.release('climber');
+    if (budget.holds('crewGrab') && !crewGrab) budget.release('crewGrab');
+    if (budget.holds('trailGrab') && !trailGrab) budget.release('trailGrab');
     // Encounters ahead. During the director's rest, scheduled swarms stay away: quiet is part of the ride.
     for (const enc of track.encounters) {
       if (enc.e.done) continue;
@@ -2650,6 +2664,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
         // It only takes you with it if that side is already soft.
         if (climber.lean < 0.5 && state.chambers[climber.side < 0 ? 'left' : 'right'] < 50 && random() < 0.4) goOverboard('knocked');
         climber = null;
+        budget.release('climber');
       }
     } else { hide(climberPart.body); hide(climberPart.head); climberPart.arms.forEach(hide); climberPart.hands.forEach(hide); }
     // Tug-of-war: hold E to keep the line in the band; shoot the grip; don't pull so hard the line slips.
@@ -2678,6 +2693,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
         setTimeout(() => hud.say('THE ATTENDANT', 'Thank you for returning your passenger to the designated seating area.', 'attendant'), 2200);
         protect = 3;
         crewGrab = null;
+        budget.release('crewGrab');
       } else if (g.low > 2.6 || g.t > 16) {
         sound.gurgle();
         state.crewState[g.who] = 'hurt';
@@ -2686,6 +2702,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
         hud.caption(`[${g.who.toUpperCase()} goes under. The line comes back empty.]`);
         setTimeout(() => hud.say(g.who.toUpperCase(), 'I\'m — I came up in the other channel. I don\'t know how. I\'m cold. I\'m going to be quiet for a while.', 'crew'), 4000);
         crewGrab = null;
+        budget.release('crewGrab');
       }
     } else { hide(tug.line); hide(tug.hand); hide(tug.grip); }
     // The restrained survivor: far away, beside a window. Focus to see it; shoot the restraint.
@@ -2802,7 +2819,10 @@ export function createRide(canvas, state, sector, events, opts = {}) {
       if (b.surge <= 0) {
         b.surge = 6.5 + random() * 2;
         b.warn = 0;
-        if (Math.abs(offset - b.offset) < 2.2) { damage(8, 'Ballast surged into the raft.', 6, 'bow', 'entity'); shake = 0.9 * settings.camera; }
+        // A surge is the disruptive move: it takes that slot while it lands, so nothing else disruptive stacks on it.
+        const slot = budget.request('ballast', 'disruptive', 1);
+        if (slot) setTimeout(() => budget.release('ballast'), 1500);
+        if (slot && Math.abs(offset - b.offset) < 2.2) { damage(8, 'Ballast surged into the raft.', 6, 'bow', 'entity'); shake = 0.9 * settings.camera; }
         else hud.toast('CLEAR OF THE SURGE');
         if (random() < 0.6) spawnBloom(b.s - 4, (random() - 0.5) * 6, 0.8);
       }

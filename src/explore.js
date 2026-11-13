@@ -2741,7 +2741,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
         events.damage(dt * 6, 'The Lane Rope wrapped you under.', true);
         state.drift = Math.min(100, state.drift + dt * 4);
         if (r.holding <= 0) r.cooldown = 4;
-      } else if (pcx === r.x && pcz === r.z && r.cooldown <= 0) {
+      } else if (pcx === r.x && pcz === r.z && r.cooldown <= 0 && budget.request(r, 'grab')) {
         r.holding = 2.5;
         sound.gurgle();
         hud.caption('[the rope tightens around your legs]');
@@ -2898,7 +2898,11 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
   function updateBlooms(dt, eye) {
     budget.tick(dt);
     for (const b of blooms) if (b.commit && (!b.active || b.dying || b.dormant)) { b.commit = false; budget.release(b); }
-    budget.sweep((b) => b.active && !b.dying && !b.dormant);
+    // Grabs give their slot back when they let go: one thing holds you at a time.
+    if (budget.holds(undertow) && !(undertow.holding > 0)) budget.release(undertow);
+    for (const r of ropes) if (budget.holds(r) && !(r.holding > 0)) budget.release(r);
+    for (const f of floaters) if (budget.holds(f) && f.state !== 'holding') budget.release(f);
+    budget.sweep((b) => b.active === undefined || (b.active && !b.dying && !b.dormant)); // only Blooms are swept; grabs give their slot back themselves
     const crowd = blooms.filter((b) => b.active && !b.dying && !b.dormant).length;
     for (const b of blooms) {
       if (!b.active) { hide(b.core); hide(b.spikes); hide(b.heart); hide(b.lobes[0]); hide(b.lobes[1]); continue; }
@@ -3044,7 +3048,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
         const next = add(undertow.pos, scale(normalize([g[0], 0, g[2]]), Math.min(gl, (1.2 + sector.index * 0.15 + noise) * dt)));
         if (canEnter(...cellOf(next[0], next[2]))) undertow.pos = next;
       }
-      if (!fountain && water && d < 0.9 && undertow.cooldown <= 0) {
+      if (!fountain && water && d < 0.9 && undertow.cooldown <= 0 && budget.request(undertow, 'grab')) {
         undertow.holding = 3.5;
         sound.gurgle();
         hud.say('JUNE', 'It has you! Shoot the water under you!', 'crew');
@@ -3418,11 +3422,15 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
           state.rescued += 1;
           hud.say('???', 'You came back. You came back for me. Is it far? I\'d like a towel.', 'marco');
           hud.toast(`A SURVIVOR · ${state.rescued} RESCUED · +1 ${item === 'cell' ? 'CHARGE CELL' : 'FILTER'} · they swim for the dock`);
-        } else {
+        } else if (budget.request(f, 'grab')) {
           f.state = 'holding';
           f.holdT = 2.5;
           sound.gurgle();
           hud.caption('[it rolls over]');
+        } else {
+          // Something else already has you: it only turns over and looks.
+          f.state = 'revealed';
+          hud.caption('[it rolls over, and looks at you, and waits]');
         }
       }
       if (f.state === 'holding') {
