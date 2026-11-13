@@ -968,6 +968,102 @@
    "gameUse": [
     "starting blocks: a row of three along one straight pool edge"
    ]
+  },
+  {
+   "id": "model/medical_box",
+   "type": "model",
+   "files": [
+    "src/assets/models/cc0/medical_box.glb"
+   ],
+   "source": "Poly Haven (Medical Box)",
+   "creator": "Ulan Cabanilla",
+   "url": "https://polyhaven.com/a/medical_box",
+   "license": "CC0-1.0",
+   "modified": true,
+   "changes": "1k glTF packed into one GLB: colour map 512 px, normal and ARM maps 256 px (JPEG); meshes above 6,000 triangles simplified gently with gltfpack",
+   "gameUse": [
+    "firstAid: the first aid kit on the Safe Room workbench"
+   ]
+  },
+  {
+   "id": "model/garden_hose_wall_mounted_01",
+   "type": "model",
+   "files": [
+    "src/assets/models/cc0/garden_hose_wall_mounted_01.glb"
+   ],
+   "source": "Poly Haven (Garden Hose Wall Mounted 01)",
+   "creator": "Kuutti Siitonen",
+   "url": "https://polyhaven.com/a/garden_hose_wall_mounted_01",
+   "license": "CC0-1.0",
+   "modified": true,
+   "changes": "1k glTF packed into one GLB: colour map 512 px, normal and ARM maps 256 px (JPEG); meshes above 6,000 triangles simplified gently with gltfpack",
+   "gameUse": [
+    "hose: a hose reel on the wall beside each pump valve"
+   ]
+  },
+  {
+   "id": "model/fire_alarm",
+   "type": "model",
+   "files": [
+    "src/assets/models/cc0/fire_alarm.glb"
+   ],
+   "source": "Poly Haven (Fire Alarm)",
+   "creator": "Slinc",
+   "url": "https://polyhaven.com/a/fire_alarm",
+   "license": "CC0-1.0",
+   "modified": true,
+   "changes": "1k glTF packed into one GLB: colour map 512 px, normal and ARM maps 256 px (JPEG); meshes above 6,000 triangles simplified gently with gltfpack",
+   "gameUse": [
+    "fireAlarm: beside the service panel"
+   ]
+  },
+  {
+   "id": "model/boombox",
+   "type": "model",
+   "files": [
+    "src/assets/models/cc0/boombox.glb"
+   ],
+   "source": "Poly Haven (Boombox)",
+   "creator": "Thomas Paul Mouilleron",
+   "url": "https://polyhaven.com/a/boombox",
+   "license": "CC0-1.0",
+   "modified": true,
+   "changes": "1k glTF packed into one GLB: colour map 512 px, normal and ARM maps 256 px (JPEG); meshes above 6,000 triangles simplified gently with gltfpack",
+   "gameUse": [
+    "radio: the Safe Room radio"
+   ]
+  },
+  {
+   "id": "model/tire_pump",
+   "type": "model",
+   "files": [
+    "src/assets/models/cc0/tire_pump.glb"
+   ],
+   "source": "Poly Haven (Tire Pump)",
+   "creator": "Garrison Gager",
+   "url": "https://polyhaven.com/a/tire_pump",
+   "license": "CC0-1.0",
+   "modified": true,
+   "changes": "1k glTF packed into one GLB: colour map 512 px, normal and ARM maps 256 px (JPEG); meshes above 6,000 triangles simplified gently with gltfpack",
+   "gameUse": [
+    "pump: the raft pump in the Safe Room"
+   ]
+  },
+  {
+   "id": "model/metal_jerrycan",
+   "type": "model",
+   "files": [
+    "src/assets/models/cc0/metal_jerrycan.glb"
+   ],
+   "source": "Poly Haven (Metal Jerrycan)",
+   "creator": "Sean Buckley",
+   "url": "https://polyhaven.com/a/metal_jerrycan",
+   "license": "CC0-1.0",
+   "modified": true,
+   "changes": "1k glTF packed into one GLB: colour map 512 px, normal and ARM maps 256 px (JPEG); meshes above 6,000 triangles simplified gently with gltfpack",
+   "gameUse": [
+    "jerrycan: at a maintenance platform and in the Safe Room"
+   ]
   }
  ]
 }

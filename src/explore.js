@@ -305,6 +305,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
       const rack = M('rack', 'Parts rack'); if (rack) placeModel(rack, back(0.6, 0.4), yaw);
       // Spare pipe sections against the wall, and equipment crates stacked by the rack (CC0 models).
       const pipes = M('pipes', 'Spare pipe sections'); if (pipes) placeModel(pipes, back(1.9, 0.2), yaw);
+      const can = M('jerrycan', 'Jerrycan'); if (can) placeModel(can, back(-0.2, 0.3), yaw + 0.3);
     } else {
       const bin = M('bin', 'Bins'); if (bin) placeModel(bin, back(-1.0, 0.4), yaw);
       // Equipment crates: two side by side, one on top (CC0 models).
@@ -381,6 +382,8 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     const along = [sWall[1], 0, -sWall[0]], out = [-sWall[0], 0, -sWall[1]], yaw = Math.atan2(out[0], out[2]);
     const cab = M('utilityBox', 'Electrical cabinet');
     if (cab) placeModel(cab, [panelPos[0] + along[0] * 1.45 + out[0] * 0.25, 0, panelPos[2] + along[2] * 1.45 + out[2] * 0.25], yaw);
+    const fa = M('fireAlarm', 'Fire alarm');
+    if (fa) placeModel(fa, [panelPos[0] - along[0] * 1.3 + out[0] * (0.02 + model('fireAlarm').size[2] / 2), 1.0, panelPos[2] - along[2] * 1.3 + out[2] * (0.02 + model('fireAlarm').size[2] / 2)], yaw);
     const jb = M('powerBox', 'Junction box');
     if (jb) placeModel(jb, [panelPos[0] - along[0] * 1.3 + out[0] * 0.22, 1.5, panelPos[2] - along[2] * 1.3 + out[2] * 0.22], yaw);
   }
@@ -530,6 +533,9 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     const mv = M('valve', `Pump valve ${id}`, { emission: 0.05, emissiveColor: [0.3, 0.65, 1] });
     const wheel = mv ? placeModel(mv, [w.pos[0] + w.normal[0] * 0.45, 0, w.pos[2] + w.normal[2] * 0.45], Math.atan2(w.normal[0], w.normal[2]), 1.6) : P(`Pump valve ${id}`, torus(0.1, 32, 10), glow([0.3, 0.65, 1], 1.5, { color: [0.2, 0.5, 1] }));
     if (!mv) writeBasis(wheel.matrix, add(w.pos, scale(w.normal, 0.1)), normalize(cross(w.normal, UP)), UP, w.normal, 0.45, 0.45, 0.45);
+    // A hose reel on the wall beside each valve (CC0 model), its back against the tiles.
+    const hr = M('hose', `Hose reel ${id}`);
+    if (hr) { const al = normalize(cross(w.normal, UP)), off = 0.01 + model('hose').size[2] / 2; placeModel(hr, [w.pos[0] + al[0] * 1.1 + w.normal[0] * off, 0.95, w.pos[2] + al[2] * 1.1 + w.normal[2] * off], Math.atan2(w.normal[0], w.normal[2])); }
     const wl = M('wallLamp', `Valve lamp ${id}`);
     if (wl) placeModel(wl, [w.pos[0] + w.normal[0] * 0.08, 2.35, w.pos[2] + w.normal[2] * 0.08], Math.atan2(w.normal[0], w.normal[2]));
     label(`VALVE ${id}\nPUMP ${'ABC'.indexOf(id) + 1} OF 4`, 'sign', add(w.pos, [0, 0.8, 0]), w.normal, 1, 0.42);

@@ -29,6 +29,12 @@ import rackUrl from './assets/models/cc0/worn_metal_rack.glb?inline';
 import crateUrl from './assets/models/cc0/plastic_crate_02.glb?inline';
 import pipesUrl from './assets/models/cc0/modular_industrial_pipes_01.glb?inline';
 import shutterUrl from './assets/models/cc0/rollershutter_door.glb?inline';
+import firstAidUrl from './assets/models/cc0/medical_box.glb?inline';
+import hoseUrl from './assets/models/cc0/garden_hose_wall_mounted_01.glb?inline';
+import fireAlarmUrl from './assets/models/cc0/fire_alarm.glb?inline';
+import radioUrl from './assets/models/cc0/boombox.glb?inline';
+import pumpUrl from './assets/models/cc0/tire_pump.glb?inline';
+import jerrycanUrl from './assets/models/cc0/metal_jerrycan.glb?inline';
 
 /**
  * Each model: its source; a surface finish where the file carries only a colour texture (glTF's default of fully
@@ -64,6 +70,13 @@ export const MODELS = {
   crate: { url: crateUrl, turn: 0 },
   pipes: { url: pipesUrl, turn: 0 },
   shutter: { url: shutterUrl, turn: 0 },
+  // Wall-mounted ones (hose reel, fire alarm) have their back on the wall at z = 0 and face +Z.
+  firstAid: { url: firstAidUrl, turn: 0 },
+  hose: { url: hoseUrl, turn: 0 },
+  fireAlarm: { url: fireAlarmUrl, turn: 0 },
+  radio: { url: radioUrl, turn: 0 },
+  pump: { url: pumpUrl, turn: 0 },
+  jerrycan: { url: jerrycanUrl, turn: 0 },
 };
 
 const ready = {};

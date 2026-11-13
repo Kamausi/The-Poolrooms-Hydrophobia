@@ -66,7 +66,10 @@ export function createSafeRoom(canvas, sector, opts = {}) {
   // Habitation: mugs on the bench, a radio, towels, a camp cot, a kettle on a pump housing.
   put('Shelf', metal, [-4.35, 1.0, -3.2], [1.3, 0.06, 0.45]);
   [0, 1, 2, 3].forEach((i) => put(`Mug ${i}`, { color: [[0.7, 0.62, 0.36], [0.62, 0.32, 0.26], [0.85, 0.84, 0.78], [0.3, 0.42, 0.5]][i], metallic: 0, roughness: 0.5 }, [-4.8 + i * 0.28, 1.1, -3.2], [0.12, 0.14, 0.12]));
-  put('Radio', { color: [0.12, 0.12, 0.11], metallic: 0.3, roughness: 0.6, emission: 0.5, emissiveColor: [0.5, 0.7, 0.5] }, [-3.85, 1.15, -3.2], [0.4, 0.24, 0.18]);
+  // The radio that reads the weather for a town that does not exist (CC0 model where it has loaded).
+  const radioModel = modelPart('radio', 'Radio');
+  if (radioModel) { parts.push(...radioModel.group); placeModel(radioModel, [-3.85, 1.03, -3.2], 0, 0.26); }
+  else put('Radio', { color: [0.12, 0.12, 0.11], metallic: 0.3, roughness: 0.6, emission: 0.5, emissiveColor: [0.5, 0.7, 0.5] }, [-3.85, 1.15, -3.2], [0.4, 0.24, 0.18]);
   put('Towels', { color: [0.82, 0.8, 0.72], metallic: 0, roughness: 0.95 }, [0.6, 0.55, 3.2], [0.5, 0.12, 0.35]);
   put('Cot', { color: [0.3, 0.36, 0.28], metallic: 0, roughness: 0.9 }, [4.4, 0.4, -2.8], [0.8, 0.12, 1.8]);
   // Models where they have loaded (props.js), the primitive where they have not.
@@ -82,6 +85,9 @@ export function createSafeRoom(canvas, sector, opts = {}) {
   M('locker', 'Safe Room locker B', [4.75, 0, 2.05], -Math.PI / 2, 2);
   M('extinguisher', 'Safe Room extinguisher', [2.0, 0, 3.75], Math.PI);
   M('wallLamp', 'Safe Room wall lamp', [-4.95, 2.5, -1.5], Math.PI / 2);
+  M('firstAid', 'Safe Room first aid kit', [-2.9, 0.96, 3.0], 0.2);
+  M('pump', 'Safe Room raft pump', [-1.6, 0, 3.7], Math.PI);
+  M('jerrycan', 'Safe Room jerrycan', [3.0, 0, 3.65], Math.PI + 0.2);
   const beacon = P('Beacon', sphere(16, 10), { color: [0.3, 1, 0.5], metallic: 0, roughness: 1, emission: 6, emissiveColor: [0.3, 1, 0.5] }, writeYaw(new Float32Array(16), [0, 3.6, 3.9], 0, 0.2, 0.2, 0.2));
   // Beyond the glass: an enormous empty pool hall, dim, perfectly still.
   const pool = { tag: 'water', color: linear(sector.water), metallic: 0.55, roughness: 0.05 };
