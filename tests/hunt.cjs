@@ -96,5 +96,28 @@ const { open, newCampaign, check, finish } = require('./lib.cjs');
     const w = E.wedges.slice(); const st = L.state; L.state = 'returning'; u.step(1);
     return { calm, n: w.length, behind: w[0]?.behind, st, after: E.wedges.length }; });
   check('the Lifeguard gets a rim marker only while it is coming for you from out of view', r.calm === 0 && r.n === 1 && r.behind && r.after === 0, JSON.stringify(r));
+  // What the tower hears (after its first whistle only): splashes, running close by, machinery, doors and a light
+  // it can see moving all bring it down to look, each from its own distance.
+  r = await page.evaluate(() => { const u = window.__underflow; let E, L, cells, hid = [], seen, sec = -1;
+    // A dock with a Lifeguard and cells it cannot see from the tower.
+    for (let i = 0; i < 8 && !hid.length; i++) { u.beginSector(i); u.startRide(); u.startExplore(); u.setState({ health: 1e6, regrouped: true }); u.step(3); E = window.__explore; L = E.lifeguard; if (!L) continue;
+      cells = E.find('.').concat(E.find('D')).map(([x, z]) => E.center(x, z)); sec = i;
+      hid = cells.filter((c) => Math.hypot(c[0] - L.base[0], c[2] - L.base[2]) < 30 && !E.lineOfSight(L.base, [c[0], 0, c[2]]));
+      seen = cells.find((c) => { const d = Math.hypot(c[0] - L.base[0], c[2] - L.base[2]); return d > 4 && d < 18 && E.lineOfSight(L.base, [c[0], 0, c[2]]); }); }
+    if (!L) return { none: true };
+    const reset = (v) => { L.state = 'watching'; L.violations = v; L.blind = 0; L.stopped = false; L.pos = null; L.heard = null; };
+    const RANGE = { shot: 26, splash: 16, run: 10, machine: 22, door: 22 };
+    const wrong = [];
+    for (const c of hid) for (const [kind, range] of Object.entries(RANGE)) {
+      const d = Math.hypot(c[0] - L.base[0], c[2] - L.base[2]);
+      reset(1); const heard = E.noise([c[0], 0, c[2]], kind);
+      if (heard !== d <= range || (heard && (L.state !== 'investigate' || L.heard !== kind))) wrong.push(kind + '@' + d.toFixed(1));
+    }
+    const out = { sec, hidden: hid.length, wrong: wrong.slice(0, 6) };
+    reset(0); out.beforeWarning = hid[0] ? E.noise([hid[0][0], 0, hid[0][2]], 'shot') : false;
+    reset(1); out.light = seen && (E.noise([seen[0], 0, seen[2]], 'light'), L.state + '/' + L.heard);
+    reset(1); out.seenSplash = seen ? E.noise([seen[0], 0, seen[2]], 'splash') : false;
+    reset(0); return out; });
+  check('the Lifeguard hears shots, splashes, running, machines and doors out of its sight, each within its own range, and sees a lamp left burning; only after its first whistle', r.none || (r.hidden > 0 && !r.wrong.length && r.beforeWarning === false && r.light === 'investigate/light' && r.seenSplash === false), JSON.stringify(r));
   await finish(browser, errors);
 })();

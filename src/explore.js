@@ -11,6 +11,7 @@ import { createBudget } from './pressure.js';
 import { createLightPool, mergeLights } from './lightpool.js';
 import { scoreSpawns } from './spawnscore.js';
 import { createPerceiver, sense } from './perception.js';
+import { createPursuit, advance } from './pursuit.js';
 import { assignShadows, handLamp } from './shadows.js';
 import { surface as genSurface } from './surfaces.js';
 import { model, modelPart, placeModel } from './props.js';
@@ -1090,6 +1091,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     floats: [0, 1, 2].map(() => ({ alive: true })),
     x, z, cut: false, holding: 0, cooldown: 0,
   }));
+  let marcoApart = false;
   const marcos = find('m').map(([x, z]) => ({ pos: center(x, z), timer: 4 + random() * 6, throat: P('Marco throat', sphere(16, 12), { color: [0.85, 0.7, 0.68], metallic: 0, roughness: 0.3 }), shown: 0, throatPos: null }));
   const groutSources = find('g');
   const grout = new Map(); // "x,z" -> { cleared }
@@ -1209,6 +1211,9 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     const b = blooms.find((x) => !x.active);
     // A wave arrives suspicious, heading for where you were; one lying on the floor knows nothing yet.
     if (b) b.perc = createPerceiver(dormant ? {} : { awareness: 0.6, lastKnown: [...player.pos] });
+    // What it does with that (pursuit.js): it never reads where you really are once it has lost you; it goes to
+    // where it last sensed you, searches there, then drifts back to the grate it came out of.
+    if (b) b.pur = createPursuit({ home: [...pos], profile: 'bloom' });
     if (b) Object.assign(b, { active: true, pos: [...pos], hp: 2 + (sector.index > 3 ? 1 : 0), phase: random() * 6, dying: 0, stagger: 0, flash: 0, retreat: false, ch: [1, 1], dormant, waking: 0, lunge: 0, woken: false, floorY: pos[1] });
     return b;
   };
@@ -1661,6 +1666,8 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     const len = Math.hypot(mx, mz);
     if (len > 1) { mx /= len; mz /= len; }
     const running = isDown('shift') && len > 0.1;
+    runHeard = running ? runHeard + dt : 0;
+    if (runHeard > 1) { runHeard = 0; noise(player.pos, 'run'); }
     let speed = (water ? 2.3 : 4.2) * (running ? (water ? 1.35 : 1.45) : 1);
     if (groutHere && !groutHere.cleared) speed *= 0.5;
     const held = undertow.holding > 0 || (lifeguard && lifeguard.state === 'grab') || floaters.some((f) => f.state === 'holding') || ropes.some((r) => r.holding > 0) || state.sitting || !!state.downed;
@@ -1687,7 +1694,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     if (moving && !nowMoving) stoppedAt = time;
     moving = nowMoving;
     if (nowMoving) bob += dt * (water ? 5 : 8);
-    if (water && !wasWater) { sound.splash(); ripple = [...player.pos]; rippleTime = time; }
+    if (water && !wasWater) { sound.splash(); ripple = [...player.pos]; rippleTime = time; noise(player.pos, 'splash'); }
     wasWater = water;
     const ft = floorTop(pcx, pcz);
     player.floor = damp(player.floor, ft > -1 ? ft : 0, 10, dt);
@@ -2002,6 +2009,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
       if (wasPressed('e')) {
         pumpOn = !pumpOn;
         sound.pump();
+        noise(pumpPos, 'machine');
         hud.toast(pumpOn ? 'PUMP RUNNING · CURRENTS ON' : 'PUMP STOPPED · RESTART IT BEFORE YOU LAUNCH');
         if (!pumpOn) hud.caption('[the machinery stops — and now you can hear everything else]');
       }
@@ -2387,6 +2395,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
           v.open = true;
           valveStep += 1;
           sound.valve();
+          noise(eye, 'machine');
           sound.gate();
           hud.toast(valveStep === 3 ? 'ALL THREE VALVES OPEN · PRESSURE AT THE PUMP · the diagram says four' : `VALVE ${v.id} OPEN · ${valveStep}/3`);
           if (valveStep === 3) { events.interest?.(2); events.ledger?.('machinery', 'Pressure diagram: valves in the posted order; the fourth pump is behind the glass'); }
@@ -2694,6 +2703,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
       else hud.caption('[the bypass opens. The basin starts to turn, slowly, the whole body of water moving]');
     }
     sound.door();
+    noise(player.pos, 'door');
     events.score(300, 'CIRCUIT RESTORED');
     hud.objective({ repair: 'The compressor is running and the gate is live. Return to the raft.', water: 'The pool is up. The raft can reach the outlet. Return to it.', winch: 'The gate is up. Return to the raft.' }[dockKind] || 'Power restored. The service gate is open. Return to the raft.');
     hud.say('DEZ', 'Gate\'s live. Lights too. And the pumps. Get back to the raft.', 'crew');
@@ -2950,11 +2960,14 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
       const seen = d < 26 && lineOfSight(b.pos, add(eye, [0, -0.4, 0]));
       const lit = blackout ? (carrying ? 1 : 0.05) : (lastLit ? 1 : 0.3) + (carrying ? 0.3 : 0);
       sense(b.perc, { seen, distance: d, lit: Math.min(1, lit), noise: Math.min(1, state.noise / 60), at: [eye[0], eye[1] - 0.3, eye[2]] }, dt);
-      const knows = b.perc.state === 'aware' || b.commit;
+      b.pur ||= createPursuit({ home: [...b.pos], profile: 'bloom' });
+      advance(b.pur, b.perc, b.pos, dt);
+      // It knows where you are only while it can still sense you (or has committed to you, close in).
+      const knows = b.pur.mode === 'pursue' && b.perc.sinceSensed < b.pur.profile.lose || b.commit;
       b.blind = blackout && !lure && !b.commit && !carrying && d > 3.8;
       if (!b.blind) b.lastSeen = [eye[0], eye[1] - 0.3, eye[2]];
       const unsure = !lure && !b.blind && !knows;
-      const to = lure ? sub(add(lampPlaced, [0, 0.9, 0]), b.pos) : b.blind ? sub(b.lastSeen || b.pos, b.pos) : unsure ? sub(b.perc.lastKnown || b.pos, b.pos) : sub(add(eye, [0, -0.3, 0]), b.pos);
+      const to = lure ? sub(add(lampPlaced, [0, 0.9, 0]), b.pos) : b.blind ? sub(b.lastSeen || b.pos, b.pos) : unsure ? sub(b.pur.goal || b.pos, b.pos) : b.commit || !b.perc.lastKnown ? sub(add(eye, [0, -0.3, 0]), b.pos) : sub(b.perc.lastKnown, b.pos); // where it senses you (live while it does), or you, once committed and close
       b.stagger = Math.max(0, (b.stagger || 0) - dt);
       b.flash = Math.max(0, (b.flash || 0) - dt);
       if (b.retreat) {
@@ -2965,7 +2978,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
         // Swarm movement: close in, but spread around you instead of queueing in one line.
         // Freshly filled, it launches: a short fast lunge before it settles into the swarm's pace.
         b.lunge = Math.max(0, b.lunge - dt);
-        const v = b.blind ? (Math.hypot(...to) > 0.6 ? 0.6 : 0) : unsure ? (b.perc.state === 'suspicious' && Math.hypot(...to) > 0.8 ? 0.9 : 0) : (d < (blackout && carrying ? 26 : 18) || lure ? 1.5 + sector.index * 0.2 : 0.4) * (state.visible ? 1.3 : 1) * (b.lunge > 0 ? 4 : 1);
+        const v = b.blind ? (Math.hypot(...to) > 0.6 ? 0.6 : 0) : unsure ? (b.pur.goal && Math.hypot(...to) > 0.4 ? 1.8 * b.pur.pace : 0) : (d < (blackout && carrying ? 26 : 18) || lure ? 1.5 + sector.index * 0.2 : 0.4) * (state.visible ? 1.3 : 1) * (b.lunge > 0 ? 4 : 1);
         const side = cross(normalize(Math.hypot(...to) > 1e-3 ? to : [1, 0, 0]), UP);
         const orbit = d > 3 ? Math.sin(b.phase * 0.4 + b.hp) * 0.6 : 0;
         // Attack slots: only a couple may commit at once. The rest circle just out of reach, readable and waiting,
@@ -3202,17 +3215,34 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     L.moving = true;
     return Math.hypot(target[0] - L.pos[0], target[2] - L.pos[2]);
   }
-  /** Gunfire it can't see, after it has already whistled once: it climbs down and comes to look. */
-  function noise(at) {
-    const L = lifeguard;
-    if (!L || L.state !== 'watching' || L.violations < 1 || L.blind > 0 || L.stopped) return;
-    if (distance(at, L.base) > 26 || lineOfSight(L.base, at)) return;
-    L.state = 'investigate'; L.pos = [...L.base]; L.target = [...at]; L.searchT = 0; L.next = null;
-    hud.caption('[behind you, somewhere: the tower ladder, one rung at a time]');
+  // What the Lifeguard hears from the tower, how far each carries, and what you hear when it comes to look. It acts
+  // on these only after it has already whistled at you once: the first warning is always a rule you broke in sight.
+  const HEARD = {
+    shot: { range: 26, caption: '[behind you, somewhere: the tower ladder, one rung at a time]' },
+    splash: { range: 16, caption: '[the splash carries. Somewhere behind you, the tower creaks as something climbs down]' },
+    run: { range: 10, caption: '[your footsteps slap on the wet tile. Then, behind you: rubber soles, unhurried]' },
+    machine: { range: 22, caption: '[the machinery is loud. Over it: the tower ladder]' },
+    door: { range: 22, caption: '[the door is loud in the tiled hall. Something comes to see who opened it]' },
+    light: { range: 22, caption: '[your lamp moves across the far wall. The tower turns toward it]' },
+  };
+  /** Something it can hear (or a light it can see moving) but not you: it climbs down and comes to look. */
+  let runHeard = 0;
+  function noise(at, kind = 'shot') {
+    const L = lifeguard, k = HEARD[kind] || HEARD.shot;
+    if (!L || L.state !== 'watching' || L.violations < 1 || L.blind > 0 || L.stopped) return false;
+    if (distance(at, L.base) > k.range) return false;
+    // A sound it could see the source of is a rule matter, handled by the rules; a light is seen, not heard.
+    if (kind !== 'light' && lineOfSight(L.base, at)) return false;
+    L.state = 'investigate'; L.pos = [...L.base]; L.target = [...at]; L.searchT = 0; L.next = null; L.heard = kind;
+    hud.caption(k.caption);
     sound.chair(soundDir(player.pos, forwardVec(), L.base).pan * 0.5);
+    return true;
   }
   function huntStep(dt) {
     const L = lifeguard;
+    // A work lamp left burning where the tower can see it: it comes down to look at the light.
+    if (L && L.state === 'watching' && lampPlaced && lampOn() && !L.lampSeen && lineOfSight(L.base, add(lampPlaced, [0, 0.4, 0]))) L.lampSeen = noise(lampPlaced, 'light');
+    if (L && !lampPlaced) L.lampSeen = false;
     L.moving = false;
     if (L.state === 'watching') return;
     const eyeL = add(L.pos, [0, 1.9, 0]);
@@ -3441,8 +3471,12 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
 
   function updateMarco(dt, eye) {
     updateMarcoAct(dt);
+    // Marco senses separation: with no crewmate within ten metres of you, the voices come nearly twice as often,
+    // exactly when you cannot check them against the real crew.
+    const apart = !followers.length || Math.min(...followers.map((f) => (f.pos ? Math.hypot(f.pos[0] - player.pos[0], f.pos[2] - player.pos[2]) : 99))) > 10;
+    marcoApart = apart;
     for (const m of marcos) {
-      m.timer -= dt;
+      m.timer -= dt * (apart ? 1.8 : 1);
       m.shown = Math.max(0, m.shown - dt);
       if (m.timer <= 0) {
         m.timer = 12 + random() * 8;
@@ -3507,7 +3541,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     for (let i = 0; i < (r.valves || 0); i++) { const v = pumpValves.find((x) => x.id === valveOrder[i]); if (v) v.open = true; }
     valveStep = r.valves || 0;
   }
-  if (import.meta.env.DEV) window.__explore = { parts, frameEnv: () => lastEnv, mirror: () => mirrorSurface && detachMirror && { height: mirrorSurface.height, parts: mirrorSurface.partIndices.length, key: mirrorKey }, models: () => parts.filter((p) => p.model).map((p) => ({ model: p.model, name: p.name, at: [p.matrix[12], p.matrix[13], p.matrix[14]] })), flashes, budget, wave: (n, f) => wave(n, f), lineOfSight, get remembered() { return remembered; }, get chain() { return lastChain; }, get eyeExposure() { return eyeExposure; }, renderer, get driftSigns() { return driftSigns; }, get wedges() { return lastWedges; }, survey, get surveyCoverage() { return surveyCoverage(survey, surveyOpen); }, surveyOpen, omen: (k) => startFomen(k), circuit, setEmergency, setBlackout, get blackout() { return blackout; }, signParts, get resetT() { return resetT; }, get emergency() { return emergency; }, blocked, isWall, finds, found, get lampPlaced() { return lampPlaced; }, lights: () => gatherLights(add(player.pos, [0, 1.6, 0])), get hesitation() { return hesitation; }, get lastOmen() { return lastFomen; }, get marcoAct() { return marcoAct; }, set marcoAct(v) { marcoAct = v; }, marcos, columns, wavePool, get basin() { return basin; }, isWater, floorTop, get operating() { return operating; }, set operating(v) { operating = v; }, panelFront, holdT, shoot, spawnBloom, occupant, lockers, noise, violate, get omenState() { return fomen; }, door, blooms, lamps, director, followers, get dockKind() { return dockKind; }, get valves() { return { order: valveOrder, step: valveStep, list: pumpValves }; }, june: juneEvent, thread, get clock() { return clock; }, stagnant, player, center, undertow, lifeguard, cellPos, panelPos, raftPos, code, find, floaters, restorePower };
+  if (import.meta.env.DEV) window.__explore = { parts, frameEnv: () => lastEnv, marcos, get marcoApart() { return marcoApart; }, mirror: () => mirrorSurface && detachMirror && { height: mirrorSurface.height, parts: mirrorSurface.partIndices.length, key: mirrorKey }, models: () => parts.filter((p) => p.model).map((p) => ({ model: p.model, name: p.name, at: [p.matrix[12], p.matrix[13], p.matrix[14]] })), flashes, budget, wave: (n, f) => wave(n, f), lineOfSight, get remembered() { return remembered; }, get chain() { return lastChain; }, get eyeExposure() { return eyeExposure; }, renderer, get driftSigns() { return driftSigns; }, get wedges() { return lastWedges; }, survey, get surveyCoverage() { return surveyCoverage(survey, surveyOpen); }, surveyOpen, omen: (k) => startFomen(k), circuit, setEmergency, setBlackout, get blackout() { return blackout; }, signParts, get resetT() { return resetT; }, get emergency() { return emergency; }, blocked, isWall, finds, found, get lampPlaced() { return lampPlaced; }, lights: () => gatherLights(add(player.pos, [0, 1.6, 0])), get hesitation() { return hesitation; }, get lastOmen() { return lastFomen; }, get marcoAct() { return marcoAct; }, set marcoAct(v) { marcoAct = v; }, marcos, columns, wavePool, get basin() { return basin; }, isWater, floorTop, get operating() { return operating; }, set operating(v) { operating = v; }, panelFront, holdT, shoot, spawnBloom, occupant, lockers, noise, violate, get omenState() { return fomen; }, door, blooms, lamps, director, followers, get dockKind() { return dockKind; }, get valves() { return { order: valveOrder, step: valveStep, list: pumpValves }; }, june: juneEvent, thread, get clock() { return clock; }, stagnant, player, center, undertow, lifeguard, cellPos, panelPos, raftPos, code, find, floaters, restorePower };
 
   /** ?show=: put the dock into a fixed, readable state for screenshots and visual review. */
   function showcase(name) {

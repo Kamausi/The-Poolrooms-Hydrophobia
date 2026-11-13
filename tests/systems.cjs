@@ -22,7 +22,7 @@ const { open, newCampaign, check, finish } = require('./lib.cjs');
     E.blooms.forEach((b) => { b.active = false; });
     const c = E.player.pos; let most = 0;
     for (let i = 0; i < 6; i++) E.spawnBloom([c[0] + Math.cos(i) * 2.6, 1.3, c[2] + Math.sin(i) * 2.6]);
-    for (let k = 0; k < 120; k++) { u.setState({ health: 1e6, drift: 0 }); E.player.pos = [...c]; u.step(1); most = Math.max(most, E.blooms.filter((b) => b.active && b.commit).length); }
+    for (let k = 0; k < 450; k++) { u.setState({ health: 1e6, drift: 0 }); E.player.pos = [...c]; u.step(1); most = Math.max(most, E.blooms.filter((b) => b.active && b.commit).length); }
     const cap = E.budget.cap('melee'); E.blooms.forEach((b) => { b.active = false; }); u.step(1);
     return { most, cap, held: E.budget.count('melee') }; });
   check('on foot six Blooms around you, but only as many as the budget allows commit; the rest circle', r.most >= 1 && r.most <= r.cap && r.held === 0, JSON.stringify(r));
@@ -52,5 +52,32 @@ const { open, newCampaign, check, finish } = require('./lib.cjs');
     b.active = false; u.setState({ noise: 0 });
     return { quiet, heard, toward }; });
   check('on foot a Bloom that cannot see or hear you does not come; a loud shot and it knows where you were', r.none || (r.quiet.state === 'unaware' && r.quiet.moved < 0.5 && r.heard !== 'unaware' && r.toward), JSON.stringify(r));
+  // Pursuit (pursuit.js): a Bloom that loses you goes to where it last sensed you, never to where you really are,
+  // searches around that spot, and then drifts back toward the grate it came from.
+  r = await page.evaluate(() => { const u = window.__underflow; u.beginSector(0); u.startExplore(); u.setState({ health: 1e6, drift: 0, noise: 0 }); u.step(3); const E = window.__explore;
+    E.blooms.forEach((b) => { b.active = false; });
+    const me = [...E.player.pos], eye = [me[0], 1.6, me[2]];
+    const cells = E.find('.').map(([x, z]) => E.center(x, z));
+    const home = cells.find((c) => { const d = Math.hypot(c[0] - me[0], c[2] - me[2]); return d > 6 && d < 10 && E.lineOfSight([c[0], 1.3, c[2]], [eye[0], 1.2, eye[2]]); });
+    if (!home) return { none: 'home' };
+    // Somewhere far from both, that the Bloom cannot see from anywhere near its route.
+    const away = cells.find((c) => Math.hypot(c[0] - me[0], c[2] - me[2]) > 14 && Math.hypot(c[0] - home[0], c[2] - home[2]) > 14 && !E.lineOfSight([home[0], 1.3, home[2]], [c[0], 1.2, c[2]]) && !E.lineOfSight([me[0], 1.3, me[2]], [c[0], 1.2, c[2]]));
+    if (!away) return { none: 'away' };
+    const b = E.spawnBloom([home[0], 1.3, home[2]], false); b.perc.awareness = 1; b.perc.lastKnown = [me[0], 1.3, me[2]]; b.perc.state = 'aware'; b.perc.sinceSensed = 0;
+    E.player.pos = [away[0], 0, away[2]];
+    const modes = new Set(); let closestToMe = Infinity, closestToOld = Infinity;
+    for (let k = 0; k < 120; k++) { u.setState({ health: 1e6, drift: 0, noise: 0 }); E.player.pos = [away[0], 0, away[2]]; u.step(1); if (!b.active) break; modes.add(b.pur.mode);
+      closestToMe = Math.min(closestToMe, Math.hypot(b.pos[0] - away[0], b.pos[2] - away[2])); closestToOld = Math.min(closestToOld, Math.hypot(b.pos[0] - me[0], b.pos[2] - me[2])); }
+    const out = { modes: [...modes], closestToOld: +closestToOld.toFixed(2), closestToMe: +closestToMe.toFixed(2), final: b.pur.mode };
+    b.active = false; return out; });
+  check('a Bloom that loses you goes to where it last sensed you (not where you are), searches there, then turns back', r.none || (r.modes.includes('search') && r.closestToOld < 2.5 && r.closestToMe > 8 && (r.modes.includes('return') || r.final === 'search')), JSON.stringify(r));
+  // Marco senses separation: away from every crewmate, its voices come faster.
+  r = await page.evaluate(() => { const u = window.__underflow; let E = null;
+    for (let i = 1; i < 8; i++) { u.beginSector(i); u.startRide(); u.startExplore(); u.setState({ health: 1e6, regrouped: true }); u.step(2); E = window.__explore; if (E.marcos.length && E.followers.length) break; E = null; }
+    if (!E) return { none: true };
+    const m = E.marcos[0], me = [...E.player.pos];
+    const drain = (near) => { m.timer = 100; for (let k = 0; k < 30; k++) { E.player.pos = [...me]; E.followers.forEach((f) => { f.pos = near ? [me[0] + 1, 0, me[2]] : [me[0] + 40, 0, me[2] + 40]; }); u.step(1); } return { used: +(100 - m.timer).toFixed(2), apart: E.marcoApart }; };
+    return { together: drain(true), alone: drain(false) }; });
+  check('Marco calls faster when you are apart from every crewmate', r.none || (r.together.apart === false && r.alone.apart === true && r.alone.used > r.together.used * 1.5), JSON.stringify(r));
   await finish(browser, errors);
 })();

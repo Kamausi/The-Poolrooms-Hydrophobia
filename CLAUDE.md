@@ -15,9 +15,9 @@ A first-person cooperative horror rail-shooter and explorer set in the Poolrooms
 | `src/memory.js` | The facility's memory between expeditions (see `docs/WORLD_MEMORY.md`) |
 | `src/sectors.js`, `src/plans.js`, `src/track.js` | Content as data: attractions, track plans, track geometry |
 | `src/ui.js`, `src/hud.js`, `src/input.js`, `src/padmap.js`, `src/settings.js` | Menus, HUD, input and bindings (controller tables by context are pure and unit-tested), settings |
-| `src/tiers.js`, `src/quality.js` | Quality tiers and Auto (pure, unit-tested); applying a tier in the browser |
+| `src/tiers.js`, `src/quality.js` | Quality tiers, Auto, and what to thin out as the render scale falls (pure, unit-tested); applying a tier in the browser |
 | `src/postchain.js`, `src/exposure.js`, `src/bench.js`, `src/shadows.js` | The four post passes and their uniforms, eye adaptation and haze, the `?bench` report, which lights cast shadows and the hand lamp (pure, unit-tested) |
-| `src/spring.js`, `src/pressure.js`, `src/spawnscore.js`, `src/lightpool.js`, `src/perception.js` | Damped springs, the attack-slot budget, spawn-point scoring, brief shot lights from a fixed pool, awareness from sight and sound (pure, unit-tested) |
+| `src/spring.js`, `src/pressure.js`, `src/spawnscore.js`, `src/lightpool.js`, `src/perception.js`, `src/pursuit.js` | Damped springs, the attack-slot budget, spawn-point scoring, brief shot lights from a fixed pool, awareness from sight and sound, and what an entity does with it (unaware, suspicious, investigate, observe, warn, pursue, search, return) (pure, unit-tested) |
 | `src/surfaces.js` | Generated surface textures (ceiling, aqua floor tile, painted steel, clouds), inlined; provenance in `assets/registry.json` |
 | `src/props.js`, `src/shapes.js` | 3D props as inlined GLB files (10 generated with Higgsfield, 38 CC0 from Poly Haven), placed with a primitive fallback; shared primitive shapes so identical parts draw as one instanced batch. Provenance in `assets/registry.json`, status in `docs/ASSET_BACKLOG.md` |
 | `src/waterlook.js` | Water optics per attraction: absorption by depth (Beer-Lambert) and turbidity from the water colour (pure, unit-tested) |
