@@ -73,7 +73,7 @@ These need real modelling, rigging and animation, which Higgsfield's image-to-me
 | Undertow | Procedural ripple, pull and bubbles; no mesh |
 | Marco | Uses crew figures and borrowed gestures (coded) |
 | Grout | Screen and sound effects; no seam decals |
-| Lane Rope | Not built as an asset |
+| Lane Rope | **Procedural** (`src/lanerope.js`): a racing lane line, runs of red and white disc floats on a steel cable between stainless anchor plates and eye bolts in the wall; each float target is six discs from one shared shape. On the raft the anchors you shoot are the eye bolts where the cable meets the wall; on foot an anchor is drawn only where a wall is |
 | Floaters / survivors | **Primitive** |
 | Ballast | **Primitive** |
 
@@ -193,7 +193,7 @@ The Marco reflection and Drift effects are coded. There are no reflection-specif
 
 ## Next, in order
 
-1. Skimmer lid (a second attempt, from a cleaner reference image) and lane anchors.
+1. Skimmer lid (a second attempt, from a cleaner reference image).
 2. ambientCG's downloads come from a host the network policy blocks; Poly Haven has no brushed-steel or rubber set, so those stay factor materials.
 3. More Higgsfield image-to-mesh for rigid custom props: per-profile blaster attachments, a pump housing, rescue hooks, collectibles (wristband, token, photo).
 4. The custom families (raft, blaster, work lamp, crew, Lifeguard, Blooms, slide kit) need a modelling and rigging pipeline outside this environment. The game is ready to load them: `src/props.js` takes any GLB, and the importer supports skinning and animation clips.

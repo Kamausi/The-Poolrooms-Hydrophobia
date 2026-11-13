@@ -44,6 +44,16 @@ const { open, newCampaign, check, finish } = require('./lib.cjs');
   const tooClose = dock.filter((x) => x.d < 1.55);
   check('dock dressing stands along the side wall, clear of the moored raft (every prop over 1.55 m from its centre)', dock.length > 40 && !tooClose.length, JSON.stringify({ n: dock.length, tooClose: tooClose.slice(0, 6) }));
   check('a camera watches the service panel, an empty wheelchair faces the water, a generator and toolbox at the maintenance platform, a searchlight at a landing', ['camera', 'wheelchair', 'generator', 'toolbox', 'drainCleaner', 'hangingLight', 'searchlight'].every((n) => seen[n] > 0), JSON.stringify(seen));
+  // The Lane Rope is a racing lane line: disc floats on a steel cable between wall anchors. Split an anchor and it drops.
+  const rope = await page.evaluate(() => { const u = window.__underflow; u.beginSector(0); u.startRide(); u.setState({ health: 1e6 }); u.step(3); const R = window.__ride;
+    R.spawnEnc('rope'); u.step(12);
+    const size = (p) => Math.hypot(p.matrix[0], p.matrix[1], p.matrix[2]);
+    const mine = R.parts.filter((p) => /^Lane rope 0 /.test(p.name));
+    const shown = () => mine.filter((p) => size(p) > 0.001).length;
+    const discs = mine.filter((p) => / disc /.test(p.name)), geos = new Set(discs.map((p) => p.geometry)).size;
+    const before = shown(); R.hitTarget('ropeanchor0'); R.hitTarget('ropeanchor0'); u.step(2);
+    return { parts: mine.length, discs: discs.length, geos, before, after: shown() }; });
+  check('the Lane Rope is disc floats on a cable between wall anchors (one shared disc shape), and splitting an anchor drops it', rope.discs === 30 && rope.geos === 1 && rope.before === rope.parts && rope.after === 0, JSON.stringify(rope));
   // Instancing: parts that share one geometry (and texture maps) draw as one batch. Shapes come from src/shapes.js,
   // models share their geometry across placements, so a scene of well over a thousand parts draws in a few dozen batches.
   const inst = await page.evaluate(() => { const u = window.__underflow; u.beginSector(1); u.startRide(); u.step(2); const R = window.__ride.renderer;

@@ -1,6 +1,7 @@
 // On foot at a dock. You can go anywhere you can reach, but you must find your own way back to the raft.
 // The goal: carry the power cell to the service panel (which opens the gate to the Safe Room's arrival
 // bay), then return to the moored raft. Each attraction adds its own rules (see sectors.js).
+import { createLaneRope } from './lanerope.js';
 import { rumble } from './haptics.js';
 import { wedges as threatWedges } from './aim.js';
 import { driftSign, driftState } from './driftsign.js';
@@ -1071,8 +1072,8 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
   }));
   // Lane ropes across water crossings: they wrap anyone wading through until their floats are cut.
   const ropes = find('r').map(([x, z], i) => ({
-    line: P(`Foot rope ${i}`, slab, { color: [0.85, 0.85, 0.8], metallic: 0, roughness: 0.6 }),
-    floats: [0, 1, 2].map((j) => ({ part: P(`Foot rope float ${i}.${j}`, ball, glow([1, 0.4, 0.1], 0.6, { color: j % 2 ? [0.9, 0.9, 0.85] : [0.9, 0.25, 0.08], roughness: 0.4 })), alive: true })),
+    body: createLaneRope(P, `Foot rope ${i}`, 3, { emission: 0.6 }),
+    floats: [0, 1, 2].map(() => ({ alive: true })),
     x, z, cut: false, holding: 0, cooldown: 0,
   }));
   const marcos = find('m').map(([x, z]) => ({ pos: center(x, z), timer: 4 + random() * 6, throat: P('Marco throat', sphere(16, 12), { color: [0.85, 0.7, 0.68], metallic: 0, roughness: 0.3 }), shown: 0, throatPos: null }));
@@ -2675,10 +2676,9 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
   function updateRopes(dt) {
     const [pcx, pcz] = cellOf(player.pos[0], player.pos[2]);
     for (const r of ropes) {
-      if (r.cut) { hide(r.line); r.floats.forEach((f) => hide(f.part)); continue; }
-      const c = center(r.x, r.z);
-      writeYaw(r.line.matrix, [c[0], surface(r.x, r.z) + 0.2, c[2]], Math.PI / 2, 0.04, 0.04, CELL);
-      r.floats.forEach((f, j) => (f.alive ? writeYaw(f.part.matrix, add(ropeFloatPos(r, j), [0, Math.sin(time * 3 + j) * 0.05, 0]), 0, 0.28, 0.22, 0.28) : hide(f.part)));
+      if (r.cut) { r.body.hideAll(); continue; }
+      const c = center(r.x, r.z), y = surface(r.x, r.z) + 0.2;
+      r.body.place([c[0] - CELL / 2, y, c[2]], [c[0] + CELL / 2, y, c[2]], [0, 1, 2].map((j) => ropeFloatPos(r, j)), r.floats.map((f) => f.alive), (j) => Math.sin(time * 3 + j) * 0.05, [isWall(r.x - 1, r.z), isWall(r.x + 1, r.z)]);
       r.cooldown = Math.max(0, r.cooldown - dt);
       if (r.holding > 0) {
         r.holding -= dt;
