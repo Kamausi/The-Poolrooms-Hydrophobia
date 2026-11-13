@@ -1224,6 +1224,118 @@
    "gameUse": [
     "trashBag: full bin bags at a landing and in the Safe Room"
    ]
+  },
+  {
+   "id": "model/security_camera_01",
+   "type": "model",
+   "files": [
+    "src/assets/models/cc0/security_camera_01.glb"
+   ],
+   "source": "Poly Haven (Security Camera 01)",
+   "creator": "Alexander Otterbeck, Yann Kervran",
+   "url": "https://polyhaven.com/a/security_camera_01",
+   "license": "CC0-1.0",
+   "modified": true,
+   "changes": "1k glTF packed into one GLB: colour map 512 px, normal and ARM maps 256 px (JPEG); meshes above 6,000 triangles simplified gently with gltfpack",
+   "gameUse": [
+    "camera: high on the wall at the service panel"
+   ]
+  },
+  {
+   "id": "model/caged_hanging_light",
+   "type": "model",
+   "files": [
+    "src/assets/models/cc0/caged_hanging_light.glb"
+   ],
+   "source": "Poly Haven (Caged Hanging Light)",
+   "creator": "Ulan Cabanilla",
+   "url": "https://polyhaven.com/a/caged_hanging_light",
+   "license": "CC0-1.0",
+   "modified": true,
+   "changes": "1k glTF packed into one GLB: colour map 512 px, normal and ARM maps 256 px (JPEG); meshes above 6,000 triangles simplified gently with gltfpack",
+   "gameUse": [
+    "hangingLight: hanging over the cart at a maintenance platform"
+   ]
+  },
+  {
+   "id": "model/wheelchair_01",
+   "type": "model",
+   "files": [
+    "src/assets/models/cc0/wheelchair_01.glb"
+   ],
+   "source": "Poly Haven (Wheelchair 01)",
+   "creator": "Garreth Dean",
+   "url": "https://polyhaven.com/a/wheelchair_01",
+   "license": "CC0-1.0",
+   "modified": true,
+   "changes": "1k glTF packed into one GLB: colour map 512 px, normal and ARM maps 256 px (JPEG); meshes above 6,000 triangles simplified gently with gltfpack",
+   "gameUse": [
+    "wheelchair: one empty wheelchair per map at the pool edge, facing the water"
+   ]
+  },
+  {
+   "id": "model/portable_generator",
+   "type": "model",
+   "files": [
+    "src/assets/models/cc0/portable_generator.glb"
+   ],
+   "source": "Poly Haven (Portable Generator)",
+   "creator": "James Ray Cock",
+   "url": "https://polyhaven.com/a/portable_generator",
+   "license": "CC0-1.0",
+   "modified": true,
+   "changes": "1k glTF packed into one GLB: colour map 512 px, normal and ARM maps 256 px (JPEG); meshes above 6,000 triangles simplified gently with gltfpack",
+   "gameUse": [
+    "generator: along the wall past a maintenance platform"
+   ]
+  },
+  {
+   "id": "model/metal_toolbox",
+   "type": "model",
+   "files": [
+    "src/assets/models/cc0/metal_toolbox.glb"
+   ],
+   "source": "Poly Haven (Metal Toolbox)",
+   "creator": "Mateusz Sadek",
+   "url": "https://polyhaven.com/a/metal_toolbox",
+   "license": "CC0-1.0",
+   "modified": true,
+   "changes": "1k glTF packed into one GLB: colour map 512 px, normal and ARM maps 256 px (JPEG); meshes above 6,000 triangles simplified gently with gltfpack",
+   "gameUse": [
+    "toolbox: at a maintenance platform, and in the Safe Room"
+   ]
+  },
+  {
+   "id": "model/drain_cleaner",
+   "type": "model",
+   "files": [
+    "src/assets/models/cc0/drain_cleaner.glb"
+   ],
+   "source": "Poly Haven (Drain Cleaner)",
+   "creator": "James Ray Cock",
+   "url": "https://polyhaven.com/a/drain_cleaner",
+   "license": "CC0-1.0",
+   "modified": true,
+   "changes": "1k glTF packed into one GLB: colour map 512 px, normal and ARM maps 256 px (JPEG); meshes above 6,000 triangles simplified gently with gltfpack",
+   "gameUse": [
+    "drainCleaner: on the tool cart at a maintenance platform"
+   ]
+  },
+  {
+   "id": "model/portable_searchlight",
+   "type": "model",
+   "files": [
+    "src/assets/models/cc0/portable_searchlight.glb"
+   ],
+   "source": "Poly Haven (Portable Searchlight)",
+   "creator": "Elijah Cragg",
+   "url": "https://polyhaven.com/a/portable_searchlight",
+   "license": "CC0-1.0",
+   "modified": true,
+   "changes": "1k glTF packed into one GLB: colour map 512 px, normal and ARM maps 256 px (JPEG); meshes above 6,000 triangles simplified gently with gltfpack",
+   "gameUse": [
+    "searchlight: along the wall past a landing"
+   ]
   }
  ]
 }

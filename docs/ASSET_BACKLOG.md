@@ -86,12 +86,12 @@ These need real modelling, rigging and animation, which Higgsfield's image-to-me
 | Lockers | **Model** (generated: supply lockers, locker 0417, Safe Room) |
 | Tool chest, tool cart, shelving | **Model** (CC0: maintenance platform landing; Safe Room) |
 | Fire extinguisher, bins | **Model** (CC0: every landing) |
-| Wet-floor signs, cleaning supplies, clutter | **Model** (CC0: wet-floor signs on the pool deck; wall clock at the service panel; stool, broom and chemical jug at a maintenance platform; megaphone, bin bags and cardboard boxes at other landings) |
+| Wet-floor signs, cleaning supplies, clutter | **Model** (CC0: wet-floor signs on the pool deck; wall clock and security camera at the service panel; stool, broom, chemical jug, drain cleaner, toolbox, generator and a caged hanging lamp at a maintenance platform; megaphone, bin bags, cardboard boxes and a searchlight at other landings; an empty wheelchair at the pool edge). Dock dressing lines the side wall, clear of the moored raft |
 | Pipes, pumps, compressors, tanks, catwalks, ducts, generators, crates, pallets | Primitive or not built. Pipe sections and plastic crates: **Model** (CC0: spare pipe sections at a maintenance platform, equipment crates at other landings) |
 
 ## 17. Safe Room kit
 
-Kettle, rack, tool chest, two chairs, two lockers, extinguisher, wall lamp, radio, first aid kit, raft pump, jerrycan, wall clock, stool, bleach and cleaner bottles, cardboard box, bin bag: **Model** (CC0 and generated). Pump housings, workbench, cot, mugs, towels, terminal: primitive. The Safe Room camera faces the glass, so props on the back wall are out of view; the newer ones stand where it looks. Bedding, drying rack, maps, charger: not built.
+Kettle, rack, tool chest, two chairs, two lockers, extinguisher, wall lamp, radio, first aid kit, raft pump, jerrycan, wall clock, stool, bleach and cleaner bottles, cardboard box, bin bag, toolbox: **Model** (CC0 and generated). Pump housings, workbench, cot, mugs, towels, terminal: primitive. The Safe Room camera faces the glass, so props on the back wall are out of view; the newer ones stand where it looks. Bedding, drying rack, maps, charger: not built.
 
 ## 18. Doors and barriers
 

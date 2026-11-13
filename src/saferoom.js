@@ -97,6 +97,8 @@ export function createSafeRoom(canvas, sector, opts = {}) {
   M('cleaner', 'Safe Room cleaner', [-3.95, 0, 0.0], 0.3);
   M('box', 'Safe Room box', [4.4, 0, 0.55], 0.15);
   M('trashBag', 'Safe Room bin bag', [-4.45, 0, -3.45], 0.7);
+  // A toolbox by the rack (CC0 model).
+  M('toolbox', 'Safe Room toolbox', [-3.85, 0, 1.75], 0.3);
   const beacon = P('Beacon', sphere(16, 10), { color: [0.3, 1, 0.5], metallic: 0, roughness: 1, emission: 6, emissiveColor: [0.3, 1, 0.5] }, writeYaw(new Float32Array(16), [0, 3.6, 3.9], 0, 0.2, 0.2, 0.2));
   // Beyond the glass: an enormous empty pool hall, dim, perfectly still.
   const pool = { tag: 'water', color: linear(sector.water), metallic: 0.55, roughness: 0.05 };

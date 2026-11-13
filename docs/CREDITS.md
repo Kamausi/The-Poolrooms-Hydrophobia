@@ -83,6 +83,13 @@ Twenty-one props from Poly Haven (polyhaven.com), CC0. Credit is not required, a
 - Metal Stool 01 by Ulan Cabanilla: https://polyhaven.com/a/metal_stool_01
 - Cardboard Box 01 by Rahul Chaudhary: https://polyhaven.com/a/cardboard_box_01
 - Trashbag by Benny Weimer: https://polyhaven.com/a/trashbag
+- Security Camera 01 by Alexander Otterbeck, Yann Kervran: https://polyhaven.com/a/security_camera_01
+- Caged Hanging Light by Ulan Cabanilla: https://polyhaven.com/a/caged_hanging_light
+- Wheelchair 01 by Garreth Dean: https://polyhaven.com/a/wheelchair_01
+- Portable Generator by James Ray Cock: https://polyhaven.com/a/portable_generator
+- Metal Toolbox by Mateusz Sadek: https://polyhaven.com/a/metal_toolbox
+- Drain Cleaner by James Ray Cock: https://polyhaven.com/a/drain_cleaner
+- Portable Searchlight by Elijah Cragg: https://polyhaven.com/a/portable_searchlight
 
 ## Generated models
 
