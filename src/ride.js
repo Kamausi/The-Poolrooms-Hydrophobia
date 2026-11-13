@@ -850,7 +850,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
     target.hp -= 1;
     target.flash = 0.12;
     target.stagger = 0.3;
-    if (target.hp <= 0) { target.dying = 0.001; sound.burst(); events.cleared(); }
+    if (target.hp <= 0) { target.dying = 0.001; sound.burst(); flashes.flash(target.pos, { color: [0.77, 0.35, 0.31], intensity: 5, range: 6, life: 0.15 }); events.cleared(); }
     if (!((state.regrouped || state.sectorIndex > 0) && !state.endless) && !state.endless) return; // still on the other channel
     coverFrom = track.lateral(s + 1.6, offset - 0.7, 1.15);
     coverTo = [...target.pos];

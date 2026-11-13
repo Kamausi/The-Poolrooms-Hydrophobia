@@ -1093,6 +1093,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     x, z, cut: false, holding: 0, cooldown: 0,
   }));
   let marcoApart = false;
+  let blown = 0; // how far the inspection lamp has blown the picture out (0..1)
   // The camera's springs (spring.js), as on the raft: a hit dips and nods the view, then it comes back.
   const camRig = createRig({ heave: { stiffness: 150, damping: 0.5 }, pitch: { stiffness: 170, damping: 0.55 } });
   const jolt = (k) => { camRig.kick('heave', -k * 1.6); camRig.kick('pitch', -k * 0.6); };
@@ -1469,7 +1470,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
       const away = normalize(sub(b.pos, eye));
       const pushed = add(b.pos, scale([away[0], 0, away[2]], 0.8));
       if (!isWall(...cellOf(pushed[0], pushed[2]))) b.pos = pushed;
-      if (b.hp <= 0) { b.dying = 0.001; sound.burst(); events.score(100, 'ENTITY DISPERSED'); events.cleared(); }
+      if (b.hp <= 0) { b.dying = 0.001; sound.burst(); flashes.flash(b.pos, { color: [0.77, 0.35, 0.31], intensity: 5, range: 5, life: 0.15 }); events.score(100, 'ENTITY DISPERSED'); events.cleared(); }
     });
     for (const g of signals) if (!g.used) test(g.pos, 0.8, () => {
       g.used = 0.001;
@@ -2203,7 +2204,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
       eye, target, fov: FOV, time,
       waterRipple: ripple, rippleTime: time - rippleTime,
       environment: (lastEnv = { pointLights: shadowsOn() ? assignShadows(frameLights, eye, quality.shadows, frameSpots.length) : frameLights, spotLights: frameSpots, volumeFog: hazeVolume(eye, { density: !hasDepth || settings.haze === false ? 0 : quality.haze, steps: quality.hazeSteps, color: linear(sector.fog), sky: !!rules.openSky }) }),
-      exposure: ((rules.openSky ? 0.95 : 1.05) - state.drift * 0.002) * eyeExposure,
+      exposure: ((rules.openSky ? 0.95 : 1.05) - state.drift * 0.002) * eyeExposure * (1 + blown * 1.8),
       effects: {
         ambientOcclusion: !hasDepth || settings.ambientOcclusion === false ? 0 : quality.ao, ambientOcclusionRadius: 0.6,
         bloom: { strength: quality.bloom, threshold: 1, radius: 1.3 },
@@ -2680,6 +2681,9 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
   }
 
   function restorePower() {
+    // The breaker arcs as the circuit closes: two blue-white flashes at the panel from the shared light pool.
+    flashes.flash(panelPos, { color: [0.7, 0.85, 1], intensity: 10, range: 8, life: 0.12 });
+    setTimeout(() => flashes.flash(panelPos, { color: [0.7, 0.85, 1], intensity: 6, range: 6, life: 0.1 }), 140);
     sound.switchOn();
     // The Last Drain's problem (Filtration Works): starting the compressor triggers a surge. Keep the mechanism
     // running through it and the escape route holds; walk away and the way out floods.
@@ -3021,6 +3025,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
         b.active = false;
         sound.burst();
         events.damage(14, 'A Bloom burst against you.');
+        flashes.flash(b.pos, { color: [0.77, 0.35, 0.31], intensity: 6, range: 5, life: 0.18 });
         jolt(1);
       }
     }
@@ -3100,6 +3105,9 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
       L.spot = sp[1] > -5 && lineOfSight(add(b, [0, 4.6, 0]), sp) ? sp : null;
       if (L.spot) writeYaw(L.beam.matrix, add(L.spot, [0, 0.03, 0]), 0, 2.3, 0.01, 2.3); else hide(L.beam);
     } else { L.spot = null; hide(L.beam); }
+    // Caught in the inspection lamp: the picture blows out, and comes back down slowly when you step out of it.
+    const inLamp = L.spot && Math.hypot(L.spot[0] - player.pos[0], L.spot[2] - player.pos[2]) < 1.3;
+    blown = inLamp ? Math.min(1, blown + dt * 4) : Math.max(0, blown - dt * 0.6);
     // The cycle lamp hangs on an arm beside the seat, so it never sits in front of the figure.
     writeYaw(L.lamp.matrix, add(b, [0.75, 3.35, 0]), 0, 0.16, 0.16, 0.16);
     L.lamp.material.emission = L.lampOn ? 5 : 0.05;
@@ -3557,7 +3565,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     for (let i = 0; i < (r.valves || 0); i++) { const v = pumpValves.find((x) => x.id === valveOrder[i]); if (v) v.open = true; }
     valveStep = r.valves || 0;
   }
-  if (import.meta.env.DEV) window.__explore = { parts, camRig, jolt, frameEnv: () => lastEnv, marcos, get marcoApart() { return marcoApart; }, mirror: () => mirrorSurface && detachMirror && { height: mirrorSurface.height, parts: mirrorSurface.partIndices.length, key: mirrorKey }, models: () => parts.filter((p) => p.model).map((p) => ({ model: p.model, name: p.name, at: [p.matrix[12], p.matrix[13], p.matrix[14]] })), flashes, budget, wave: (n, f) => wave(n, f), lineOfSight, get remembered() { return remembered; }, get chain() { return lastChain; }, get eyeExposure() { return eyeExposure; }, renderer, get driftSigns() { return driftSigns; }, get wedges() { return lastWedges; }, survey, get surveyCoverage() { return surveyCoverage(survey, surveyOpen); }, surveyOpen, omen: (k) => startFomen(k), circuit, setEmergency, setBlackout, get blackout() { return blackout; }, signParts, get resetT() { return resetT; }, get emergency() { return emergency; }, blocked, isWall, finds, found, get lampPlaced() { return lampPlaced; }, lights: () => gatherLights(add(player.pos, [0, 1.6, 0])), get hesitation() { return hesitation; }, get lastOmen() { return lastFomen; }, get marcoAct() { return marcoAct; }, set marcoAct(v) { marcoAct = v; }, marcos, columns, wavePool, get basin() { return basin; }, isWater, floorTop, get operating() { return operating; }, set operating(v) { operating = v; }, panelFront, holdT, shoot, spawnBloom, occupant, lockers, noise, violate, get omenState() { return fomen; }, door, blooms, lamps, director, followers, get dockKind() { return dockKind; }, get valves() { return { order: valveOrder, step: valveStep, list: pumpValves }; }, june: juneEvent, thread, get clock() { return clock; }, stagnant, player, center, undertow, lifeguard, cellPos, panelPos, raftPos, code, find, floaters, restorePower };
+  if (import.meta.env.DEV) window.__explore = { parts, camRig, jolt, get blown() { return blown; }, flashes, frameEnv: () => lastEnv, marcos, get marcoApart() { return marcoApart; }, mirror: () => mirrorSurface && detachMirror && { height: mirrorSurface.height, parts: mirrorSurface.partIndices.length, key: mirrorKey }, models: () => parts.filter((p) => p.model).map((p) => ({ model: p.model, name: p.name, at: [p.matrix[12], p.matrix[13], p.matrix[14]] })), flashes, budget, wave: (n, f) => wave(n, f), lineOfSight, get remembered() { return remembered; }, get chain() { return lastChain; }, get eyeExposure() { return eyeExposure; }, renderer, get driftSigns() { return driftSigns; }, get wedges() { return lastWedges; }, survey, get surveyCoverage() { return surveyCoverage(survey, surveyOpen); }, surveyOpen, omen: (k) => startFomen(k), circuit, setEmergency, setBlackout, get blackout() { return blackout; }, signParts, get resetT() { return resetT; }, get emergency() { return emergency; }, blocked, isWall, finds, found, get lampPlaced() { return lampPlaced; }, lights: () => gatherLights(add(player.pos, [0, 1.6, 0])), get hesitation() { return hesitation; }, get lastOmen() { return lastFomen; }, get marcoAct() { return marcoAct; }, set marcoAct(v) { marcoAct = v; }, marcos, columns, wavePool, get basin() { return basin; }, isWater, floorTop, get operating() { return operating; }, set operating(v) { operating = v; }, panelFront, holdT, shoot, spawnBloom, occupant, lockers, noise, violate, get omenState() { return fomen; }, door, blooms, lamps, director, followers, get dockKind() { return dockKind; }, get valves() { return { order: valveOrder, step: valveStep, list: pumpValves }; }, june: juneEvent, thread, get clock() { return clock; }, stagnant, player, center, undertow, lifeguard, cellPos, panelPos, raftPos, code, find, floaters, restorePower };
 
   /** ?show=: put the dock into a fixed, readable state for screenshots and visual review. */
   function showcase(name) {

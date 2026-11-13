@@ -99,5 +99,16 @@ const { open, newCampaign, check, finish } = require('./lib.cjs');
     E.jolt(1); u.step(2); const foot = +E.camRig.get('heave').toFixed(3); for (let k = 0; k < 60; k++) u.step(1); const footAfter = +E.camRig.get('heave').toFixed(3);
     return { rest, hit, after, foot, footAfter }; });
   check('a jolt is a spring, not noise: the view dips and rolls toward the hit, then settles; on foot too', Math.abs(r.rest.heave) < 0.05 && r.hit.heave < -0.015 && r.hit.roll > 0.01 && Math.abs(r.after.heave) < 0.03 && Math.abs(r.after.roll) < 0.03 && r.foot < -0.05 && Math.abs(r.footAfter) < 0.03, JSON.stringify(r));
+  // A Bloom bursting lights the room for a moment from the shared pool, on the raft and on foot.
+  r = await page.evaluate(() => { const u = window.__underflow; u.beginSector(1); u.startRide(); u.startExplore(); u.setState({ health: 1e6 }); u.step(3); const E = window.__explore;
+    E.blooms.forEach((b) => { b.active = false; }); u.step(2);
+    const count = () => E.frameEnv().pointLights.filter((l) => Math.abs(l.color[0] - 0.77) < 0.01 && Math.abs(l.color[1] - 0.35) < 0.01).length;
+    const before = count(); const p = [...E.player.pos];
+    // A Bloom that reaches you bursts against you (the game's own path, not a test call).
+    const b = E.spawnBloom([p[0], 1.3, p[2]], false); let lit = 0, burst = false;
+    for (let k = 0; k < 4 && !burst; k++) { u.setState({ health: 1e6 }); E.player.pos = [...p]; u.step(1); burst = !b.active; lit = Math.max(lit, count()); }
+    for (let k = 0; k < 12; k++) u.step(1); const after = count();
+    return { before, burst, lit, after }; });
+  check('a burst lights the room from the shared light pool, then it is gone', r.before === 0 && r.burst && r.lit === 1 && r.after === 0, JSON.stringify(r));
   await finish(browser, errors);
 })();
