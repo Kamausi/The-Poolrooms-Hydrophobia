@@ -12,6 +12,7 @@ import { createLightPool, mergeLights } from './lightpool.js';
 import { scoreSpawns } from './spawnscore.js';
 import { createPerceiver, sense } from './perception.js';
 import { createPursuit, advance } from './pursuit.js';
+import { createRig } from './spring.js';
 import { assignShadows, handLamp } from './shadows.js';
 import { surface as genSurface } from './surfaces.js';
 import { model, modelPart, placeModel } from './props.js';
@@ -1092,6 +1093,9 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     x, z, cut: false, holding: 0, cooldown: 0,
   }));
   let marcoApart = false;
+  // The camera's springs (spring.js), as on the raft: a hit dips and nods the view, then it comes back.
+  const camRig = createRig({ heave: { stiffness: 150, damping: 0.5 }, pitch: { stiffness: 170, damping: 0.55 } });
+  const jolt = (k) => { camRig.kick('heave', -k * 1.6); camRig.kick('pitch', -k * 0.6); };
   const marcos = find('m').map(([x, z]) => ({ pos: center(x, z), timer: 4 + random() * 6, throat: P('Marco throat', sphere(16, 12), { color: [0.85, 0.7, 0.68], metallic: 0, roughness: 0.3 }), shown: 0, throatPos: null }));
   const groutSources = find('g');
   const grout = new Map(); // "x,z" -> { cleared }
@@ -1694,7 +1698,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     if (moving && !nowMoving) stoppedAt = time;
     moving = nowMoving;
     if (nowMoving) bob += dt * (water ? 5 : 8);
-    if (water && !wasWater) { sound.splash(); ripple = [...player.pos]; rippleTime = time; noise(player.pos, 'splash'); }
+    if (water && !wasWater) { jolt(0.35); sound.splash(); ripple = [...player.pos]; rippleTime = time; noise(player.pos, 'splash'); }
     wasWater = water;
     const ft = floorTop(pcx, pcz);
     player.floor = damp(player.floor, ft > -1 ? ft : 0, 10, dt);
@@ -1718,7 +1722,9 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     // Sitting down in the water: you lower yourself until your eyes are almost at the surface.
     sink = damp(sink, state.sitting ? EYE - 0.35 : 0, 1.2, dt);
     if (state.sitting) player.pitch = damp(player.pitch, -0.25, 1, dt);
-    const eye = [player.pos[0] + (Math.random() - 0.5) * shiver, player.floor + EYE - sink - (state.downed ? 1.1 : 0) + swayY + (Math.random() - 0.5) * shiver, player.pos[2]];
+    camRig.step(dt);
+    const camK = settings.camera ?? 1;
+    const eye = [player.pos[0] + (Math.random() - 0.5) * shiver, player.floor + EYE - sink - (state.downed ? 1.1 : 0) + swayY + (Math.random() - 0.5) * shiver + camRig.get('heave') * 0.12 * camK, player.pos[2]];
     // Field dressing: H. Takes a moment, and you cannot fire while you do it.
     if (wasPressed('h') && !healing && state.dressings > 0 && state.health < 100) { healing = 2.5; state.dressings -= 1; hud.toast('APPLYING A FIELD DRESSING'); }
     if (healing > 0) {
@@ -1726,7 +1732,8 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
       events.heal(dt * 16);
       ask(3, 'DRESSING THE WOUND…');
     }
-    const dir = [-Math.sin(player.yaw) * Math.cos(player.pitch), Math.sin(player.pitch), -Math.cos(player.yaw) * Math.cos(player.pitch)];
+    const viewPitch = player.pitch + camRig.get('pitch') * 0.12 * camK; // a jolt nods the view; your aim comes back with it
+    const dir = [-Math.sin(player.yaw) * Math.cos(viewPitch), Math.sin(viewPitch), -Math.cos(player.yaw) * Math.cos(viewPitch)];
     const target = add(eye, dir);
     state.cameraUp = UP;
     hud.crosshair(0, 0, true);
@@ -3014,6 +3021,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
         b.active = false;
         sound.burst();
         events.damage(14, 'A Bloom burst against you.');
+        jolt(1);
       }
     }
   }
@@ -3287,7 +3295,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
       if (seesYou) { L.lastSeen = [...player.pos]; L.lostSight = 0; } else L.lostSight += dt;
       walkLG(L, player.pos, spd, dt);
       if (dd < 1.1 && !state.downed) {
-        L.state = 'grab'; L.grabT = 0; L.kicks = 0; L.next = null;
+        L.state = 'grab'; L.grabT = 0; L.kicks = 0; L.next = null; jolt(0.9);
         sound.whistle(0); sound.hurt(); rumble('grab');
         hud.caption('[its hand closes on your vest strap]');
         hud.say('THE LIFEGUARD', '— three short whistles —', 'attendant', true);
@@ -3549,7 +3557,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     for (let i = 0; i < (r.valves || 0); i++) { const v = pumpValves.find((x) => x.id === valveOrder[i]); if (v) v.open = true; }
     valveStep = r.valves || 0;
   }
-  if (import.meta.env.DEV) window.__explore = { parts, frameEnv: () => lastEnv, marcos, get marcoApart() { return marcoApart; }, mirror: () => mirrorSurface && detachMirror && { height: mirrorSurface.height, parts: mirrorSurface.partIndices.length, key: mirrorKey }, models: () => parts.filter((p) => p.model).map((p) => ({ model: p.model, name: p.name, at: [p.matrix[12], p.matrix[13], p.matrix[14]] })), flashes, budget, wave: (n, f) => wave(n, f), lineOfSight, get remembered() { return remembered; }, get chain() { return lastChain; }, get eyeExposure() { return eyeExposure; }, renderer, get driftSigns() { return driftSigns; }, get wedges() { return lastWedges; }, survey, get surveyCoverage() { return surveyCoverage(survey, surveyOpen); }, surveyOpen, omen: (k) => startFomen(k), circuit, setEmergency, setBlackout, get blackout() { return blackout; }, signParts, get resetT() { return resetT; }, get emergency() { return emergency; }, blocked, isWall, finds, found, get lampPlaced() { return lampPlaced; }, lights: () => gatherLights(add(player.pos, [0, 1.6, 0])), get hesitation() { return hesitation; }, get lastOmen() { return lastFomen; }, get marcoAct() { return marcoAct; }, set marcoAct(v) { marcoAct = v; }, marcos, columns, wavePool, get basin() { return basin; }, isWater, floorTop, get operating() { return operating; }, set operating(v) { operating = v; }, panelFront, holdT, shoot, spawnBloom, occupant, lockers, noise, violate, get omenState() { return fomen; }, door, blooms, lamps, director, followers, get dockKind() { return dockKind; }, get valves() { return { order: valveOrder, step: valveStep, list: pumpValves }; }, june: juneEvent, thread, get clock() { return clock; }, stagnant, player, center, undertow, lifeguard, cellPos, panelPos, raftPos, code, find, floaters, restorePower };
+  if (import.meta.env.DEV) window.__explore = { parts, camRig, jolt, frameEnv: () => lastEnv, marcos, get marcoApart() { return marcoApart; }, mirror: () => mirrorSurface && detachMirror && { height: mirrorSurface.height, parts: mirrorSurface.partIndices.length, key: mirrorKey }, models: () => parts.filter((p) => p.model).map((p) => ({ model: p.model, name: p.name, at: [p.matrix[12], p.matrix[13], p.matrix[14]] })), flashes, budget, wave: (n, f) => wave(n, f), lineOfSight, get remembered() { return remembered; }, get chain() { return lastChain; }, get eyeExposure() { return eyeExposure; }, renderer, get driftSigns() { return driftSigns; }, get wedges() { return lastWedges; }, survey, get surveyCoverage() { return surveyCoverage(survey, surveyOpen); }, surveyOpen, omen: (k) => startFomen(k), circuit, setEmergency, setBlackout, get blackout() { return blackout; }, signParts, get resetT() { return resetT; }, get emergency() { return emergency; }, blocked, isWall, finds, found, get lampPlaced() { return lampPlaced; }, lights: () => gatherLights(add(player.pos, [0, 1.6, 0])), get hesitation() { return hesitation; }, get lastOmen() { return lastFomen; }, get marcoAct() { return marcoAct; }, set marcoAct(v) { marcoAct = v; }, marcos, columns, wavePool, get basin() { return basin; }, isWater, floorTop, get operating() { return operating; }, set operating(v) { operating = v; }, panelFront, holdT, shoot, spawnBloom, occupant, lockers, noise, violate, get omenState() { return fomen; }, door, blooms, lamps, director, followers, get dockKind() { return dockKind; }, get valves() { return { order: valveOrder, step: valveStep, list: pumpValves }; }, june: juneEvent, thread, get clock() { return clock; }, stagnant, player, center, undertow, lifeguard, cellPos, panelPos, raftPos, code, find, floaters, restorePower };
 
   /** ?show=: put the dock into a fixed, readable state for screenshots and visual review. */
   function showcase(name) {

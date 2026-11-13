@@ -85,5 +85,19 @@ const { open, newCampaign, check, finish } = require('./lib.cjs');
     for (let k = 0; k < 120; k++) { if (k % 20 === 0) R.spawnEnc('crewGrab'); u.setState({ health: 1e6 }); u.step(1); if (R.coop.climber && R.coop.crewGrab) both++; }
     return { climbed, slotHeld, both, grabCap: R.budget.cap('grab') }; });
   check('only one thing grabs the raft at a time: a crewmate is not taken while a climber is on', r.climbed && r.slotHeld && r.both === 0 && r.grabCap === 1, JSON.stringify(r));
+  // Springs (spring.js) carry the jolts: a hull scrape dips the view, rolls it toward that side, and it settles back;
+  // a shot only nods it; on foot a Bloom burst dips the view and it recovers.
+  r = await page.evaluate(() => { const u = window.__underflow; u.beginSector(2); u.startRide(); u.setState({ health: 1e6 }); u.step(3); const R = window.__ride;
+    const rig = R.camRig; const get = (k) => +rig.get(k).toFixed(3);
+    for (let k = 0; k < 60; k++) u.step(1);
+    const rest = { heave: get('heave'), roll: get('roll') };
+    R.spawnEnc('hullScrape', { side: 'right' }); u.step(3);
+    const hit = { heave: get('heave'), roll: get('roll') };
+    for (let k = 0; k < 90; k++) u.step(1);
+    const after = { heave: get('heave'), roll: get('roll') };
+    u.startExplore(); u.step(3); const E = window.__explore; for (let k = 0; k < 30; k++) u.step(1);
+    E.jolt(1); u.step(2); const foot = +E.camRig.get('heave').toFixed(3); for (let k = 0; k < 60; k++) u.step(1); const footAfter = +E.camRig.get('heave').toFixed(3);
+    return { rest, hit, after, foot, footAfter }; });
+  check('a jolt is a spring, not noise: the view dips and rolls toward the hit, then settles; on foot too', Math.abs(r.rest.heave) < 0.05 && r.hit.heave < -0.015 && r.hit.roll > 0.01 && Math.abs(r.after.heave) < 0.03 && Math.abs(r.after.roll) < 0.03 && r.foot < -0.05 && Math.abs(r.footAfter) < 0.03, JSON.stringify(r));
   await finish(browser, errors);
 })();
