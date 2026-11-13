@@ -165,6 +165,8 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
   const stainless = { color: [0.75, 0.77, 0.76], metallic: 0.9, roughness: 0.3, anisotropy: 0.6 };
   const lampColor = linear(sector.lamp);
   const slab = box(0, 1);
+  const copingLip = cylinder(16, 0, 1);
+  const copingMat = { color: [0.86, 0.84, 0.78], metallic: 0, roughness: 0.5 };
   const ball = sphere(28, 18);
   const plane = quad();
   const parts = [];
@@ -236,6 +238,12 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
       if (isWall(x + dx, z + dz) || floorTop(x + dx, z + dz) < 0 || at(x + dx, z + dz) === 'B') continue;
       const c = center(x, z);
       writeYaw(P(`Ledge ${x},${z},${dx},${dz}`, slab, tileMat).matrix, [c[0] + dx * (CELL / 2 - 0.12), top / 2, c[2] + dz * (CELL / 2 - 0.12)], 0, dx ? 0.24 : CELL, -top, dz ? 0.24 : CELL);
+      // Coping where the pool meets the deck: a pale stone cap on the deck edge and a rounded bullnose lip that
+      // overhangs the water. One slab and one cylinder shape for every edge, so all of it draws as two batches.
+      if (floorTop(x + dx, z + dz) !== 0) continue;
+      const edge = [c[0] + dx * CELL / 2, 0, c[2] + dz * CELL / 2], along = [dz, 0, dx], into = [dx, 0, dz];
+      writeBasis(P(`Coping ${x},${z},${dx},${dz}`, slab, copingMat).matrix, add(edge, [dx * 0.16, 0.0125, dz * 0.16]), into, [0, 1, 0], along, 0.32, 0.025, CELL);
+      writeBasis(P(`Coping lip ${x},${z},${dx},${dz}`, copingLip, copingMat).matrix, add(edge, [-dx * 0.02, -0.005, -dz * 0.02]), into, along, [0, 1, 0], 0.045, CELL, 0.045);
     }
   }
   // Depth markings on pool walls. The Blacklight Pavilion's keypad code is painted here.
