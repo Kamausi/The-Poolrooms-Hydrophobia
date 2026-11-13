@@ -157,7 +157,8 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
   const inWaterAt = (px, pz) => isWater(...cellOf(px, pz));
 
   // ---------- Parts ----------
-  const map = tileTexture(sector);
+  // Rooms that stand in water (the tidal hall, the wave pool's basin) are damper: more stain and drip on the tile.
+  const map = tileTexture(sector, { flooded: rules.waves ? 0.7 : rules.basin ? 0.4 : 0 });
   const tileMat = { color: [1, 1, 1], metallic: 0, roughness: 0.22, map, normalMap: tileNormal(), normalScale: [1, 1], boxMapScale: 0.5 };
   // Generated surfaces (surfaces.js): stained acoustic ceiling tiles overhead, aqua pool tile under the water.
   const ceilingMat = { color: [0.92, 0.92, 0.9], metallic: 0, roughness: 0.85, map: genSurface('ceiling'), boxMapScale: 0.3 };

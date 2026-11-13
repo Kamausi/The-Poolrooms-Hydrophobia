@@ -1,7 +1,8 @@
 // One authored tile family, many rooms. The procedural wall tile (textures.js) draws the same grid everywhere; these
 // numbers decide how it has aged in a given place: how many tiles come from a different firing batch, how worn the
-// glaze is, how much damp has darkened the grout, how many hairline cracks and drip stains, and where the old water
-// line sits when the room has been flooded. Repetition stays visible (it is the Poolrooms), but no two attractions,
+// glaze is, how much damp has darkened the grout, and how many hairline cracks and drip stains; a room that stood
+// flooded is damper still. (An old water line belongs on the wall at a height, not in a texture that repeats, so it
+// is not drawn here.) Repetition stays visible (it is the Poolrooms), but no two attractions,
 // and no two expeditions through a changed room, look exactly alike. Pure and unit-tested.
 
 const clamp01 = (v) => Math.max(0, Math.min(1, v));
@@ -11,7 +12,7 @@ const clamp01 = (v) => Math.max(0, Math.min(1, v));
  * @param {{ seed?: number, age?: number, humidity?: number, flooded?: number }} [o]
  *   age 0 (new) to 1 (abandoned for decades); defaults from how deep the attraction is.
  *   humidity 0 to 1; defaults from the attraction (the Filtration Works and the Hotel Baths are damp).
- *   flooded 0 (never) to 1 (stood under water for a long time): raises the water line and its stain.
+ *   flooded 0 (never) to 1 (stood under water for a long time): more stains and drips, and a different set of tiles.
  */
 export function tileFlavour(sector, { seed = 0, age, humidity, flooded = 0 } = {}) {
   const depth = sector.depth ?? 10;
@@ -29,8 +30,5 @@ export function tileFlavour(sector, { seed = 0, age, humidity, flooded = 0 } = {
     cracks: Math.round(2 + a * 7),
     drips: Math.round(4 + damp * 8 + f * 4),
     dripAlpha: 0.08 + damp * 0.16,
-    // The old water line, as a fraction of the texture from the top (0 = none). Only rooms that stood flooded.
-    waterline: f > 0 ? 0.55 - f * 0.25 : 0,
-    waterlineAlpha: 0.15 + f * 0.25,
   };
 }

@@ -81,6 +81,13 @@ const BASE = process.env.UNDERFLOW_URL || 'http://localhost:5173';
     const out = { full: at(1), mid: at(0.8), low: at(0.5), back: at(1), diag: JSON.stringify(E.renderer.diagnostics) }; return out; });
   check('automatic quality redraws the mirror less often as the render scale falls, drops it at the lowest scale, and restores it', r.full === '0.5/1' && r.mid === '0.5/2' && r.low === 'off' && r.back === '0.5/1' && r.diag === '[]', JSON.stringify(r));
 
+  // One tile family aged per place (tileflavour.js): attractions differ, and a room that stood flooded is its own set.
+  r = await page.evaluate(async () => { const { tileTexture } = await import('/src/textures.js'); const { SECTORS } = await import('/src/sectors.js');
+    const px = (t) => { const d = t.image.getContext('2d').getImageData(0, 0, 512, 512).data; let sum = 0; for (let i = 0; i < d.length; i += 4 * 61) sum += d[i] + d[i + 1] + d[i + 2]; return sum; };
+    const a = tileTexture(SECTORS[0]), b = tileTexture(SECTORS[5]), wet = tileTexture(SECTORS[0], { flooded: 1 });
+    return { differ: px(a) !== px(b), floodedOwn: wet !== a && px(wet) !== px(a), cached: tileTexture(SECTORS[0]) === a }; });
+  check('the wall tile is aged per attraction and a flooded room gets its own damper set, cached once each', r.differ && r.floodedOwn && r.cached, JSON.stringify(r));
+
   r = await page.evaluate(async () => { const m = await import('/src/surfaces.js'); const loaded = m.surfacesLoaded();
     const c = m.surface('ceiling').image.getContext('2d').getImageData(0, 0, 256, 256).data; let varied = 0; for (let i = 0; i < c.length; i += 4 * 97) if (Math.abs(c[i] - 0xcf) > 12) varied += 1;
     return { loaded, varied }; });
