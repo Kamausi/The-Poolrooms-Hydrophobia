@@ -110,5 +110,16 @@ const { open, newCampaign, check, finish } = require('./lib.cjs');
     for (let k = 0; k < 12; k++) u.step(1); const after = count();
     return { before, burst, lit, after }; });
   check('a burst lights the room from the shared light pool, then it is gone', r.before === 0 && r.burst && r.lit === 1 && r.after === 0, JSON.stringify(r));
+  // Impact effects from a fixed pool (effectpool.js): a shot at the wall throws sparks, a shot into water throws
+  // droplets; nothing is created during play, and the pieces fade out.
+  r = await page.evaluate(() => { const u = window.__underflow; u.beginSector(0); u.startRide(); u.startExplore(); u.setState({ health: 1e6 }); u.step(3); const E = window.__explore;
+    const parts0 = E.parts.length; const p = E.player.pos;
+    E.shoot([p[0], 1.6, p[2]], [0, -1, 0]); u.step(1); const sparks = E.effects.live('spark');
+    const w = E.find('~')[0] || E.find('x')[0]; let drops = -1;
+    if (w) { const c = E.center(...w); E.shoot([c[0], 1.6, c[2]], [0, -1, 0]); u.step(1); drops = E.effects.live('droplet'); }
+    const any = sparks;
+    for (let k = 0; k < 40; k++) u.step(1);
+    return { sparks, drops, after: E.effects.live('spark') + E.effects.live('droplet'), sameParts: E.parts.length === parts0 }; });
+  check('a shot throws sparks (or droplets off water) from a fixed pool, and they fade', r.sparks > 0 && (r.drops === -1 || r.drops > 0) && r.after === 0 && r.sameParts, JSON.stringify(r));
   await finish(browser, errors);
 })();

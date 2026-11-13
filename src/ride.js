@@ -18,6 +18,7 @@ import { rumble } from './haptics.js';
 import { planColonnade, archRadius } from './poolrooms.js';
 import { createBudget } from './pressure.js';
 import { createRig } from './spring.js';
+import { createEffectPool } from './effectpool.js';
 import { assignShadows } from './shadows.js';
 import { surface } from './surfaces.js';
 import { createLightPool, mergeLights } from './lightpool.js';
@@ -193,14 +194,20 @@ export function createRide(canvas, state, sector, events, opts = {}) {
     arc: P('Relay arc', slab, glow([0.8, 0.9, 1], 10)),
     s: 0, active: false, divS: 0, divSide: 1, divActive: false, divDone: false, arcT: 0,
   };
-  const spark = P('Impact spark', sphere(10, 8), glow([1, 0.9, 0.6], 10));
+  // Impact effects from a fixed pool (effectpool.js): sparks in the blaster's colour, droplets where a shot hits water.
+  const effects = createEffectPool();
+  const fxDot = sphere(8, 6);
+  const fxParts = {
+    spark: Array.from({ length: effects.sizes.spark }, (_, i) => P(`Spark ${i}`, fxDot, glow([1, 0.9, 0.6], 8))),
+    droplet: Array.from({ length: effects.sizes.droplet }, (_, i) => P(`Droplet ${i}`, fxDot, { color: [0.75, 0.9, 0.92], metallic: 0, roughness: 0.05, emission: 0.3, emissiveColor: [0.75, 0.9, 0.92] })),
+  };
+  const drawFx = () => { for (const [k, list] of Object.entries(fxParts)) effects.slots(k).forEach((p, i) => { if (!p.on) { hide(list[i]); return; } const sz = p.size * (1 - effects.fade(p) * 0.7); writeYaw(list[i].matrix, p.pos, 0, sz, sz, sz); if (k === 'spark') list[i].material.emissiveColor = p.color; }); };
   // Remembered death on the water: a flotation vest caught against the wall at the spot.
   const deathAt = sector.variant?.deathAt?.mode === 'ride' && sector.variant.deathAt.f != null ? sector.variant.deathAt : null;
   const deathVest = P('Vest caught against the wall', box(0.03, 2), { color: linear('#b46a3c'), metallic: 0, roughness: 0.65 });
   if (sector.variant && Object.keys(sector.variant).some((k) => k !== 'notes') && !opts.resumeS) setTimeout(() => hud.say('THE ATTENDANT', sector.variant.dangerous ? 'Welcome back, guest. We kept your place.' : 'Welcome back, guest. Some improvements have been made since your last visit.', 'attendant', true), 2500);
   // Where the raft is going: a faint line of foam, so momentum, currents and a soft side can be read before they bite.
   const traj = Array.from({ length: 7 }, (_, i) => P(`Trajectory ${i}`, slab, glow([0.5, 0.56, 0.55], 0.06, { color: [0.2, 0.24, 0.24], roughness: 0.6 })));
-  let sparkT = 0, sparkAt = null;
   let ambientT = null;
   let reticleTick = 0, hoverTarget = false;
   // Tap Ping to mark or radio-check; hold for the callout strip.
@@ -1636,7 +1643,10 @@ export function createRide(canvas, state, sector, events, opts = {}) {
     const tw = rayPlaneY(eye, dir, track.at(s).p[1]);
     if (tw < best) { best = tw; hit = () => { ripple = add(eye, scale(dir, tw)); rippleTime = time; }; }
     lastHitPoint = add(eye, scale(dir, best));
-    if (hit) { sparkAt = lastHitPoint; sparkT = 0.09; spark.material.emissiveColor = (PROFILES[shotProfile] || PROFILES.pulse).color; }
+    if (hit) {
+      effects.burst('spark', lastHitPoint, { count: 5, dir: scale(dir, -1), speed: 3.2, spread: 0.9, color: (PROFILES[shotProfile] || PROFILES.pulse).color, density: quality.particles ?? 1 });
+      if (tw <= best + 1e-6) effects.burst('droplet', lastHitPoint, { count: 6, dir: [0, 1, 0], speed: 2.4, spread: 0.5, density: quality.particles ?? 1 });
+    }
     hit?.();
     if (lifeguard.active && lifeguard.lampOn && !lifeguard.gone && Math.abs(lifeguard.s - s) < 55) violate();
     return add(eye, scale(dir, best));
@@ -2790,9 +2800,8 @@ export function createRide(canvas, state, sector, events, opts = {}) {
       } else hide(deathVest);
     } else hide(deathVest);
     // Impact sparks: where the shot landed, in the profile's colour.
-    sparkT -= dt;
-    if (sparkT > 0 && sparkAt) writeYaw(spark.matrix, sparkAt, 0, 0.08 + sparkT, 0.08 + sparkT, 0.08 + sparkT);
-    else hide(spark);
+    effects.tick(dt);
+    drawFx();
     // Ballast: a heavy, defeatable mass anchored across the room. It holds the raft and the water.
     if (ballast) prompt = updateBallast(dt, eye) || prompt;
     else { hide(ballastParts.body); hide(ballastParts.core); ballastParts.anchors.forEach(hide); ballastParts.knots.forEach(hide); ballastParts.vests.forEach(hide); }
@@ -3934,7 +3943,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
     bloomAhead() { return spawnBloom(s + 10, offset * 0.6, 1.2); },
     get locks() { return locks.length; },
   };
-  if (import.meta.env.DEV) window.__ride = { parts, camRig, flashes, gatherLights: () => gatherLights(fx.eye), budget, blaster, get wedges() { return lastWedges; }, get chain() { return lastChain; }, get eyeExposure() { return eyeExposure; }, renderer, get scenery() { return lastScenery; }, room, shots, set padAssist(v) { padAssistTest = v; }, get aimFriction() { return input.aimFriction; }, parts, blooms, tokens, drop, spawnDrop, get assess() { return assess; }, set assessAt(v) { assessAt = v; }, set tokenCool(v) { tokenCool = v; }, get offset() { return offset; }, set offset(v) { offset = v; }, omen: (k) => startOmen(k), get omenState() { return omen; }, get director() { return director; }, get eye() { return fx.eye; }, track, hull, puncture: (c, cause = 'scrape') => hull.puncture(c, cause), overboard: () => goOverboard('test'), free: () => restrained && !restrained.freed && freeRestrained(), shove: () => shove(fx.eye, fx.fwd), ping: () => ping(fx.eye, fx.fwd), fireAt: (dir) => { fireProfile(fx.eye, fx.look, dir || fx.fwd); return state.profile; }, hitTarget: (key) => { const t = targets().find((x) => x.key === key); if (t) { shotProfile = state.profile; t.fn(); } return !!t; }, get wave() { return wave; }, set bot(v) { devBot = v; }, spawnEnc: (kind, extra = {}) => spawn({ e: { kind, ...extra }, s: s + 10, sec: track.sectionAt(s).sec }), get coop() { return { climber, crewGrab, ballast, restrained, protect, focusing, fov, profile: state.profile, special: state.special }; }, reset: () => { overboard = null; capsize = null; trailGrab = null; hull.state.capsized = false; }, capsize: () => startCapsize(), get swimming() { return overboard; }, get capsized() { return capsize; }, get grab() { return trailGrab; }, valve, linked, lifeguard, locker, wake, passengerStep, burst: () => burst(fx.eye, fx.fwd), get s() { return s; }, set s(v) { s = v; } };
+  if (import.meta.env.DEV) window.__ride = { parts, camRig, effects, flashes, gatherLights: () => gatherLights(fx.eye), budget, blaster, get wedges() { return lastWedges; }, get chain() { return lastChain; }, get eyeExposure() { return eyeExposure; }, renderer, get scenery() { return lastScenery; }, room, shots, set padAssist(v) { padAssistTest = v; }, get aimFriction() { return input.aimFriction; }, parts, blooms, tokens, drop, spawnDrop, get assess() { return assess; }, set assessAt(v) { assessAt = v; }, set tokenCool(v) { tokenCool = v; }, get offset() { return offset; }, set offset(v) { offset = v; }, omen: (k) => startOmen(k), get omenState() { return omen; }, get director() { return director; }, get eye() { return fx.eye; }, track, hull, puncture: (c, cause = 'scrape') => hull.puncture(c, cause), overboard: () => goOverboard('test'), free: () => restrained && !restrained.freed && freeRestrained(), shove: () => shove(fx.eye, fx.fwd), ping: () => ping(fx.eye, fx.fwd), fireAt: (dir) => { fireProfile(fx.eye, fx.look, dir || fx.fwd); return state.profile; }, hitTarget: (key) => { const t = targets().find((x) => x.key === key); if (t) { shotProfile = state.profile; t.fn(); } return !!t; }, get wave() { return wave; }, set bot(v) { devBot = v; }, spawnEnc: (kind, extra = {}) => spawn({ e: { kind, ...extra }, s: s + 10, sec: track.sectionAt(s).sec }), get coop() { return { climber, crewGrab, ballast, restrained, protect, focusing, fov, profile: state.profile, special: state.special }; }, reset: () => { overboard = null; capsize = null; trailGrab = null; hull.state.capsized = false; }, capsize: () => startCapsize(), get swimming() { return overboard; }, get capsized() { return capsize; }, get grab() { return trailGrab; }, valve, linked, lifeguard, locker, wake, passengerStep, burst: () => burst(fx.eye, fx.fwd), get s() { return s; }, set s(v) { s = v; } };
 
   /** ?show=: put the ride into a fixed, readable state for screenshots and visual review. */
   function showcase(name) {
