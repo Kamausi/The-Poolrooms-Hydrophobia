@@ -292,6 +292,16 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
       writeBasis(P(`Deck marking ${kind} ${x},${z}`, plane, marks[kind]).matrix, add(center(x, z), [dx * (CELL / 2 - 0.75), 0.012, dz * (CELL / 2 - 0.75)]), [-dz, 0, dx], [dx, 0, dz], [0, 1, 0], 0.7, 0.35, 1);
     }
   }
+  // Wet-floor signs on the deck, back from the water (CC0 model): a few per map, never two in one cell.
+  {
+    let n = 0;
+    for (const [x, z] of find('.')) {
+      const d = DIRS.find(([dx, dz]) => at(x + dx, z + dz) === '~');
+      if (!d || n >= 3 || hash(x * 3.7 + 11, z * 1.9) > 0.16) continue;
+      const ws = M('wetFloorSign', `Wet floor sign ${n++}`);
+      if (ws) placeModel(ws, add(center(x, z), [d[0] * (CELL / 2 - 1.5) + d[1] * 0.8, 0, d[1] * (CELL / 2 - 1.5) + d[0] * 0.8]), Math.atan2(-d[0], -d[1]) + (hash(x, z) - 0.5) * 0.8);
+    }
+  }
 
   // ---------- Dock dressing (CC0 models): an extinguisher on every landing; tools on a maintenance platform ----------
   {
@@ -306,10 +316,18 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
       // Spare pipe sections against the wall, and equipment crates stacked by the rack (CC0 models).
       const pipes = M('pipes', 'Spare pipe sections'); if (pipes) placeModel(pipes, back(1.9, 0.2), yaw);
       const can = M('jerrycan', 'Jerrycan'); if (can) placeModel(can, back(-0.2, 0.3), yaw + 0.3);
+      // Cleaning gear by the cart: a stool, a broom against the wall, a jug of pool chemical (CC0 models).
+      const stool = M('stool', 'Workshop stool'); if (stool) placeModel(stool, back(-0.6, 1.1), yaw + 0.5);
+      const broom = M('broom', 'Broom'); if (broom) placeModel(broom, back(-2.0, 0.3), yaw);
+      const jug = M('jug', 'Chemical jug'); if (jug) placeModel(jug, back(0.05, 0.25), yaw - 0.4);
     } else {
       const bin = M('bin', 'Bins'); if (bin) placeModel(bin, back(-1.0, 0.4), yaw);
       // Equipment crates: two side by side, one on top (CC0 models).
       [[0.45, 0], [1.0, 0], [0.72, 1]].forEach(([d, up], k) => { const c = M('crate', `Equipment crate ${k}`); if (c) placeModel(c, add(back(d, 0.35), [0, up * model('crate').size[1], 0]), yaw + (k - 1) * 0.12); });
+      // The lifeguards' megaphone left on the top crate; a full bin bag and a cardboard box by the bins (CC0 models).
+      const mega = M('megaphone', 'Megaphone'); if (mega) placeModel(mega, add(back(0.72, 0.35), [0, 2 * model('crate').size[1], 0]), yaw + 0.9);
+      const bag = M('trashBag', 'Bin bag'); if (bag) placeModel(bag, back(-2.15, 0.45), yaw + 1.3);
+      const box = M('box', 'Cardboard box'); if (box) placeModel(box, back(-0.3, 0.4), yaw - 0.2);
     }
   }
 
@@ -386,6 +404,9 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     if (fa) placeModel(fa, [panelPos[0] - along[0] * 1.3 + out[0] * (0.02 + model('fireAlarm').size[2] / 2), 1.0, panelPos[2] - along[2] * 1.3 + out[2] * (0.02 + model('fireAlarm').size[2] / 2)], yaw);
     const jb = M('powerBox', 'Junction box');
     if (jb) placeModel(jb, [panelPos[0] - along[0] * 1.3 + out[0] * 0.22, 1.5, panelPos[2] - along[2] * 1.3 + out[2] * 0.22], yaw);
+    // A wall clock above the cabinet (CC0 model), hung flat on the wall.
+    const ck = M('clock', 'Wall clock');
+    if (ck) placeModel(ck, [panelPos[0] + along[0] * 1.45 + out[0] * (0.02 + model('clock').size[2] / 2), 2.3, panelPos[2] + along[2] * 1.45 + out[2] * (0.02 + model('clock').size[2] / 2)], yaw);
   }
   facing(P('Service sign', plane, { ...signMaterial(K.sign, 'sign', 0.6, 256, 128), doubleSided: true }), add(panelPos, [-sWall[0] * 0.08, 1.6, -sWall[1] * 0.08]), [-sWall[0], 0, -sWall[1]], 1.4, 0.7);
 

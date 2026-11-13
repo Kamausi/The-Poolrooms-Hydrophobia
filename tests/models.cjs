@@ -7,7 +7,7 @@ const { open, newCampaign, check, finish } = require('./lib.cjs');
   const { browser, page, errors } = await open({ width: 800, height: 450 });
   await newCampaign(page);
   const st = await page.evaluate(async () => { await window.__underflow.modelsReady; return window.__underflow.modelState(); });
-  check('every model loads (generated and CC0)', st.ready.length === 31 && !Object.keys(st.failed).length, JSON.stringify(st));
+  check('every model loads (generated and CC0)', st.ready.length === 41 && !Object.keys(st.failed).length, JSON.stringify(st));
   const seen = {};
   let sample = null;
   for (let i = 0; i < 8; i++) {
@@ -34,6 +34,7 @@ const { open, newCampaign, check, finish } = require('./lib.cjs');
   check('the deck carries depth and no-diving markings at the pool edge, sharing one texture per text', marks.depth > 2 && marks.dive > 2 && marks.distinctMaps <= 16, JSON.stringify(marks));
   check('custom models: the lifeguard tower, ring buoys at the ladders, starting blocks at a pool edge, and the blaster in your hand', seen.tower > 0 && seen.buoy > 0 && seen.blaster > 0 && seen.startingBlock >= 3, JSON.stringify(seen));
   check('rooms are dressed: light fixtures, the cabinet, junction box and fire alarm at the panel, lamps and hose reels by the valves, extinguishers, tools, a jerrycan, chairs', ['fluorescent', 'utilityBox', 'powerBox', 'fireAlarm', 'wallLamp', 'hose', 'extinguisher', 'toolCart', 'jerrycan', 'chair'].every((n) => seen[n] > 0), JSON.stringify(seen));
+  check('the facility is used: wet-floor signs at the pool edge, a wall clock at the panel, a stool, broom and chemical jug at a maintenance platform, a megaphone, bin bags and boxes at a landing', ['wetFloorSign', 'clock', 'stool', 'broom', 'jug', 'megaphone', 'trashBag', 'box'].every((n) => seen[n] > 0), JSON.stringify(seen));
   // Instancing: parts that share one geometry (and texture maps) draw as one batch. Shapes come from src/shapes.js,
   // models share their geometry across placements, so a scene of well over a thousand parts draws in a few dozen batches.
   const inst = await page.evaluate(() => { const u = window.__underflow; u.beginSector(1); u.startRide(); u.step(2); const R = window.__ride.renderer;

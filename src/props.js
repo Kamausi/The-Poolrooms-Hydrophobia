@@ -35,6 +35,16 @@ import fireAlarmUrl from './assets/models/cc0/fire_alarm.glb?inline';
 import radioUrl from './assets/models/cc0/boombox.glb?inline';
 import pumpUrl from './assets/models/cc0/tire_pump.glb?inline';
 import jerrycanUrl from './assets/models/cc0/metal_jerrycan.glb?inline';
+import wetFloorSignUrl from './assets/models/cc0/wetfloorsign_01.glb?inline';
+import broomUrl from './assets/models/cc0/plastic_broom.glb?inline';
+import bleachUrl from './assets/models/cc0/bleach_bottle.glb?inline';
+import jugUrl from './assets/models/cc0/plastic_bottle_gallon.glb?inline';
+import cleanerUrl from './assets/models/cc0/multi_cleaner_bottle.glb?inline';
+import megaphoneUrl from './assets/models/cc0/megaphone_01.glb?inline';
+import clockUrl from './assets/models/cc0/wall_clock.glb?inline';
+import stoolUrl from './assets/models/cc0/metal_stool_01.glb?inline';
+import boxUrl from './assets/models/cc0/cardboard_box_01.glb?inline';
+import trashBagUrl from './assets/models/cc0/trashbag.glb?inline';
 
 /**
  * Each model: its source; a surface finish where the file carries only a colour texture (glTF's default of fully
@@ -77,6 +87,16 @@ export const MODELS = {
   radio: { url: radioUrl, turn: 0 },
   pump: { url: pumpUrl, turn: 0 },
   jerrycan: { url: jerrycanUrl, turn: 0 },
+  wetFloorSign: { url: wetFloorSignUrl, turn: 0 },
+  broom: { url: broomUrl, turn: 0 },
+  bleach: { url: bleachUrl, turn: 0 },
+  jug: { url: jugUrl, turn: 0 },
+  cleaner: { url: cleanerUrl, turn: 0 },
+  megaphone: { url: megaphoneUrl, turn: 0 },
+  clock: { url: clockUrl, turn: 0 }, // back on the wall at z = 0, like the hose reel
+  stool: { url: stoolUrl, turn: 0 },
+  box: { url: boxUrl, turn: 0 },
+  trashBag: { url: trashBagUrl, turn: 0 },
 };
 
 const ready = {};
