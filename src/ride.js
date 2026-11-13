@@ -29,6 +29,7 @@ import { AMBIENT } from './sectors.js';
 import { Track, EXIT_OFFSET, section } from './track.js';
 import { createDirector, AFTERMATH, BANTER } from './director.js';
 import { createHull, CHAMBERS, CHAMBER_NAME } from './hull.js';
+import { createLaneRope } from './lanerope.js';
 
 const SEG = 6;
 const SEGMENTS = 28;
@@ -278,9 +279,10 @@ export function createRide(canvas, state, sector, events, opts = {}) {
     active: false, pos: [0, 0, 0], hp: 2, phase: 0, dying: 0, drift: [0, 0, 0],
   }));
   const signals = Array.from({ length: 8 }, (_, i) => ({ ring: P(`Signal ${i}`, ring, glow(linear('#86aa8a'), 1.4, { color: linear('#86aa8a'), roughness: 0.4 })), plate: P(`Signal plate ${i}`, box(0.06, 2), { color: [0.05, 0.07, 0.07], metallic: 0.3, roughness: 0.7 }), active: false, pos: [0, 0, 0], yaw: 0, used: 0 }));
+  // Lane ropes: disc floats on a steel cable between two wall anchors (lanerope.js). Each float target is a run of discs.
   const ropes = Array.from({ length: 2 }, (_, i) => ({
-    line: P(`Lane rope ${i}`, slab, { color: [0.85, 0.85, 0.8], metallic: 0, roughness: 0.6 }),
-    floats: Array.from({ length: 5 }, (_, j) => ({ part: P(`Rope float ${i}.${j}`, ball, glow([1, 0.4, 0.1], 0.6, { color: j % 2 ? [0.9, 0.9, 0.85] : [0.9, 0.25, 0.08], roughness: 0.4 })), alive: true, pos: [0, 0, 0] })),
+    body: createLaneRope(P, `Lane rope ${i}`, 5, { emission: 0.6 }),
+    floats: Array.from({ length: 5 }, () => ({ alive: true, pos: [0, 0, 0] })),
     active: false, s: 0,
   }));
   const patches = Array.from({ length: 3 }, (_, i) => ({
@@ -1408,7 +1410,8 @@ export function createRide(canvas, state, sector, events, opts = {}) {
     });
     // Split a Lane Rope at an anchor and the whole line drops. The Disruptor does it in one.
     for (const r of ropes) if (r.active) [-1, 1].forEach((side, i) => {
-      const half = Math.min(track.sectionAt(r.s).sec.half, 6);
+      // The anchor is the eye bolt you can see where the cable meets the wall.
+      const half = track.sectionAt(r.s).sec.half;
       T(track.lateral(r.s, side * (half - 0.15), 1.25), 0.4, () => {
         r.anchors = r.anchors || [2, 2];
         r.anchors[i] -= shotProfile === 'disruptor' ? 2 : 1;
@@ -3325,9 +3328,9 @@ export function createRide(canvas, state, sector, events, opts = {}) {
       if (behind(g.pos)) g.active = false;
     }
     for (const r of ropes) {
-      if (!r.active) { hide(r.line); r.floats.forEach((f) => hide(f.part)); continue; }
-      writeYaw(r.line.matrix, track.lateral(r.s, 0, 1.25), track.at(r.s).yaw + Math.PI / 2, 0.04, 0.04, track.sectionAt(r.s).sec.half * 2);
-      r.floats.forEach((f, j) => (f.alive ? writeYaw(f.part.matrix, add(f.pos, [0, Math.sin(time * 3 + j) * 0.08, 0]), 0, 0.32, 0.26, 0.32) : hide(f.part)));
+      if (!r.active) { r.body.hideAll(); continue; }
+      const rh = track.sectionAt(r.s).sec.half;
+      r.body.place(track.lateral(r.s, -rh, 1.25), track.lateral(r.s, rh, 1.25), r.floats.map((f) => f.pos), r.floats.map((f) => f.alive), (j) => Math.sin(time * 3 + j) * 0.08);
       if (r.s < s + 0.5) {
         r.active = false;
         if (jumpY > 0.35) {

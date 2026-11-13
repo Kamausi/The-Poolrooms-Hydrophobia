@@ -287,7 +287,7 @@ Everything in sections 1–12 is implemented except where noted under **Not yet*
 Radio companions cannot physically rescue you, so nothing waits on a teammate who isn't there.
 - **Full Drift:** you sit down in the water and can't move. Hold **Space** to remember why you're leaving while a crewmate talks you back on the radio. That restores you to Drift 70. After **15 seconds** without that, you have stayed: a clear failure and a checkpoint restart. No indefinite incapacitation.
 - **Undertow on foot:** tap **Space** to kick free, shoot the still water, or burst. **On the raft:** it holds the raft for a few seconds and lets go; spillways and bursts break pursuit.
-- **Lane Rope on foot:** tap Space to pull free, or shoot its floats.
+- **Lane Rope on foot:** tap Space to pull free, or shoot its floats. It looks like a racing lane line: runs of red and white disc floats on a steel cable; each run is one float you can pop (`src/lanerope.js`).
 
 ### AI crewmates (next): rescue is the defining feature
 Valve's own write-ups on Left 4 Dead's survivor bots single out rescuing incapacitated players as the hard problem, with predictability and trust as explicit goals. The AI crew will have a small, dependable vocabulary: **Stay close · Hold here · Help them · Follow my route · Return to the raft.** They say what they intend ("Going for June." / "I can't reach you from this side." / "Clear that rope and I can get across." / "I'm staying on the dry ledge."), so a delayed rescue reads as understandable rather than broken. Pulling someone up from full Drift uses the rescuer's line from `crew.js` ("You told me not to let you stay.").
