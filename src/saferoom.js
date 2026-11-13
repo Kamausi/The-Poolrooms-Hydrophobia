@@ -88,6 +88,17 @@ export function createSafeRoom(canvas, sector, opts = {}) {
   M('firstAid', 'Safe Room first aid kit', [-2.9, 0.96, 3.0], 0.2);
   M('pump', 'Safe Room raft pump', [-1.6, 0, 3.7], Math.PI);
   M('jerrycan', 'Safe Room jerrycan', [3.0, 0, 3.65], Math.PI + 0.2);
+  // In view of the camera, which faces the glass: a clock on the left wall that keeps the time, a stool by the
+  // chairs, cleaning bottles on the floor by the rack, a box beside the lockers, a full bin bag under the shelf
+  // (CC0 models).
+  M('clock', 'Safe Room clock', [-4.95, 2.55, 0.3], Math.PI / 2);
+  M('stool', 'Safe Room stool', [-0.5, 0, -2.9], 0.4);
+  M('bleach', 'Safe Room bleach', [-4.1, 0, -0.25], 2.6);
+  M('cleaner', 'Safe Room cleaner', [-3.95, 0, 0.0], 0.3);
+  M('box', 'Safe Room box', [4.4, 0, 0.55], 0.15);
+  M('trashBag', 'Safe Room bin bag', [-4.45, 0, -3.45], 0.7);
+  // A toolbox by the rack (CC0 model).
+  M('toolbox', 'Safe Room toolbox', [-3.85, 0, 1.75], 0.3);
   const beacon = P('Beacon', sphere(16, 10), { color: [0.3, 1, 0.5], metallic: 0, roughness: 1, emission: 6, emissiveColor: [0.3, 1, 0.5] }, writeYaw(new Float32Array(16), [0, 3.6, 3.9], 0, 0.2, 0.2, 0.2));
   // Beyond the glass: an enormous empty pool hall, dim, perfectly still.
   const pool = { tag: 'water', color: linear(sector.water), metallic: 0.55, roughness: 0.05 };

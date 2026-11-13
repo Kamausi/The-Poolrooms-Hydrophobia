@@ -73,6 +73,23 @@ Twenty-one props from Poly Haven (polyhaven.com), CC0. Credit is not required, a
 - Boombox by Thomas Paul Mouilleron: https://polyhaven.com/a/boombox
 - Tire Pump by Garrison Gager: https://polyhaven.com/a/tire_pump
 - Metal Jerrycan by Sean Buckley: https://polyhaven.com/a/metal_jerrycan
+- Wet Floor Sign 01 by Fran Calvente: https://polyhaven.com/a/WetFloorSign_01
+- Plastic Broom by L: https://polyhaven.com/a/plastic_broom
+- Bleach Bottle by James Ray Cock: https://polyhaven.com/a/bleach_bottle
+- Plastic Bottle Gallon by Rahul Chaudhary: https://polyhaven.com/a/plastic_bottle_gallon
+- Multi Cleaner Bottle by James Ray Cock: https://polyhaven.com/a/multi_cleaner_bottle
+- Megaphone 01 by Ethan Simon-Law: https://polyhaven.com/a/Megaphone_01
+- Wall Clock by PierreB3D: https://polyhaven.com/a/wall_clock
+- Metal Stool 01 by Ulan Cabanilla: https://polyhaven.com/a/metal_stool_01
+- Cardboard Box 01 by Rahul Chaudhary: https://polyhaven.com/a/cardboard_box_01
+- Trashbag by Benny Weimer: https://polyhaven.com/a/trashbag
+- Security Camera 01 by Alexander Otterbeck, Yann Kervran: https://polyhaven.com/a/security_camera_01
+- Caged Hanging Light by Ulan Cabanilla: https://polyhaven.com/a/caged_hanging_light
+- Wheelchair 01 by Garreth Dean: https://polyhaven.com/a/wheelchair_01
+- Portable Generator by James Ray Cock: https://polyhaven.com/a/portable_generator
+- Metal Toolbox by Mateusz Sadek: https://polyhaven.com/a/metal_toolbox
+- Drain Cleaner by James Ray Cock: https://polyhaven.com/a/drain_cleaner
+- Portable Searchlight by Elijah Cragg: https://polyhaven.com/a/portable_searchlight
 
 ## Generated models
 

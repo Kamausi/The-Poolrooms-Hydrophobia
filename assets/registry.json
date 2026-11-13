@@ -1064,6 +1064,278 @@
    "gameUse": [
     "jerrycan: at a maintenance platform and in the Safe Room"
    ]
+  },
+  {
+   "id": "model/wetfloorsign_01",
+   "type": "model",
+   "files": [
+    "src/assets/models/cc0/wetfloorsign_01.glb"
+   ],
+   "source": "Poly Haven (Wet Floor Sign 01)",
+   "creator": "Fran Calvente",
+   "url": "https://polyhaven.com/a/WetFloorSign_01",
+   "license": "CC0-1.0",
+   "modified": true,
+   "changes": "1k glTF packed into one GLB: colour map 512 px, normal and ARM maps 256 px (JPEG); meshes above 6,000 triangles simplified gently with gltfpack",
+   "gameUse": [
+    "wetFloorSign: wet-floor signs on the pool deck, back from the water"
+   ]
+  },
+  {
+   "id": "model/plastic_broom",
+   "type": "model",
+   "files": [
+    "src/assets/models/cc0/plastic_broom.glb"
+   ],
+   "source": "Poly Haven (Plastic Broom)",
+   "creator": "L",
+   "url": "https://polyhaven.com/a/plastic_broom",
+   "license": "CC0-1.0",
+   "modified": true,
+   "changes": "1k glTF packed into one GLB: colour map 512 px, normal and ARM maps 256 px (JPEG); meshes above 6,000 triangles simplified gently with gltfpack",
+   "gameUse": [
+    "broom: against the wall at a maintenance platform"
+   ]
+  },
+  {
+   "id": "model/bleach_bottle",
+   "type": "model",
+   "files": [
+    "src/assets/models/cc0/bleach_bottle.glb"
+   ],
+   "source": "Poly Haven (Bleach Bottle)",
+   "creator": "James Ray Cock",
+   "url": "https://polyhaven.com/a/bleach_bottle",
+   "license": "CC0-1.0",
+   "modified": true,
+   "changes": "1k glTF packed into one GLB: colour map 512 px, normal and ARM maps 256 px (JPEG); meshes above 6,000 triangles simplified gently with gltfpack",
+   "gameUse": [
+    "bleach: in the Safe Room by the rack"
+   ]
+  },
+  {
+   "id": "model/plastic_bottle_gallon",
+   "type": "model",
+   "files": [
+    "src/assets/models/cc0/plastic_bottle_gallon.glb"
+   ],
+   "source": "Poly Haven (Plastic Bottle Gallon)",
+   "creator": "Rahul Chaudhary",
+   "url": "https://polyhaven.com/a/plastic_bottle_gallon",
+   "license": "CC0-1.0",
+   "modified": true,
+   "changes": "1k glTF packed into one GLB: colour map 512 px, normal and ARM maps 256 px (JPEG); meshes above 6,000 triangles simplified gently with gltfpack",
+   "gameUse": [
+    "jug: a jug of pool chemical at a maintenance platform"
+   ]
+  },
+  {
+   "id": "model/multi_cleaner_bottle",
+   "type": "model",
+   "files": [
+    "src/assets/models/cc0/multi_cleaner_bottle.glb"
+   ],
+   "source": "Poly Haven (Multi Cleaner Bottle)",
+   "creator": "James Ray Cock",
+   "url": "https://polyhaven.com/a/multi_cleaner_bottle",
+   "license": "CC0-1.0",
+   "modified": true,
+   "changes": "1k glTF packed into one GLB: colour map 512 px, normal and ARM maps 256 px (JPEG); meshes above 6,000 triangles simplified gently with gltfpack",
+   "gameUse": [
+    "cleaner: in the Safe Room by the rack"
+   ]
+  },
+  {
+   "id": "model/megaphone_01",
+   "type": "model",
+   "files": [
+    "src/assets/models/cc0/megaphone_01.glb"
+   ],
+   "source": "Poly Haven (Megaphone 01)",
+   "creator": "Ethan Simon-Law",
+   "url": "https://polyhaven.com/a/Megaphone_01",
+   "license": "CC0-1.0",
+   "modified": true,
+   "changes": "1k glTF packed into one GLB: colour map 512 px, normal and ARM maps 256 px (JPEG); meshes above 6,000 triangles simplified gently with gltfpack",
+   "gameUse": [
+    "megaphone: the lifeguards' megaphone on a crate stack at a landing"
+   ]
+  },
+  {
+   "id": "model/wall_clock",
+   "type": "model",
+   "files": [
+    "src/assets/models/cc0/wall_clock.glb"
+   ],
+   "source": "Poly Haven (Wall Clock)",
+   "creator": "PierreB3D",
+   "url": "https://polyhaven.com/a/wall_clock",
+   "license": "CC0-1.0",
+   "modified": true,
+   "changes": "1k glTF packed into one GLB: colour map 512 px, normal and ARM maps 256 px (JPEG); meshes above 6,000 triangles simplified gently with gltfpack",
+   "gameUse": [
+    "clock: above the electrical cabinet at the service panel, and in the Safe Room"
+   ]
+  },
+  {
+   "id": "model/metal_stool_01",
+   "type": "model",
+   "files": [
+    "src/assets/models/cc0/metal_stool_01.glb"
+   ],
+   "source": "Poly Haven (Metal Stool 01)",
+   "creator": "Ulan Cabanilla",
+   "url": "https://polyhaven.com/a/metal_stool_01",
+   "license": "CC0-1.0",
+   "modified": true,
+   "changes": "1k glTF packed into one GLB: colour map 512 px, normal and ARM maps 256 px (JPEG); meshes above 6,000 triangles simplified gently with gltfpack",
+   "gameUse": [
+    "stool: at a maintenance platform and in the Safe Room"
+   ]
+  },
+  {
+   "id": "model/cardboard_box_01",
+   "type": "model",
+   "files": [
+    "src/assets/models/cc0/cardboard_box_01.glb"
+   ],
+   "source": "Poly Haven (Cardboard Box 01)",
+   "creator": "Rahul Chaudhary",
+   "url": "https://polyhaven.com/a/cardboard_box_01",
+   "license": "CC0-1.0",
+   "modified": true,
+   "changes": "1k glTF packed into one GLB: colour map 512 px, normal and ARM maps 256 px (JPEG); meshes above 6,000 triangles simplified gently with gltfpack",
+   "gameUse": [
+    "box: by the bins at a landing, and in the Safe Room"
+   ]
+  },
+  {
+   "id": "model/trashbag",
+   "type": "model",
+   "files": [
+    "src/assets/models/cc0/trashbag.glb"
+   ],
+   "source": "Poly Haven (Trashbag)",
+   "creator": "Benny Weimer",
+   "url": "https://polyhaven.com/a/trashbag",
+   "license": "CC0-1.0",
+   "modified": true,
+   "changes": "1k glTF packed into one GLB: colour map 512 px, normal and ARM maps 256 px (JPEG); meshes above 6,000 triangles simplified gently with gltfpack",
+   "gameUse": [
+    "trashBag: full bin bags at a landing and in the Safe Room"
+   ]
+  },
+  {
+   "id": "model/security_camera_01",
+   "type": "model",
+   "files": [
+    "src/assets/models/cc0/security_camera_01.glb"
+   ],
+   "source": "Poly Haven (Security Camera 01)",
+   "creator": "Alexander Otterbeck, Yann Kervran",
+   "url": "https://polyhaven.com/a/security_camera_01",
+   "license": "CC0-1.0",
+   "modified": true,
+   "changes": "1k glTF packed into one GLB: colour map 512 px, normal and ARM maps 256 px (JPEG); meshes above 6,000 triangles simplified gently with gltfpack",
+   "gameUse": [
+    "camera: high on the wall at the service panel"
+   ]
+  },
+  {
+   "id": "model/caged_hanging_light",
+   "type": "model",
+   "files": [
+    "src/assets/models/cc0/caged_hanging_light.glb"
+   ],
+   "source": "Poly Haven (Caged Hanging Light)",
+   "creator": "Ulan Cabanilla",
+   "url": "https://polyhaven.com/a/caged_hanging_light",
+   "license": "CC0-1.0",
+   "modified": true,
+   "changes": "1k glTF packed into one GLB: colour map 512 px, normal and ARM maps 256 px (JPEG); meshes above 6,000 triangles simplified gently with gltfpack",
+   "gameUse": [
+    "hangingLight: hanging over the cart at a maintenance platform"
+   ]
+  },
+  {
+   "id": "model/wheelchair_01",
+   "type": "model",
+   "files": [
+    "src/assets/models/cc0/wheelchair_01.glb"
+   ],
+   "source": "Poly Haven (Wheelchair 01)",
+   "creator": "Garreth Dean",
+   "url": "https://polyhaven.com/a/wheelchair_01",
+   "license": "CC0-1.0",
+   "modified": true,
+   "changes": "1k glTF packed into one GLB: colour map 512 px, normal and ARM maps 256 px (JPEG); meshes above 6,000 triangles simplified gently with gltfpack",
+   "gameUse": [
+    "wheelchair: one empty wheelchair per map at the pool edge, facing the water"
+   ]
+  },
+  {
+   "id": "model/portable_generator",
+   "type": "model",
+   "files": [
+    "src/assets/models/cc0/portable_generator.glb"
+   ],
+   "source": "Poly Haven (Portable Generator)",
+   "creator": "James Ray Cock",
+   "url": "https://polyhaven.com/a/portable_generator",
+   "license": "CC0-1.0",
+   "modified": true,
+   "changes": "1k glTF packed into one GLB: colour map 512 px, normal and ARM maps 256 px (JPEG); meshes above 6,000 triangles simplified gently with gltfpack",
+   "gameUse": [
+    "generator: along the wall past a maintenance platform"
+   ]
+  },
+  {
+   "id": "model/metal_toolbox",
+   "type": "model",
+   "files": [
+    "src/assets/models/cc0/metal_toolbox.glb"
+   ],
+   "source": "Poly Haven (Metal Toolbox)",
+   "creator": "Mateusz Sadek",
+   "url": "https://polyhaven.com/a/metal_toolbox",
+   "license": "CC0-1.0",
+   "modified": true,
+   "changes": "1k glTF packed into one GLB: colour map 512 px, normal and ARM maps 256 px (JPEG); meshes above 6,000 triangles simplified gently with gltfpack",
+   "gameUse": [
+    "toolbox: at a maintenance platform, and in the Safe Room"
+   ]
+  },
+  {
+   "id": "model/drain_cleaner",
+   "type": "model",
+   "files": [
+    "src/assets/models/cc0/drain_cleaner.glb"
+   ],
+   "source": "Poly Haven (Drain Cleaner)",
+   "creator": "James Ray Cock",
+   "url": "https://polyhaven.com/a/drain_cleaner",
+   "license": "CC0-1.0",
+   "modified": true,
+   "changes": "1k glTF packed into one GLB: colour map 512 px, normal and ARM maps 256 px (JPEG); meshes above 6,000 triangles simplified gently with gltfpack",
+   "gameUse": [
+    "drainCleaner: on the tool cart at a maintenance platform"
+   ]
+  },
+  {
+   "id": "model/portable_searchlight",
+   "type": "model",
+   "files": [
+    "src/assets/models/cc0/portable_searchlight.glb"
+   ],
+   "source": "Poly Haven (Portable Searchlight)",
+   "creator": "Elijah Cragg",
+   "url": "https://polyhaven.com/a/portable_searchlight",
+   "license": "CC0-1.0",
+   "modified": true,
+   "changes": "1k glTF packed into one GLB: colour map 512 px, normal and ARM maps 256 px (JPEG); meshes above 6,000 triangles simplified gently with gltfpack",
+   "gameUse": [
+    "searchlight: along the wall past a landing"
+   ]
   }
  ]
 }

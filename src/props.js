@@ -35,6 +35,23 @@ import fireAlarmUrl from './assets/models/cc0/fire_alarm.glb?inline';
 import radioUrl from './assets/models/cc0/boombox.glb?inline';
 import pumpUrl from './assets/models/cc0/tire_pump.glb?inline';
 import jerrycanUrl from './assets/models/cc0/metal_jerrycan.glb?inline';
+import wetFloorSignUrl from './assets/models/cc0/wetfloorsign_01.glb?inline';
+import broomUrl from './assets/models/cc0/plastic_broom.glb?inline';
+import bleachUrl from './assets/models/cc0/bleach_bottle.glb?inline';
+import jugUrl from './assets/models/cc0/plastic_bottle_gallon.glb?inline';
+import cleanerUrl from './assets/models/cc0/multi_cleaner_bottle.glb?inline';
+import megaphoneUrl from './assets/models/cc0/megaphone_01.glb?inline';
+import clockUrl from './assets/models/cc0/wall_clock.glb?inline';
+import stoolUrl from './assets/models/cc0/metal_stool_01.glb?inline';
+import boxUrl from './assets/models/cc0/cardboard_box_01.glb?inline';
+import trashBagUrl from './assets/models/cc0/trashbag.glb?inline';
+import cameraUrl from './assets/models/cc0/security_camera_01.glb?inline';
+import hangingLightUrl from './assets/models/cc0/caged_hanging_light.glb?inline';
+import wheelchairUrl from './assets/models/cc0/wheelchair_01.glb?inline';
+import generatorUrl from './assets/models/cc0/portable_generator.glb?inline';
+import toolboxUrl from './assets/models/cc0/metal_toolbox.glb?inline';
+import drainCleanerUrl from './assets/models/cc0/drain_cleaner.glb?inline';
+import searchlightUrl from './assets/models/cc0/portable_searchlight.glb?inline';
 
 /**
  * Each model: its source; a surface finish where the file carries only a colour texture (glTF's default of fully
@@ -77,6 +94,23 @@ export const MODELS = {
   radio: { url: radioUrl, turn: 0 },
   pump: { url: pumpUrl, turn: 0 },
   jerrycan: { url: jerrycanUrl, turn: 0 },
+  wetFloorSign: { url: wetFloorSignUrl, turn: 0 },
+  broom: { url: broomUrl, turn: 0 },
+  bleach: { url: bleachUrl, turn: 0 },
+  jug: { url: jugUrl, turn: 0 },
+  cleaner: { url: cleanerUrl, turn: 0 },
+  megaphone: { url: megaphoneUrl, turn: 0 },
+  clock: { url: clockUrl, turn: 0 }, // back on the wall at z = 0, like the hose reel
+  stool: { url: stoolUrl, turn: 0 },
+  box: { url: boxUrl, turn: 0 },
+  trashBag: { url: trashBagUrl, turn: 0 },
+  camera: { url: cameraUrl, turn: 0 }, // the bracket at the back (-Z) goes on the wall
+  hangingLight: { url: hangingLightUrl, turn: 0 }, // hangs from its chains: the top is at y = 0
+  wheelchair: { url: wheelchairUrl, turn: 0 },
+  generator: { url: generatorUrl, turn: 0 },
+  toolbox: { url: toolboxUrl, turn: 0 },
+  drainCleaner: { url: drainCleanerUrl, turn: 0 },
+  searchlight: { url: searchlightUrl, turn: 0 },
 };
 
 const ready = {};
