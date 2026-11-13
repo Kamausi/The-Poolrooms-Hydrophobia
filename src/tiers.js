@@ -17,6 +17,28 @@ export const TIERS = {
   ultra: { shading: 'full', samples: 4, ratioCap: 2, depth: true, ao: 0.7, haze: 0.014, hazeSteps: 20, lights: 14, bloom: 0.5, shadows: 2, reflection: 0.75 },
 };
 
+/**
+ * What to thin out as the automatic render scale falls, before a whole tier is dropped. At full scale the tier's
+ * own values hold; each step down trades the costliest extras first: the mirror redraws less often, then at lower
+ * resolution, then not at all; shadows go to one caster, then none; haze takes fewer samples (never under the
+ * engine's minimum of 8); effects spawn fewer
+ * pieces. Returns the values to use now.
+ * @param {string} tier
+ * @param {number} scale the automatic render scale, 0.5..1
+ */
+export function thinning(tier, scale) {
+  const t = TIERS[tier] || TIERS.high;
+  const step = scale >= 0.9 ? 0 : scale >= 0.75 ? 1 : scale >= 0.6 ? 2 : 3;
+  return {
+    step,
+    reflection: step >= 3 ? 0 : step === 2 ? t.reflection * 0.66 : t.reflection,
+    reflectionEvery: [1, 2, 3, 3][step],
+    shadows: step >= 3 ? 0 : step === 2 ? Math.min(1, t.shadows) : t.shadows,
+    hazeSteps: step >= 2 ? Math.max(8, Math.round(t.hazeSteps * (step === 2 ? 0.75 : 0.5))) : t.hazeSteps,
+    particles: [1, 0.85, 0.65, 0.45][step],
+  };
+}
+
 /** The setting is a number so it can sit on a slider: 0 auto, 1 low, 2 medium, 3 high, 4 ultra. */
 export const SETTING_TIERS = ['auto', 'low', 'medium', 'high', 'ultra'];
 

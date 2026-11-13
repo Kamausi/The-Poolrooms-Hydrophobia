@@ -74,6 +74,13 @@ const BASE = process.env.UNDERFLOW_URL || 'http://localhost:5173';
     return { blend: w.material.alphaMode, opacity: w.material.opacity, absorption: w.material.absorption, turbidity: w.material.turbidity, mirror: m, shallow: +shallow.toFixed(2), deep: +deep.toFixed(2), diag: JSON.stringify(E.renderer.diagnostics) }; });
   check('pool water refracts the floor, darkens it by real depth (Beer-Lambert) and, on the high tier, mirrors the room at the water level', r.blend === 'blend' && r.opacity < 1 && r.absorption.length === 3 && r.mirror && Math.abs(r.mirror.height + 0.05) < 0.1 && r.shallow > 0.75 && r.deep < r.shallow * 0.6 && r.diag === '[]', JSON.stringify(r));
 
+  // Automatic quality thins the extras before it drops a tier: the mirror redraws every other frame at 80% scale,
+  // goes away at the lowest scale, and comes back at full scale.
+  r = await page.evaluate(() => { const u = window.__underflow; u.beginSector(2); u.startRide(); u.startExplore(); u.step(2); const E = window.__explore;
+    const at = (k) => { u.setResScale(k); u.step(2); const m = E.mirror(); return m ? m.key : 'off'; };
+    const out = { full: at(1), mid: at(0.8), low: at(0.5), back: at(1), diag: JSON.stringify(E.renderer.diagnostics) }; return out; });
+  check('automatic quality redraws the mirror less often as the render scale falls, drops it at the lowest scale, and restores it', r.full === '0.5/1' && r.mid === '0.5/2' && r.low === 'off' && r.back === '0.5/1' && r.diag === '[]', JSON.stringify(r));
+
   r = await page.evaluate(async () => { const m = await import('/src/surfaces.js'); const loaded = m.surfacesLoaded();
     const c = m.surface('ceiling').image.getContext('2d').getImageData(0, 0, 256, 256).data; let varied = 0; for (let i = 0; i < c.length; i += 4 * 97) if (Math.abs(c[i] - 0xcf) > 12) varied += 1;
     return { loaded, varied }; });

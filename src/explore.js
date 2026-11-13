@@ -1140,7 +1140,17 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
       skyTop: display(sky ? sky.top : sector.fog), skyBottom: display(sky ? sky.bottom : sector.fog), lightDirection: [0.4, 1, 0.3],
     },
   });
-  let detachMirror = mirrorSurface ? attachWaterReflection(renderer, mirrorSurface, { scale: quality.reflection }) : null;
+  let mirrorKey = mirrorSurface ? `${quality.reflection}/${quality.reflectionEvery}` : '';
+  let detachMirror = mirrorSurface ? attachWaterReflection(renderer, mirrorSurface, { scale: quality.reflection, updateEvery: quality.reflectionEvery }) : null;
+  // Automatic quality may redraw the mirror less often, at lower resolution, or drop it (tiers.js `thinning`).
+  const keepMirror = () => {
+    if (!mirrorSurface) return;
+    const key = `${quality.reflection}/${quality.reflectionEvery}`;
+    if (key === mirrorKey) return;
+    mirrorKey = key;
+    detachMirror?.();
+    detachMirror = quality.reflection > 0 ? attachWaterReflection(renderer, mirrorSurface, { scale: quality.reflection, updateEvery: quality.reflectionEvery }) : null;
+  };
   renderer.resize();
   // The depth target is fixed for the life of this scene: AO, haze and the post chain all need it.
   const hasDepth = !!quality.renderer.depth;
@@ -2034,7 +2044,8 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     placeWater();
     // The mirror reflects at the height it was built for: when the basin drains away from it, drop the mirror and
     // let the sheet reflect the environment instead.
-    if (detachMirror && rules.basin && Math.abs(basinLevel - mirrorSurface.height) > 0.05) { detachMirror(); detachMirror = null; mirrorSurface = null; }
+    if (mirrorSurface && rules.basin && Math.abs(basinLevel - mirrorSurface.height) > 0.05) { detachMirror?.(); detachMirror = null; mirrorSurface = null; }
+    keepMirror();
     for (const m of markings) {
       const visible = !rules.uv || (input.scanning && angleTo(eye, dir, m.pos) < 0.6 && distance(eye, m.pos) < 14) || uvNear(m.pos, 10);
       if (visible) facing(m.part, m.pos, m.normal, 1.3, 0.65);
@@ -3496,7 +3507,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     for (let i = 0; i < (r.valves || 0); i++) { const v = pumpValves.find((x) => x.id === valveOrder[i]); if (v) v.open = true; }
     valveStep = r.valves || 0;
   }
-  if (import.meta.env.DEV) window.__explore = { parts, frameEnv: () => lastEnv, mirror: () => mirrorSurface && { height: mirrorSurface.height, parts: mirrorSurface.partIndices.length }, models: () => parts.filter((p) => p.model).map((p) => ({ model: p.model, name: p.name, at: [p.matrix[12], p.matrix[13], p.matrix[14]] })), flashes, budget, wave: (n, f) => wave(n, f), lineOfSight, get remembered() { return remembered; }, get chain() { return lastChain; }, get eyeExposure() { return eyeExposure; }, renderer, get driftSigns() { return driftSigns; }, get wedges() { return lastWedges; }, survey, get surveyCoverage() { return surveyCoverage(survey, surveyOpen); }, surveyOpen, omen: (k) => startFomen(k), circuit, setEmergency, setBlackout, get blackout() { return blackout; }, signParts, get resetT() { return resetT; }, get emergency() { return emergency; }, blocked, isWall, finds, found, get lampPlaced() { return lampPlaced; }, lights: () => gatherLights(add(player.pos, [0, 1.6, 0])), get hesitation() { return hesitation; }, get lastOmen() { return lastFomen; }, get marcoAct() { return marcoAct; }, set marcoAct(v) { marcoAct = v; }, marcos, columns, wavePool, get basin() { return basin; }, isWater, floorTop, get operating() { return operating; }, set operating(v) { operating = v; }, panelFront, holdT, shoot, spawnBloom, occupant, lockers, noise, violate, get omenState() { return fomen; }, door, blooms, lamps, director, followers, get dockKind() { return dockKind; }, get valves() { return { order: valveOrder, step: valveStep, list: pumpValves }; }, june: juneEvent, thread, get clock() { return clock; }, stagnant, player, center, undertow, lifeguard, cellPos, panelPos, raftPos, code, find, floaters, restorePower };
+  if (import.meta.env.DEV) window.__explore = { parts, frameEnv: () => lastEnv, mirror: () => mirrorSurface && detachMirror && { height: mirrorSurface.height, parts: mirrorSurface.partIndices.length, key: mirrorKey }, models: () => parts.filter((p) => p.model).map((p) => ({ model: p.model, name: p.name, at: [p.matrix[12], p.matrix[13], p.matrix[14]] })), flashes, budget, wave: (n, f) => wave(n, f), lineOfSight, get remembered() { return remembered; }, get chain() { return lastChain; }, get eyeExposure() { return eyeExposure; }, renderer, get driftSigns() { return driftSigns; }, get wedges() { return lastWedges; }, survey, get surveyCoverage() { return surveyCoverage(survey, surveyOpen); }, surveyOpen, omen: (k) => startFomen(k), circuit, setEmergency, setBlackout, get blackout() { return blackout; }, signParts, get resetT() { return resetT; }, get emergency() { return emergency; }, blocked, isWall, finds, found, get lampPlaced() { return lampPlaced; }, lights: () => gatherLights(add(player.pos, [0, 1.6, 0])), get hesitation() { return hesitation; }, get lastOmen() { return lastFomen; }, get marcoAct() { return marcoAct; }, set marcoAct(v) { marcoAct = v; }, marcos, columns, wavePool, get basin() { return basin; }, isWater, floorTop, get operating() { return operating; }, set operating(v) { operating = v; }, panelFront, holdT, shoot, spawnBloom, occupant, lockers, noise, violate, get omenState() { return fomen; }, door, blooms, lamps, director, followers, get dockKind() { return dockKind; }, get valves() { return { order: valveOrder, step: valveStep, list: pumpValves }; }, june: juneEvent, thread, get clock() { return clock; }, stagnant, player, center, undertow, lifeguard, cellPos, panelPos, raftPos, code, find, floaters, restorePower };
 
   /** ?show=: put the dock into a fixed, readable state for screenshots and visual review. */
   function showcase(name) {

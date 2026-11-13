@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { TIERS, TIER_ORDER, resolveTier, tierRatio, createAutoTier } from '../../src/tiers.js';
+import { TIERS, TIER_ORDER, thinning, resolveTier, tierRatio, createAutoTier } from '../../src/tiers.js';
 
 const feed = (a, ms, seconds, scale) => { let last = null; for (let t = 0; t < seconds * 1000; t += ms) last = a.push(ms, scale) || last; return last; };
 
@@ -43,4 +43,16 @@ describe('automatic quality', () => {
     expect(a.tier).toBe('high');
   });
   it('ignores a hitch', () => { const a = createAutoTier(); feed(a, 30, 2.5, 0.5); a.push(900, 0.5); feed(a, 16, 5, 0.5); expect(a.tier).toBe('high'); });
+  it('thins the costliest extras first as the render scale falls, and keeps the tier at full scale', () => {
+    const full = thinning('high', 1);
+    expect(full).toMatchObject({ step: 0, reflection: TIERS.high.reflection, reflectionEvery: 1, shadows: TIERS.high.shadows, hazeSteps: TIERS.high.hazeSteps, particles: 1 });
+    const a = thinning('high', 0.8), b = thinning('high', 0.65), c = thinning('high', 0.5);
+    expect(a.reflectionEvery).toBe(2); expect(a.reflection).toBe(TIERS.high.reflection);
+    expect(b.reflection).toBeLessThan(TIERS.high.reflection); expect(b.hazeSteps).toBeLessThan(TIERS.high.hazeSteps);
+    expect(c.reflection).toBe(0); expect(c.shadows).toBe(0);
+    expect(c.particles).toBeLessThan(b.particles); expect(b.particles).toBeLessThan(a.particles);
+    expect(thinning('ultra', 0.65).shadows).toBe(1);
+    for (const t of ['low', 'medium', 'high', 'ultra']) for (const k of [1, 0.8, 0.65, 0.5]) expect(thinning(t, k).hazeSteps).toBeGreaterThanOrEqual(8); // the engine's floor
+  });
 });
+
