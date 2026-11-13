@@ -17,7 +17,7 @@ import { initInput, input, endFrame, releaseLock, wasPressed, pollGamepad } from
 import { initHud, hud } from './hud.js';
 import { sound } from './audio.js';
 import { quality, setTier, applyQualitySetting } from './quality.js';
-import { createAutoTier } from './tiers.js';
+import { createAutoTier, thinning } from './tiers.js';
 import { summarize, report as benchReport } from './bench.js';
 import { rng } from './math.js';
 import { playlog, createFrameStats } from './playlog.js';
@@ -949,7 +949,8 @@ const autoRes = createAutoRes();
 // Automatic quality: when the lowest render scale still cannot hold the frame rate, drop a whole tier.
 let autoTier = createAutoTier({ start: quality.tier }), tierSetting = settings.qualityTier ?? 0;
 let resScale = 1, resScene = null;
-function applyResScale(k) { resScale = k; scene?.setScale?.(k); }
+// As the scale falls, thin out the costliest extras (tiers.js `thinning`) before a whole tier has to go.
+function applyResScale(k) { resScale = k; scene?.setScale?.(k); Object.assign(quality, thinning(quality.tier, k)); }
 let perfT = 0, lastLogged = 0;
 function frame(now) {
   // The constrained 30 FPS profile: deliver every other display frame, evenly.

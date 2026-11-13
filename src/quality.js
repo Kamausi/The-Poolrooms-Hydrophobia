@@ -30,7 +30,7 @@ export function setTier(name) {
   Object.assign(quality, {
     tier: TIERS[name] ? name : 'high', low: name === 'low',
     renderer: { samples: t.samples, pixelRatio: tierRatio(name, typeof devicePixelRatio === 'number' ? devicePixelRatio : 1), shading: t.shading, ...(t.depth ? { depth: true } : {}) },
-    shadows: t.shadows, ao: t.ao, haze: t.haze, hazeSteps: t.hazeSteps, lights: t.lights, bloom: t.bloom,
+    shadows: t.shadows, ao: t.ao, haze: t.haze, hazeSteps: t.hazeSteps, lights: t.lights, bloom: t.bloom, reflection: t.reflection, reflectionEvery: 1, particles: 1,
   });
   return quality.tier;
 }

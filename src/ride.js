@@ -30,6 +30,7 @@ import { Track, EXIT_OFFSET, section } from './track.js';
 import { createDirector, AFTERMATH, BANTER } from './director.js';
 import { createHull, CHAMBERS, CHAMBER_NAME } from './hull.js';
 import { createLaneRope } from './lanerope.js';
+import { waterOptics } from './waterlook.js';
 
 const SEG = 6;
 const SEGMENTS = 28;
@@ -49,7 +50,11 @@ export function createRide(canvas, state, sector, events, opts = {}) {
   const poolFloorMat = { color: [0.9, 0.95, 0.95], metallic: 0, roughness: 0.25, map: surface('aqua'), boxMapScale: 0.45 };
   const lampColor = linear(sector.lamp);
   const bandMat = { color: linear(sector.band || '#4d7472'), metallic: 0, roughness: 0.35 };
-  const waterMat = () => ({ tag: 'water', color: linear(sector.water), metallic: 0.3, roughness: 0.08, emission: 0.22, emissiveColor: linear(sector.water) }); // rich against the ivory, lit a little from within
+  // Refractive water (waterlook.js): blended, so the channel floor shows through, absorbed by depth and lifted by
+  // turbidity, with a Fresnel reflection at grazing angles. No planar mirror on the raft: the channel water
+  // changes height along the track, and the engine's mirror reflects at one height.
+  const optics = waterOptics(sector);
+  const waterMat = () => ({ tag: 'water', color: optics.scatter, metallic: 0.2, roughness: 0.06, emission: 0.1, emissiveColor: optics.scatter, alphaMode: 'blend', opacity: 0.6, absorption: optics.absorption, turbidity: optics.turbidity });
   const slab = box(0, 1);
   const ball = sphere(28, 18);
   const lumpy = sphere(7, 5);

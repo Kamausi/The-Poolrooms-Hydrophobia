@@ -148,5 +148,5 @@ Each area needs a named quality owner, even when one person covers several: game
 - **Finished art:** skinned, animated crew and creatures, a modelled architectural kit, authored textures. Needs artists and assets; the code is ready to host them (67js glTF).
 - **Voice performances and a mixed soundtrack.** Recorded effects come from a free library (see `CREDITS.md`); voices are text, and the music is synthesised. The mix has not been listened to.
 - **Online four-player play** and its state agreement (who has the cell, who sees the grab, pilot handoff on disconnect). Needs a server and netcode; the single-player AI crew stands in.
-- **Water refraction in the channels, surface foam simulation, condensation.** 67js's `liquid` material refracts and is used once (the wave pool's exit); it is not used for channel water, where its cost and look are unmeasured.
+- **Surface foam simulation, caustics, a ripple simulation, condensation.** Pool and channel water now refract and absorb by depth (`src/waterlook.js`), with a planar mirror on foot on the high tiers; the mirror's cost on a real GPU is unmeasured (it redraws the scene at half or three-quarter resolution).
 - **Human playtests and hardware measurements.** Need people and devices; the log and overlay are there for them.
