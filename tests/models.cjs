@@ -44,6 +44,13 @@ const { open, newCampaign, check, finish } = require('./lib.cjs');
   const tooClose = dock.filter((x) => x.d < 1.55);
   check('dock dressing stands along the side wall, clear of the moored raft (every prop over 1.55 m from its centre)', dock.length > 40 && !tooClose.length, JSON.stringify({ n: dock.length, tooClose: tooClose.slice(0, 6) }));
   check('a camera watches the service panel, an empty wheelchair faces the water, a generator and toolbox at the maintenance platform, a searchlight at a landing', ['camera', 'wheelchair', 'generator', 'toolbox', 'drainCleaner', 'hangingLight', 'searchlight'].every((n) => seen[n] > 0), JSON.stringify(seen));
+  // Coping: every edge where a pool meets the deck gets a stone cap and a rounded lip, from one shared shape each.
+  const coping = await page.evaluate(() => { const u = window.__underflow; const out = [];
+    for (let i = 0; i < 8; i++) { u.beginSector(i); u.startRide(); u.startExplore(); u.step(1); const E = window.__explore;
+      const caps = E.parts.filter((p) => /^Coping -?\d/.test(p.name)), lips = E.parts.filter((p) => /^Coping lip /.test(p.name));
+      out.push({ i, caps: caps.length, lips: lips.length, shapes: new Set([...caps, ...lips].map((p) => p.geometry)).size }); }
+    return out; });
+  check('pool edges have coping: a stone cap and a rounded lip on every edge where a pool meets the deck, from two shared shapes', coping.every((c) => c.caps === c.lips && c.shapes <= 2) && coping.filter((c) => c.caps > 0).length >= 6, JSON.stringify(coping));
   // The Lane Rope is a racing lane line: disc floats on a steel cable between wall anchors. Split an anchor and it drops.
   const rope = await page.evaluate(() => { const u = window.__underflow; u.beginSector(0); u.startRide(); u.setState({ health: 1e6 }); u.step(3); const R = window.__ride;
     R.spawnEnc('rope'); u.step(12);

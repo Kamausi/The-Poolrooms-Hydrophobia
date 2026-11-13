@@ -75,7 +75,7 @@ A DEV-only bot (`window.__ride.bot = true`) stands in for a competent player: it
 
 | Measurement | Before tuning | After |
 |---|---|---|
-| Attractions reached at the dock | 5 of 8 (deaths: overboard in the first channel of the Welcome Pools, Ballast, Blooms from behind) | 8 of 8 |
+| Attractions reached at the dock | 5 of 8 (deaths: overboard in the first channel of the Welcome Pools, Ballast, Blooms from behind) | 8 of 8 (not reproducible now: see the re-measurement below) |
 | Lowest health on the way | 1–18 | 33–62, except Filtration Works (1) |
 | Raft at the dock | 67–94% | 66–94% |
 
@@ -87,6 +87,8 @@ Tuning that got there:
 - The crew patches a long-running leak in the quiet, with a kit.
 
 Filtration Works stays the hardest. A bot is not a person: this replaces guessing, not playtesting.
+
+**Re-measured on 13 November 2026 (`npm run test:balance`): the bot reaches 7 of 8 docks.** Lowest health on the way 29–50 and the raft at 84–100% in the seven it finishes (Filtration Works now 44). It does not reach the Rooftop Lagoon's dock: health falls to 1 and the raft to 46–47%, to the Undertow in a full run and to Ballast ("something heavy sat with you") when the Lagoon is ridden on its own. The same failure, with the same numbers, appears at every commit tried back to the first one that carries `tests/balance.cjs` in the repository (6f035b7), so it was not introduced by later work; the "8 of 8" above was measured before the tests were committed and cannot be reproduced from the repository. `npm run test:balance` fails until the Rooftop Lagoon is tuned or the bot learns to brace and dodge.
 
 ## Resume, interruption-tested
 

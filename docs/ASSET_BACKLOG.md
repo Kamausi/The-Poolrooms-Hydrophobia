@@ -37,7 +37,7 @@ From this environment: Poly Haven (models and textures, CC0), ambientCG (materia
 | Asset | P | Now |
 |---|---|---|
 | Pool ladders | P0 | **Model** (generated, at the basin edge) |
-| Drains, grates, overflow channels, skimmers, coping, handrails | P0 | Drains and overflow grates **Model** (generated); gallery rail primitive in brushed stainless; skimmers and coping not built. A generated skimmer lid was tried and rejected: its flange came out warped |
+| Drains, grates, overflow channels, skimmers, coping, handrails | P0 | Drains and overflow grates **Model** (generated); gallery rail primitive in brushed stainless; coping **Procedural**: a pale stone cap on the deck edge and a rounded bullnose lip over the water on every edge where a pool meets the deck (two shared shapes, two batches); skimmers not built. A generated skimmer lid was tried and rejected: its flange came out warped |
 | Lane anchors, depth markers, starting platforms | P0 | Depth markers: procedural deck markings (1.2 M, NO DIVING) along the pool edges plus wall signs; starting blocks **Model** (generated, a row of three at one straight pool edge); a skimmer reference is made but not converted; lane anchors not built |
 | Wave basin, filtration outlets, pump intakes, emergency shutoffs | P0 | Primitive (the Closed Wave Pool basin, outlet, pump control panel) |
 | Diving boards, showers, foot-wash, cubicles, hooks, benches | P1 | Bench: **Model** (CC0); a vest hook vignette is primitive; the rest not built |

@@ -59,7 +59,7 @@ Touch: left half of the screen moves, right half aims or looks, with buttons for
 | `src/plans.js` | Builds each sector's ride and fills it with encounters |
 | `src/ride.js` | The raft: geometry along the track, targets, entities, the Passenger, gates, paddling, overboard |
 | `src/hull.js` | Four air chambers: punctures and their causes, field patches, the compressor, marks that stay |
-| `src/explore.js` | On foot: grid levels and each attraction's rules |
+| `src/explore.js` | On foot: grid levels and each attraction's rules; where props stand (the dock dressing lines the wall, clear of the moored raft) |
 | `src/blaster.js` | Pulse, inspection beam and disruption burst |
 | `src/sectors.js` | The eight attractions: palettes, rides, maps, rules, voices, graffiti |
 | `src/documents.js` | Found documents for the logbook |
@@ -71,10 +71,22 @@ Touch: left half of the screen moves, right half aims or looks, with buttons for
 | `src/playlog.js` | Local playtest log and frame-time statistics |
 | `src/ui.js` | Safe Room, workbench, route terminal, logbook, keypad, settings |
 | `src/hud.js`, `src/style.css` | The overlay |
-| `src/audio.js` | Synthesized, stereo-panned sound |
+| `src/audio.js`, `src/samples.js`, `src/voicepool.js` | Stereo-panned sound: recorded files in `public/audio/`, synthesis as the fallback, a voice cap with priorities |
+| `src/props.js`, `src/shapes.js` | 3D props as GLB models inlined into the build, each with a primitive stand-in; shared primitive shapes so identical parts draw as one instanced batch |
+| `src/lanerope.js` | The Lane Rope: red and white disc floats on a steel cable between wall anchors |
+| `src/surfaces.js` | Generated surface textures (ceiling, floor tile, painted steel, PVC, wet concrete, clouds) |
 | `src/input.js`, `src/settings.js`, `src/quality.js`, `src/labels.js`, `src/textures.js`, `src/math.js` | Input, options, render quality, sign textures, tile textures, maths |
 
+The full module map, including the pure, unit-tested modules, is in [CLAUDE.md](CLAUDE.md) and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+
 The first prototype (a single minified Three.js file) is kept at `public/legacy/combat-build-02.html` and is linked from the menu.
+
+## Assets
+- **3D props: 48 models.** 10 were generated for the game with Higgsfield image-to-3D (supply locker, pool ladder, gate valve, lifeguard tower, ring buoy, work lamp, blaster body, floor drain, starting block, rubber duck). 38 are CC0 models from [Poly Haven](https://polyhaven.com) (light fixtures, cabinets, extinguishers, tool cart and chest, crates, pipes, roller shutters, wet-floor signs, a security camera, a wheelchair and others). They dress the docks, rooms, pool decks and Safe Rooms; every one is placed with a primitive fallback, so a scene never waits on a model.
+- **Sound:** recorded effects from the Oculus Audio Pack 01 (CC BY 4.0), with synthesis where there is no recording.
+- **Textures:** generated surfaces and CC0 normal maps.
+- Every shipped third-party or generated file is listed with its source and licence in [assets/registry.json](assets/registry.json); a unit test fails if one is missing. Credits are in [docs/CREDITS.md](docs/CREDITS.md), and the status of each item on the asset list is in [docs/ASSET_BACKLOG.md](docs/ASSET_BACKLOG.md).
+- All of this is checked by headless tests (props load, stand where they should, stay clear of the moored raft, draw in under 150 batches on the raft and 120 on foot). None of it has been checked by human play or on real GPUs.
 
 ## Design
 - [docs/GAME_DESIGN.md](docs/GAME_DESIGN.md): concept, mechanics, architecture and what's built so far
@@ -83,3 +95,5 @@ The first prototype (a single minified Three.js file) is kept at `public/legacy/
 - [docs/PRODUCTION.md](docs/PRODUCTION.md): the quality standard, the reference chapter, measurement, accessibility, playtest protocol, and what is not built
 - [docs/ART_DIRECTION.md](docs/ART_DIRECTION.md): palette, type, lighting, sectors, crew and entity look, interface, main menu
 - [docs/STORY_AND_LORE.md](docs/STORY_AND_LORE.md): setting, characters, entities, endings and story decisions
+- [docs/ASSET_BACKLOG.md](docs/ASSET_BACKLOG.md): every item on the asset list and its honest status
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md): how the code fits together
