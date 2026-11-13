@@ -20,6 +20,7 @@ A first-person cooperative horror rail-shooter and explorer set in the Poolrooms
 | `src/spring.js`, `src/pressure.js`, `src/spawnscore.js`, `src/lightpool.js`, `src/perception.js` | Damped springs, the attack-slot budget, spawn-point scoring, brief shot lights from a fixed pool, awareness from sight and sound (pure, unit-tested) |
 | `src/surfaces.js` | Generated surface textures (ceiling, aqua floor tile, painted steel, clouds), inlined; provenance in `assets/registry.json` |
 | `src/props.js`, `src/shapes.js` | 3D props as inlined GLB files (10 generated with Higgsfield, 38 CC0 from Poly Haven), placed with a primitive fallback; shared primitive shapes so identical parts draw as one instanced batch. Provenance in `assets/registry.json`, status in `docs/ASSET_BACKLOG.md` |
+| `src/waterlook.js` | Water optics per attraction: absorption by depth (Beer-Lambert) and turbidity from the water colour (pure, unit-tested) |
 | `src/lanerope.js` | The Lane Rope's body: disc floats on a steel cable between wall anchors (the disc layout is pure and unit-tested) |
 | `src/driftsign.js` | Which signs change at high Drift and what they say (pure, unit-tested) |
 | `src/survey.js` | The on-foot survey map: what has been seen, coverage, text rendering (pure, unit-tested) |

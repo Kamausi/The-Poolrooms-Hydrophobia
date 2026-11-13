@@ -65,6 +65,15 @@ const BASE = process.env.UNDERFLOW_URL || 'http://localhost:5173';
     return { pointsCast, spots0, spot: spot && { cast: spot.castShadow, angle: spot.angle }, ultraCast, offCast, diag: JSON.stringify(E.renderer.diagnostics) }; });
   check('on the high tier the nearest fixture casts shadows (two on ultra) and the carried lamp is a shadowed spot light; the setting turns them off', r.pointsCast === 1 && r.spots0 === 0 && r.spot && r.spot.cast && r.ultraCast === 2 && r.offCast === 0 && r.diag === '[]', JSON.stringify(r));
 
+  // Water: a refractive sheet (blended) with per-channel absorption by depth and turbidity, and on the high tier a
+  // planar mirror at the water level. Shallow water shows the floor nearly untinted; two metres turn it dark.
+  r = await page.evaluate(async () => { const u = window.__underflow; u.beginSector(2); u.startRide(); u.startExplore(); u.step(2); const E = window.__explore;
+    const w = E.parts.find((p) => /^Water /.test(p.name) && p.material.tag === 'water'); const m = E.mirror();
+    const { transmittance, luminance } = await import('/src/waterlook.js');
+    const shallow = luminance(transmittance(w.material.absorption, 0.3)), deep = luminance(transmittance(w.material.absorption, 2.2));
+    return { blend: w.material.alphaMode, opacity: w.material.opacity, absorption: w.material.absorption, turbidity: w.material.turbidity, mirror: m, shallow: +shallow.toFixed(2), deep: +deep.toFixed(2), diag: JSON.stringify(E.renderer.diagnostics) }; });
+  check('pool water refracts the floor, darkens it by real depth (Beer-Lambert) and, on the high tier, mirrors the room at the water level', r.blend === 'blend' && r.opacity < 1 && r.absorption.length === 3 && r.mirror && Math.abs(r.mirror.height + 0.05) < 0.1 && r.shallow > 0.75 && r.deep < r.shallow * 0.6 && r.diag === '[]', JSON.stringify(r));
+
   r = await page.evaluate(async () => { const m = await import('/src/surfaces.js'); const loaded = m.surfacesLoaded();
     const c = m.surface('ceiling').image.getContext('2d').getImageData(0, 0, 256, 256).data; let varied = 0; for (let i = 0; i < c.length; i += 4 * 97) if (Math.abs(c[i] - 0xcf) > 12) varied += 1;
     return { loaded, varied }; });

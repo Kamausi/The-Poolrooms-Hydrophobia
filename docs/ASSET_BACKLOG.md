@@ -119,7 +119,7 @@ Splashes, wake, sparks, shot lights, beam, muzzle flash, bubbles, Undertow rippl
 
 ## 26. Water
 
-Per-sector water colour, ripple, refraction trial, haze and underwater grade: **procedural**. The separate states (stagnant, filtration, turbulent, UV-reactive, Main Drain) and caustics, foam and flow maps are not built as distinct materials.
+Pool and channel water is the engine's refractive `water` sheet, configured per attraction by `src/waterlook.js` (pure, unit-tested): the sheet is blended, so the floor shows through; everything under it is darkened by its real depth below the surface, per colour channel (Beer-Lambert, absorption derived from the attraction's water colour, so 30 cm barely dims the tile and a 2 m deep end reads clearly darker); turbidity lifts it toward the water colour (the Filtration Works is murkiest); a Fresnel reflection takes over at grazing angles. On the high and ultra tiers the largest still sheet on foot is a planar mirror (67js `water-reflection`, half and three-quarter resolution); it is dropped when the Closed Wave Pool's basin drains away from its height, and the raft has none because its water changes height along the track. One water ripple at a time, haze and the underwater grade are **procedural**. **Not built:** a ripple simulation with many simultaneous disturbances, a raft wake, caustics, foam from turbulence, flow maps, wet-surface masks, an underwater pass with Snell's window, and the separate states (stagnant, filtration, turbulent, UV-reactive, Main Drain).
 
 ## 27. Lighting assets
 

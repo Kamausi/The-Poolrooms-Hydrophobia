@@ -1,6 +1,8 @@
 // On foot at a dock. You can go anywhere you can reach, but you must find your own way back to the raft.
 // The goal: carry the power cell to the service panel (which opens the gate to the Safe Room's arrival
 // bay), then return to the moored raft. Each attraction adds its own rules (see sectors.js).
+import { waterOptics } from './waterlook.js';
+import { applyWaterReflection, attachWaterReflection } from '67js/addons/water-reflection';
 import { createLaneRope } from './lanerope.js';
 import { rumble } from './haptics.js';
 import { wedges as threatWedges } from './aim.js';
@@ -179,7 +181,11 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
   const M = (name, label, extra) => { const p = modelPart(name, label, extra); if (p) parts.push(...p.group); return p; };
   const glow = (color, emission, extra = {}) => ({ color, metallic: 0, roughness: 1, emission, emissiveColor: color, ...extra });
   const dark = (c = [0.02, 0.02, 0.02]) => ({ color: c, metallic: 0.2, roughness: 0.6 });
-  const waterMat = () => ({ tag: 'water', color: linear(sector.water), metallic: 0.2, roughness: 0.1, emission: rules.uv ? 0.05 : 0.32, emissiveColor: linear(sector.water) });
+  // Refractive water (waterlook.js): the sheet is blended, so the pool floor shows through it, darkened by its
+  // real depth below the surface (Beer-Lambert per colour channel) and lifted toward the water colour by turbidity.
+  // A Fresnel reflection takes over at grazing angles. Depth reads by colour: shallow tile, aqua, teal, then dark.
+  const optics = waterOptics(sector);
+  const waterMat = () => ({ tag: 'water', color: optics.scatter, metallic: 0.1, roughness: 0.06, emission: rules.uv ? 0.05 : 0.06, emissiveColor: optics.scatter, alphaMode: 'blend', opacity: 0.55, absorption: optics.absorption, turbidity: optics.turbidity });
   const facing = (part, pos, normal, w, h) => writeBasis(part.matrix, pos, normalize(cross(scale(normal, -1), UP)), UP, normal, w, h, 1);
   const wallH = rules.openSky ? 1.4 : 5;
   const hash = (a, b) => {
@@ -1104,6 +1110,28 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
   for (const p of parts) if (p.matrix[15] === 0) hide(p);
 
   const sky = sector.sky;
+  // Planar reflection on the high tiers (67js water-reflection): the largest still water sheet becomes a mirror.
+  // The wrapped water parts replace the originals in place, so the per-frame code keeps moving the same matrices.
+  function placeWater() {
+    for (const w of waterParts) {
+      const c = center(w.x, w.z);
+      const ch = at(w.x, w.z);
+      const h = ch === 'x' || ch === 'B' ? (highWater ? -0.05 : -0.9) : rules.basin && (ch === '~' || ch === 'u' || ch === 'L') ? basinLevel : surface(w.x, w.z);
+      if (h < POOL + 0.02) hide(w.part);
+      else writeYaw(w.part.matrix, [c[0], h - 0.01, c[2]], 0, CELL, 0.02, CELL);
+    }
+  }
+  placeWater(); // the mirror finds the water by its placed sheets, so place them before the renderer is built
+  let mirrorSurface = null;
+  if (quality.reflection > 0) {
+    const r = applyWaterReflection(parts);
+    if (r.surface) {
+      const swap = new Map();
+      r.parts.forEach((p, i) => { if (p !== parts[i]) { swap.set(parts[i], p); parts[i] = p; } });
+      for (const w of [...waterParts, ...tidal]) w.part = swap.get(w.part) || w.part;
+      mirrorSurface = r.surface;
+    }
+  }
   const renderer = new Renderer67(canvas, parts, {
     ground: false, world: true, hdr: true, ...quality.renderer,
     environment: {
@@ -1112,6 +1140,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
       skyTop: display(sky ? sky.top : sector.fog), skyBottom: display(sky ? sky.bottom : sector.fog), lightDirection: [0.4, 1, 0.3],
     },
   });
+  let detachMirror = mirrorSurface ? attachWaterReflection(renderer, mirrorSurface, { scale: quality.reflection }) : null;
   renderer.resize();
   // The depth target is fixed for the life of this scene: AO, haze and the post chain all need it.
   const hasDepth = !!quality.renderer.depth;
@@ -2002,13 +2031,10 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
       const c = center(p.x, p.z);
       writeYaw(p.part.matrix, [c[0], (highWater ? -0.02 : DEEP + 0.2) + Math.sin(time + p.x) * 0.02, c[2]], 0, CELL - 0.3, 0.25, CELL - 0.3);
     }
-    for (const w of waterParts) {
-      const c = center(w.x, w.z);
-      const ch = at(w.x, w.z);
-      const h = ch === 'x' || ch === 'B' ? (highWater ? -0.05 : -0.9) : rules.basin && (ch === '~' || ch === 'u' || ch === 'L') ? basinLevel : surface(w.x, w.z);
-      if (h < POOL + 0.02) hide(w.part);
-      else writeYaw(w.part.matrix, [c[0], h - 0.01, c[2]], 0, CELL, 0.02, CELL);
-    }
+    placeWater();
+    // The mirror reflects at the height it was built for: when the basin drains away from it, drop the mirror and
+    // let the sheet reflect the environment instead.
+    if (detachMirror && rules.basin && Math.abs(basinLevel - mirrorSurface.height) > 0.05) { detachMirror(); detachMirror = null; mirrorSurface = null; }
     for (const m of markings) {
       const visible = !rules.uv || (input.scanning && angleTo(eye, dir, m.pos) < 0.6 && distance(eye, m.pos) < 14) || uvNear(m.pos, 10);
       if (visible) facing(m.part, m.pos, m.normal, 1.3, 0.65);
@@ -3470,7 +3496,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     for (let i = 0; i < (r.valves || 0); i++) { const v = pumpValves.find((x) => x.id === valveOrder[i]); if (v) v.open = true; }
     valveStep = r.valves || 0;
   }
-  if (import.meta.env.DEV) window.__explore = { parts, frameEnv: () => lastEnv, models: () => parts.filter((p) => p.model).map((p) => ({ model: p.model, name: p.name, at: [p.matrix[12], p.matrix[13], p.matrix[14]] })), flashes, budget, wave: (n, f) => wave(n, f), lineOfSight, get remembered() { return remembered; }, get chain() { return lastChain; }, get eyeExposure() { return eyeExposure; }, renderer, get driftSigns() { return driftSigns; }, get wedges() { return lastWedges; }, survey, get surveyCoverage() { return surveyCoverage(survey, surveyOpen); }, surveyOpen, omen: (k) => startFomen(k), circuit, setEmergency, setBlackout, get blackout() { return blackout; }, signParts, get resetT() { return resetT; }, get emergency() { return emergency; }, blocked, isWall, finds, found, get lampPlaced() { return lampPlaced; }, lights: () => gatherLights(add(player.pos, [0, 1.6, 0])), get hesitation() { return hesitation; }, get lastOmen() { return lastFomen; }, get marcoAct() { return marcoAct; }, set marcoAct(v) { marcoAct = v; }, marcos, columns, wavePool, get basin() { return basin; }, isWater, floorTop, get operating() { return operating; }, set operating(v) { operating = v; }, panelFront, holdT, shoot, spawnBloom, occupant, lockers, noise, violate, get omenState() { return fomen; }, door, blooms, lamps, director, followers, get dockKind() { return dockKind; }, get valves() { return { order: valveOrder, step: valveStep, list: pumpValves }; }, june: juneEvent, thread, get clock() { return clock; }, stagnant, player, center, undertow, lifeguard, cellPos, panelPos, raftPos, code, find, floaters, restorePower };
+  if (import.meta.env.DEV) window.__explore = { parts, frameEnv: () => lastEnv, mirror: () => mirrorSurface && { height: mirrorSurface.height, parts: mirrorSurface.partIndices.length }, models: () => parts.filter((p) => p.model).map((p) => ({ model: p.model, name: p.name, at: [p.matrix[12], p.matrix[13], p.matrix[14]] })), flashes, budget, wave: (n, f) => wave(n, f), lineOfSight, get remembered() { return remembered; }, get chain() { return lastChain; }, get eyeExposure() { return eyeExposure; }, renderer, get driftSigns() { return driftSigns; }, get wedges() { return lastWedges; }, survey, get surveyCoverage() { return surveyCoverage(survey, surveyOpen); }, surveyOpen, omen: (k) => startFomen(k), circuit, setEmergency, setBlackout, get blackout() { return blackout; }, signParts, get resetT() { return resetT; }, get emergency() { return emergency; }, blocked, isWall, finds, found, get lampPlaced() { return lampPlaced; }, lights: () => gatherLights(add(player.pos, [0, 1.6, 0])), get hesitation() { return hesitation; }, get lastOmen() { return lastFomen; }, get marcoAct() { return marcoAct; }, set marcoAct(v) { marcoAct = v; }, marcos, columns, wavePool, get basin() { return basin; }, isWater, floorTop, get operating() { return operating; }, set operating(v) { operating = v; }, panelFront, holdT, shoot, spawnBloom, occupant, lockers, noise, violate, get omenState() { return fomen; }, door, blooms, lamps, director, followers, get dockKind() { return dockKind; }, get valves() { return { order: valveOrder, step: valveStep, list: pumpValves }; }, june: juneEvent, thread, get clock() { return clock; }, stagnant, player, center, undertow, lifeguard, cellPos, panelPos, raftPos, code, find, floaters, restorePower };
 
   /** ?show=: put the dock into a fixed, readable state for screenshots and visual review. */
   function showcase(name) {
