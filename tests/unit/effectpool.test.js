@@ -40,4 +40,13 @@ describe('effect pool', () => {
     run(a, 0.1); run(b, 0.1);
     expect(a.slots('spark').map((p) => p.pos)).toEqual(b.slots('spark').map((p) => p.pos));
   });
+  it('keeps foam level on the surface it was put on', () => {
+    const fx = createEffectPool();
+    fx.burst('foam', [0, 0.3, 0], { count: 4, dir: [0, 1, 0], speed: 1, spread: 1 });
+    for (let i = 0; i < 30; i++) fx.tick(1 / 60);
+    const live = fx.slots('foam').filter((q) => q.on);
+    expect(live.length).toBe(4);
+    for (const q of live) expect(q.pos[1]).toBeCloseTo(0.3, 5);
+    expect(live.some((q) => Math.hypot(q.pos[0], q.pos[2]) > 0.01)).toBe(true);
+  });
 });

@@ -128,19 +128,22 @@ const { open, newCampaign, check, finish } = require('./lib.cjs');
     const w = E.find('~')[0] || E.find('x')[0] || E.find('f')[0]; if (!w) return { noWater: true };
     const c = E.center(...w);
     E.shoot([c[0], 1.6, c[2]], [0, -1, 0]); u.step(1); E.shoot([c[0] + 0.6, 1.6, c[2]], [0, -1, 0]); u.step(1);
-    const both = shown(E.ringParts); const ring = E.ringParts.find((q) => Math.abs(q.matrix[0]) > 0.01); const r0 = ring.matrix[0]; u.step(30); const r1 = ring.matrix[0];
+    const both = shown(E.ringParts), bubbles = E.effects.live('bubble'); const ring = E.ringParts.find((q) => Math.abs(q.matrix[0]) > 0.01); const r0 = ring.matrix[0]; u.step(30); const r1 = ring.matrix[0];
     for (let k = 0; k < 200; k++) u.step(1);
     const gone = shown(E.ringParts);
     const flooded = E.caustics.filter((cc) => E.waterLevel(cc.x, cc.z) > -0.53).length, sheets = E.caustics.filter((cc) => Math.abs(cc.a.matrix[0]) > 0.01).length;
-    return { both, grows: r1 > r0, gone, flooded, sheets }; });
-  check('on foot, two shots into the water make two rings at once that widen and fade; caustics lie under every flooded cell', r.both === 2 && r.grows && r.gone === 0 && r.flooded > 0 && r.sheets === r.flooded, JSON.stringify(r));
+    return { both, bubbles, grows: r1 > r0, gone, flooded, sheets, left: E.effects.live('bubble') }; });
+  check('on foot, two shots into the water make two rings at once that widen and fade, with bubbles under them; caustics lie under every flooded cell', r.both === 2 && r.bubbles > 0 && r.left === 0 && r.grows && r.gone === 0 && r.flooded > 0 && r.sheets === r.flooded, JSON.stringify(r));
   r = await page.evaluate(() => { const u = window.__underflow; u.beginSector(0); u.startRide(); u.setState({ health: 1e6 }); for (let k = 0; k < 6; k++) u.step(20); const R = window.__ride;
     const shown = (list) => list.filter((q) => Math.abs(q.matrix[0]) + Math.abs(q.matrix[5]) + Math.abs(q.matrix[10]) > 0.01).length;
     const raft = R.parts.find((q) => q.name === 'Raft').matrix, fwd = [raft[4], raft[6]];
     const arm = R.wakeParts[0].matrix, back = (arm[12] - raft[12]) * fwd[0] + (arm[14] - raft[14]) * fwd[1];
     const wake = shown(R.wakeParts), streak = shown(R.streakParts);
     for (const d of [-2, 0, 2]) R.stir([raft[12] + d, 0, raft[14]], 'splash'); u.step(1);
-    return { wake, back, streak, rings: shown(R.ringParts) }; });
-  check('on the raft the wake opens behind it, current streaks show, and three splashes ring at once', r.wake === 3 && r.back < 0 && r.streak > 0 && r.rings === 3, JSON.stringify(r));
+    // Fast water makes foam on its own: ride on until a patch appears (the opening channel runs at 8.5 m/s).
+    let foam = 0, flat = false; for (let k = 0; k < 900 && !foam; k++) { u.setState({ health: 1e6 }); u.step(1); foam = R.effects.live('foam'); }
+    if (foam) { const q = R.parts.find((x) => /^Foam /.test(x.name) && Math.abs(x.matrix[0]) > 0.01); flat = !!q && Math.abs(q.matrix[5]) < Math.abs(q.matrix[0]) * 0.2; }
+    return { wake, back, streak, rings: shown(R.ringParts), foam, flat }; });
+  check('on the raft the wake opens behind it, current streaks show, three splashes ring at once, and fast water throws up flat foam patches', r.wake === 3 && r.back < 0 && r.streak > 0 && r.rings === 3 && r.foam > 0 && r.flat, JSON.stringify(r));
   await finish(browser, errors);
 })();

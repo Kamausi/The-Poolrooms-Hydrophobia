@@ -47,8 +47,9 @@ describe('waterfx', () => {
   });
   it('makes foam from fast flow, waves and falls, not from still water', () => {
     expect(foamLevel()).toBe(0);
-    expect(foamLevel({ flow: 1 })).toBe(0);
-    expect(foamLevel({ flow: 5 })).toBeGreaterThan(0.3);
+    expect(foamLevel({ flow: 4 })).toBe(0); // a lazy channel stays clear
+    expect(foamLevel({ flow: 12.5 })).toBeGreaterThan(0.4); // the flume whitens
+    expect(foamLevel({ flow: 8.5 })).toBeLessThan(foamLevel({ flow: 12.5 }));
     expect(foamLevel({ waves: 1, falls: 1 })).toBe(1);
   });
   it('dims caustics in murky or rough water, and keeps the two sheets moving apart', () => {
