@@ -20,7 +20,7 @@ import { planColonnade, archRadius } from './poolrooms.js';
 import { createBudget } from './ai/pressure.js';
 import { createRig } from './feel/spring.js';
 import { createEffectPool } from './render/effectpool.js';
-import { createWaterField, ringShape, wakeStrips, streaks } from './render/waterfx.js';
+import { createWaterField, ringShape, wakeStrips, streaks, foamLevel } from './render/waterfx.js';
 import { assignShadows } from './render/shadows.js';
 import { surface } from './render/surfaces.js';
 import { createLightPool, mergeLights } from './render/lightpool.js';
@@ -202,8 +202,10 @@ export function createRide(canvas, state, sector, events, opts = {}) {
   const fxParts = {
     spark: Array.from({ length: effects.sizes.spark }, (_, i) => P(`Spark ${i}`, fxDot, glow([1, 0.9, 0.6], 8))),
     droplet: Array.from({ length: effects.sizes.droplet }, (_, i) => P(`Droplet ${i}`, fxDot, { color: [0.75, 0.9, 0.92], metallic: 0, roughness: 0.05, emission: 0.3, emissiveColor: [0.75, 0.9, 0.92] })),
+    bubble: Array.from({ length: effects.sizes.bubble }, (_, i) => P(`Bubble ${i}`, fxDot, { color: [0.8, 0.93, 0.95], metallic: 0, roughness: 0.05, emission: 0.2, emissiveColor: [0.8, 0.93, 0.95] })),
+    foam: Array.from({ length: effects.sizes.foam }, (_, i) => P(`Foam ${i}`, fxDot, { color: [0.86, 0.93, 0.92], metallic: 0, roughness: 0.6, emission: 0.2, emissiveColor: [0.86, 0.93, 0.92] })),
   };
-  const drawFx = () => { for (const [k, list] of Object.entries(fxParts)) effects.slots(k).forEach((p, i) => { if (!p.on) { hide(list[i]); return; } const sz = p.size * (1 - effects.fade(p) * 0.7); writeYaw(list[i].matrix, p.pos, 0, sz, sz, sz); if (k === 'spark') list[i].material.emissiveColor = p.color; }); };
+  const drawFx = () => { for (const [k, list] of Object.entries(fxParts)) effects.slots(k).forEach((p, i) => { if (!p.on) { hide(list[i]); return; } const sz = p.size * (1 - effects.fade(p) * 0.7); writeYaw(list[i].matrix, p.pos, 0, sz, k === 'foam' ? sz * 0.06 : sz, sz); if (k === 'spark') list[i].material.emissiveColor = p.color; }); };
   // Water disturbances (waterfx.js): up to six rings at once, the raft's wake (two arms at the Kelvin angle and a
   // churned trail) and foam streaks carried by the current. Fixed parts, hidden when idle.
   const field = createWaterField();
@@ -231,6 +233,10 @@ export function createRide(canvas, state, sector, events, opts = {}) {
     const afloat = !overboard && !(capsize && capsize.t > 0.6) && Math.abs(base[1] - wy) < 0.6;
     const strips = afloat ? wakeStrips([base[0], wy, base[2]], [fwd[0], fwd[2]], speed) : [];
     wakeParts.forEach((part, i) => { const w = strips[i]; if (!w) { hide(part); return; } writeYaw(part.matrix, [w.centre[0], wy + 0.012, w.centre[2]], w.yaw, w.width, 0.01, w.length); });
+    // Foam where the water makes it (waterfx.js foamLevel): fast sections whiten, still ones stay clear. Math.random,
+    // not the run's seeded stream, so decoration never changes what the run does.
+    const lvl = foamLevel({ flow: track.sectionAt(s).sec?.speed ?? 0, turbidity: optics.turbidity });
+    if (lvl > 0 && Math.random() < lvl * 0.05) effects.burst('foam', track.lateral(s + 3 + Math.random() * 10, (Math.random() * 2 - 1) * (Math.min(track.sectionAt(s).sec?.half ?? 3, 6) - 0.6), 0.01), { count: 1, speed: 0.3, spread: 1 });
     // Current streaks are anchored to the channel, not the raft: they slide past the walls at the current's speed.
     const sec = track.sectionAt(s).sec;
     const from = s - 10, flow = sec?.speed ?? 0, half = Math.min(sec?.half ?? 3, 6);
@@ -1930,6 +1936,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
         sound.accent?.('land');
         state.noise = Math.min(100, state.noise + 12);
         stir(track.lateral(s + 1, offset, 0), 'splash');
+        effects.burst('foam', track.lateral(s + 1, offset, 0.01), { count: 5, speed: 1.2, spread: 1, density: quality.particles ?? 1 });
         // Coming down on debris, or coming down soft, tears the rear chamber.
         // Brace before you land and the hull takes it.
         if (braced) hud.toast('BRACED FOR THE LANDING');
@@ -3846,6 +3853,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
         held = 4;
         sound.gurgle();
         damage(12, 'The Undertow surfaced under the raft.', 15);
+        { const at = track.lateral(s, offset, 0); stir(at, 'surface'); effects.burst('bubble', add(at, [0, -0.1, 0]), { count: 6, speed: 0.8, spread: 1, density: quality.particles ?? 1 }); effects.burst('foam', add(at, [0, 0.01, 0]), { count: 4, speed: 1, spread: 1, density: quality.particles ?? 1 }); }
         state.drift = Math.min(100, state.drift + 12);
         wake.dist = 28;
       }

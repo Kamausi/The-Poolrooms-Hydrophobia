@@ -1117,6 +1117,8 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
   const fxParts = {
     spark: Array.from({ length: effects.sizes.spark }, (_, i) => P(`Spark ${i}`, fxDot, glow([1, 0.9, 0.6], 8))),
     droplet: Array.from({ length: effects.sizes.droplet }, (_, i) => P(`Droplet ${i}`, fxDot, { color: [0.75, 0.9, 0.92], metallic: 0, roughness: 0.05, emission: 0.3, emissiveColor: [0.75, 0.9, 0.92] })),
+    bubble: Array.from({ length: effects.sizes.bubble }, (_, i) => P(`Bubble ${i}`, fxDot, { color: [0.8, 0.93, 0.95], metallic: 0, roughness: 0.05, emission: 0.2, emissiveColor: [0.8, 0.93, 0.95] })),
+    foam: Array.from({ length: effects.sizes.foam }, (_, i) => P(`Foam ${i}`, fxDot, { color: [0.86, 0.93, 0.92], metallic: 0, roughness: 0.6, emission: 0.2, emissiveColor: [0.86, 0.93, 0.92] })),
   };
   // Water disturbances (waterfx.js): up to six rings at once, flat tori that widen and thin out on the surface.
   const field = createWaterField();
@@ -1153,7 +1155,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     if (st && st.time === time) { ripple = [...st.at]; rippleTime = time; }
   };
   let wadeT = 0;
-  const drawFx = () => { for (const [k, list] of Object.entries(fxParts)) effects.slots(k).forEach((p, i) => { if (!p.on) { hide(list[i]); return; } const sz = p.size * (1 - effects.fade(p) * 0.7); writeYaw(list[i].matrix, p.pos, 0, sz, sz, sz); if (k === 'spark') list[i].material.emissiveColor = p.color; }); };
+  const drawFx = () => { for (const [k, list] of Object.entries(fxParts)) effects.slots(k).forEach((p, i) => { if (!p.on) { hide(list[i]); return; } const sz = p.size * (1 - effects.fade(p) * 0.7); writeYaw(list[i].matrix, p.pos, 0, sz, k === 'foam' ? sz * 0.06 : sz, sz); if (k === 'spark') list[i].material.emissiveColor = p.color; }); };
   { const showBeam = blaster.showBeam; blaster.showBeam = (from, to, ...rest) => {
     const c = PROFILES[state.profile]?.color || [1, 0.85, 0.6];
     flashes.flash(from, { color: c, intensity: state.profile === 'scatter' ? 9 : 6, range: 7, life: 0.07 });
@@ -1603,7 +1605,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     {
       const c = PROFILES[state.profile]?.color || [1, 0.9, 0.6], k = quality.particles ?? 1;
       const wet = isWater(...cellOf(end0[0], end0[2])) && end0[1] < 0.3;
-      if (wet) effects.burst('droplet', end0, { count: 6, dir: [0, 1, 0], speed: 2.4, spread: 0.5, density: k });
+      if (wet) { effects.burst('droplet', end0, { count: 6, dir: [0, 1, 0], speed: 2.4, spread: 0.5, density: k }); effects.burst('bubble', add(end0, [0, -0.2, 0]), { count: 3, speed: 0.4, spread: 1, density: k }); }
       else effects.burst('spark', end0, { count: 5, dir: scale(dir, -1), speed: 3.2, spread: 0.9, color: c, density: k });
     }
     hit?.();
@@ -1756,7 +1758,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     if (moving && !nowMoving) stoppedAt = time;
     moving = nowMoving;
     if (nowMoving) bob += dt * (water ? 5 : 8);
-    if (water && !wasWater) { jolt(0.35); sound.splash(); stir(player.pos, 'splash'); noise(player.pos, 'splash'); }
+    if (water && !wasWater) { jolt(0.35); sound.splash(); stir(player.pos, 'splash'); noise(player.pos, 'splash'); effects.burst('foam', [player.pos[0], waterLevel(pcx, pcz) + 0.01, player.pos[2]], { count: 4, speed: 0.6, spread: 1, density: quality.particles ?? 1 }); }
     // Wading: every stride through water sends out a ring.
     wadeT -= dt;
     if (water && nowMoving && wadeT <= 0) { wadeT = 0.45; stir(player.pos, 'step'); }
@@ -3100,6 +3102,8 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     const canEnter = (x, z) => isWater(x, z) || at(x, z) === 'x' || (at(x, z) === 'B' && highWater);
     if (undertow.holding > 0) {
       undertow.holding -= dt;
+      // Your air going up past your face.
+      if (Math.floor(time * 3) !== Math.floor((time - dt) * 3)) effects.burst('bubble', add(player.pos, [0, 0.9, 0]), { count: 2, speed: 0.5, spread: 1, density: quality.particles ?? 1 });
       // Solo rule: nobody can pull you out, so you can kick free yourself.
       if (wasPressed(' ')) {
         undertow.holding -= 0.55;

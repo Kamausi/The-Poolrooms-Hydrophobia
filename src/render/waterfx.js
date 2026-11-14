@@ -99,9 +99,12 @@ export function streaks(count, span, flow, t) {
   });
 }
 
-/** Foam from the conditions (each 0..1, flow in m/s): fast water, waves and falls whiten it; turbid water holds it. */
+/**
+ * Foam from the conditions (waves and falls 0..1, flow in m/s): fast water, waves and falls whiten it; turbid water
+ * holds it. Channel currents here run 2.4 (the lift) to 12.5 m/s (the flume): nothing foams below 5 m/s.
+ */
 export function foamLevel({ flow = 0, waves = 0, falls = 0, turbidity = 0 } = {}) {
-  const f = Math.min(1, Math.max(0, flow - 1.5) / 4) * 0.5 + waves * 0.45 + falls * 0.6;
+  const f = Math.min(1, Math.max(0, flow - 5) / 8) * 0.5 + waves * 0.45 + falls * 0.6;
   return Math.max(0, Math.min(1, f * (1 + Math.min(0.5, turbidity))));
 }
 

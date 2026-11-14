@@ -1,14 +1,15 @@
-// Short-lived effects from a fixed set of slots: impact sparks, splash droplets, bubbles. Like the light pool, nothing
+// Short-lived effects from a fixed set of slots: impact sparks, splash droplets, bubbles, foam patches. Like the light pool, nothing
 // is created or destroyed during play: a burst takes free slots, and when a kind is full the oldest piece is taken
 // over. Each piece moves on its own (sparks fall fast, droplets arc and fall, bubbles rise and wobble) and fades
-// over its life. How many pieces a burst makes follows the quality `particles` density (tiers.js `thinning`).
+// over its life (foam stays on the surface it was put on and only spreads). How many pieces a burst makes follows the quality `particles` density (tiers.js `thinning`).
 // Pure: the scenes draw each live slot with a part of their own.
 
-/** Per kind: slots, life in seconds, gravity (m/s², negative rises), drag, starting size. */
+/** Per kind: slots, life in seconds, gravity (m/s², negative rises), drag, starting size; flat keeps it level. */
 export const KINDS = {
   spark: { slots: 12, life: 0.28, gravity: 9, drag: 2.5, size: 0.05 },
   droplet: { slots: 12, life: 0.7, gravity: 9.8, drag: 0.6, size: 0.06 },
   bubble: { slots: 8, life: 1.6, gravity: -1.2, drag: 3, size: 0.05 },
+  foam: { slots: 10, life: 2.2, gravity: 0, drag: 1.5, size: 0.22, flat: true },
 };
 
 /** A tiny deterministic random so tests and replays agree. */
@@ -51,7 +52,7 @@ export function createEffectPool({ seed = 7, kinds = KINDS } = {}) {
           p.age += dt;
           if (p.age >= p.life) { p.on = false; continue; }
           const keep = Math.exp(-o.drag * dt);
-          p.vel = [p.vel[0] * keep, (p.vel[1] - o.gravity * dt) * keep, p.vel[2] * keep];
+          p.vel = [p.vel[0] * keep, o.flat ? 0 : (p.vel[1] - o.gravity * dt) * keep, p.vel[2] * keep];
           if (k === 'bubble') p.vel[0] += Math.sin(now * 9 + p.size * 100) * dt * 0.6; // a wobble on the way up
           p.pos = [p.pos[0] + p.vel[0] * dt, p.pos[1] + p.vel[1] * dt, p.pos[2] + p.vel[2] * dt];
         }
