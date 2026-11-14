@@ -413,6 +413,22 @@ body.aboard .raft-panel { display: grid; }
 /* A brief impact mark when a shot connects. */
 #crosshair.hit { animation: impact 0.2s ease-out; }
 @keyframes impact { from { box-shadow: 0 0 0 1px #080d10cc, 0 0 0 6px #d8d8ca88; transform: translate(-50%, -50%) scale(1.35); } }
+/* Hit variants, by shape first: a weak point adds four ticks, a kill a closing ring, a hit that did nothing goes grey. */
+#crosshair.hit-weak::before { opacity: 1; inset: -9px; border: 2px dashed var(--porcelain); border-radius: 50%; animation: tick 0.24s ease-out forwards; }
+#crosshair.hit-kill::after { opacity: 1; inset: -14px; border: 2px solid var(--coral); border-radius: 50%; background: none; -webkit-mask: none; mask: none; animation: closing 0.32s ease-in forwards; }
+#crosshair.hit-none { animation: none; border-color: #8a8f8a; }
+@keyframes tick { to { opacity: 0; transform: rotate(45deg); } }
+@keyframes closing { from { transform: scale(1.4); } to { transform: scale(0.6); opacity: 0; } }
+
+/* A hit from one side: an arc at the rim of the view pointing where it came from (0deg is straight ahead, the top). */
+#damage-arcs { position: fixed; inset: 0; pointer-events: none; }
+#damage-arcs i { position: absolute; left: 50%; top: 50%; width: 46vmin; height: 46vmin; margin: -23vmin; border-radius: 50%; opacity: 0; transform: rotate(var(--b, 0deg)); border-top: calc(6px + 8px * var(--k, 0.5)) solid #c45a50; -webkit-mask: linear-gradient(90deg, transparent 22%, #000 40%, #000 60%, transparent 78%); mask: linear-gradient(90deg, transparent 22%, #000 40%, #000 60%, transparent 78%); }
+#damage-arcs i.on { animation: arc 1.1s ease-out; }
+@keyframes arc { 0% { opacity: calc(0.5 + 0.5 * var(--k, 0.5)); } 100% { opacity: 0; } }
+body.flash-reduce #damage-arcs i.on { animation-duration: 0.6s; }
+/* Health rests (fades back) while you are whole. */
+.vital-row.rest:not(.drift-row) { opacity: 0; transition: opacity 0.8s; }
+.vital-row:not(.drift-row) { transition: opacity 0.2s; }
 
 /* Subtitles: a dedicated band with optional backing; the source label names who (or what) is speaking. */
 body.subtitle-backing #subtitle.show { background: #080d10d9; padding: 8px 16px; }

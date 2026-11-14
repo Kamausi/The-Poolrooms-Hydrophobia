@@ -2,6 +2,7 @@
 import { settings } from './settings.js';
 import { labelForDefaultKey, bindingLabel } from './input.js';
 import { crewById } from './crew.js';
+import { vitalsShown, arcStrength } from './hudcues.js';
 
 const $ = (id) => document.getElementById(id);
 const el = {};
@@ -17,6 +18,7 @@ let hushT = 0, lastAttendant = -999, clock = 0;
 const ATTENDANT_GAP = 30; // the PA is rare enough that its arrival changes the room
 const HINT_SECONDS = 7;
 let player = 'MARS';
+let sinceHurt = Infinity, arcNext = 0;
 let last = null; // the run's state, for lines that depend on Drift and the manifest
 const CREW_NAMES = ['MARS', 'DEZ', 'TUBS', 'JUNE'];
 /** "E · Board", "HOLD E", "hold G", "Z / tap B": key letters become the player's current binding, in brackets. */
@@ -195,6 +197,8 @@ export const hud = {
     el.vitals.textContent = Math.ceil(state.health);
     el['vitals-bar'].style.width = `${Math.min(100, state.health)}%`;
     el['vitals-bar'].classList.toggle('low', state.health < 30);
+    // Health is off the screen while you are whole; it comes back with an injury, a recent hit, or being down.
+    el.vitals.parentElement.classList.toggle('rest', !vitalsShown({ health: state.health, sinceHurt, persistent: !!settings.hudPersistent, downed: !!state.downed }));
     el.drift.textContent = Math.floor(state.drift);
     el['drift-bar'].style.width = `${state.drift}%`;
     el.charge.textContent = state.charge;
@@ -252,16 +256,35 @@ export const hud = {
     el.scan.style.left = `${x}%`;
     el.scan.style.top = `calc(${y}% + 26px)`;
   },
-  hitmarker() {
-    if (last?.tally) last.tally.hits = Math.min(last.tally.shots, last.tally.hits + 1);
-    el.crosshair.classList.remove('hit');
+  /** A shot connected. kind (hudcues.js hitKind): hit, weak (a weak point), kill, none (it did nothing): each its own shape. */
+  hitmarker(kind = 'hit') {
+    if (last?.tally && kind !== 'none') last.tally.hits = Math.min(last.tally.shots, last.tally.hits + 1);
+    el.crosshair.classList.remove('hit', 'hit-weak', 'hit-kill', 'hit-none');
     void el.crosshair.offsetWidth;
     el.crosshair.classList.add('hit');
+    if (kind !== 'hit') el.crosshair.classList.add(`hit-${kind}`);
+    el.crosshair.dataset.hit = kind;
   },
-  damage() {
-    el.damage.classList.remove('flash');
-    void el.damage.offsetWidth;
-    el.damage.classList.add('flash');
+  /**
+   * You were hurt. With a bearing (degrees from straight ahead, positive right), an arc on that side of the view;
+   * without one (fumes, being held under), the whole edge darkens as before.
+   */
+  damage(bearing = null, n = 10) {
+    sinceHurt = 0;
+    const arcs = document.getElementById('damage-arcs');
+    if (bearing == null || !arcs || settings.damageArcs === false) {
+      el.damage.classList.remove('flash');
+      void el.damage.offsetWidth;
+      el.damage.classList.add('flash');
+      return;
+    }
+    const a = arcs.children[arcNext++ % arcs.children.length];
+    a.style.setProperty('--b', `${Math.round(bearing)}deg`);
+    a.style.setProperty('--k', arcStrength(n).toFixed(2));
+    a.classList.remove('on');
+    void a.offsetWidth;
+    a.classList.add('on');
+    arcs.dataset.last = String(Math.round(bearing));
   },
   /** Inspection beam readout under the crosshair. */
   scan(text) {
@@ -323,6 +346,7 @@ export const hud = {
   },
   update(dt) {
     clock += dt;
+    sinceHurt += dt;
     hushT = Math.max(0, hushT - dt);
     scoreWake = Math.max(0, scoreWake - dt);
     if (objectiveTimer > 0) {

@@ -26,6 +26,9 @@ No other code in `src/` or `tests/` is copied from another project. Three.js is 
 | `src/lightpool.js` | Reuse a small pool of dynamic lights for flashes | Our own slot rule and fade |
 | `src/voicepool.js` | Priority-based voice stealing | Our own priorities and limits |
 | `src/bench.js`, `?show=` | Benchmark and showcase modes | Our own report and scenes |
+| `src/effectpool.js` | Pool short-lived effects instead of creating them | Our own kinds, slot counts, motion and steal rule |
+| `src/tileflavour.js` | Vary one material by seed, place, age, humidity and flooding | Our own parameters, drawn by our existing tile texture |
+| `src/hudcues.js` | Health hidden until injured, directional damage, hit-marker variants | Our own rules, bearings and marks |
 
 If Saltline source is ever brought in, record here which file it came from, who generated it, and the terms it is used under, before any of it is copied.
 

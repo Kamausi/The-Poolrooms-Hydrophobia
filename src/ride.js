@@ -2,6 +2,7 @@
 // channel sections recycle a fixed pool of segment parts ahead of the camera, and rooms (holding pools,
 // the arrival bay) have their own parts. A 67js renderer keeps the part list it was built with, so every
 // entity here is a pool of parts that are moved, recoloured or hidden.
+import { CHAMBER_BEARING, hitKind } from './hudcues.js';
 import { Renderer67 } from '67js';
 import { box, sphere, cylinder, torus } from './shapes.js';
 import { dot, writeYaw, writeBasis, writeSegment, hide, add, sub, scale, normalize, clamp, damp, rng, screenRay, raySphere, rayPlaneY, linear, cross, display, project, angleTo, soundDir, distance } from './math.js';
@@ -883,7 +884,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
   function hitAnchor(i) {
     ballast.anchors[i] -= state.damage;
     sound.hit();
-    hud.hitmarker();
+    hud.hitmarker(hitKind({ weak: true, killed: ballast.anchors[i] <= 0 }));
     if (ballast.anchors[i] <= 0) {
       sound.burst();
       hud.caption(`[an anchoring growth tears free — ${ballast.anchors.filter((a) => a > 0).length} left]`);
@@ -1368,9 +1369,9 @@ export function createRide(canvas, state, sector, events, opts = {}) {
   /** chamber and cause say where the raft was hit and what did it: it can open a leak, or put you over the side. */
   function damage(n, reason, raftHit = 0, chamber = null, cause = null) {
     if (protect > 0) return; // just rescued: a moment to get your hands back
-    events.damage(n, reason);
+    const k = raftHit ? chamber || CHAMBERS[Math.floor(random() * 4)] : chamber;
+    events.damage(n, reason, false, k ? CHAMBER_BEARING[k] : null); // the arc shows the side of the raft that was hit
     if (raftHit) {
-      const k = chamber || CHAMBERS[Math.floor(random() * 4)];
       const housed = k === 'bow' && gear('bow');
       hull.hit(k, raftHit * (housed ? 0.6 : 1.2), cause, cause ? (housed ? 0.08 : 0.22) : 0);
       const soft = CHAMBERS.filter((c) => state.chambers[c] < 20).length;
@@ -1408,12 +1409,12 @@ export function createRide(canvas, state, sector, events, opts = {}) {
     if (restrained && !restrained.freed && restrained.strapPos) T(restrained.strapPos, 0.28, () => freeRestrained(), 'strap');
     if (ballast && !ballast.done) {
       ballast.anchorPos?.forEach((pos, i) => { if (ballast.anchors[i] > 0) T(pos, 0.7, () => hitAnchor(i), `anchor${i}`); });
-      if (ballast.exposed) T(ballast.corePos, 1.1, () => { ballast.core -= state.damage; sound.hit(); hud.hitmarker(); ballastParts.core.material.emission = 12; }, 'ballast');
+      if (ballast.exposed) T(ballast.corePos, 1.1, () => { ballast.core -= state.damage; sound.hit(); hud.hitmarker(hitKind({ weak: true, killed: ballast.core <= 0 })); ballastParts.core.material.emission = 12; }, 'ballast');
     }
     for (const b of blooms) if (b.active && !b.dying) T(b.pos, 0.75, () => {
       b.hp -= state.damage;
       sound.hit();
-      hud.hitmarker();
+      hud.hitmarker(hitKind({ killed: b.hp <= 0 }));
       // Every hit reads: a flash, a stagger, a shove backwards.
       b.flash = 0.12;
       b.stagger = shotProfile === 'scatter' ? 0.7 : 0.3;
@@ -1450,7 +1451,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
         r.anchors = r.anchors || [2, 2];
         r.anchors[i] -= shotProfile === 'disruptor' ? 2 : 1;
         sound.hit();
-        hud.hitmarker();
+        hud.hitmarker(hitKind({ weak: true, killed: r.anchors[i] <= 0 }));
         if (r.anchors[i] <= 0) {
           r.floats.forEach((f) => (f.alive = false));
           r.active = false;
@@ -1625,7 +1626,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
           best = t;
           hit = () => {
             u.hp -= state.damage;
-            hud.hitmarker();
+            hud.hitmarker(hitKind({ killed: u.hp <= 0 }));
             sound.hit();
             ripple = c;
             rippleTime = time;
@@ -3745,7 +3746,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
           hud.caption('[it splashes against the hull]');
         } else {
           sh.active = false;
-          damage(9, 'A Spitter\'s glob hit you.', 0);
+          damage(9, 'A Spitter\'s glob hit you.', 0, 'bow'); // globs come at you over the bow
         }
       }
       if (sh.t > 8) sh.active = false;

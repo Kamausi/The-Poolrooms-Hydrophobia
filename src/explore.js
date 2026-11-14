@@ -1,6 +1,7 @@
 // On foot at a dock. You can go anywhere you can reach, but you must find your own way back to the raft.
 // The goal: carry the power cell to the service panel (which opens the gate to the Safe Room's arrival
 // bay), then return to the moored raft. Each attraction adds its own rules (see sectors.js).
+import { bearing, hitKind } from './hudcues.js';
 import { waterOptics } from './waterlook.js';
 import { applyWaterReflection, attachWaterReflection } from '67js/addons/water-reflection';
 import { createLaneRope } from './lanerope.js';
@@ -1473,7 +1474,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
       if (b.dormant) b.woken = true;
       // A hit that doesn't kill collapses a chamber: it sags, hisses, and the Bloom lurches to the other side.
       else if (b.hp > 0) { const k = b.ch[0] > 0.5 ? 0 : 1; if (b.ch[k] > 0.5) { b.ch[k] = 0.2; sound.gurgle(); } }
-      hud.hitmarker();
+      hud.hitmarker(hitKind({ killed: b.hp <= 0 }));
       sound.hit();
       b.flash = 0.12;
       b.stagger = 0.35;
@@ -1539,7 +1540,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
           best = t;
           hit = () => {
             undertow.hp -= state.damage;
-            hud.hitmarker();
+            hud.hitmarker(hitKind({ killed: undertow.hp <= 0 }));
             sound.hit();
             ripple = [undertow.pos[0], 0, undertow.pos[2]];
             rippleTime = time;
@@ -3042,7 +3043,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
       if (d < 1) {
         b.active = false;
         sound.burst();
-        events.damage(14, 'A Bloom burst against you.');
+        events.damage(14, 'A Bloom burst against you.', false, bearing(player.yaw, player.pos, b.pos));
         flashes.flash(b.pos, { color: [0.77, 0.35, 0.31], intensity: 6, range: 5, life: 0.18 });
         jolt(1);
       }
@@ -3383,7 +3384,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
         else if (freedBy !== 'burst') hud.say(freedBy.toUpperCase(), pick(['Got you — pull! PULL!', 'Let go of them. Let GO.', 'I have your vest. Kick!']), 'crew', true);
         sound.shove();
       } else if (L.grabT > 2.5 && Math.hypot(player.pos[0] - L.base[0], player.pos[2] - L.base[2]) < 1.4) {
-        events.damage(30, 'The Lifeguard held you under at its tower.');
+        events.damage(30, 'The Lifeguard held you under at its tower.', false, lifeguard.pos ? bearing(player.yaw, player.pos, lifeguard.pos) : null);
         state.drift = Math.min(100, state.drift + 20);
         L.state = 'returning'; L.next = null; L.violations = 1;
       }

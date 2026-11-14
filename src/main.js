@@ -124,7 +124,8 @@ function expeditionRecord() {
 
 // ---------- Events from scenes ----------
 const events = {
-  damage(n, reason, quiet = false) {
+  /** from: where the hit came from, as a bearing in degrees from straight ahead (hudcues.js), when it has a side. */
+  damage(n, reason, quiet = false, from = null) {
     if (mode !== 'ride' && mode !== 'explore') return;
     if (n < 999) n *= settings.damageAssist ?? 1;
     playlog.record('damage', { reason: reason || 'unknown', n: Math.round(n * 10) / 10 });
@@ -135,7 +136,7 @@ const events = {
     if (n < 999 && !quiet) state.hurtFx = Math.min(1, Math.max(state.hurtFx || 0, 0.35 + n / 25));
     state.lastHurt = reason;
     if (n < 999 && !quiet) scoreHurt(state, n); // a hit costs FLOW; slow drains (Drift, a hold) do not
-    if (!quiet) { hud.damage(); sound.hurt(); rumble('hurt', Math.min(1.4, 0.5 + n / 20)); }
+    if (!quiet) { hud.damage(from, n); sound.hurt(); rumble('hurt', Math.min(1.4, 0.5 + n / 20)); }
   },
   heal(n) { state.health = Math.min(100, state.health + n); },
   /** Points for something done. kind names a row in score.js (kill, weak, save, gate…); FLOW multiplies it. */
