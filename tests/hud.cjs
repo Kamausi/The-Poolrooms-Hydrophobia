@@ -26,6 +26,23 @@ const { open, newCampaign, check, finish } = require('./lib.cjs');
     u.hold('b', false); u.step(3);
     return { open, labels, closed: document.getElementById('callouts').hidden }; });
   check('holding Ping opens six callouts; releasing sends one', r.open && r.labels.length === 6 && r.closed, JSON.stringify(r));
+  // Health rests while you are whole; a hit shows as an arc on the side it came from; the reticle marks a kill.
+  r = await page.evaluate(() => { const u = window.__underflow; u.beginSector(1); u.startRide(); u.startExplore(); u.setState({ health: 100 }); u.step(3); const E = window.__explore;
+    E.blooms.forEach((b) => { b.active = false; }); u.setState({ health: 100 }); for (let k = 0; k < 6; k++) u.step(50);
+    const row = () => document.getElementById('vitals').parentElement.classList.contains('rest');
+    const whole = row(); const p = [...E.player.pos], y = E.player.yaw;
+    const b = E.spawnBloom([p[0] + Math.cos(y) * 0.6, 1.3, p[2] - Math.sin(y) * 0.6], false); let burst = false;
+    for (let k = 0; k < 4 && !burst; k++) { E.player.pos = [...p]; E.player.yaw = y; u.step(1); burst = !b.active; }
+    const side = Number(document.getElementById('damage-arcs').dataset.last), shown = !row();
+    u.setState({ health: 100 }); for (let k = 0; k < 6; k++) u.step(50); const rests = row();
+    u.setState({ health: 60 }); for (let k = 0; k < 6; k++) u.step(50); const hurt = !row();
+    u.setState({ health: 1e6 });
+    const t = E.spawnBloom([p[0] - Math.sin(y) * 6, 1.6, p[2] - Math.cos(y) * 6], false); t.hp = 0.01;
+    E.player.pos = [...p]; E.player.yaw = y; E.shoot([p[0], 1.6, p[2]], [-Math.sin(y), 0, -Math.cos(y)]); u.step(1);
+    return { whole, burst, side, shown, rests, hurt, mark: document.getElementById('crosshair').dataset.hit }; });
+  check('health stays off screen while you are whole, returns when hurt, and rests again after', r.whole && r.shown && r.rests && r.hurt, JSON.stringify(r));
+  check('a Bloom bursting on your right shows its arc on the right', r.burst && r.side > 45 && r.side < 135, JSON.stringify(r));
+  check('a killing shot marks the reticle as a kill', r.mark === 'kill', JSON.stringify(r));
   r = await page.evaluate(() => { const u = window.__underflow; u.beginSector(1); u.enterSafeRoom(); u.step(2);
     const heads = [...document.querySelectorAll('.sheet-head')].map((h) => h.textContent);
     const deal = document.querySelector('.choice .deal')?.textContent || '';

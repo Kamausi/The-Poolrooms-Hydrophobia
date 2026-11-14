@@ -2,35 +2,39 @@
 // channel sections recycle a fixed pool of segment parts ahead of the camera, and rooms (holding pools,
 // the arrival bay) have their own parts. A 67js renderer keeps the part list it was built with, so every
 // entity here is a pool of parts that are moved, recoloured or hidden.
+import { CHAMBER_BEARING, hitKind } from './hudcues.js';
 import { Renderer67 } from '67js';
-import { box, sphere, cylinder, torus } from './shapes.js';
+import { box, sphere, cylinder, torus } from './render/shapes.js';
 import { dot, writeYaw, writeBasis, writeSegment, hide, add, sub, scale, normalize, clamp, damp, rng, screenRay, raySphere, rayPlaneY, linear, cross, display, project, angleTo, soundDir, distance } from './math.js';
-import { tileTexture, tileNormal } from './textures.js';
+import { tileTexture, tileNormal } from './render/textures.js';
 import { signMaterial, quad } from './labels.js';
 import { createCrewFigure, hideCrewFigure, poseSeated, poseProne, VISITOR_LOOK } from './crewfigure.js';
 import { createCallouts } from './callouts.js';
 import { createBlaster, PROFILES, PROFILE_ORDER } from './blaster.js';
 import { input, wasPressed, isDown, labelForDefaultKey as labelFor } from './input.js';
 import { hud } from './hud.js';
-import { sound } from './audio.js';
-import { quality } from './quality.js';
-import { rumble } from './haptics.js';
+import { sound } from './audio/audio.js';
+import { quality } from './render/quality.js';
+import { rumble } from './feel/haptics.js';
 import { planColonnade, archRadius } from './poolrooms.js';
-import { createBudget } from './pressure.js';
-import { assignShadows } from './shadows.js';
-import { surface } from './surfaces.js';
-import { createLightPool, mergeLights } from './lightpool.js';
-import { lightAtEye, targetExposure, adapt as adaptExposure, hazeVolume } from './exposure.js';
-import { buildChain, shaftSource } from './postchain.js';
+import { createBudget } from './ai/pressure.js';
+import { createRig } from './feel/spring.js';
+import { createEffectPool } from './render/effectpool.js';
+import { createWaterField, ringShape, wakeStrips, streaks } from './render/waterfx.js';
+import { assignShadows } from './render/shadows.js';
+import { surface } from './render/surfaces.js';
+import { createLightPool, mergeLights } from './render/lightpool.js';
+import { lightAtEye, targetExposure, adapt as adaptExposure, hazeVolume } from './render/exposure.js';
+import { buildChain, shaftSource } from './render/postchain.js';
 import { installUserPasses } from '67js/addons/user-pass';
-import { magnet, friction, wedges as threatWedges } from './aim.js';
+import { magnet, friction, wedges as threatWedges } from './feel/aim.js';
 import { settings } from './settings.js';
 import { AMBIENT } from './sectors.js';
 import { Track, EXIT_OFFSET, section } from './track.js';
-import { createDirector, AFTERMATH, BANTER } from './director.js';
+import { createDirector, AFTERMATH, BANTER } from './ai/director.js';
 import { createHull, CHAMBERS, CHAMBER_NAME } from './hull.js';
-import { createLaneRope } from './lanerope.js';
-import { waterOptics } from './waterlook.js';
+import { createLaneRope } from './render/lanerope.js';
+import { waterOptics } from './render/waterlook.js';
 
 const SEG = 6;
 const SEGMENTS = 28;
@@ -192,14 +196,59 @@ export function createRide(canvas, state, sector, events, opts = {}) {
     arc: P('Relay arc', slab, glow([0.8, 0.9, 1], 10)),
     s: 0, active: false, divS: 0, divSide: 1, divActive: false, divDone: false, arcT: 0,
   };
-  const spark = P('Impact spark', sphere(10, 8), glow([1, 0.9, 0.6], 10));
+  // Impact effects from a fixed pool (effectpool.js): sparks in the blaster's colour, droplets where a shot hits water.
+  const effects = createEffectPool();
+  const fxDot = sphere(8, 6);
+  const fxParts = {
+    spark: Array.from({ length: effects.sizes.spark }, (_, i) => P(`Spark ${i}`, fxDot, glow([1, 0.9, 0.6], 8))),
+    droplet: Array.from({ length: effects.sizes.droplet }, (_, i) => P(`Droplet ${i}`, fxDot, { color: [0.75, 0.9, 0.92], metallic: 0, roughness: 0.05, emission: 0.3, emissiveColor: [0.75, 0.9, 0.92] })),
+  };
+  const drawFx = () => { for (const [k, list] of Object.entries(fxParts)) effects.slots(k).forEach((p, i) => { if (!p.on) { hide(list[i]); return; } const sz = p.size * (1 - effects.fade(p) * 0.7); writeYaw(list[i].matrix, p.pos, 0, sz, sz, sz); if (k === 'spark') list[i].material.emissiveColor = p.color; }); };
+  // Water disturbances (waterfx.js): up to six rings at once, the raft's wake (two arms at the Kelvin angle and a
+  // churned trail) and foam streaks carried by the current. Fixed parts, hidden when idle.
+  const field = createWaterField();
+  const foamMat = (e, blend = false) => ({ color: [0.82, 0.92, 0.92], metallic: 0, roughness: 0.15, emission: e, emissiveColor: [0.82, 0.92, 0.92], ...(blend ? { alphaMode: 'blend', opacity: 0.4 } : {}) });
+  const ringGeo = torus(0.05, 40, 6);
+  const ringParts = field.rings.map((_, i) => P(`Water ring ${i}`, ringGeo, foamMat(0.25)));
+  const wakeParts = [0, 1, 2].map((i) => P(`Wake ${i}`, box(), foamMat(0.2, true)));
+  const STREAKS = 8, STREAK_SPAN = 40;
+  const streakParts = Array.from({ length: STREAKS }, (_, i) => P(`Current streak ${i}`, box(), foamMat(0.15, true)));
+  /** A disturbance on the water: a ring, and the engine's own ripple when it is strong enough. */
+  const stir = (pos, kind = 'splash') => {
+    field.impulse([pos[0], track.at(s).p[1], pos[2]], kind, time);
+    const st = field.strongest();
+    if (st && st.time === time) { ripple = [...st.at]; rippleTime = time; }
+  };
+  let strokeSide = 1;
+  function drawWater(base, fwd) {
+    const wy = track.at(s).p[1];
+    field.rings.forEach((r, i) => {
+      const sh = ringShape(r, time);
+      if (!sh) { hide(ringParts[i]); return; }
+      writeBasis(ringParts[i].matrix, [sh.at[0], sh.at[1] + 0.01, sh.at[2]], [1, 0, 0], [0, 0, -1], [0, 1, 0], sh.radius, sh.radius, Math.max(0.05, sh.fade * 0.6));
+      ringParts[i].material.emission = 0.05 + sh.fade * 0.4;
+    });
+    const afloat = !overboard && !(capsize && capsize.t > 0.6) && Math.abs(base[1] - wy) < 0.6;
+    const strips = afloat ? wakeStrips([base[0], wy, base[2]], [fwd[0], fwd[2]], speed) : [];
+    wakeParts.forEach((part, i) => { const w = strips[i]; if (!w) { hide(part); return; } writeYaw(part.matrix, [w.centre[0], wy + 0.012, w.centre[2]], w.yaw, w.width, 0.01, w.length); });
+    // Current streaks are anchored to the channel, not the raft: they slide past the walls at the current's speed.
+    const sec = track.sectionAt(s).sec;
+    const from = s - 10, flow = sec?.speed ?? 0, half = Math.min(sec?.half ?? 3, 6);
+    streaks(STREAKS, STREAK_SPAN, flow, time).forEach((st, i) => {
+      const sw = from + ((((st.along - from) % STREAK_SPAN) + STREAK_SPAN) % STREAK_SPAN);
+      const edge = Math.min(sw - from, from + STREAK_SPAN - sw) / 4;
+      const k = st.fade * Math.min(1, edge);
+      if (k < 0.05 || sec?.sky) { hide(streakParts[i]); return; }
+      const a = track.lateral(sw, st.side * (half - 0.5), 0.008), b = track.lateral(sw + 1, st.side * (half - 0.5), 0.008);
+      writeYaw(streakParts[i].matrix, a, Math.atan2(b[0] - a[0], b[2] - a[2]), 0.06 * k, 0.01, 1.6 * k);
+    });
+  }
   // Remembered death on the water: a flotation vest caught against the wall at the spot.
   const deathAt = sector.variant?.deathAt?.mode === 'ride' && sector.variant.deathAt.f != null ? sector.variant.deathAt : null;
   const deathVest = P('Vest caught against the wall', box(0.03, 2), { color: linear('#b46a3c'), metallic: 0, roughness: 0.65 });
   if (sector.variant && Object.keys(sector.variant).some((k) => k !== 'notes') && !opts.resumeS) setTimeout(() => hud.say('THE ATTENDANT', sector.variant.dangerous ? 'Welcome back, guest. We kept your place.' : 'Welcome back, guest. Some improvements have been made since your last visit.', 'attendant', true), 2500);
   // Where the raft is going: a faint line of foam, so momentum, currents and a soft side can be read before they bite.
   const traj = Array.from({ length: 7 }, (_, i) => P(`Trajectory ${i}`, slab, glow([0.5, 0.56, 0.55], 0.06, { color: [0.2, 0.24, 0.24], roughness: 0.6 })));
-  let sparkT = 0, sparkAt = null;
   let ambientT = null;
   let reticleTick = 0, hoverTarget = false;
   // Tap Ping to mark or radio-check; hold for the callout strip.
@@ -250,7 +299,9 @@ export function createRide(canvas, state, sector, events, opts = {}) {
       const sway = Math.sin(time * 1.3 + seat) * 0.03 + (paddleT > 0.5 ? Math.sin(strokePhase * Math.PI * 2) * 0.06 : 0);
       const p = add(add(add(base, scale(rgt, x + sway)), scale(fwd, z)), scale(up, 0.12));
       // They lean into turns (against the slide), and jolt on impacts; bracing hunches them forward.
-      const upL = normalize(add(add(up, scale(rgt, clamp(-velX * 0.05, -0.22, 0.22) + (shake > 0.3 ? Math.sin(time * 40 + seat) * 0.05 : 0))), scale(fwd, duck * 0.8)));
+      // The crew lurch with the same springs as the camera: a hit from the left throws them right, then they settle.
+      const lurch = -camRig.get('roll') * 0.12 + camRig.get('heave') * 0.04 * (seat % 2 ? 1 : -1);
+      const upL = normalize(add(add(up, scale(rgt, clamp(-velX * 0.05 + lurch, -0.3, 0.3) + (shake > 0.3 ? Math.sin(time * 40 + seat) * 0.05 : 0))), scale(fwd, duck * 0.8)));
       poseSeated(f, { p, rgt, fwd, up, upL, side: x < 0 ? -1 : 1, stroke: paddleT > 0.5 ? Math.sin(strokePhase * Math.PI * 2) * 0.12 : 0, duck });
     }
   }
@@ -451,6 +502,17 @@ export function createRide(canvas, state, sector, events, opts = {}) {
   let ripple = [0, -100, 0];
   let rippleTime = -10;
   let shake = 0;
+  // The camera's springs (spring.js): a jolt is a kick, not noise. The view dips and comes back (heave), rolls
+  // toward the side that was hit and swings back (roll), and nods (pitch). A little jitter stays on top for grit.
+  const camRig = createRig({ heave: { stiffness: 150, damping: 0.5 }, roll: { stiffness: 100, damping: 0.45 }, pitch: { stiffness: 170, damping: 0.55 } });
+  /** A jolt of strength k (about 0.1 a tap, 1 a heavy hit); side -1 left, 1 right, 0 none; kind 'recoil' for a shot. */
+  function jolt(k, side = 0, kind = 'hit') {
+    shake = Math.max(shake, k * 0.35);
+    if (kind === 'recoil') { camRig.kick('pitch', k * 1.4); return; }
+    camRig.kick('heave', -k * 1.6);
+    if (side) camRig.kick('roll', side * k * 0.9);
+    camRig.kick('pitch', (k * 0.5) * (side >= 0 ? 1 : -1));
+  }
   let helmTakeback = 0;
   let nextLine = 6;
   let crewLine = state.crewLine || 0;
@@ -540,8 +602,9 @@ export function createRide(canvas, state, sector, events, opts = {}) {
     overboard = { t: 0, back: 2.4, x: offset + side * 1.7, line: null, lineT: solo ? Infinity : 2 + random(), onLine: false, tug: 0, tugged: false, solo, cause, chambers: { ...state.chambers } };
     events.log?.('overboard', { cause, s: Math.round(s), sector: state.sectorKey });
     sound.splash();
-    shake = 0.9;
+    jolt(0.9);
     trailGrab = null;
+    budget.release('trailGrab');
     hud.caption(cause === 'dragged' ? '[the trailing edge goes under and takes you with it]' : cause === 'knocked' ? '[it hits you square — you go over the side]' : '[the raft bucks — you go over the side]');
     if (solo) hud.say(state.name.toUpperCase(), 'Nobody\'s going to throw a line. Swim. The handle. Get the handle.', 'crew');
     else hud.say(crewName(), 'Overboard! Swim for the handle — line coming!', 'crew');
@@ -598,7 +661,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
       prompt = 'E · GRAB THE HANDLE';
       if (wasPressed('e')) {
         overboard = null;
-        shake = 0.5;
+        jolt(0.5);
         sound.splash();
         hud.caption(ob.solo ? '[you drag yourself over the side by the handle — alone, shaking]' : '[hands on your vest — you are hauled back in]');
         protect = 3;
@@ -630,9 +693,10 @@ export function createRide(canvas, state, sector, events, opts = {}) {
     hull.state.capsized = true;
     overboard = null;
     trailGrab = null;
+    budget.release('trailGrab');
     capsize = { t: 0, said: 0 };
     sound.splash();
-    shake = 1.2;
+    jolt(1.2);
     hud.caption('[the soft side folds under — the raft turns over]');
   }
 
@@ -661,7 +725,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
   function knockUnderPatch() {
     hull.state.knockAt = -1;
     sound.knock(3);
-    shake = Math.max(shake, 0.2);
+    jolt(0.2);
     hud.caption('[knock. knock. knock. From underneath — right under the new patch.]');
     setTimeout(() => hud.say('MARS', 'Nobody answer it.', 'crew'), 1400);
   }
@@ -711,10 +775,10 @@ export function createRide(canvas, state, sector, events, opts = {}) {
         to ||= hitAt;
       }
       blaster.showBeam(muzzle, to);
-      shake = Math.max(shake, 0.18 * settings.camera);
+      jolt(0.18 * settings.camera, 0, 'recoil');
     } else {
       blaster.showBeam(muzzle, shoot(eye, aimDir));
-      if (state.profile === 'disruptor') shake = Math.max(shake, 0.25 * settings.camera);
+      if (state.profile === 'disruptor') jolt(0.25 * settings.camera, 0, 'recoil');
     }
     state.damage = base;
     sound.accent?.('shot');
@@ -784,6 +848,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
     hud.caption(how === 'shove' ? '[you shove it off the side — it goes under without a splash]' : '[it lets go of the raft]');
     events.score(120, 'CLIMBER REPELLED');
     climber = null;
+    budget.release('climber');
     protect = Math.max(protect, 1.5);
   }
 
@@ -833,7 +898,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
     target.hp -= 1;
     target.flash = 0.12;
     target.stagger = 0.3;
-    if (target.hp <= 0) { target.dying = 0.001; sound.burst(); events.cleared(); }
+    if (target.hp <= 0) { target.dying = 0.001; sound.burst(); flashes.flash(target.pos, { color: [0.77, 0.35, 0.31], intensity: 5, range: 6, life: 0.15 }); events.cleared(); }
     if (!((state.regrouped || state.sectorIndex > 0) && !state.endless) && !state.endless) return; // still on the other channel
     coverFrom = track.lateral(s + 1.6, offset - 0.7, 1.15);
     coverTo = [...target.pos];
@@ -859,7 +924,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
   function hitAnchor(i) {
     ballast.anchors[i] -= state.damage;
     sound.hit();
-    hud.hitmarker();
+    hud.hitmarker(hitKind({ weak: true, killed: ballast.anchors[i] <= 0 }));
     if (ballast.anchors[i] <= 0) {
       sound.burst();
       hud.caption(`[an anchoring growth tears free — ${ballast.anchors.filter((a) => a > 0).length} left]`);
@@ -884,11 +949,10 @@ export function createRide(canvas, state, sector, events, opts = {}) {
     sec.bias = dir * 1.1;
     for (const d of debrisPool) if (d.active) d.drift = dir;
     flowT = 2.4;
-    ripple = track.lateral(s + 6, 0, 0);
-    rippleTime = time;
+    stir(track.lateral(s + 6, 0, 0), 'surface');
     sound.release(dir * 0.6);
     sound.duck(1.5);
-    shake = Math.max(shake, 0.25 * settings.camera);
+    jolt(0.25 * settings.camera);
     hud.caption(`[${caption}]`);
   }
 
@@ -1136,8 +1200,13 @@ export function createRide(canvas, state, sector, events, opts = {}) {
   }
 
   // ---------- Encounters ----------
+  // Grabs on the raft (a climber, a crewmate taken, the Undertow on the trailing edge) take the one grab slot. One
+  // that finds it taken is not dropped: it stays pending (the encounter loop asks again every frame) and comes when
+  // the other lets go, so the ride is as hard as it was, just never two grabs at once.
+  const GRABS = new Set(['climber', 'crewGrab', 'trailGrab']);
   function spawn(enc) {
     const e = enc.e;
+    if (GRABS.has(e.kind) && !budget.request(e.kind, 'grab', 1)) return;
     e.done = true;
     const at = enc.s;
     const sec = enc.sec;
@@ -1162,7 +1231,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
     } else if (e.kind === 'hullScrape') {
       // A ladder rail under the surface: it opens the left chamber.
       sound.scrape(-0.8);
-      shake = 0.4;
+      jolt(0.4, e.side === 'right' ? 1 : -1);
       hull.puncture(e.side || 'left', 'ladder');
       setTimeout(() => hud.say('JUNE', 'Left side! There\'s a ladder under the water. There shouldn\'t be a ladder in a reservoir.', 'crew'), 600);
     } else if (e.kind === 'grate') {
@@ -1339,9 +1408,9 @@ export function createRide(canvas, state, sector, events, opts = {}) {
   /** chamber and cause say where the raft was hit and what did it: it can open a leak, or put you over the side. */
   function damage(n, reason, raftHit = 0, chamber = null, cause = null) {
     if (protect > 0) return; // just rescued: a moment to get your hands back
-    events.damage(n, reason);
+    const k = raftHit ? chamber || CHAMBERS[Math.floor(random() * 4)] : chamber;
+    events.damage(n, reason, false, k ? CHAMBER_BEARING[k] : null); // the arc shows the side of the raft that was hit
     if (raftHit) {
-      const k = chamber || CHAMBERS[Math.floor(random() * 4)];
       const housed = k === 'bow' && gear('bow');
       hull.hit(k, raftHit * (housed ? 0.6 : 1.2), cause, cause ? (housed ? 0.08 : 0.22) : 0);
       const soft = CHAMBERS.filter((c) => state.chambers[c] < 20).length;
@@ -1349,7 +1418,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
       else if (soft >= 2 && !hull.state.capsized) startCapsize();
       else if (!braced && cause && state.chambers[k] < 35 && random() < 0.3) goOverboard(cause === 'entity' ? 'knocked' : 'thrown');
     }
-    shake = 0.5;
+    jolt(0.5);
   }
 
   // ---------- Shooting ----------
@@ -1362,7 +1431,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
     const T = (pos, r, fn, key = null) => list.push({ pos, r, fn, key });
     if (drop.active) T(track.lateral(drop.s, drop.lane, 0.55), 0.6, () => takeDrop(), 'drop');
     if (trailGrab?.pos) T(trailGrab.pos, 0.6, () => { trailGrab.hp -= shotProfile === 'scatter' ? 2 : 1; sound.hit(); }, 'grip');
-    if (omen?.kind === 'beneath' && omen.revealed && omen.pos) T(omen.pos, 0.7, () => { omen.hp -= 1; sound.hit(); shake = Math.max(shake, 0.2); if (omen.hp <= 0) endBeneath('shot'); }, 'beneath');
+    if (omen?.kind === 'beneath' && omen.revealed && omen.pos) T(omen.pos, 0.7, () => { omen.hp -= 1; sound.hit(); jolt(0.2); if (omen.hp <= 0) endBeneath('shot'); }, 'beneath');
     if (wave.divActive && !wave.divDone && wave.divPos) T(wave.divPos, 0.5, () => {
       // One shot, three layers that agree: the relay arcs, the water turns, the crew braces, the sound shifts.
       wave.divDone = true;
@@ -1379,12 +1448,12 @@ export function createRide(canvas, state, sector, events, opts = {}) {
     if (restrained && !restrained.freed && restrained.strapPos) T(restrained.strapPos, 0.28, () => freeRestrained(), 'strap');
     if (ballast && !ballast.done) {
       ballast.anchorPos?.forEach((pos, i) => { if (ballast.anchors[i] > 0) T(pos, 0.7, () => hitAnchor(i), `anchor${i}`); });
-      if (ballast.exposed) T(ballast.corePos, 1.1, () => { ballast.core -= state.damage; sound.hit(); hud.hitmarker(); ballastParts.core.material.emission = 12; }, 'ballast');
+      if (ballast.exposed) T(ballast.corePos, 1.1, () => { ballast.core -= state.damage; sound.hit(); hud.hitmarker(hitKind({ weak: true, killed: ballast.core <= 0 })); ballastParts.core.material.emission = 12; }, 'ballast');
     }
     for (const b of blooms) if (b.active && !b.dying) T(b.pos, 0.75, () => {
       b.hp -= state.damage;
       sound.hit();
-      hud.hitmarker();
+      hud.hitmarker(hitKind({ killed: b.hp <= 0 }));
       // Every hit reads: a flash, a stagger, a shove backwards.
       b.flash = 0.12;
       b.stagger = shotProfile === 'scatter' ? 0.7 : 0.3;
@@ -1401,8 +1470,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
         events.score(100, 'ENTITY DISPERSED', 'kill');
         if (jumpY > 0.3) events.award('airShot');
         events.cleared();
-        ripple = [...b.pos];
-        rippleTime = time;
+        stir(b.pos, 'burst');
         sound.accent?.('hit');
       }
     }, b);
@@ -1421,7 +1489,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
         r.anchors = r.anchors || [2, 2];
         r.anchors[i] -= shotProfile === 'disruptor' ? 2 : 1;
         sound.hit();
-        hud.hitmarker();
+        hud.hitmarker(hitKind({ weak: true, killed: r.anchors[i] <= 0 }));
         if (r.anchors[i] <= 0) {
           r.floats.forEach((f) => (f.alive = false));
           r.active = false;
@@ -1596,10 +1664,9 @@ export function createRide(canvas, state, sector, events, opts = {}) {
           best = t;
           hit = () => {
             u.hp -= state.damage;
-            hud.hitmarker();
+            hud.hitmarker(hitKind({ killed: u.hp <= 0 }));
             sound.hit();
-            ripple = c;
-            rippleTime = time;
+            stir(c, 'shot');
             if (u.hp <= 0) {
               u.active = false;
               sound.splash();
@@ -1612,9 +1679,12 @@ export function createRide(canvas, state, sector, events, opts = {}) {
       }
     }
     const tw = rayPlaneY(eye, dir, track.at(s).p[1]);
-    if (tw < best) { best = tw; hit = () => { ripple = add(eye, scale(dir, tw)); rippleTime = time; }; }
+    if (tw < best) { best = tw; hit = () => stir(add(eye, scale(dir, tw)), 'shot'); }
     lastHitPoint = add(eye, scale(dir, best));
-    if (hit) { sparkAt = lastHitPoint; sparkT = 0.09; spark.material.emissiveColor = (PROFILES[shotProfile] || PROFILES.pulse).color; }
+    if (hit) {
+      effects.burst('spark', lastHitPoint, { count: 5, dir: scale(dir, -1), speed: 3.2, spread: 0.9, color: (PROFILES[shotProfile] || PROFILES.pulse).color, density: quality.particles ?? 1 });
+      if (tw <= best + 1e-6) effects.burst('droplet', lastHitPoint, { count: 6, dir: [0, 1, 0], speed: 2.4, spread: 0.5, density: quality.particles ?? 1 });
+    }
     hit?.();
     if (lifeguard.active && lifeguard.lampOn && !lifeguard.gone && Math.abs(lifeguard.s - s) < 55) violate();
     return add(eye, scale(dir, best));
@@ -1656,7 +1726,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
   function update(dt) {
     flashes.tick(dt);
     budget.tick(dt);
-    budget.sweep((b) => b.active && !b.dying);
+    budget.sweep((b) => typeof b !== 'object' || b.active === undefined || (b.active && !b.dying)); // only Blooms are swept; grab and surge slots are given back by their owners
     time += dt;
     frameDt = dt;
     hud.update(dt);
@@ -1694,6 +1764,8 @@ export function createRide(canvas, state, sector, events, opts = {}) {
       if (strokeTimer <= 0) {
         strokeTimer = 1.05;
         sound.stroke(0.55);
+        strokeSide = -strokeSide; // the blade goes in on alternate sides
+        stir(track.lateral(s + 0.4, offset + strokeSide * 0.95, 0), 'paddle');
         if (pendingPaddle.length && sec.paddle && random() < 0.35) paddleEvent(pendingPaddle.shift());
       }
       strokePhase = 1 - strokeTimer / 1.05;
@@ -1751,7 +1823,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
     const lim = Math.max(0.5, Math.min(sec.half, 6) - 0.95);
     updateArcade(dt, sec, curRoom, lim);
     // The hull: leaks drain, a soft side lists and pulls, low chambers let the water in.
-    hullFx = hull.update(dt, { silence: silence > 0, onWash: () => { state.drift = Math.min(100, state.drift + 3); shake = Math.max(shake, 0.25); } });
+    hullFx = hull.update(dt, { silence: silence > 0, onWash: () => { state.drift = Math.min(100, state.drift + 3); jolt(0.25); } });
     const hurtNow = state.health < lastHullHealth - 0.5;
     lastHullHealth = state.health;
     const rep = overboard || capsize ? { active: false, prompt: '' } : hull.updateRepair(dt, (input.patching || (devBot && state.leaks.length > 0 && !blooms.some((b) => b.active && !b.dying && distance(b.pos, fx.eye) < 18))) && !paddling, hurtNow, ['buildup', 'peak'].includes(director.phase));
@@ -1780,9 +1852,11 @@ export function createRide(canvas, state, sector, events, opts = {}) {
       if (trailGrab.lean > 2.6 || trailGrab.hp <= 0) {
         hud.toast(trailGrab.hp <= 0 ? 'SHOT THE GRIP · THE TRAILING EDGE COMES UP' : 'COUNTERWEIGHT · THE TRAILING EDGE COMES UP');
         trailGrab = null;
+        budget.release('trailGrab');
         held = 0;
       } else if (trailGrab.t > 6) {
         trailGrab = null;
+        budget.release('trailGrab');
         goOverboard('dragged');
       }
     }
@@ -1851,12 +1925,11 @@ export function createRide(canvas, state, sector, events, opts = {}) {
         const onDebris = debrisPool.some((d) => d.active && Math.abs(d.s - s) < 3 && Math.abs(d.lane - offset) < 1.4);
         if (airT > 0.45) state.wetLens = Math.max(state.wetLens || 0, 0.6); // spray off a landing
         if (airT > 0.45 && !onDebris && state.chambers.stern >= 40 && Math.abs(offset) < Math.max(0.5, Math.min(sec.half, 6) - 1.2)) events.award('landing');
-        shake = Math.max(shake, 0.3);
+        jolt(0.3);
         sound.splash();
         sound.accent?.('land');
         state.noise = Math.min(100, state.noise + 12);
-        ripple = track.lateral(s + 1, offset, 0);
-        rippleTime = time;
+        stir(track.lateral(s + 1, offset, 0), 'splash');
         // Coming down on debris, or coming down soft, tears the rear chamber.
         // Brace before you land and the hull takes it.
         if (braced) hud.toast('BRACED FOR THE LANDING');
@@ -1882,6 +1955,10 @@ export function createRide(canvas, state, sector, events, opts = {}) {
     // The director: quiet, warning, build-up, peak, fade, recovery.
     runDirector(dt, sec, curRoom);
 
+    // A grab slot whose grabber never came (overboard, capsized) or has gone is given back.
+    if (budget.holds('climber') && !climber) budget.release('climber');
+    if (budget.holds('crewGrab') && !crewGrab) budget.release('crewGrab');
+    if (budget.holds('trailGrab') && !trailGrab) budget.release('trailGrab');
     // Encounters ahead. During the director's rest, scheduled swarms stay away: quiet is part of the ride.
     for (const enc of track.encounters) {
       if (enc.e.done) continue;
@@ -1895,11 +1972,13 @@ export function createRide(canvas, state, sector, events, opts = {}) {
     const swayOn = settings.sway ? 1 : 0;
     const bob = (Math.sin(time * 2.1) * 0.05 + Math.sin(time * 1.3) * 0.03) * swayOn;
     shake = Math.max(0, shake - dt);
+    camRig.step(dt);
+    const camK = settings.camera ?? 1;
     const jitter = shake > 0 ? [(Math.random() - 0.5) * shake * 0.3 * settings.camera, (Math.random() - 0.5) * shake * 0.3 * settings.camera, 0] : [0, 0, 0];
     // Sitting down in the water: the camera sinks toward the surface.
     sink = damp(sink, state.sitting ? 0.7 : 0, 1.5, dt);
     const duck = (braced ? 0.5 : 0) + (state.downed ? 0.75 : 0);
-    let eye = add(track.lateral(s, offset, 1.35 + bob - sink - duck + jumpY - hullFx.sag - Math.max(0, raftSq) * 0.09 * settings.camera), jitter);
+    let eye = add(track.lateral(s, offset, 1.35 + bob - sink - duck + jumpY - hullFx.sag - Math.max(0, raftSq) * 0.09 * settings.camera + camRig.get('heave') * 0.12 * camK), jitter);
     if (dockSeq) eye = add(eye, [0, Math.min(1, dockSeq.t / 1.2) * 0.45, 0]); // standing up to step out
     const ahead = track.lateral(s + 10, offset * 0.6, 1.2 + bob * 0.5 - sink * 1.6 - duck + jumpY * 0.6);
     let look = ahead;
@@ -1910,7 +1989,8 @@ export function createRide(canvas, state, sector, events, opts = {}) {
       const c = Math.cos(viewYaw), sn = Math.sin(viewYaw);
       look = add(eye, [d[0] * c + d[2] * sn, d[1], -d[0] * sn + d[2] * c]);
     }
-    let roll = (settings.distortion ? (state.passenger.stage >= 5 ? 0.1 : 0) + (state.raft < 40 ? 0.05 : 0) : 0) + hullFx.list * (settings.sway ? 1 : 0.4) * settings.camera;
+    let roll = (settings.distortion ? (state.passenger.stage >= 5 ? 0.1 : 0) + (state.raft < 40 ? 0.05 : 0) : 0) + hullFx.list * (settings.sway ? 1 : 0.4) * settings.camera + camRig.get('roll') * 0.08 * camK;
+    look = add(look, [0, camRig.get('pitch') * 0.25 * camK, 0]);
     if (overboard) {
       // In the water, behind the raft, looking at it.
       eye = track.lateral(s - overboard.back, overboard.x, 0.25 + bob * 0.6);
@@ -2294,7 +2374,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
     else if (drop.kind === 'pressure') { for (const k of CHAMBERS) if (state.chambers[k] > 0) state.chambers[k] = 100; raftSqV -= 6; sound.accent?.('gate'); sound.pump(); }
     else {
       // Every drain in the channel lets go at once. Not an explosion: a hydraulic event.
-      sound.burstBig?.(); sound.pump(); shake = Math.max(shake, 0.6);
+      sound.burstBig?.(); sound.pump(); jolt(0.6);
       for (const b of blooms) if (b.active && !b.dying) { b.dying = 0.001; events.cleared(); events.score(100, 'PURGED', 'kill'); }
       hud.caption('[every drain in the channel erupts at once]');
     }
@@ -2389,6 +2469,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
     // Squash and stretch: wider and flatter on a landing, taller as it leaves; flatter overall when soft.
     const soft = 1 - 0.28 * (1 - (state.raft ?? 100) / 100);
     writeBasis(raft.lip.matrix, base, rgt, fwd, tiltUp, 1.05 * (1 + raftSq * 0.07), 1.05 * (1 + raftSq * 0.07), Math.max(0.45, soft * (1 - raftSq * 0.3)));
+    drawWater(base, fwd);
     const seatPos = add(add(base, scale(fwd, 0.82)), scale(tiltUp, 0.1));
     raftSeat = add(seatPos, [0, 0.2, 0]);
     const dip = state.passenger.stage >= 1 ? 0.62 : 1;
@@ -2486,7 +2567,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
       writeBasis(omenParts.platform.matrix, at, [1, 0, 0], [0, 1, 0], [0, 0, 1], 1.6, 0.08, 2.4);
       if (fall >= 1 && !o.hit) {
         o.hit = true;
-        shake = Math.max(shake, 0.7 * settings.camera + 0.2);
+        jolt(0.7 * settings.camera + 0.2);
         sound.thump(o.side * 0.7); sound.splash();
         hud.caption(`[a maintenance platform crashes into the water ${o.side < 0 ? 'left' : 'right'} of the raft — BRACE]`);
       }
@@ -2577,7 +2658,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
     if (Math.abs(offset) > lim - 0.35) o.edgeT += dt;
     if (o.braceT > 1.5 && o.edgeT > 2.5) { endBeneath('shallows'); return ''; }
     // Before a grab: the tube compresses, the ropes tighten, water rises over the inside edge.
-    if (o.t > 15 && !o.warned) { o.warned = true; shake = Math.max(shake, 0.35); sound.intake(o.side * 0.6); hud.caption('[the tube folds in — the ropes go tight — water over the inside edge]'); }
+    if (o.t > 15 && !o.warned) { o.warned = true; jolt(0.35); sound.intake(o.side * 0.6); hud.caption('[the tube folds in — the ropes go tight — water over the inside edge]'); }
     if (o.t > 18) {
       // It takes someone. The ordinary rescue rules apply from here.
       endBeneath('grab');
@@ -2650,6 +2731,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
         // It only takes you with it if that side is already soft.
         if (climber.lean < 0.5 && state.chambers[climber.side < 0 ? 'left' : 'right'] < 50 && random() < 0.4) goOverboard('knocked');
         climber = null;
+        budget.release('climber');
       }
     } else { hide(climberPart.body); hide(climberPart.head); climberPart.arms.forEach(hide); climberPart.hands.forEach(hide); }
     // Tug-of-war: hold E to keep the line in the band; shoot the grip; don't pull so hard the line slips.
@@ -2678,6 +2760,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
         setTimeout(() => hud.say('THE ATTENDANT', 'Thank you for returning your passenger to the designated seating area.', 'attendant'), 2200);
         protect = 3;
         crewGrab = null;
+        budget.release('crewGrab');
       } else if (g.low > 2.6 || g.t > 16) {
         sound.gurgle();
         state.crewState[g.who] = 'hurt';
@@ -2686,6 +2769,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
         hud.caption(`[${g.who.toUpperCase()} goes under. The line comes back empty.]`);
         setTimeout(() => hud.say(g.who.toUpperCase(), 'I\'m — I came up in the other channel. I don\'t know how. I\'m cold. I\'m going to be quiet for a while.', 'crew'), 4000);
         crewGrab = null;
+        budget.release('crewGrab');
       }
     } else { hide(tug.line); hide(tug.hand); hide(tug.grip); }
     // The restrained survivor: far away, beside a window. Focus to see it; shoot the restraint.
@@ -2756,9 +2840,8 @@ export function createRide(canvas, state, sector, events, opts = {}) {
       } else hide(deathVest);
     } else hide(deathVest);
     // Impact sparks: where the shot landed, in the profile's colour.
-    sparkT -= dt;
-    if (sparkT > 0 && sparkAt) writeYaw(spark.matrix, sparkAt, 0, 0.08 + sparkT, 0.08 + sparkT, 0.08 + sparkT);
-    else hide(spark);
+    effects.tick(dt);
+    drawFx();
     // Ballast: a heavy, defeatable mass anchored across the room. It holds the raft and the water.
     if (ballast) prompt = updateBallast(dt, eye) || prompt;
     else { hide(ballastParts.body); hide(ballastParts.core); ballastParts.anchors.forEach(hide); ballastParts.knots.forEach(hide); ballastParts.vests.forEach(hide); }
@@ -2802,7 +2885,10 @@ export function createRide(canvas, state, sector, events, opts = {}) {
       if (b.surge <= 0) {
         b.surge = 6.5 + random() * 2;
         b.warn = 0;
-        if (Math.abs(offset - b.offset) < 2.2) { damage(8, 'Ballast surged into the raft.', 6, 'bow', 'entity'); shake = 0.9 * settings.camera; }
+        // A surge is the disruptive move: it takes that slot while it lands, so nothing else disruptive stacks on it.
+        const slot = budget.request('ballast', 'disruptive', 1);
+        if (slot) setTimeout(() => budget.release('ballast'), 1500);
+        if (slot && Math.abs(offset - b.offset) < 2.2) { damage(8, 'Ballast surged into the raft.', 6, 'bow', 'entity'); jolt(0.9 * settings.camera, Math.sign(b.offset - offset) || 1); }
         else hud.toast('CLEAR OF THE SURGE');
         if (random() < 0.6) spawnBloom(b.s - 4, (random() - 0.5) * 6, 0.8);
       }
@@ -2937,7 +3023,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
     // Under the flexible floor, during the quiet.
     if (!underFloorUsed && director.phase === 'relax' && sector.index > 0 && random() < frameDt * 0.004) {
       underFloorUsed = true;
-      shake = Math.max(shake, 0.15);
+      jolt(0.15);
       sound.knock(1);
       hud.caption('[something moves under the floor of the raft — right under your knees — and is gone]');
     }
@@ -3509,12 +3595,12 @@ export function createRide(canvas, state, sector, events, opts = {}) {
         d.done = true;
         if (Math.abs(offset - d.lane) < 1.15 && jumpY < 0.3) {
           sound.thump();
-          shake = 0.5;
+          jolt(0.5);
           held = Math.max(held, 0.6);
           damage(6, 'The raft hit floating debris.', 8, 'bow', 'scrape');
         } else if (jumpY >= 0.3) { if (Math.abs(offset - d.lane) < 1.15) events.award('hop'); }
         // Past it with a hand's width to spare: nothing was hit, and it still counts for something.
-        else if (Math.abs(offset - d.lane) < 1.75) { events.award('nearMiss'); shake = Math.max(shake, 0.12); sound.splash(); }
+        else if (Math.abs(offset - d.lane) < 1.75) { events.award('nearMiss'); jolt(0.12); sound.splash(); }
       }
       if (d.s < s - 6) d.active = false;
     }
@@ -3699,7 +3785,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
           hud.caption('[it splashes against the hull]');
         } else {
           sh.active = false;
-          damage(9, 'A Spitter\'s glob hit you.', 0);
+          damage(9, 'A Spitter\'s glob hit you.', 0, 'bow'); // globs come at you over the bow
         }
       }
       if (sh.t > 8) sh.active = false;
@@ -3740,7 +3826,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
         wake.phase = 'pursue';
         wake.dist = 26;
         sound.thump();
-        shake = 0.6;
+        jolt(0.6);
         hud.caption('[something passes under the raft]');
       }
     } else {
@@ -3752,7 +3838,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
         if (wake.thumpTimer <= 0) {
           wake.thumpTimer = 1.7;
           sound.thump();
-          shake = 0.45;
+          jolt(0.45);
           hud.caption('[impact beneath the raft]');
         }
       }
@@ -3897,7 +3983,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
     bloomAhead() { return spawnBloom(s + 10, offset * 0.6, 1.2); },
     get locks() { return locks.length; },
   };
-  if (import.meta.env.DEV) window.__ride = { parts, flashes, gatherLights: () => gatherLights(fx.eye), budget, blaster, get wedges() { return lastWedges; }, get chain() { return lastChain; }, get eyeExposure() { return eyeExposure; }, renderer, get scenery() { return lastScenery; }, room, shots, set padAssist(v) { padAssistTest = v; }, get aimFriction() { return input.aimFriction; }, parts, blooms, tokens, drop, spawnDrop, get assess() { return assess; }, set assessAt(v) { assessAt = v; }, set tokenCool(v) { tokenCool = v; }, get offset() { return offset; }, set offset(v) { offset = v; }, omen: (k) => startOmen(k), get omenState() { return omen; }, get director() { return director; }, get eye() { return fx.eye; }, track, hull, puncture: (c, cause = 'scrape') => hull.puncture(c, cause), overboard: () => goOverboard('test'), free: () => restrained && !restrained.freed && freeRestrained(), shove: () => shove(fx.eye, fx.fwd), ping: () => ping(fx.eye, fx.fwd), fireAt: (dir) => { fireProfile(fx.eye, fx.look, dir || fx.fwd); return state.profile; }, hitTarget: (key) => { const t = targets().find((x) => x.key === key); if (t) { shotProfile = state.profile; t.fn(); } return !!t; }, get wave() { return wave; }, set bot(v) { devBot = v; }, spawnEnc: (kind, extra = {}) => spawn({ e: { kind, ...extra }, s: s + 10, sec: track.sectionAt(s).sec }), get coop() { return { climber, crewGrab, ballast, restrained, protect, focusing, fov, profile: state.profile, special: state.special }; }, reset: () => { overboard = null; capsize = null; trailGrab = null; hull.state.capsized = false; }, capsize: () => startCapsize(), get swimming() { return overboard; }, get capsized() { return capsize; }, get grab() { return trailGrab; }, valve, linked, lifeguard, locker, wake, passengerStep, burst: () => burst(fx.eye, fx.fwd), get s() { return s; }, set s(v) { s = v; } };
+  if (import.meta.env.DEV) window.__ride = { parts, camRig, effects, waterField: field, ringParts, wakeParts, streakParts, stir, flashes, gatherLights: () => gatherLights(fx.eye), budget, blaster, get wedges() { return lastWedges; }, get chain() { return lastChain; }, get eyeExposure() { return eyeExposure; }, renderer, get scenery() { return lastScenery; }, room, shots, set padAssist(v) { padAssistTest = v; }, get aimFriction() { return input.aimFriction; }, parts, blooms, tokens, drop, spawnDrop, get assess() { return assess; }, set assessAt(v) { assessAt = v; }, set tokenCool(v) { tokenCool = v; }, get offset() { return offset; }, set offset(v) { offset = v; }, omen: (k) => startOmen(k), get omenState() { return omen; }, get director() { return director; }, get eye() { return fx.eye; }, track, hull, puncture: (c, cause = 'scrape') => hull.puncture(c, cause), overboard: () => goOverboard('test'), free: () => restrained && !restrained.freed && freeRestrained(), shove: () => shove(fx.eye, fx.fwd), ping: () => ping(fx.eye, fx.fwd), fireAt: (dir) => { fireProfile(fx.eye, fx.look, dir || fx.fwd); return state.profile; }, hitTarget: (key) => { const t = targets().find((x) => x.key === key); if (t) { shotProfile = state.profile; t.fn(); } return !!t; }, get wave() { return wave; }, set bot(v) { devBot = v; }, spawnEnc: (kind, extra = {}) => spawn({ e: { kind, ...extra }, s: s + 10, sec: track.sectionAt(s).sec }), get coop() { return { climber, crewGrab, ballast, restrained, protect, focusing, fov, profile: state.profile, special: state.special }; }, reset: () => { overboard = null; capsize = null; trailGrab = null; hull.state.capsized = false; }, capsize: () => startCapsize(), get swimming() { return overboard; }, get capsized() { return capsize; }, get grab() { return trailGrab; }, valve, linked, lifeguard, locker, wake, passengerStep, burst: () => burst(fx.eye, fx.fwd), get s() { return s; }, set s(v) { s = v; } };
 
   /** ?show=: put the ride into a fixed, readable state for screenshots and visual review. */
   function showcase(name) {

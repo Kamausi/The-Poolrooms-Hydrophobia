@@ -2,15 +2,15 @@
 // fitting lighting only part of the floor, an empty raft just past the light. Far down the corridor a small
 // green exit sign is reflected in the water. There is no sign above it.
 import { installUserPasses } from '67js/addons/user-pass';
-import { calmChain } from './postchain.js';
+import { calmChain } from './render/postchain.js';
 import { Renderer67 } from '67js';
-import { box, torus, cylinder } from './shapes.js';
+import { box, torus, cylinder } from './render/shapes.js';
 import { writeYaw, writeBasis, writeSegment, linear, display } from './math.js';
-import { tileTexture, tileNormal } from './textures.js';
+import { tileTexture, tileNormal } from './render/textures.js';
 import { signMaterial, quad } from './labels.js';
-import { quality } from './quality.js';
+import { quality } from './render/quality.js';
 import { settings } from './settings.js';
-import { sound } from './audio.js';
+import { sound } from './audio/audio.js';
 
 export function createMenuScene(canvas) {
   const parts = [];

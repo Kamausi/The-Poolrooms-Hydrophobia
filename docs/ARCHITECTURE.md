@@ -2,6 +2,22 @@
 
 How the code is put together. For what the game is, read `GAME_DESIGN.md`; for the rules of a module, `src/CLAUDE.md`.
 
+## Where things live
+
+`src/` keeps the scenes and the game itself at the top (`main.js`, `ride.js`, `explore.js`, `saferoom.js`, `menuscene.js`, content, HUD, menus, input) and groups the shared systems by area:
+
+| Folder | What |
+|---|---|
+| `src/render/` | Post chain, eye adaptation, shadows, quality tiers and Auto, render scale, textures and tile ageing, surfaces, props, shared shapes, water optics, the Lane Rope body, the light pool and the effect pool |
+| `src/feel/` | Damped springs, controller vibration, aim help |
+| `src/ai/` | Perception, the pursuit cycle, attack slots, spawn scoring, the pacing director |
+| `src/audio/` | Sound, recorded samples, the voice cap |
+| `src/debug/` | The `?bench` report and the play log |
+
+Modules in these folders are pure where they can be (no DOM, no renderer) and unit-tested in `tests/unit/`.
+
+**Engine note, material hooks.** 67js 0.16 documents a material fragment hook (`material.snippet`), reached through the `agent-scene` addon. We built one (water rings and caustics as GLSL) and tested it: the snippet normalizes and its feature compiles into a `Renderer67`, but the hook never changed a pixel, not even for the addon's own documented recipe parts (a hook that discards every fragment left the part drawn). So the water effects are geometry from fixed pools instead (`src/render/waterfx.js`). Try the hook again after an engine upgrade.
+
 ## One state, one scene at a time
 
 `main.js` owns a single `state` object: the crew, health, hull, Drift, supplies, sector, route choices, pending rescues and the accepted world for this expedition. `freshState()` builds it.

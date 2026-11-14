@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { createLightPool, mergeLights } from '../../src/lightpool.js';
+import { createLightPool, mergeLights } from '../../src/render/lightpool.js';
 
 describe('the light pool', () => {
   it('a flash is bright at once and gone after its life', () => {

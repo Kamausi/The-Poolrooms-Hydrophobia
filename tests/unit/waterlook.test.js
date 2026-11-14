@@ -1,6 +1,6 @@
-// Water optics (src/waterlook.js): absorption derived from each attraction's water colour, so depth reads by colour.
+// Water optics (src/render/waterlook.js): absorption derived from each attraction's water colour, so depth reads by colour.
 import { describe, it, expect } from 'vitest';
-import { waterOptics, transmittance, luminance, linearHex } from '../../src/waterlook.js';
+import { waterOptics, transmittance, luminance, linearHex } from '../../src/render/waterlook.js';
 import { SECTORS } from '../../src/sectors.js';
 
 describe('water optics', () => {

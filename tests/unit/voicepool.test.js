@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { createVoicePool, priorityOf, PRIORITY } from '../../src/voicepool.js';
+import { createVoicePool, priorityOf, PRIORITY } from '../../src/audio/voicepool.js';
 
 describe('the voice pool', () => {
   it('plays freely under the limit and refuses a fourth copy of the same sound', () => {

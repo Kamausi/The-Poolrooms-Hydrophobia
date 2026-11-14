@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { createAutoRes } from '../../src/autores.js';
+import { createAutoRes } from '../../src/render/autores.js';
 
 const feed = (a, ms, seconds) => { for (let t = 0; t < seconds * 1000; t += ms) a.push(ms); };
 

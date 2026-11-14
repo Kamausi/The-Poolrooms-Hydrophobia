@@ -3,13 +3,13 @@
 //   signal pulse     (hold click)  operates targets, switches and mechanisms; recharges; builds heat and noise
 //   inspection beam  (hold right click or Q)  reveals hidden markings and reads targets; makes you visible
 //   disruption burst (F)  interrupts entities or forces an emergency mechanism; costs a charge cell; very loud
-import { rumble, PATTERNS } from './haptics.js';
-import { createRig } from './spring.js';
-import { box, cylinder, sphere } from './shapes.js';
+import { rumble, PATTERNS } from './feel/haptics.js';
+import { createRig } from './feel/spring.js';
+import { box, cylinder, sphere } from './render/shapes.js';
 import { add, scale, cross, normalize, sub, length, writeBasis, hide, cameraBasis } from './math.js';
-import { sound } from './audio.js';
+import { sound } from './audio/audio.js';
 import { settings } from './settings.js';
-import { modelPart, placeModelBasis } from './props.js';
+import { modelPart, placeModelBasis } from './render/props.js';
 
 const BEAM_TIME = 0.06;
 

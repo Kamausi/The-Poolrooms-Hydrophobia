@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { discLayout, createLaneRope, DISCS, SPACING } from '../../src/lanerope.js';
+import { discLayout, createLaneRope, DISCS, SPACING } from '../../src/render/lanerope.js';
 
 describe('lane rope', () => {
   it('lays a float out as a run of discs centred on its target, along the cable', () => {

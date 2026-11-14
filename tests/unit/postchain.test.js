@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { FRAGMENTS, TIER_PASSES, buildChain, shaftSource } from '../../src/postchain.js';
+import { FRAGMENTS, TIER_PASSES, buildChain, shaftSource } from '../../src/render/postchain.js';
 
 const INPUTS = ['sceneColor', 'sceneDepth', 'resolution', 'time'];
 

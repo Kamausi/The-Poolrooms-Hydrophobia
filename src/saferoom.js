@@ -3,17 +3,17 @@
 // enormous empty pool hall in deep water and stale light. Finite, dry, occupied, understandable — and the
 // window is still wrong.
 import { installUserPasses } from '67js/addons/user-pass';
-import { calmChain } from './postchain.js';
+import { calmChain } from './render/postchain.js';
 import { Renderer67 } from '67js';
-import { box, cylinder, sphere } from './shapes.js';
+import { box, cylinder, sphere } from './render/shapes.js';
 import { writeYaw, writeBasis, linear, display } from './math.js';
 import { createCrewFigure, poseStanding, poseSeated } from './crewfigure.js';
-import { tileTexture, tileNormal, plateNormal } from './textures.js';
+import { tileTexture, tileNormal, plateNormal } from './render/textures.js';
 import { signMaterial, quad } from './labels.js';
-import { quality } from './quality.js';
+import { quality } from './render/quality.js';
 import { settings } from './settings.js';
-import { sound } from './audio.js';
-import { modelPart, placeModel } from './props.js';
+import { sound } from './audio/audio.js';
+import { modelPart, placeModel } from './render/props.js';
 
 export function createSafeRoom(canvas, sector, opts = {}) {
   const parts = [];

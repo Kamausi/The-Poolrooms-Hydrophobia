@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { TIERS, TIER_ORDER, thinning, resolveTier, tierRatio, createAutoTier } from '../../src/tiers.js';
+import { TIERS, TIER_ORDER, thinning, resolveTier, tierRatio, createAutoTier } from '../../src/render/tiers.js';
 
 const feed = (a, ms, seconds, scale) => { let last = null; for (let t = 0; t < seconds * 1000; t += ms) last = a.push(ms, scale) || last; return last; };
 

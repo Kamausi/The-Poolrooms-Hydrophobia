@@ -14,6 +14,17 @@ const { open, check, finish } = require('./lib.cjs');
   check('docking sequence ends on foot', r.mode === 'explore', JSON.stringify(r));
   r = await U(() => { const u = window.__underflow, E = window.__explore; u.setState({ health: 1e6 }); u.step(20); return { kind: E.dockKind, followers: E.followers.length }; });
   check('divert dock with the crew on foot', r.kind === 'divert' && r.followers > 0, JSON.stringify(r));
+  // The inspection lamp blows the picture out when it lands on you, and it comes back down when you step out.
+  r = await U(() => { const u = window.__underflow, E = window.__explore, L = E.lifeguard; if (!L || L.rule !== 'inspect') return { none: true };
+    const home = [...E.player.pos]; let k = 0;
+    for (; k < 300 && !L.spot; k++) { u.setState({ health: 1e6 }); u.step(1); }
+    if (!L.spot) return { noSpot: true };
+    for (let i = 0; i < 8; i++) { E.player.pos = [L.spot[0], 0, L.spot[2]]; u.step(1); }
+    const caught = +E.blown.toFixed(2);
+    E.player.pos = home; for (let i = 0; i < 90; i++) { E.player.pos = home; u.step(1); }
+    const after = +E.blown.toFixed(2); L.warn = 0; L.violations = 0; L.state = 'watching';
+    return { caught, after }; });
+  check('the inspection lamp blows the picture out while it is on you, then it settles', r.none || r.noSpot || (r.caught > 0.5 && r.after < r.caught * 0.5), JSON.stringify(r));
   r = await U(() => { const u = window.__underflow, E = window.__explore; E.player.pos = [E.cellPos[0], 0, E.cellPos[2]]; u.step(2); u.press('e'); u.step(2); E.player.pos = [E.panelPos[0] - 1.2, 0, E.panelPos[2] - 1.2]; u.step(2); u.press('e'); u.step(1); document.querySelector('#modal-actions button').click(); u.hold('e', true); for (let i = 0; i < 16; i++) { u.setState({ health: 1e6 }); u.step(30); } u.hold('e', false); return { mod: u.state.routeMod?.[u.state.sectorKey] }; });
   check('generator choice is stored', !!r.mod, JSON.stringify(r));
   r = await U(() => { const u = window.__underflow; u.events.board(); u.step(5); const dock = u.state.ride.items.find((i) => i.type === 'pool' && i.dock); const ex = dock.exits.find((e) => e.route === 'service'); return { mode: u.mode, modded: !!ex?.modded }; });

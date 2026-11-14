@@ -1,7 +1,7 @@
-// Shared primitive shapes (src/shapes.js): identical arguments return the same geometry object, so the renderer
+// Shared primitive shapes (src/render/shapes.js): identical arguments return the same geometry object, so the renderer
 // draws every part that uses it as one instanced batch; different arguments build different geometry.
 import { describe, it, expect } from 'vitest';
-import { box, cylinder, sphere, torus, shapeCount } from '../../src/shapes.js';
+import { box, cylinder, sphere, torus, shapeCount } from '../../src/render/shapes.js';
 
 describe('shared shapes', () => {
   it('returns one geometry per distinct call', () => {

@@ -3,7 +3,7 @@
 // leaves a visible gap in the line. Every disc shares one cylinder geometry and one of two materials, so a rope of
 // thirty discs draws as two instanced batches. The layout is pure and unit-tested; `createLaneRope` only places parts.
 import { cylinder, box, torus } from './shapes.js';
-import { writeBasis, writeSegment, hide, add, sub, scale, normalize, cross } from './math.js';
+import { writeBasis, writeSegment, hide, add, sub, scale, normalize, cross } from '../math.js';
 
 /** Discs per hit target and their spacing along the cable, in metres. */
 export const DISCS = 6;

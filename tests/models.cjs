@@ -61,7 +61,7 @@ const { open, newCampaign, check, finish } = require('./lib.cjs');
     const before = shown(); R.hitTarget('ropeanchor0'); R.hitTarget('ropeanchor0'); u.step(2);
     return { parts: mine.length, discs: discs.length, geos, before, after: shown() }; });
   check('the Lane Rope is disc floats on a cable between wall anchors (one shared disc shape), and splitting an anchor drops it', rope.discs === 30 && rope.geos === 1 && rope.before === rope.parts && rope.after === 0, JSON.stringify(rope));
-  // Instancing: parts that share one geometry (and texture maps) draw as one batch. Shapes come from src/shapes.js,
+  // Instancing: parts that share one geometry (and texture maps) draw as one batch. Shapes come from src/render/shapes.js,
   // models share their geometry across placements, so a scene of well over a thousand parts draws in a few dozen batches.
   const inst = await page.evaluate(() => { const u = window.__underflow; u.beginSector(1); u.startRide(); u.step(2); const R = window.__ride.renderer;
     const ride = { parts: R.partCount, batches: R.batches.length }; u.startExplore(); u.step(2); const E = window.__explore.renderer;

@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { createSpring, impulse, step, settled, createRig } from '../../src/spring.js';
-import { createBudget, KINDS } from '../../src/pressure.js';
-import { scoreSpawns, pickSpawn } from '../../src/spawnscore.js';
+import { createSpring, impulse, step, settled, createRig } from '../../src/feel/spring.js';
+import { createBudget, KINDS } from '../../src/ai/pressure.js';
+import { scoreSpawns, pickSpawn } from '../../src/ai/spawnscore.js';
 
 describe('springs', () => {
   it('an impulse moves it and it comes back to rest', () => {

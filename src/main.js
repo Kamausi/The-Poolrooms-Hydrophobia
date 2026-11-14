@@ -15,17 +15,17 @@ import { createSafeRoom } from './saferoom.js';
 import { createMenuScene } from './menuscene.js';
 import { initInput, input, endFrame, releaseLock, wasPressed, pollGamepad } from './input.js';
 import { initHud, hud } from './hud.js';
-import { sound } from './audio.js';
-import { quality, setTier, applyQualitySetting } from './quality.js';
-import { createAutoTier, thinning } from './tiers.js';
-import { summarize, report as benchReport } from './bench.js';
+import { sound } from './audio/audio.js';
+import { quality, setTier, applyQualitySetting } from './render/quality.js';
+import { createAutoTier, thinning } from './render/tiers.js';
+import { summarize, report as benchReport } from './debug/bench.js';
 import { rng } from './math.js';
-import { playlog, createFrameStats } from './playlog.js';
+import { playlog, createFrameStats } from './debug/playlog.js';
 import { facility, recordSector, recordDeath, note, nameVisitor, commitVisitors, authorExpedition, saveFacility } from './memory.js';
 import { settings } from './settings.js';
-import { createAutoRes } from './autores.js';
-import { rumble } from './haptics.js';
-import { modelsReady, modelState } from './props.js';
+import { createAutoRes } from './render/autores.js';
+import { rumble } from './feel/haptics.js';
+import { modelsReady, modelState } from './render/props.js';
 import { showModal, hideModal, applyDisplaySettings, ledgerView, showSafeRoom, showDocument, showKeypad, settingsView, logbookView, journalView } from './ui.js';
 const el2 = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text) e.textContent = text; return e; };
 import { CREW, crewById, loadLoops, saveLoop } from './crew.js';
@@ -124,7 +124,8 @@ function expeditionRecord() {
 
 // ---------- Events from scenes ----------
 const events = {
-  damage(n, reason, quiet = false) {
+  /** from: where the hit came from, as a bearing in degrees from straight ahead (hudcues.js), when it has a side. */
+  damage(n, reason, quiet = false, from = null) {
     if (mode !== 'ride' && mode !== 'explore') return;
     if (n < 999) n *= settings.damageAssist ?? 1;
     playlog.record('damage', { reason: reason || 'unknown', n: Math.round(n * 10) / 10 });
@@ -135,7 +136,7 @@ const events = {
     if (n < 999 && !quiet) state.hurtFx = Math.min(1, Math.max(state.hurtFx || 0, 0.35 + n / 25));
     state.lastHurt = reason;
     if (n < 999 && !quiet) scoreHurt(state, n); // a hit costs FLOW; slow drains (Drift, a hold) do not
-    if (!quiet) { hud.damage(); sound.hurt(); rumble('hurt', Math.min(1.4, 0.5 + n / 20)); }
+    if (!quiet) { hud.damage(from, n); sound.hurt(); rumble('hurt', Math.min(1.4, 0.5 + n / 20)); }
   },
   heal(n) { state.health = Math.min(100, state.health + n); },
   /** Points for something done. kind names a row in score.js (kill, weak, save, gate…); FLOW multiplies it. */
