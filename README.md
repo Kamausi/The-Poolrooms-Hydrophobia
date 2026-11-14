@@ -70,10 +70,12 @@ Touch: left half of the screen moves, right half aims or looks, with buttons for
 | `src/memory.js` | The facility's memory: expedition record, authored variations with validation, the field ledger |
 | `src/debug/playlog.js` | Local playtest log and frame-time statistics |
 | `src/ui.js` | Safe Room, workbench, route terminal, logbook, keypad, settings |
-| `src/hud.js`, `src/style.css` | The overlay |
+| `src/hud.js`, `src/hudcues.js`, `src/style.css` | The overlay; when health shows, which side a hit came from, which hit marker a shot earns |
 | `src/audio/audio.js`, `src/audio/samples.js`, `src/audio/voicepool.js` | Stereo-panned sound: recorded files in `public/audio/`, synthesis as the fallback, a voice cap with priorities |
 | `src/render/props.js`, `src/render/shapes.js` | 3D props as GLB models inlined into the build, each with a primitive stand-in; shared primitive shapes so identical parts draw as one instanced batch |
 | `src/render/lanerope.js` | The Lane Rope: red and white disc floats on a steel cable between wall anchors |
+| `src/render/waterlook.js`, `src/render/waterfx.js` | Water optics by depth and murk; rings, the raft's wake, current streaks and caustics |
+| `src/render/effectpool.js` | Sparks, droplets and bubbles from a fixed pool |
 | `src/render/surfaces.js` | Generated surface textures (ceiling, floor tile, painted steel, PVC, wet concrete, clouds) |
 | `src/input.js`, `src/settings.js`, `src/render/quality.js`, `src/labels.js`, `src/render/textures.js`, `src/math.js` | Input, options, render quality, sign textures, tile textures, maths |
 
