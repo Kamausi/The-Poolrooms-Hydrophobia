@@ -74,6 +74,14 @@ const BASE = process.env.UNDERFLOW_URL || 'http://localhost:5173';
     return { blend: w.material.alphaMode, opacity: w.material.opacity, absorption: w.material.absorption, turbidity: w.material.turbidity, mirror: m, shallow: +shallow.toFixed(2), deep: +deep.toFixed(2), diag: JSON.stringify(E.renderer.diagnostics) }; });
   check('pool water refracts the floor, darkens it by real depth (Beer-Lambert) and, on the high tier, mirrors the room at the water level', r.blend === 'blend' && r.opacity < 1 && r.absorption.length === 3 && r.mirror && Math.abs(r.mirror.height + 0.05) < 0.1 && r.shallow > 0.75 && r.deep < r.shallow * 0.6 && r.diag === '[]', JSON.stringify(r));
 
+  // On foot the picture tints when something holds you under, and the walls just above the water are drawn damp.
+  r = await page.evaluate(() => { const u = window.__underflow; u.beginSector(0); u.startRide(); u.startExplore(); u.setState({ health: 1e6 }); u.step(3); const E = window.__explore;
+    const grade = () => (E.chain.find((pp) => pp.name === 'grade') || {}).uniforms || {};
+    const free = grade().under, damp = grade().damp;
+    const f = E.floaters[0]; let held = null;
+    if (f) { f.state = 'holding'; u.step(1); held = grade().under; f.state = 'revealed'; }
+    return { free, damp, held, floaters: E.floaters.length }; });
+  check('on foot the walls above the water are drawn damp, and being held under tints the picture', r.free === 0 && r.damp === 1 && (r.floaters === 0 || r.held > 0), JSON.stringify(r));
   // Automatic quality thins the extras before it drops a tier: the mirror redraws every other frame at 80% scale,
   // goes away at the lowest scale, and comes back at full scale.
   r = await page.evaluate(() => { const u = window.__underflow; u.beginSector(2); u.startRide(); u.startExplore(); u.step(2); const E = window.__explore;

@@ -15,6 +15,7 @@ import { createPerceiver, sense } from './ai/perception.js';
 import { createPursuit, advance } from './ai/pursuit.js';
 import { createRig } from './feel/spring.js';
 import { createEffectPool } from './render/effectpool.js';
+import { createWaterField, ringShape, causticDrift, causticStrength } from './render/waterfx.js';
 import { assignShadows, handLamp } from './render/shadows.js';
 import { surface as genSurface } from './render/surfaces.js';
 import { model, modelPart, placeModel } from './render/props.js';
@@ -26,7 +27,7 @@ import { createSurvey, visit as surveyVisit, mark as surveyMark, coverage as sur
 import { Renderer67 } from '67js';
 import { box, sphere, cylinder, torus } from './render/shapes.js';
 import { writeYaw, writeBasis, writeSegment, hide, add, sub, scale, normalize, clamp, damp, rng, raySphere, rayPlaneY, linear, distance, cross, display, angleTo, soundDir } from './math.js';
-import { tileTexture, tileNormal } from './render/textures.js';
+import { tileTexture, tileNormal, causticTexture } from './render/textures.js';
 import { signMaterial, quad } from './labels.js';
 import { createBlaster, PROFILES, PROFILE_ORDER } from './blaster.js';
 import { createCrewFigure, hideCrewFigure, poseStanding, poseProne, VISITOR_LOOK } from './crewfigure.js';
@@ -1117,6 +1118,41 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     spark: Array.from({ length: effects.sizes.spark }, (_, i) => P(`Spark ${i}`, fxDot, glow([1, 0.9, 0.6], 8))),
     droplet: Array.from({ length: effects.sizes.droplet }, (_, i) => P(`Droplet ${i}`, fxDot, { color: [0.75, 0.9, 0.92], metallic: 0, roughness: 0.05, emission: 0.3, emissiveColor: [0.75, 0.9, 0.92] })),
   };
+  // Water disturbances (waterfx.js): up to six rings at once, flat tori that widen and thin out on the surface.
+  const field = createWaterField();
+  const ringGeo = torus(0.05, 40, 6);
+  const ringParts = field.rings.map((_, i) => P(`Water ring ${i}`, ringGeo, { color: [0.82, 0.92, 0.92], metallic: 0, roughness: 0.15, emission: 0.25, emissiveColor: [0.82, 0.92, 0.92] }));
+  const drawRings = () => field.rings.forEach((r, i) => {
+    const sh = ringShape(r, time);
+    if (!sh) { hide(ringParts[i]); return; }
+    writeBasis(ringParts[i].matrix, [sh.at[0], sh.at[1] + 0.01, sh.at[2]], [1, 0, 0], [0, 0, -1], [0, 1, 0], sh.radius, sh.radius, Math.max(0.05, sh.fade * 0.6));
+    ringParts[i].material.emission = 0.05 + sh.fade * 0.4;
+  });
+  // Caustics: two sheets of the caustic web just above the floor of every flooded cell, drifting against each other.
+  const causticK = causticStrength({ light: rules.openSky ? 1.2 : 0.8, turbidity: optics.turbidity });
+  const causticMat = (k) => ({ color: [0.85, 1, 0.98], metallic: 0, roughness: 1, emission: 0.1 + k, emissiveColor: [0.85, 1, 0.98], map: causticTexture(), alphaMode: 'blend', opacity: 0.3 });
+  const sheet = quad(); // flat, with the UVs a textured part needs
+  const caustics = waterParts.map((w, i) => ({ x: w.x, z: w.z, a: P(`Caustic ${i}a`, sheet, causticMat(causticK)), b: P(`Caustic ${i}b`, sheet, causticMat(causticK * 0.8)) }));
+  const flat = (part, pos, yaw, size) => { const c = Math.cos(yaw), sn = Math.sin(yaw); writeBasis(part.matrix, pos, [c, 0, -sn], [-sn, 0, -c], [0, 1, 0], size, size, 1); };
+  const drawCaustics = () => {
+    const [da, db] = causticDrift(time);
+    for (const c of caustics) {
+      const h = waterLevel(c.x, c.z);
+      if (h < POOL + 0.12) { hide(c.a); hide(c.b); continue; }
+      const m = center(c.x, c.z);
+      flat(c.a, [m[0] + da[0], POOL + 0.012, m[2] + da[1]], 0, CELL);
+      flat(c.b, [m[0] + db[0], POOL + 0.018, m[2] + db[1]], 0.6, CELL * 0.8);
+    }
+  };
+  /** A disturbance on the water: a ring, and the engine's own ripple when it is strong enough. */
+  const stir = (pos, kind = 'splash') => {
+    const [cx, cz] = cellOf(pos[0], pos[2]);
+    const h = WATERISH.has(at(cx, cz)) || at(cx, cz) === 'x' || at(cx, cz) === 'B' ? waterLevel(cx, cz) : pos[1];
+    field.impulse([pos[0], h, pos[2]], kind, time);
+    const st = field.strongest();
+    if (st && st.time === time) { ripple = [...st.at]; rippleTime = time; }
+  };
+  let wadeT = 0;
   const drawFx = () => { for (const [k, list] of Object.entries(fxParts)) effects.slots(k).forEach((p, i) => { if (!p.on) { hide(list[i]); return; } const sz = p.size * (1 - effects.fade(p) * 0.7); writeYaw(list[i].matrix, p.pos, 0, sz, sz, sz); if (k === 'spark') list[i].material.emissiveColor = p.color; }); };
   { const showBeam = blaster.showBeam; blaster.showBeam = (from, to, ...rest) => {
     const c = PROFILES[state.profile]?.color || [1, 0.85, 0.6];
@@ -1130,11 +1166,12 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
   const sky = sector.sky;
   // Planar reflection on the high tiers (67js water-reflection): the largest still water sheet becomes a mirror.
   // The wrapped water parts replace the originals in place, so the per-frame code keeps moving the same matrices.
+  /** The water surface over a cell this frame (below POOL means drained). */
+  const waterLevel = (x, z) => { const ch = at(x, z); return ch === 'x' || ch === 'B' ? (highWater ? -0.05 : -0.9) : rules.basin && (ch === '~' || ch === 'u' || ch === 'L') ? basinLevel : surface(x, z); };
   function placeWater() {
     for (const w of waterParts) {
       const c = center(w.x, w.z);
-      const ch = at(w.x, w.z);
-      const h = ch === 'x' || ch === 'B' ? (highWater ? -0.05 : -0.9) : rules.basin && (ch === '~' || ch === 'u' || ch === 'L') ? basinLevel : surface(w.x, w.z);
+      const h = waterLevel(w.x, w.z);
       if (h < POOL + 0.02) hide(w.part);
       else writeYaw(w.part.matrix, [c[0], h - 0.01, c[2]], 0, CELL, 0.02, CELL);
     }
@@ -1542,8 +1579,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
             undertow.hp -= state.damage;
             hud.hitmarker(hitKind({ killed: undertow.hp <= 0 }));
             sound.hit();
-            ripple = [undertow.pos[0], 0, undertow.pos[2]];
-            rippleTime = time;
+            stir(undertow.pos, 'shot');
             undertow.holding = 0;
             if (undertow.hp <= 0) {
               undertow.alive = false;
@@ -1563,7 +1599,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
       sound.splash();
       hud.toast('GROUT DISPERSED · IT WILL COME BACK');
     };
-    if (!hit && end0[1] < 0.2) { ripple = end0; rippleTime = time; }
+    if (!hit && end0[1] < 0.2) stir(end0, 'shot');
     {
       const c = PROFILES[state.profile]?.color || [1, 0.9, 0.6], k = quality.particles ?? 1;
       const wet = isWater(...cellOf(end0[0], end0[2])) && end0[1] < 0.3;
@@ -1669,6 +1705,8 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     flashes.tick(dt);
     effects.tick(dt);
     drawFx();
+    drawRings();
+    drawCaustics();
     time += dt;
     hud.update(dt);
     state.mounted = false;
@@ -1718,7 +1756,10 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     if (moving && !nowMoving) stoppedAt = time;
     moving = nowMoving;
     if (nowMoving) bob += dt * (water ? 5 : 8);
-    if (water && !wasWater) { jolt(0.35); sound.splash(); ripple = [...player.pos]; rippleTime = time; noise(player.pos, 'splash'); }
+    if (water && !wasWater) { jolt(0.35); sound.splash(); stir(player.pos, 'splash'); noise(player.pos, 'splash'); }
+    // Wading: every stride through water sends out a ring.
+    wadeT -= dt;
+    if (water && nowMoving && wadeT <= 0) { wadeT = 0.45; stir(player.pos, 'step'); }
     wasWater = water;
     const ft = floorTop(pcx, pcz);
     player.floor = damp(player.floor, ft > -1 ? ft : 0, 10, dt);
@@ -2068,7 +2109,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     // ---------- World behaviour ----------
     updateWaves(dt);
     if (basin === 'drained') basinLevel = Math.max(POOL - 0.1, basinLevel - dt * 0.12);
-    if (basin === 'bypass' && Math.floor(time * 1.5) !== Math.floor((time - dt) * 1.5)) { const cs = find('~'); const [rx, rz] = cs[Math.floor(random() * cs.length)]; ripple = add(center(rx, rz), [0, -0.05, 0]); rippleTime = time; }
+    if (basin === 'bypass' && Math.floor(time * 1.5) !== Math.floor((time - dt) * 1.5)) { const cs = find('~'); const [rx, rz] = cs[Math.floor(random() * cs.length)]; stir(center(rx, rz), 'drop'); }
     updateJets(dt, eye);
     updateGrout(dt);
     updateLamps(dt, eye, dir);
@@ -2217,7 +2258,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     const frameSpots = spotLightsFor(eye, camF, camR);
     eyeExposure = settings.autoExposure === false ? 1 : adaptExposure(eyeExposure, targetExposure(lightAtEye(frameLights, eye, rules.openSky ? 0.7 : rules.uv ? 0.08 : 0.15)), dt);
     if (undertow.alive && undertow.holding > 0) state.wetLens = 1;
-    lastChain = !hasDepth || settings.postChain === false ? [] : buildChain(quality.tier, { shaft: settings.shafts === false ? null : shaftSource(frameLights.filter((l) => l.range > 6), { eye, forward: camF, right: camR, up: camU, tanHalf: Math.tan((FOV * Math.PI) / 360), aspect: canvas.clientWidth / Math.max(1, canvas.clientHeight) }), drift: state.drift, health: state.health, hurt: state.hurtFx, wet: state.wetLens, reduceFlash: settings.flashReduce, distortion: settings.distortion, under: undertow.alive && undertow.holding > 0 ? 0.8 : 0, warm: sector.index === 0 });
+    lastChain = !hasDepth || settings.postChain === false ? [] : buildChain(quality.tier, { shaft: settings.shafts === false ? null : shaftSource(frameLights.filter((l) => l.range > 6), { eye, forward: camF, right: camR, up: camU, tanHalf: Math.tan((FOV * Math.PI) / 360), aspect: canvas.clientWidth / Math.max(1, canvas.clientHeight) }), drift: state.drift, health: state.health, hurt: state.hurtFx, wet: state.wetLens, reduceFlash: settings.flashReduce, distortion: settings.distortion, under: undertow.alive && undertow.holding > 0 ? 0.8 : (lifeguard && lifeguard.state === 'grab') || floaters.some((f) => f.state === 'holding') || ropes.some((r) => r.holding > 0) ? 0.6 : 0, damp: rules.openSky ? 0 : 1, waterLevel: waterLevel(...cellOf(player.pos[0], player.pos[2])), warm: sector.index === 0 });
     if (hasDepth) renderer.userPasses.set(lastChain);
     renderer.render({
       eye, target, fov: FOV, time,
@@ -2382,7 +2423,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
       const k = Math.min(1, B.wakeT / 10);
       const p = [center(xm, z0)[0] + Math.sin(B.wakeT * 0.7) * 0.6, -0.02, center(0, z0)[2] + (center(0, z1)[2] - center(0, z0)[2]) * k];
       writeYaw(B.wake.matrix, p, 0, 0.5, 0.01, 1.4);
-      if (Math.floor(B.wakeT * 2) !== Math.floor((B.wakeT - dt) * 2)) { ripple = p; rippleTime = time; }
+      if (Math.floor(B.wakeT * 2) !== Math.floor((B.wakeT - dt) * 2)) stir(p, 'step');
       if (B.wakeT > 0.05 && B.wakeT - dt <= 0.05) hud.caption('[out in the pool, something moves under the surface — toward the deep end, against the way the waves go]');
       if (k >= 1) { B.wakeDone = true; hide(B.wake); }
     } else hide(B.wake);
@@ -3584,7 +3625,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     for (let i = 0; i < (r.valves || 0); i++) { const v = pumpValves.find((x) => x.id === valveOrder[i]); if (v) v.open = true; }
     valveStep = r.valves || 0;
   }
-  if (import.meta.env.DEV) window.__explore = { parts, camRig, jolt, effects, get blown() { return blown; }, flashes, frameEnv: () => lastEnv, marcos, get marcoApart() { return marcoApart; }, mirror: () => mirrorSurface && detachMirror && { height: mirrorSurface.height, parts: mirrorSurface.partIndices.length, key: mirrorKey }, models: () => parts.filter((p) => p.model).map((p) => ({ model: p.model, name: p.name, at: [p.matrix[12], p.matrix[13], p.matrix[14]] })), flashes, budget, wave: (n, f) => wave(n, f), lineOfSight, get remembered() { return remembered; }, get chain() { return lastChain; }, get eyeExposure() { return eyeExposure; }, renderer, get driftSigns() { return driftSigns; }, get wedges() { return lastWedges; }, survey, get surveyCoverage() { return surveyCoverage(survey, surveyOpen); }, surveyOpen, omen: (k) => startFomen(k), circuit, setEmergency, setBlackout, get blackout() { return blackout; }, signParts, get resetT() { return resetT; }, get emergency() { return emergency; }, blocked, isWall, finds, found, get lampPlaced() { return lampPlaced; }, lights: () => gatherLights(add(player.pos, [0, 1.6, 0])), get hesitation() { return hesitation; }, get lastOmen() { return lastFomen; }, get marcoAct() { return marcoAct; }, set marcoAct(v) { marcoAct = v; }, marcos, columns, wavePool, get basin() { return basin; }, isWater, floorTop, get operating() { return operating; }, set operating(v) { operating = v; }, panelFront, holdT, shoot, spawnBloom, occupant, lockers, noise, violate, get omenState() { return fomen; }, door, blooms, lamps, director, followers, get dockKind() { return dockKind; }, get valves() { return { order: valveOrder, step: valveStep, list: pumpValves }; }, june: juneEvent, thread, get clock() { return clock; }, stagnant, player, center, undertow, lifeguard, cellPos, panelPos, raftPos, code, find, floaters, restorePower };
+  if (import.meta.env.DEV) window.__explore = { parts, camRig, waterField: field, ringParts, caustics, waterLevel, stir, jolt, effects, get blown() { return blown; }, flashes, frameEnv: () => lastEnv, marcos, get marcoApart() { return marcoApart; }, mirror: () => mirrorSurface && detachMirror && { height: mirrorSurface.height, parts: mirrorSurface.partIndices.length, key: mirrorKey }, models: () => parts.filter((p) => p.model).map((p) => ({ model: p.model, name: p.name, at: [p.matrix[12], p.matrix[13], p.matrix[14]] })), flashes, budget, wave: (n, f) => wave(n, f), lineOfSight, get remembered() { return remembered; }, get chain() { return lastChain; }, get eyeExposure() { return eyeExposure; }, renderer, get driftSigns() { return driftSigns; }, get wedges() { return lastWedges; }, survey, get surveyCoverage() { return surveyCoverage(survey, surveyOpen); }, surveyOpen, omen: (k) => startFomen(k), circuit, setEmergency, setBlackout, get blackout() { return blackout; }, signParts, get resetT() { return resetT; }, get emergency() { return emergency; }, blocked, isWall, finds, found, get lampPlaced() { return lampPlaced; }, lights: () => gatherLights(add(player.pos, [0, 1.6, 0])), get hesitation() { return hesitation; }, get lastOmen() { return lastFomen; }, get marcoAct() { return marcoAct; }, set marcoAct(v) { marcoAct = v; }, marcos, columns, wavePool, get basin() { return basin; }, isWater, floorTop, get operating() { return operating; }, set operating(v) { operating = v; }, panelFront, holdT, shoot, spawnBloom, occupant, lockers, noise, violate, get omenState() { return fomen; }, door, blooms, lamps, director, followers, get dockKind() { return dockKind; }, get valves() { return { order: valveOrder, step: valveStep, list: pumpValves }; }, june: juneEvent, thread, get clock() { return clock; }, stagnant, player, center, undertow, lifeguard, cellPos, panelPos, raftPos, code, find, floaters, restorePower };
 
   /** ?show=: put the dock into a fixed, readable state for screenshots and visual review. */
   function showcase(name) {

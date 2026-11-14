@@ -171,3 +171,34 @@ export function plateNormal() {
   plateCache = { image: c, colorSpace: 'linear' };
   return plateCache;
 }
+
+// ---------- Caustics ----------
+let causticCache = null;
+/**
+ * A seamless caustic web: bright lines where two warped wave fields cross, white on transparent (the alpha carries the
+ * pattern), so a blended sheet just above the pool floor lights it in a moving net. Integer frequencies keep it
+ * seamless when it repeats cell to cell.
+ */
+export function causticTexture(size = 128) {
+  if (causticCache) return causticCache;
+  const c = document.createElement('canvas');
+  c.width = c.height = size;
+  const g = c.getContext('2d');
+  const out = g.createImageData(size, size);
+  const T = Math.PI * 2;
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      const u = x / size, v = y / size;
+      const a = T * (2 * u + v) + 1.3 * Math.sin(T * (u - 2 * v));
+      const b = T * (2 * v - u) + 1.1 * Math.sin(T * (2 * u + v) + 0.7);
+      const cc = Math.abs(Math.sin(a) * Math.sin(b));
+      const k = Math.pow(1 - cc, 7);
+      const o = (y * size + x) * 4;
+      out.data[o] = 235; out.data[o + 1] = 250; out.data[o + 2] = 248;
+      out.data[o + 3] = Math.round(Math.min(1, k * 1.4) * 255);
+    }
+  }
+  g.putImageData(out, 0, 0);
+  causticCache = { image: c, colorSpace: 'srgb' };
+  return causticCache;
+}
