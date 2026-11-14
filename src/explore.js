@@ -1114,27 +1114,31 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
   // Impact effects from a fixed pool (effectpool.js), as on the raft: sparks off tile, droplets off water.
   const effects = createEffectPool();
   const fxDot = sphere(8, 6);
+  // One material per kind, shared, so each kind draws as one instanced batch.
+  const bubbleMat = { color: [0.8, 0.93, 0.95], metallic: 0, roughness: 0.05, emission: 0.2, emissiveColor: [0.8, 0.93, 0.95] };
+  const foamPatchMat = { color: [0.86, 0.93, 0.92], metallic: 0, roughness: 0.6, emission: 0.2, emissiveColor: [0.86, 0.93, 0.92] };
   const fxParts = {
     spark: Array.from({ length: effects.sizes.spark }, (_, i) => P(`Spark ${i}`, fxDot, glow([1, 0.9, 0.6], 8))),
     droplet: Array.from({ length: effects.sizes.droplet }, (_, i) => P(`Droplet ${i}`, fxDot, { color: [0.75, 0.9, 0.92], metallic: 0, roughness: 0.05, emission: 0.3, emissiveColor: [0.75, 0.9, 0.92] })),
-    bubble: Array.from({ length: effects.sizes.bubble }, (_, i) => P(`Bubble ${i}`, fxDot, { color: [0.8, 0.93, 0.95], metallic: 0, roughness: 0.05, emission: 0.2, emissiveColor: [0.8, 0.93, 0.95] })),
-    foam: Array.from({ length: effects.sizes.foam }, (_, i) => P(`Foam ${i}`, fxDot, { color: [0.86, 0.93, 0.92], metallic: 0, roughness: 0.6, emission: 0.2, emissiveColor: [0.86, 0.93, 0.92] })),
+    bubble: Array.from({ length: effects.sizes.bubble }, (_, i) => P(`Bubble ${i}`, fxDot, bubbleMat)),
+    foam: Array.from({ length: effects.sizes.foam }, (_, i) => P(`Foam ${i}`, fxDot, foamPatchMat)),
   };
   // Water disturbances (waterfx.js): up to six rings at once, flat tori that widen and thin out on the surface.
   const field = createWaterField();
-  const ringGeo = torus(0.05, 40, 6);
-  const ringParts = field.rings.map((_, i) => P(`Water ring ${i}`, ringGeo, { color: [0.82, 0.92, 0.92], metallic: 0, roughness: 0.15, emission: 0.25, emissiveColor: [0.82, 0.92, 0.92] }));
+  const ringGeo = torus(0.06, 32, 8); // the ping marker's torus: same shape, so the rings join its batch
+  const ringMat = { color: [0.82, 0.92, 0.92], metallic: 0, roughness: 0.15, emission: 0.25, emissiveColor: [0.82, 0.92, 0.92] }; // shared: one batch
+  const ringParts = field.rings.map((_, i) => P(`Water ring ${i}`, ringGeo, ringMat));
   const drawRings = () => field.rings.forEach((r, i) => {
     const sh = ringShape(r, time);
     if (!sh) { hide(ringParts[i]); return; }
     writeBasis(ringParts[i].matrix, [sh.at[0], sh.at[1] + 0.01, sh.at[2]], [1, 0, 0], [0, 0, -1], [0, 1, 0], sh.radius, sh.radius, Math.max(0.05, sh.fade * 0.6));
-    ringParts[i].material.emission = 0.05 + sh.fade * 0.4;
   });
   // Caustics: two sheets of the caustic web just above the floor of every flooded cell, drifting against each other.
   const causticK = causticStrength({ light: rules.openSky ? 1.2 : 0.8, turbidity: optics.turbidity });
   const causticMat = (k) => ({ color: [0.85, 1, 0.98], metallic: 0, roughness: 1, emission: 0.1 + k, emissiveColor: [0.85, 1, 0.98], map: causticTexture(), alphaMode: 'blend', opacity: 0.3 });
+  const causticA = causticMat(causticK), causticB = causticMat(causticK * 0.8); // two shared materials: two batches
   const sheet = quad(); // flat, with the UVs a textured part needs
-  const caustics = waterParts.map((w, i) => ({ x: w.x, z: w.z, a: P(`Caustic ${i}a`, sheet, causticMat(causticK)), b: P(`Caustic ${i}b`, sheet, causticMat(causticK * 0.8)) }));
+  const caustics = waterParts.map((w, i) => ({ x: w.x, z: w.z, a: P(`Caustic ${i}a`, sheet, causticA), b: P(`Caustic ${i}b`, sheet, causticB) }));
   const flat = (part, pos, yaw, size) => { const c = Math.cos(yaw), sn = Math.sin(yaw); writeBasis(part.matrix, pos, [c, 0, -sn], [-sn, 0, -c], [0, 1, 0], size, size, 1); };
   const drawCaustics = () => {
     const [da, db] = causticDrift(time);

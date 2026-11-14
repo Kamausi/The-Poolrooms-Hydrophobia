@@ -199,22 +199,26 @@ export function createRide(canvas, state, sector, events, opts = {}) {
   // Impact effects from a fixed pool (effectpool.js): sparks in the blaster's colour, droplets where a shot hits water.
   const effects = createEffectPool();
   const fxDot = sphere(8, 6);
+  // One material per kind, shared, so each kind draws as one instanced batch.
+  const bubbleMat = { color: [0.8, 0.93, 0.95], metallic: 0, roughness: 0.05, emission: 0.2, emissiveColor: [0.8, 0.93, 0.95] };
+  const foamPatchMat = { color: [0.86, 0.93, 0.92], metallic: 0, roughness: 0.6, emission: 0.2, emissiveColor: [0.86, 0.93, 0.92] };
   const fxParts = {
     spark: Array.from({ length: effects.sizes.spark }, (_, i) => P(`Spark ${i}`, fxDot, glow([1, 0.9, 0.6], 8))),
     droplet: Array.from({ length: effects.sizes.droplet }, (_, i) => P(`Droplet ${i}`, fxDot, { color: [0.75, 0.9, 0.92], metallic: 0, roughness: 0.05, emission: 0.3, emissiveColor: [0.75, 0.9, 0.92] })),
-    bubble: Array.from({ length: effects.sizes.bubble }, (_, i) => P(`Bubble ${i}`, fxDot, { color: [0.8, 0.93, 0.95], metallic: 0, roughness: 0.05, emission: 0.2, emissiveColor: [0.8, 0.93, 0.95] })),
-    foam: Array.from({ length: effects.sizes.foam }, (_, i) => P(`Foam ${i}`, fxDot, { color: [0.86, 0.93, 0.92], metallic: 0, roughness: 0.6, emission: 0.2, emissiveColor: [0.86, 0.93, 0.92] })),
+    bubble: Array.from({ length: effects.sizes.bubble }, (_, i) => P(`Bubble ${i}`, fxDot, bubbleMat)),
+    foam: Array.from({ length: effects.sizes.foam }, (_, i) => P(`Foam ${i}`, fxDot, foamPatchMat)),
   };
   const drawFx = () => { for (const [k, list] of Object.entries(fxParts)) effects.slots(k).forEach((p, i) => { if (!p.on) { hide(list[i]); return; } const sz = p.size * (1 - effects.fade(p) * 0.7); writeYaw(list[i].matrix, p.pos, 0, sz, k === 'foam' ? sz * 0.06 : sz, sz); if (k === 'spark') list[i].material.emissiveColor = p.color; }); };
   // Water disturbances (waterfx.js): up to six rings at once, the raft's wake (two arms at the Kelvin angle and a
   // churned trail) and foam streaks carried by the current. Fixed parts, hidden when idle.
   const field = createWaterField();
   const foamMat = (e, blend = false) => ({ color: [0.82, 0.92, 0.92], metallic: 0, roughness: 0.15, emission: e, emissiveColor: [0.82, 0.92, 0.92], ...(blend ? { alphaMode: 'blend', opacity: 0.4 } : {}) });
-  const ringGeo = torus(0.05, 40, 6);
-  const ringParts = field.rings.map((_, i) => P(`Water ring ${i}`, ringGeo, foamMat(0.25)));
-  const wakeParts = [0, 1, 2].map((i) => P(`Wake ${i}`, box(), foamMat(0.2, true)));
+  const ringGeo = thinRing; // a torus the scene already draws, so the rings add no batch
+  const ringMat = foamMat(0.25), wakeMat = foamMat(0.2, true), streakMat = foamMat(0.15, true); // shared: one batch each
+  const ringParts = field.rings.map((_, i) => P(`Water ring ${i}`, ringGeo, ringMat));
+  const wakeParts = [0, 1, 2].map((i) => P(`Wake ${i}`, box(), wakeMat));
   const STREAKS = 8, STREAK_SPAN = 40;
-  const streakParts = Array.from({ length: STREAKS }, (_, i) => P(`Current streak ${i}`, box(), foamMat(0.15, true)));
+  const streakParts = Array.from({ length: STREAKS }, (_, i) => P(`Current streak ${i}`, box(), streakMat));
   /** A disturbance on the water: a ring, and the engine's own ripple when it is strong enough. */
   const stir = (pos, kind = 'splash') => {
     field.impulse([pos[0], track.at(s).p[1], pos[2]], kind, time);
@@ -228,7 +232,6 @@ export function createRide(canvas, state, sector, events, opts = {}) {
       const sh = ringShape(r, time);
       if (!sh) { hide(ringParts[i]); return; }
       writeBasis(ringParts[i].matrix, [sh.at[0], sh.at[1] + 0.01, sh.at[2]], [1, 0, 0], [0, 0, -1], [0, 1, 0], sh.radius, sh.radius, Math.max(0.05, sh.fade * 0.6));
-      ringParts[i].material.emission = 0.05 + sh.fade * 0.4;
     });
     const afloat = !overboard && !(capsize && capsize.t > 0.6) && Math.abs(base[1] - wy) < 0.6;
     const strips = afloat ? wakeStrips([base[0], wy, base[2]], [fwd[0], fwd[2]], speed) : [];
