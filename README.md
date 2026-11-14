@@ -64,18 +64,18 @@ Touch: left half of the screen moves, right half aims or looks, with buttons for
 | `src/sectors.js` | The eight attractions: palettes, rides, maps, rules, voices, graffiti |
 | `src/documents.js` | Found documents for the logbook |
 | `src/crew.js` | The four Drainers, the roll call, and what survives a loop |
-| `src/director.js` | Pacing: relax, warning, build-up, peak, fade, recovery; a pressure budget that counts rescues and repairs |
+| `src/ai/director.js` | Pacing: relax, warning, build-up, peak, fade, recovery; a pressure budget that counts rescues and repairs |
 | `src/saferoom.js` | The Safe Room scene behind its panel |
 | `src/menuscene.js` | The main-menu corridor behind the title |
 | `src/memory.js` | The facility's memory: expedition record, authored variations with validation, the field ledger |
-| `src/playlog.js` | Local playtest log and frame-time statistics |
+| `src/debug/playlog.js` | Local playtest log and frame-time statistics |
 | `src/ui.js` | Safe Room, workbench, route terminal, logbook, keypad, settings |
 | `src/hud.js`, `src/style.css` | The overlay |
-| `src/audio.js`, `src/samples.js`, `src/voicepool.js` | Stereo-panned sound: recorded files in `public/audio/`, synthesis as the fallback, a voice cap with priorities |
-| `src/props.js`, `src/shapes.js` | 3D props as GLB models inlined into the build, each with a primitive stand-in; shared primitive shapes so identical parts draw as one instanced batch |
-| `src/lanerope.js` | The Lane Rope: red and white disc floats on a steel cable between wall anchors |
-| `src/surfaces.js` | Generated surface textures (ceiling, floor tile, painted steel, PVC, wet concrete, clouds) |
-| `src/input.js`, `src/settings.js`, `src/quality.js`, `src/labels.js`, `src/textures.js`, `src/math.js` | Input, options, render quality, sign textures, tile textures, maths |
+| `src/audio/audio.js`, `src/audio/samples.js`, `src/audio/voicepool.js` | Stereo-panned sound: recorded files in `public/audio/`, synthesis as the fallback, a voice cap with priorities |
+| `src/render/props.js`, `src/render/shapes.js` | 3D props as GLB models inlined into the build, each with a primitive stand-in; shared primitive shapes so identical parts draw as one instanced batch |
+| `src/render/lanerope.js` | The Lane Rope: red and white disc floats on a steel cable between wall anchors |
+| `src/render/surfaces.js` | Generated surface textures (ceiling, floor tile, painted steel, PVC, wet concrete, clouds) |
+| `src/input.js`, `src/settings.js`, `src/render/quality.js`, `src/labels.js`, `src/render/textures.js`, `src/math.js` | Input, options, render quality, sign textures, tile textures, maths |
 
 The full module map, including the pure, unit-tested modules, is in [CLAUDE.md](CLAUDE.md) and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 

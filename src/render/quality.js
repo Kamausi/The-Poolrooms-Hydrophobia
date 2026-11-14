@@ -2,7 +2,7 @@
 // ultra add the depth target, ambient occlusion, haze, the post chain, more lamps and more samples.
 // ?quality=low|medium|high|ultra in the URL overrides the player's setting and the detection.
 import { TIERS, resolveTier, tierRatio, SETTING_TIERS } from './tiers.js';
-import { settings } from './settings.js';
+import { settings } from '../settings.js';
 
 function detectSoftware() {
   try {

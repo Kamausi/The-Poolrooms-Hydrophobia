@@ -1,6 +1,6 @@
-// Tile ageing parameters (src/tileflavour.js): one authored tile family, varied by place, age, damp and flooding.
+// Tile ageing parameters (src/render/tileflavour.js): one authored tile family, varied by place, age, damp and flooding.
 import { describe, it, expect } from 'vitest';
-import { tileFlavour } from '../../src/tileflavour.js';
+import { tileFlavour } from '../../src/render/tileflavour.js';
 import { SECTORS } from '../../src/sectors.js';
 
 describe('tile flavour', () => {

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { assignShadows, handLamp, tilesFor, ATLAS_TILES } from '../../src/shadows.js';
+import { assignShadows, handLamp, tilesFor, ATLAS_TILES } from '../../src/render/shadows.js';
 
 const L = (x, extra = {}) => ({ position: [x, 3, 0], intensity: 10, range: 9.5, ...extra });
 

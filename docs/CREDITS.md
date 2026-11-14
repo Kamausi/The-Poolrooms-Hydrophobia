@@ -42,15 +42,15 @@ From the npm package `@pmndrs/assets` 1.7.0 (CC0 1.0, public domain; no credit r
 | `src/assets/normal-0000.webp` | `normals/0000` (fine drips and bumps) | Blended faintly into the tile relief as glaze wear |
 | `src/assets/normal-0008.webp` | `normals/0008` (diamond plate) | The Safe Room's floor grating |
 
-The tile relief itself (recessed grout, bevelled edges, tiles set slightly off true) is generated in `src/textures.js` from the same grid as the tile colour texture.
+The tile relief itself (recessed grout, bevelled edges, tiles set slightly off true) is generated in `src/render/textures.js` from the same grid as the tile colour texture.
 
 ## Generated textures
 
-Higgsfield (Z Image model): four surface textures generated for UNDERFLOW from text prompts written for it, used in `src/surfaces.js` (stained ceiling tiles, aqua pool floor tile, painted steel, painted cloud tiles). Two more ship as well: raft PVC (made greyscale so it keeps the raft's colour) and wet concrete. Two are kept in `assets/generated/` but not shipped (porcelain wall tile, and a creature skin that came out looking like corrugated plastic). Their use is governed by the account holder's Higgsfield terms, not an open licence.
+Higgsfield (Z Image model): four surface textures generated for UNDERFLOW from text prompts written for it, used in `src/render/surfaces.js` (stained ceiling tiles, aqua pool floor tile, painted steel, painted cloud tiles). Two more ship as well: raft PVC (made greyscale so it keeps the raft's colour) and wet concrete. Two are kept in `assets/generated/` but not shipped (porcelain wall tile, and a creature skin that came out looking like corrugated plastic). Their use is governed by the account holder's Higgsfield terms, not an open licence.
 
 ## Models: Poly Haven (CC0)
 
-Twenty-one props from Poly Haven (polyhaven.com), CC0. Credit is not required, and it is given here. Each was packed into one GLB with smaller textures and simplified with gltfpack, and is loaded by `src/props.js`.
+Twenty-one props from Poly Haven (polyhaven.com), CC0. Credit is not required, and it is given here. Each was packed into one GLB with smaller textures and simplified with gltfpack, and is loaded by `src/render/props.js`.
 
 - Industrial Wall Lamp by Kuutti Siitonen: https://polyhaven.com/a/industrial_wall_lamp
 - Korean Fire Extinguisher 01 by UM JOORIN: https://polyhaven.com/a/korean_fire_extinguisher_01

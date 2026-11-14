@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { createPerceiver, sense } from '../../src/perception.js';
+import { createPerceiver, sense } from '../../src/ai/perception.js';
 
 const run = (p, s, seconds, dt = 1 / 30) => { for (let t = 0; t < seconds; t += dt) sense(p, s, dt); return p.state; };
 

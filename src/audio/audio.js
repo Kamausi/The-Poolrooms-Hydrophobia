@@ -1,7 +1,7 @@
 // Sound: recorded where a recording exists (samples.js, the Oculus Audio Pack), synthesised everywhere else and
 // as the fallback while recordings load. Beds (water, machinery, the vent, underwater, the drone) follow the space.
 import { loadSamples, playSample, createBed, hasSample } from './samples.js';
-import { settings } from './settings.js';
+import { settings } from '../settings.js';
 import { createVoicePool, priorityOf } from './voicepool.js';
 
 // At most 24 one-shots at once; the least important give way (voicepool.js). Beds and music are not counted.

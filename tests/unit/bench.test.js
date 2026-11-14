@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { summarize, report } from '../../src/bench.js';
+import { summarize, report } from '../../src/debug/bench.js';
 
 describe('the benchmark report', () => {
   it('summarises frame times', () => {

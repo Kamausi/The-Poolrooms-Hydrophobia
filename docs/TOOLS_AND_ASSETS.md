@@ -14,8 +14,8 @@ Checked from the build container: GitHub (raw files and read-only clones of publ
 
 | Source | Licence | What it gave the game |
 |---|---|---|
-| Meta Open Sound (github.com/facebookincubator/meta-open-sound), Oculus Audio Pack 01 | CC BY 4.0 (credit given) | 26 recorded sounds: water, machinery, vent, underwater and Drift beds; oars, footsteps, valves, levers, hatches, metal, creature voices, whispers, scrapes, chains (`public/audio/`, `src/samples.js`) |
-| `@pmndrs/assets` on npm | CC0 1.0 | Two normal maps: glaze wear on the tiles and diamond plate on the Safe Room floor (`src/assets/`, `src/textures.js`) |
+| Meta Open Sound (github.com/facebookincubator/meta-open-sound), Oculus Audio Pack 01 | CC BY 4.0 (credit given) | 26 recorded sounds: water, machinery, vent, underwater and Drift beds; oars, footsteps, valves, levers, hatches, metal, creature voices, whispers, scrapes, chains (`public/audio/`, `src/audio/samples.js`) |
+| `@pmndrs/assets` on npm | CC0 1.0 | Two normal maps: glaze wear on the tiles and diamond plate on the Safe Room floor (`src/assets/`, `src/render/textures.js`) |
 | Meta Open Sound instruments (piano, nylon and steel guitar) | CC0 1.0 | Not used yet. A detuned upright piano is a candidate for the Safe Room radio |
 | `@pmndrs/assets` HDRIs (hall, lobby, warehouse…) | CC0 1.0 | Not used: 67js's environment lighting is set from parameters here, and the facility's light is meant to be its own fixtures |
 | Kenney's CC0 packs mirrored on GitHub (for example shorepine/kenney) | CC0 | Not fetched: the session could not attach those repositories. Kenney's furniture and prop kits would fit the Safe Room |

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { PATTERNS, rumble } from '../../src/haptics.js';
+import { PATTERNS, rumble } from '../../src/feel/haptics.js';
 import { settings } from '../../src/settings.js';
 
 describe('haptic patterns', () => {

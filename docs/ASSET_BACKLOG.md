@@ -7,10 +7,10 @@ Priority: **P0** is required for the Closed Wave Pool reference chapter, **P1** 
 Status words used below:
 
 - **Model**: a mesh file ships and `tests/models.cjs` checks that it loads and is placed. Generated models come from Higgsfield (a generated reference image turned into a mesh). CC0 models come from Poly Haven.
-- **Generated texture**: a Higgsfield image used as a surface (`src/surfaces.js`).
+- **Generated texture**: a Higgsfield image used as a surface (`src/render/surfaces.js`).
 - **Procedural**: drawn or computed in code at run time.
 - **Primitive**: built in code from boxes, cylinders, spheres and tori. It works and is tested, but it is a stand-in for a real asset.
-- **Recorded**: an audio file from the Oculus Audio Pack (CC BY 4.0). **Synth**: sound synthesised in `src/audio.js`.
+- **Recorded**: an audio file from the Oculus Audio Pack (CC BY 4.0). **Synth**: sound synthesised in `src/audio/audio.js`.
 - **Not built**: nothing yet.
 
 Nothing here has been checked by human play or on target GPUs. Generated models are made with Tripo 3D H3.1 at a game triangle count (about 4,000 to 20,000) with PBR maps, and their geometry is used as generated: earlier SAM 3D meshes and heavily simplified ones were replaced because they looked rough. "Model" means it loads and stands in place in a headless browser.
@@ -73,7 +73,7 @@ These need real modelling, rigging and animation, which Higgsfield's image-to-me
 | Undertow | Procedural ripple, pull and bubbles; no mesh |
 | Marco | Uses crew figures and borrowed gestures (coded) |
 | Grout | Screen and sound effects; no seam decals |
-| Lane Rope | **Procedural** (`src/lanerope.js`): a racing lane line, runs of red and white disc floats on a steel cable between stainless anchor plates and eye bolts in the wall; each float target is six discs from one shared shape. On the raft the anchors you shoot are the eye bolts where the cable meets the wall; on foot an anchor is drawn only where a wall is |
+| Lane Rope | **Procedural** (`src/render/lanerope.js`): a racing lane line, runs of red and white disc floats on a steel cable between stainless anchor plates and eye bolts in the wall; each float target is six discs from one shared shape. On the raft the anchors you shoot are the eye bolts where the cable meets the wall; on foot an anchor is drawn only where a wall is |
 | Floaters / survivors | **Primitive** |
 | Ballast | **Primitive** |
 
@@ -115,11 +115,11 @@ The blaster body is a **Model** (generated with Tripo from a GPT Image reference
 
 ## 25. VFX
 
-Splashes, wake, sparks, shot lights, beam, muzzle flash, bubbles, Undertow ripple, fog and haze, flicker, light dropout, UV reveal, chromatic aberration, wet lens, light shafts: **procedural** (parts, post passes in `src/postchain.js`). No particle sprites or flipbooks.
+Splashes, wake, sparks, shot lights, beam, muzzle flash, bubbles, Undertow ripple, fog and haze, flicker, light dropout, UV reveal, chromatic aberration, wet lens, light shafts: **procedural** (parts, post passes in `src/render/postchain.js`). No particle sprites or flipbooks.
 
 ## 26. Water
 
-Pool and channel water is the engine's refractive `water` sheet, configured per attraction by `src/waterlook.js` (pure, unit-tested): the sheet is blended, so the floor shows through; everything under it is darkened by its real depth below the surface, per colour channel (Beer-Lambert, absorption derived from the attraction's water colour, so 30 cm barely dims the tile and a 2 m deep end reads clearly darker); turbidity lifts it toward the water colour (the Filtration Works is murkiest); a Fresnel reflection takes over at grazing angles. On the high and ultra tiers the largest still sheet on foot is a planar mirror (67js `water-reflection`, half and three-quarter resolution); it is dropped when the Closed Wave Pool's basin drains away from its height, and the raft has none because its water changes height along the track. One water ripple at a time, haze and the underwater grade are **procedural**. **Not built:** a ripple simulation with many simultaneous disturbances, a raft wake, caustics, foam from turbulence, flow maps, wet-surface masks, an underwater pass with Snell's window, and the separate states (stagnant, filtration, turbulent, UV-reactive, Main Drain).
+Pool and channel water is the engine's refractive `water` sheet, configured per attraction by `src/render/waterlook.js` (pure, unit-tested): the sheet is blended, so the floor shows through; everything under it is darkened by its real depth below the surface, per colour channel (Beer-Lambert, absorption derived from the attraction's water colour, so 30 cm barely dims the tile and a 2 m deep end reads clearly darker); turbidity lifts it toward the water colour (the Filtration Works is murkiest); a Fresnel reflection takes over at grazing angles. On the high and ultra tiers the largest still sheet on foot is a planar mirror (67js `water-reflection`, half and three-quarter resolution); it is dropped when the Closed Wave Pool's basin drains away from its height, and the raft has none because its water changes height along the track. One water ripple at a time, haze and the underwater grade are **procedural**. **Not built:** a ripple simulation with many simultaneous disturbances, a raft wake, caustics, foam from turbulence, flow maps, wet-surface masks, an underwater pass with Snell's window, and the separate states (stagnant, filtration, turbulent, UV-reactive, Main Drain).
 
 ## 27. Lighting assets
 
@@ -196,4 +196,4 @@ The Marco reflection and Drift effects are coded. There are no reflection-specif
 1. Skimmer lid (a second attempt, from a cleaner reference image).
 2. ambientCG's downloads come from a host the network policy blocks; Poly Haven has no brushed-steel or rubber set, so those stay factor materials.
 3. More Higgsfield image-to-mesh for rigid custom props: per-profile blaster attachments, a pump housing, rescue hooks, collectibles (wristband, token, photo).
-4. The custom families (raft, blaster, work lamp, crew, Lifeguard, Blooms, slide kit) need a modelling and rigging pipeline outside this environment. The game is ready to load them: `src/props.js` takes any GLB, and the importer supports skinning and animation clips.
+4. The custom families (raft, blaster, work lamp, crew, Lifeguard, Blooms, slide kit) need a modelling and rigging pipeline outside this environment. The game is ready to load them: `src/render/props.js` takes any GLB, and the importer supports skinning and animation clips.

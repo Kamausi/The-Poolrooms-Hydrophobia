@@ -1,6 +1,6 @@
-// The behaviour layer over perception (src/pursuit.js): what an entity does with what it knows.
+// The behaviour layer over perception (src/ai/pursuit.js): what an entity does with what it knows.
 import { describe, it, expect } from 'vitest';
-import { createPursuit, advance } from '../../src/pursuit.js';
+import { createPursuit, advance } from '../../src/ai/pursuit.js';
 
 const perc = (state, lastKnown, sinceSensed = 0) => ({ state, lastKnown, sinceSensed });
 const run = (pu, p, at, seconds, dt = 0.1) => { for (let t = 0; t < seconds; t += dt) advance(pu, p, at, dt); return pu.mode; };

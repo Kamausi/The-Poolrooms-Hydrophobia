@@ -1,6 +1,6 @@
-// Effects from a fixed set of slots (src/effectpool.js): sparks, droplets, bubbles.
+// Effects from a fixed set of slots (src/render/effectpool.js): sparks, droplets, bubbles.
 import { describe, it, expect } from 'vitest';
-import { createEffectPool, KINDS } from '../../src/effectpool.js';
+import { createEffectPool, KINDS } from '../../src/render/effectpool.js';
 
 const run = (fx, seconds, dt = 1 / 60) => { for (let t = 0; t < seconds; t += dt) fx.tick(dt); };
 

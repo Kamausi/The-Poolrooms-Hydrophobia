@@ -2,7 +2,7 @@
 // a Pulse shot from a Scatter blast, a landing from a scrape, a hit from a grab. Uses the Gamepad API's
 // dual-rumble actuator where the browser and controller have one; otherwise does nothing.
 // Not verified on a physical controller.
-import { settings } from './settings.js';
+import { settings } from '../settings.js';
 
 /** kind → [duration ms, weak 0..1 (high-frequency motor), strong 0..1 (low-frequency motor)] */
 export const PATTERNS = {

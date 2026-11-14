@@ -3,7 +3,7 @@
 // radio by you, and a crewmate acknowledges it. Same input on keyboard and controller.
 import { isDown } from './input.js';
 import { hud } from './hud.js';
-import { sound } from './audio.js';
+import { sound } from './audio/audio.js';
 
 export const CALLOUTS = [
   { id: 'go', label: 'GO HERE', line: 'Go here. This way.', reply: ['Moving.', 'On you.'] },

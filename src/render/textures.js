@@ -1,8 +1,8 @@
 // Procedural tile textures, drawn once per sector on a 2D canvas.
 import { tileFlavour } from './tileflavour.js';
-import { rng } from './math.js';
-import dripDetailUrl from './assets/normal-0000.webp?inline';
-import plateUrl from './assets/normal-0008.webp?inline';
+import { rng } from '../math.js';
+import dripDetailUrl from '../assets/normal-0000.webp?inline';
+import plateUrl from '../assets/normal-0008.webp?inline';
 
 const cache = new Map();
 

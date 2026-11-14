@@ -1,7 +1,7 @@
 // Overlays: the shared modal, the Safe Room, the logbook, documents, the keypad, settings.
 import { settings, saveSettings, SETTING_LABELS, ACTIONS } from './settings.js';
 import { claimLost, LOST_FOUND_COST } from './collectibles.js';
-import { sound } from './audio.js';
+import { sound } from './audio/audio.js';
 import { input, applyBindings, PAD_ACTIONS, PAD_NAMES } from './input.js';
 import { COMFORTS, SECTORS } from './sectors.js';
 import { ROUTES } from './plans.js';

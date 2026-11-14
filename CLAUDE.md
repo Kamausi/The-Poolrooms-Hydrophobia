@@ -11,25 +11,27 @@ A first-person cooperative horror rail-shooter and explorer set in the Poolrooms
 | `src/crewfigure.js`, `src/blaster.js` | The crew figure (seated, walking, Safe Room) and the tool in your hand |
 | `src/explore.js` | On foot: dock maps, objectives, machines, followers, remembered payoffs |
 | `src/score.js` | Expedition Score, FLOW, Service Credit, the sector debrief (pure, unit-tested) |
-| `src/poolrooms.js`, `src/director.js` | Placement rules for columns, arches and the painted room (pure, unit-tested); the pacing director with dread and holds |
+| `src/poolrooms.js`, `src/ai/director.js` | Placement rules for columns, arches and the painted room (pure, unit-tested); the pacing director with dread and holds |
 | `src/memory.js` | The facility's memory between expeditions (see `docs/WORLD_MEMORY.md`) |
 | `src/sectors.js`, `src/plans.js`, `src/track.js` | Content as data: attractions, track plans, track geometry |
 | `src/ui.js`, `src/hud.js`, `src/hudcues.js`, `src/input.js`, `src/padmap.js`, `src/settings.js` | Menus, HUD, input and bindings (controller tables by context are pure and unit-tested), settings; when health shows, which side a hit came from, and which hit marker a shot earns (pure, unit-tested) |
-| `src/tiers.js`, `src/quality.js` | Quality tiers, Auto, and what to thin out as the render scale falls (pure, unit-tested); applying a tier in the browser |
-| `src/postchain.js`, `src/exposure.js`, `src/bench.js`, `src/shadows.js` | The four post passes and their uniforms, eye adaptation and haze, the `?bench` report, which lights cast shadows and the hand lamp (pure, unit-tested) |
-| `src/spring.js`, `src/pressure.js`, `src/spawnscore.js`, `src/lightpool.js`, `src/effectpool.js`, `src/perception.js`, `src/pursuit.js` | Damped springs, the attack-slot budget, spawn-point scoring, brief shot lights from a fixed pool, sparks, droplets and bubbles from a fixed pool, awareness from sight and sound, and what an entity does with it (unaware, suspicious, investigate, observe, warn, pursue, search, return) (pure, unit-tested) |
-| `src/surfaces.js`, `src/tileflavour.js` | Generated surface textures (ceiling, aqua floor tile, painted steel, clouds), inlined, provenance in `assets/registry.json`; how the procedural wall tile has aged in each place (pure, unit-tested) |
-| `src/props.js`, `src/shapes.js` | 3D props as inlined GLB files (10 generated with Higgsfield, 38 CC0 from Poly Haven), placed with a primitive fallback; shared primitive shapes so identical parts draw as one instanced batch. Provenance in `assets/registry.json`, status in `docs/ASSET_BACKLOG.md` |
-| `src/waterlook.js` | Water optics per attraction: absorption by depth (Beer-Lambert) and turbidity from the water colour (pure, unit-tested) |
-| `src/lanerope.js` | The Lane Rope's body: disc floats on a steel cable between wall anchors (the disc layout is pure and unit-tested) |
+| `src/render/tiers.js`, `src/render/quality.js` | Quality tiers, Auto, and what to thin out as the render scale falls (pure, unit-tested); applying a tier in the browser |
+| `src/render/postchain.js`, `src/render/exposure.js`, `src/debug/bench.js`, `src/render/shadows.js` | The four post passes and their uniforms, eye adaptation and haze, the `?bench` report, which lights cast shadows and the hand lamp (pure, unit-tested) |
+| `src/feel/spring.js`, `src/ai/pressure.js`, `src/ai/spawnscore.js`, `src/render/lightpool.js`, `src/render/effectpool.js`, `src/ai/perception.js`, `src/ai/pursuit.js` | Damped springs, the attack-slot budget, spawn-point scoring, brief shot lights from a fixed pool, sparks, droplets and bubbles from a fixed pool, awareness from sight and sound, and what an entity does with it (unaware, suspicious, investigate, observe, warn, pursue, search, return) (pure, unit-tested) |
+| `src/render/surfaces.js`, `src/render/tileflavour.js` | Generated surface textures (ceiling, aqua floor tile, painted steel, clouds), inlined, provenance in `assets/registry.json`; how the procedural wall tile has aged in each place (pure, unit-tested) |
+| `src/render/props.js`, `src/render/shapes.js` | 3D props as inlined GLB files (10 generated with Higgsfield, 38 CC0 from Poly Haven), placed with a primitive fallback; shared primitive shapes so identical parts draw as one instanced batch. Provenance in `assets/registry.json`, status in `docs/ASSET_BACKLOG.md` |
+| `src/render/waterlook.js` | Water optics per attraction: absorption by depth (Beer-Lambert) and turbidity from the water colour (pure, unit-tested) |
+| `src/render/lanerope.js` | The Lane Rope's body: disc floats on a steel cable between wall anchors (the disc layout is pure and unit-tested) |
 | `src/driftsign.js` | Which signs change at high Drift and what they say (pure, unit-tested) |
 | `src/survey.js` | The on-foot survey map: what has been seen, coverage, text rendering (pure, unit-tested) |
-| `src/aim.js` | Controller aim help and threat-marker geometry (pure, unit-tested) |
-| `src/autores.js`, `src/haptics.js`, `src/collectibles.js` | Automatic render scale (pure, unit-tested), controller vibration patterns, pickups and the Lost & Found (pure, unit-tested) |
-| `src/audio.js`, `src/samples.js`, `src/voicepool.js` | Sound (the voice cap and priorities are pure and unit-tested): recorded files in `public/audio/` (credited in `docs/CREDITS.md`) with synthesis as the fallback |
+| `src/feel/aim.js` | Controller aim help and threat-marker geometry (pure, unit-tested) |
+| `src/render/autores.js`, `src/feel/haptics.js`, `src/collectibles.js` | Automatic render scale (pure, unit-tested), controller vibration patterns, pickups and the Lost & Found (pure, unit-tested) |
+| `src/audio/audio.js`, `src/audio/samples.js`, `src/audio/voicepool.js` | Sound (the voice cap and priorities are pure and unit-tested): recorded files in `public/audio/` (credited in `docs/CREDITS.md`) with synthesis as the fallback |
 | `docs/` | Design, art direction, production standard, memory contract, tool notes, decisions |
 | `tests/` | Headless tests (`tests/README.md`) |
 | `public/legacy/` | The original prototype. Do not edit |
+
+`src/` is grouped by area: `render/` (post chain, exposure, tiers, textures, props, shapes, water, light and effect pools), `feel/` (springs, haptics, aim help), `ai/` (perception, pursuit, attack slots, spawn scoring, the director), `audio/` (sound, recorded samples, voice cap) and `debug/` (benchmark, play log). The scenes (`main.js`, `ride.js`, `explore.js`), content, HUD and menus stay at the top of `src/`.
 
 Local notes: `src/CLAUDE.md` (engine and module rules). Skills in `.claude/skills/`: design-pass, review, debug, balance, release, untangle. Start with `docs/ARCHITECTURE.md`; code provenance is in `docs/THIRD_PARTY_CODE.md`; decisions are in `docs/decisions/`, and tools and assets considered for the project are in `docs/TOOLS_AND_ASSETS.md`.
 

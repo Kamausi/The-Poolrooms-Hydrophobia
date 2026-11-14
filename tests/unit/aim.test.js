@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { magnet, friction, wedge, wedges } from '../../src/aim.js';
+import { magnet, friction, wedge, wedges } from '../../src/feel/aim.js';
 
 const F = [0, 0, -1], R = [1, 0, 0], U = [0, 1, 0], T = Math.tan(Math.PI / 6), A = 16 / 9;
 

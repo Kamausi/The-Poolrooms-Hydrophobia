@@ -17,17 +17,17 @@ No other code in `src/` or `tests/` is copied from another project. Three.js is 
 
 | UNDERFLOW module | Idea taken | What we wrote |
 |---|---|---|
-| `src/autores.js`, `src/tiers.js` | Frame-time driven render scale; drop a quality tier when the lowest scale is still too slow | Our own thresholds, windows and tier table |
-| `src/exposure.js` | Eye adaptation between bright and dark spaces | Light estimated from the frame's light list, not from pixels |
-| `src/postchain.js` | A post chain: lens effects, grade, FXAA, sharpen, dither | Our own GLSL, written for the 67js user-pass rules; FXAA follows the widely published FXAA 3.11 "console" structure |
-| `src/pressure.js` | Attack tokens: only so many enemies may commit at once | Our own kinds, slot counts and cool-downs |
-| `src/spawnscore.js` | Prefer concealed spawn points; avoid recently used ones | Our own scoring |
-| `src/spring.js` | Spring-driven viewmodel motion | A standard damped spring with substeps |
-| `src/lightpool.js` | Reuse a small pool of dynamic lights for flashes | Our own slot rule and fade |
-| `src/voicepool.js` | Priority-based voice stealing | Our own priorities and limits |
-| `src/bench.js`, `?show=` | Benchmark and showcase modes | Our own report and scenes |
-| `src/effectpool.js` | Pool short-lived effects instead of creating them | Our own kinds, slot counts, motion and steal rule |
-| `src/tileflavour.js` | Vary one material by seed, place, age, humidity and flooding | Our own parameters, drawn by our existing tile texture |
+| `src/render/autores.js`, `src/render/tiers.js` | Frame-time driven render scale; drop a quality tier when the lowest scale is still too slow | Our own thresholds, windows and tier table |
+| `src/render/exposure.js` | Eye adaptation between bright and dark spaces | Light estimated from the frame's light list, not from pixels |
+| `src/render/postchain.js` | A post chain: lens effects, grade, FXAA, sharpen, dither | Our own GLSL, written for the 67js user-pass rules; FXAA follows the widely published FXAA 3.11 "console" structure |
+| `src/ai/pressure.js` | Attack tokens: only so many enemies may commit at once | Our own kinds, slot counts and cool-downs |
+| `src/ai/spawnscore.js` | Prefer concealed spawn points; avoid recently used ones | Our own scoring |
+| `src/feel/spring.js` | Spring-driven viewmodel motion | A standard damped spring with substeps |
+| `src/render/lightpool.js` | Reuse a small pool of dynamic lights for flashes | Our own slot rule and fade |
+| `src/audio/voicepool.js` | Priority-based voice stealing | Our own priorities and limits |
+| `src/debug/bench.js`, `?show=` | Benchmark and showcase modes | Our own report and scenes |
+| `src/render/effectpool.js` | Pool short-lived effects instead of creating them | Our own kinds, slot counts, motion and steal rule |
+| `src/render/tileflavour.js` | Vary one material by seed, place, age, humidity and flooding | Our own parameters, drawn by our existing tile texture |
 | `src/hudcues.js` | Health hidden until injured, directional damage, hit-marker variants | Our own rules, bearings and marks |
 
 If Saltline source is ever brought in, record here which file it came from, who generated it, and the terms it is used under, before any of it is copied.
@@ -38,6 +38,6 @@ A copy of the built Saltline page (`Saltline_Copy.html`, one bundled file) was p
 
 | UNDERFLOW module | Behaviour observed | What we wrote |
 |---|---|---|
-| `src/pursuit.js` | Losing a target sends an enemy to its last-known point and then to a search around it | Our own eight-mode cycle (unaware, suspicious, investigate, observe, warn, pursue, search, return), per-entity timing, and the rule that an entity never reads your real position after losing you |
+| `src/ai/pursuit.js` | Losing a target sends an enemy to its last-known point and then to a search around it | Our own eight-mode cycle (unaware, suspicious, investigate, observe, warn, pursue, search, return), per-entity timing, and the rule that an entity never reads your real position after losing you |
 
 If any Saltline code is ever reused directly, first establish who generated it and under what terms, separate the Three.js parts (MIT, keep its notice), and record each copied block here.

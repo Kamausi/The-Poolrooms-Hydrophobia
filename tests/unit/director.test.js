@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { createDirector } from '../../src/director.js';
+import { createDirector } from '../../src/ai/director.js';
 import { rng } from '../../src/math.js';
 
 const run = (d, seconds, report = {}, dt = 0.1) => { const acts = []; for (let t = 0; t < seconds; t += dt) acts.push(...d.update(dt, report)); return acts; };

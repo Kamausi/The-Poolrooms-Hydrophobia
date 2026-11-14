@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { lightAtEye, targetExposure, adapt, hazeVolume } from '../../src/exposure.js';
+import { lightAtEye, targetExposure, adapt, hazeVolume } from '../../src/render/exposure.js';
 
 describe('auto exposure', () => {
   const lamp = (d) => ({ position: [0, 0, d], intensity: 10, range: 9.5 });

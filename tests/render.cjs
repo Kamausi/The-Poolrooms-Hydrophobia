@@ -69,7 +69,7 @@ const BASE = process.env.UNDERFLOW_URL || 'http://localhost:5173';
   // planar mirror at the water level. Shallow water shows the floor nearly untinted; two metres turn it dark.
   r = await page.evaluate(async () => { const u = window.__underflow; u.beginSector(2); u.startRide(); u.startExplore(); u.step(2); const E = window.__explore;
     const w = E.parts.find((p) => /^Water /.test(p.name) && p.material.tag === 'water'); const m = E.mirror();
-    const { transmittance, luminance } = await import('/src/waterlook.js');
+    const { transmittance, luminance } = await import('/src/render/waterlook.js');
     const shallow = luminance(transmittance(w.material.absorption, 0.3)), deep = luminance(transmittance(w.material.absorption, 2.2));
     return { blend: w.material.alphaMode, opacity: w.material.opacity, absorption: w.material.absorption, turbidity: w.material.turbidity, mirror: m, shallow: +shallow.toFixed(2), deep: +deep.toFixed(2), diag: JSON.stringify(E.renderer.diagnostics) }; });
   check('pool water refracts the floor, darkens it by real depth (Beer-Lambert) and, on the high tier, mirrors the room at the water level', r.blend === 'blend' && r.opacity < 1 && r.absorption.length === 3 && r.mirror && Math.abs(r.mirror.height + 0.05) < 0.1 && r.shallow > 0.75 && r.deep < r.shallow * 0.6 && r.diag === '[]', JSON.stringify(r));
@@ -82,13 +82,13 @@ const BASE = process.env.UNDERFLOW_URL || 'http://localhost:5173';
   check('automatic quality redraws the mirror less often as the render scale falls, drops it at the lowest scale, and restores it', r.full === '0.5/1' && r.mid === '0.5/2' && r.low === 'off' && r.back === '0.5/1' && r.diag === '[]', JSON.stringify(r));
 
   // One tile family aged per place (tileflavour.js): attractions differ, and a room that stood flooded is its own set.
-  r = await page.evaluate(async () => { const { tileTexture } = await import('/src/textures.js'); const { SECTORS } = await import('/src/sectors.js');
+  r = await page.evaluate(async () => { const { tileTexture } = await import('/src/render/textures.js'); const { SECTORS } = await import('/src/sectors.js');
     const px = (t) => { const d = t.image.getContext('2d').getImageData(0, 0, 512, 512).data; let sum = 0; for (let i = 0; i < d.length; i += 4 * 61) sum += d[i] + d[i + 1] + d[i + 2]; return sum; };
     const a = tileTexture(SECTORS[0]), b = tileTexture(SECTORS[5]), wet = tileTexture(SECTORS[0], { flooded: 1 });
     return { differ: px(a) !== px(b), floodedOwn: wet !== a && px(wet) !== px(a), cached: tileTexture(SECTORS[0]) === a }; });
   check('the wall tile is aged per attraction and a flooded room gets its own damper set, cached once each', r.differ && r.floodedOwn && r.cached, JSON.stringify(r));
 
-  r = await page.evaluate(async () => { const m = await import('/src/surfaces.js'); const loaded = m.surfacesLoaded();
+  r = await page.evaluate(async () => { const m = await import('/src/render/surfaces.js'); const loaded = m.surfacesLoaded();
     const c = m.surface('ceiling').image.getContext('2d').getImageData(0, 0, 256, 256).data; let varied = 0; for (let i = 0; i < c.length; i += 4 * 97) if (Math.abs(c[i] - 0xcf) > 12) varied += 1;
     return { loaded, varied }; });
   check('the generated surface textures (ceiling, clouds, painted steel, aqua tile, raft PVC, wet concrete) decode and are drawn, not left as their fallback colour', ['ceiling', 'clouds', 'metal', 'aqua', 'pvc', 'concrete'].every((k) => r.loaded[k]) && r.varied > 10, JSON.stringify(r));

@@ -8,6 +8,10 @@
 - Signs: `signMaterial` / `quad()` from `labels.js`. A sign lying flat on a floor needs `writeBasis`; the `facing()` helper is singular for a floor normal and crashes the transform.
 - Colours come from the palette in `labels.js` and `sectors.js` (see `docs/ART_DIRECTION.md`). Coral only for danger, green only for recovery.
 
+## Layout
+
+Areas: `render/`, `feel/`, `ai/`, `audio/`, `debug/`; everything else (the scenes, content, HUD, menus, input) sits at the top of `src/`. A new pure module goes in the area it serves and into the `files` list in `tsconfig.json`, with a test in `tests/unit/`.
+
 ## Risky modules
 
 - **`ride.js`**: one per-frame `update` drives track placement, encounters, hull, crew and audio cues. Encounters behind the resume point must stay marked as done (`resumeS`). Balance numbers there were measured with the bot (`docs/PRODUCTION.md`); change them only with a new `npm run test:balance` run and update the table.

@@ -13,5 +13,5 @@
     "skipLibCheck": true,
     "types": []
   },
-  "files": ["src/director.js", "src/math.js", "src/hull.js", "src/memory.js", "src/track.js", "src/plans.js", "src/sectors.js", "src/poolrooms.js", "src/score.js", "src/aim.js", "src/shadows.js", "src/perception.js", "src/lightpool.js", "src/voicepool.js", "src/spring.js", "src/pressure.js", "src/spawnscore.js", "src/tiers.js", "src/bench.js", "src/exposure.js", "src/postchain.js", "src/survey.js", "src/autores.js", "src/shapes.js", "src/lanerope.js", "src/waterlook.js", "src/tileflavour.js", "src/pursuit.js", "src/hudcues.js", "src/effectpool.js"]
+  "files": ["src/ai/director.js", "src/math.js", "src/hull.js", "src/memory.js", "src/track.js", "src/plans.js", "src/sectors.js", "src/poolrooms.js", "src/score.js", "src/feel/aim.js", "src/render/shadows.js", "src/ai/perception.js", "src/render/lightpool.js", "src/audio/voicepool.js", "src/feel/spring.js", "src/ai/pressure.js", "src/ai/spawnscore.js", "src/render/tiers.js", "src/debug/bench.js", "src/render/exposure.js", "src/render/postchain.js", "src/survey.js", "src/render/autores.js", "src/render/shapes.js", "src/render/lanerope.js", "src/render/waterlook.js", "src/render/tileflavour.js", "src/ai/pursuit.js", "src/hudcues.js", "src/render/effectpool.js"]
 }
