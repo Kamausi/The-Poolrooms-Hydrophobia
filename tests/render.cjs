@@ -75,13 +75,15 @@ const BASE = process.env.UNDERFLOW_URL || 'http://localhost:5173';
   check('pool water refracts the floor, darkens it by real depth (Beer-Lambert) and, on the high tier, mirrors the room at the water level', r.blend === 'blend' && r.opacity < 1 && r.absorption.length === 3 && r.mirror && Math.abs(r.mirror.height + 0.05) < 0.1 && r.shallow > 0.75 && r.deep < r.shallow * 0.6 && r.diag === '[]', JSON.stringify(r));
 
   // On foot the picture tints when something holds you under, and the walls just above the water are drawn damp.
-  r = await page.evaluate(() => { const u = window.__underflow; u.beginSector(0); u.startRide(); u.startExplore(); u.setState({ health: 1e6 }); u.step(3); const E = window.__explore;
+  r = await page.evaluate(() => { const u = window.__underflow; let E = null, sector = -1;
+    // An attraction whose dock has Floaters, so a hold can be staged with the game's own state.
+    for (const i of [1, 2, 4, 6, 7]) { u.beginSector(i); u.startRide(); u.startExplore(); u.setState({ health: 1e6 }); u.step(3); E = window.__explore; if (E.floaters.length) { sector = i; break; } }
     const grade = () => (E.chain.find((pp) => pp.name === 'grade') || {}).uniforms || {};
     const free = grade().under, damp = grade().damp;
     const f = E.floaters[0]; let held = null;
-    if (f) { f.state = 'holding'; u.step(1); held = grade().under; f.state = 'revealed'; }
-    return { free, damp, held, floaters: E.floaters.length }; });
-  check('on foot the walls above the water are drawn damp, and being held under tints the picture', r.free === 0 && r.damp === 1 && (r.floaters === 0 || r.held > 0), JSON.stringify(r));
+    if (f) { f.state = 'holding'; f.holdT = 2.5; u.step(1); held = grade().under; f.state = 'revealed'; }
+    return { sector, free, damp, held }; });
+  check('on foot the walls above the water are drawn damp, and being held under tints the picture', r.sector >= 0 && r.free === 0 && r.damp === 1 && r.held > 0, JSON.stringify(r));
   // Automatic quality thins the extras before it drops a tier: the mirror redraws every other frame at 80% scale,
   // goes away at the lowest scale, and comes back at full scale.
   r = await page.evaluate(() => { const u = window.__underflow; u.beginSector(2); u.startRide(); u.startExplore(); u.step(2); const E = window.__explore;
