@@ -1,6 +1,6 @@
 ---
 name: review
-description: Review an UNDERFLOW change before committing it, against the project's own rules. Use before a commit that touches gameplay, memory, resume, visuals or docs.
+description: Review an Hydrophobia change before committing it, against the project's own rules. Use before a commit that touches gameplay, memory, resume, visuals or docs.
 ---
 
 # Review checklist

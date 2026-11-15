@@ -1,4 +1,4 @@
-# UNDERFLOW · Architecture
+# The Poolrooms: Hydrophobia · Architecture
 
 How the code is put together. For what the game is, read `GAME_DESIGN.md`; for the rules of a module, `src/CLAUDE.md`.
 

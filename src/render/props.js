@@ -1,5 +1,5 @@
 // 3D props as inlined GLB files, so the single-file build carries them. Two families, provenance in
-// assets/registry.json: models generated for UNDERFLOW (Higgsfield: a generated reference image turned into a mesh),
+// assets/registry.json: models generated for Hydrophobia (Higgsfield: a generated reference image turned into a mesh),
 // and CC0 models from Poly Haven, shrunk (gltfpack, 256 px colour maps). Every model decodes once at load; a scene
 // built before a model is ready keeps its primitive stand-in, so nothing waits on them.
 import { loadGltf } from '67js/addons/gltf';

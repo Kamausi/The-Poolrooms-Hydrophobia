@@ -13,9 +13,9 @@ No other code in `src/` or `tests/` is copied from another project. Three.js is 
 
 ## References used without copying code
 
-**Saltline**, a single-file browser shooter, was described to us in prose (a breakdown of its systems, its post-processing chain and its tuning values). No Saltline source has been opened, pasted or copied into this repository. The following were written for UNDERFLOW from those descriptions and from general, published techniques:
+**Saltline**, a single-file browser shooter, was described to us in prose (a breakdown of its systems, its post-processing chain and its tuning values). No Saltline source has been opened, pasted or copied into this repository. The following were written for Hydrophobia from those descriptions and from general, published techniques:
 
-| UNDERFLOW module | Idea taken | What we wrote |
+| Hydrophobia module | Idea taken | What we wrote |
 |---|---|---|
 | `src/render/autores.js`, `src/render/tiers.js` | Frame-time driven render scale; drop a quality tier when the lowest scale is still too slow | Our own thresholds, windows and tier table |
 | `src/render/exposure.js` | Eye adaptation between bright and dark spaces | Light estimated from the frame's light list, not from pixels |
@@ -34,9 +34,9 @@ If Saltline source is ever brought in, record here which file it came from, who 
 
 ### The Saltline HTML (13 November 2026)
 
-A copy of the built Saltline page (`Saltline_Copy.html`, one bundled file) was provided. It bundles Three.js r180 (MIT, © the three.js authors) alongside game code whose author has not been confirmed, so it is treated as a **behavioural reference only**: its enemies' perception behaviour was read to see what it does (modes patrol, investigate, search and engage; after about 1.5 s unseen an engaged enemy heads for the last-known point; investigating and searching enemies circle that point; mode timers hand them back). No code, shader, value table or text from the file is copied into UNDERFLOW; Three.js is not used.
+A copy of the built Saltline page (`Saltline_Copy.html`, one bundled file) was provided. It bundles Three.js r180 (MIT, © the three.js authors) alongside game code whose author has not been confirmed, so it is treated as a **behavioural reference only**: its enemies' perception behaviour was read to see what it does (modes patrol, investigate, search and engage; after about 1.5 s unseen an engaged enemy heads for the last-known point; investigating and searching enemies circle that point; mode timers hand them back). No code, shader, value table or text from the file is copied into Hydrophobia; Three.js is not used.
 
-| UNDERFLOW module | Behaviour observed | What we wrote |
+| Hydrophobia module | Behaviour observed | What we wrote |
 |---|---|---|
 | `src/ai/pursuit.js` | Losing a target sends an enemy to its last-known point and then to a search around it | Our own eight-mode cycle (unaware, suspicious, investigate, observe, warn, pursue, search, return), per-entity timing, and the rule that an entity never reads your real position after losing you |
 

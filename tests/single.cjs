@@ -6,7 +6,7 @@ const { check, finish } = require('./lib.cjs');
   const browser = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
   const page = await browser.newPage({ viewport: { width: 960, height: 540 } });
   const errors = []; page.on('pageerror', (e) => errors.push(e.message));
-  await page.goto('file://' + path.resolve(__dirname, '../dist/UNDERFLOW.html') + '?quality=low'); await page.waitForTimeout(1500);
+  await page.goto('file://' + path.resolve(__dirname, '../dist/HYDROPHOBIA.html') + '?quality=low'); await page.waitForTimeout(1500);
   await page.click('#start-exp'); await page.click('#start'); await page.waitForTimeout(300);
   await page.evaluate(() => document.querySelector('#modal-body .choice').click()); await page.click('#modal-actions button'); await page.waitForTimeout(3000);
   const hud = await page.evaluate(() => document.getElementById('chambers')?.textContent || '');

@@ -28,7 +28,7 @@ export const playlog = {
     const hurt = {};
     for (const e of count('damage')) hurt[e.reason] = (hurt[e.reason] || 0) + e.n;
     const lines = [
-      'UNDERFLOW PLAYTEST LOG',
+      'HYDROPHOBIA PLAYTEST LOG',
       `Deaths: ${count('death').length} · ${count('death').map((e) => `${e.sector}: ${e.cause}`).join(' | ') || 'none'}`,
       `What hurt (total damage): ${Object.entries(hurt).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k} ${Math.round(v)}`).join(' · ') || 'nothing'}`,
       `Rescues made: ${count('rescue').length} · missed: ${count('missed').length}`,

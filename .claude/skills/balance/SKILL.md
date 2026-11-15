@@ -1,6 +1,6 @@
 ---
 name: balance
-description: Measure UNDERFLOW difficulty with the competent-player bot and tune it. Use when changing damage, spawns, encounters, hull or crew help, or when asked whether an attraction is too hard.
+description: Measure Hydrophobia difficulty with the competent-player bot and tune it. Use when changing damage, spawns, encounters, hull or crew help, or when asked whether an attraction is too hard.
 ---
 
 # Balance with the bot

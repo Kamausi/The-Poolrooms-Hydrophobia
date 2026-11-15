@@ -1,8 +1,8 @@
-# UNDERFLOW asset backlog
+# The Poolrooms: Hydrophobia asset backlog
 
-This is the production asset list, with what exists today next to each entry. Anything that defines UNDERFLOW stays custom. Commodity assets come from CC0 and similarly permissive libraries and are reworked to fit. Every shipped third-party or generated file is listed in `assets/registry.json` and credited in `docs/CREDITS.md`.
+This is the production asset list, with what exists today next to each entry. Anything that defines Hydrophobia stays custom. Commodity assets come from CC0 and similarly permissive libraries and are reworked to fit. Every shipped third-party or generated file is listed in `assets/registry.json` and credited in `docs/CREDITS.md`.
 
-Priority: **P0** is required for the Closed Wave Pool reference chapter, **P1** for Campaign 1, and **P2** is polish, variety and replayability. Source: **CUSTOM** is made for UNDERFLOW; **SOURCE** is a free or open asset we modify.
+Priority: **P0** is required for the Closed Wave Pool reference chapter, **P1** for Campaign 1, and **P2** is polish, variety and replayability. Source: **CUSTOM** is made for Hydrophobia; **SOURCE** is a free or open asset we modify.
 
 Status words used below:
 

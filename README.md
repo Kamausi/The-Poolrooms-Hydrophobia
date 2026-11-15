@@ -1,4 +1,4 @@
-# Underflow
+# The Poolrooms: Hydrophobia
 A first-person, psychological horror rail-shooter and exploration game. Strapped into an infinite waterslide raft, you are propelled through the endless, moist labyrinth of the Poolrooms—a watery sub-layer of the Backrooms.
 
 Rendered with [67js](https://github.com/codepawl/67.js), a WebGL2 engine where a scene is plain data.
@@ -9,7 +9,7 @@ Rendered with [67js](https://github.com/codepawl/67.js), a WebGL2 engine where a
 npm install
 npm run dev       # http://localhost:5173
 npm run build     # static site in dist/, host anywhere
-npm run build:single  # dist/UNDERFLOW.html, one playable file
+npm run build:single  # dist/HYDROPHOBIA.html, one playable file
 npm test          # unit tests, then the headless browser tests (see tests/README.md)
 npm run test:unit     # pure modules only, no browser
 npm run test:balance  # a competent-player bot rides all eight attractions (slow)

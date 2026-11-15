@@ -1,4 +1,4 @@
-# UNDERFLOW — Story & Lore Bible
+# The Poolrooms: Hydrophobia — Story & Lore Bible
 
 > *"The Backrooms doesn't flood. It drains. And everything that drains has to go somewhere."*
 
@@ -12,9 +12,9 @@ The Backrooms is famous for being dry, yellow and endless. People forget the dam
 
 **The Poolrooms are the Backrooms' drainage layer.** Every damp stain, burst pipe and flooded corridor above slowly seeps down into an enormous network of tiled channels, reservoirs and slides. Whatever falls into that water goes with it: objects, light, sound, and people who wandered too long and stopped being missed.
 
-The title has two meanings:
-- **Underflow** is the current *beneath* the overflow: the water you can't see that pulls everything down.
-- In computing, **underflow** is a number too small to represent, so it gets *rounded to zero*. That's what happens to people down here. They aren't killed. They're slowly made too small to count, then forgotten.
+The title and the word the crew uses:
+- **Hydrophobia** is the fear of water. Down here it is the wrong fear: the water is warm, the light is soft, and what you should fear is how much you want to stay in it.
+- **Underflow** is the crew's word for what the water does. It is the current *beneath* the overflow, the water you can't see that pulls everything down; and in computing an underflow is a number too small to represent, so it gets *rounded to zero*. That's what happens to people down here. They aren't killed. They're slowly made too small to count, then forgotten.
 
 **The horror isn't drowning. It's being made peaceful enough to stop resisting.**
 
@@ -294,9 +294,9 @@ No long cutscenes. The story comes through:
 
 ## 9. Inspirations (not copies)
 
-- **Left 4 Dead:** four-person co-op, special entities with distinct counters, a pacing director, safe rooms with sealed doors and graffiti, campaigns with finales. Underflow borrows the *structure*, not the characters, enemies or story.
-- **Six Flags' Boo Blasters on Boo Hill:** dark-ride shooting gallery with targets built into the set and a running score. Underflow borrows the *ride feel*: the raft, the score, the targets that make the scenery react.
-- **The Backrooms / Poolrooms:** the community-created liminal-space mythology. Underflow uses the setting, but its entities, factions and characters are original.
+- **Left 4 Dead:** four-person co-op, special entities with distinct counters, a pacing director, safe rooms with sealed doors and graffiti, campaigns with finales. Hydrophobia borrows the *structure*, not the characters, enemies or story.
+- **Six Flags' Boo Blasters on Boo Hill:** dark-ride shooting gallery with targets built into the set and a running score. Hydrophobia borrows the *ride feel*: the raft, the score, the targets that make the scenery react.
+- **The Backrooms / Poolrooms:** the community-created liminal-space mythology. Hydrophobia uses the setting, but its entities, factions and characters are original.
 
 ---
 

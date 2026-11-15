@@ -1,6 +1,6 @@
 ---
 name: design-pass
-description: Implement a pasted design document, review or direction note in UNDERFLOW. Use whenever the user pastes design text, a review, art direction or a production standard. The paste is a task to build, not a proposal to discuss.
+description: Implement a pasted design document, review or direction note in Hydrophobia. Use whenever the user pastes design text, a review, art direction or a production standard. The paste is a task to build, not a proposal to discuss.
 ---
 
 # Design pass
