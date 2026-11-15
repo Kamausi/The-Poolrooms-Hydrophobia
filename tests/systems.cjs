@@ -145,6 +145,26 @@ const { open, newCampaign, check, finish } = require('./lib.cjs');
     if (foam) { const q = R.parts.find((x) => /^Foam /.test(x.name) && Math.abs(x.matrix[0]) > 0.01); flat = !!q && Math.abs(q.matrix[5]) < Math.abs(q.matrix[0]) * 0.2; }
     return { wake, back, streak, rings: shown(R.ringParts), foam, flat }; });
   check('on the raft the wake opens behind it, current streaks show, three splashes ring at once, and fast water throws up flat foam patches', r.wake === 3 && r.back < 0 && r.streak > 0 && r.rings === 3 && r.foam > 0 && r.flat, JSON.stringify(r));
+  // Climbing out of the water leaves a wet mark that dries; the raft's channel floor carries moving caustics.
+  r = await page.evaluate(() => { const u = window.__underflow; u.beginSector(0); u.startRide(); u.startExplore(); u.setState({ health: 1e6 }); u.step(3); const E = window.__explore;
+    const shown = (list) => list.filter((q) => Math.abs(q.matrix[0]) + Math.abs(q.matrix[5]) + Math.abs(q.matrix[10]) > 0.01).length;
+    // A flooded cell with dry floor beside it.
+    let wetCell = null, dryCell = null;
+    for (const [x, z] of E.find('~')) { for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) if (!E.isWater(x + dx, z + dz) && !E.blocked(x + dx, z + dz) && E.floorTop(x + dx, z + dz) > -1) { wetCell = [x, z]; dryCell = [x + dx, z + dz]; break; } if (wetCell) break; }
+    if (!wetCell) return { none: true };
+    const a = E.center(...wetCell), b = E.center(...dryCell);
+    E.player.pos = [a[0], 0, a[2]]; u.step(3); const before = E.wetMarks.live(1e9) + shown(E.wetParts);
+    E.player.pos = [b[0], 0, b[2]]; u.step(2); const marks = shown(E.wetParts); const size0 = Math.abs(E.wetParts.find((q) => Math.abs(q.matrix[0]) > 0.01)?.matrix[0] || 0);
+    for (let k = 0; k < 10; k++) u.step(30); const size1 = Math.abs(E.wetParts.find((q) => Math.abs(q.matrix[0]) > 0.01)?.matrix[0] || 0);
+    for (let k = 0; k < 24; k++) u.step(30);
+    return { before, marks, shrinks: size1 < size0 && size1 > 0, dried: shown(E.wetParts) }; });
+  check('climbing out of the water leaves a wet mark on the floor that shrinks and dries', !r.none && r.before === 0 && r.marks >= 1 && r.shrinks && r.dried === 0, JSON.stringify(r));
+  r = await page.evaluate(() => { const u = window.__underflow; u.beginSector(0); u.startRide(); u.setState({ health: 1e6 }); for (let k = 0; k < 4; k++) u.step(20); const R = window.__ride;
+    const sheets = R.parts.filter((q) => /^Caustic /.test(q.name) && Math.abs(q.matrix[0]) + Math.abs(q.matrix[5]) + Math.abs(q.matrix[10]) > 0.01);
+    const one = sheets[0], at0 = one ? [one.matrix[12], one.matrix[13], one.matrix[14]] : null;
+    const water = R.parts.find((q) => /^Water \d/.test(q.name) && Math.abs(q.matrix[0]) > 0.01);
+    return { shown: sheets.length, underWater: !!one && !!water && at0[1] < water.matrix[13] - 0.2 }; });
+  check('the raft channel floor carries caustic sheets under the water', r.shown >= 2 && r.underWater, JSON.stringify(r));
   // The Undertow's pursuit of the raft ends on its own: it circles after each strike and sinks away after the third.
   r = await page.evaluate(() => { const u = window.__underflow; u.beginSector(0); u.startRide(); u.setState({ health: 1e6 }); u.step(5); const R = window.__ride, W = R.undertowWake;
     Object.assign(W, { active: true, phase: 'pursue', dist: 3, thumpTimer: 0, stun: 0, strikes: 0 });

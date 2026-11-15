@@ -7,7 +7,9 @@
 // - the raft's wake: two arms opening at the Kelvin angle (19.5 degrees either side of the line behind it) and a
 //   churned trail, scaled by speed;
 // - current streaks: thin foam strips carried along the channel at the current's speed;
-// - caustics: two sheets of a caustic pattern just above the pool floor, drifting against each other.
+// - caustics: two sheets of a caustic pattern just above the pool floor, drifting against each other;
+// - wet marks: dark patches left on dry floor (a puddle where you climb out, footprints after it) that shrink as
+//   they dry.
 //
 // `createWaterField().impulse` is the one way in for disturbances; it also names the newest strong ring for the
 // engine's own ripple slot. Pure and unit-tested: no DOM, no renderer.
@@ -119,4 +121,54 @@ export function causticDrift(t) {
     [Math.sin(t * 0.23) * 0.35, Math.cos(t * 0.17) * 0.35],
     [Math.cos(t * 0.19 + 1.3) * 0.35, Math.sin(t * 0.29 + 0.4) * 0.35],
   ];
+}
+
+/** How long a wet mark takes to dry (s), and how many strides leave footprints after leaving the water. */
+export const WET_LIFE = 14, WET_STRIDES = 6;
+
+/**
+ * Wet marks on dry floor from a fixed pool: `add` takes a dried slot or the oldest; `shape` gives a mark's centre and
+ * its size now (it shrinks as it dries, quickest at the end), or null once dry.
+ */
+export function createWetMarks({ slots = 10, life = WET_LIFE } = {}) {
+  const marks = Array.from({ length: slots }, () => ({ x: 0, y: 0, z: 0, t0: -1e3, size: 0 }));
+  return {
+    add(at, size, now) {
+      let i = marks.findIndex((m) => now - m.t0 >= life);
+      if (i < 0) i = marks.reduce((o, m, j) => (m.t0 < marks[o].t0 ? j : o), 0);
+      Object.assign(marks[i], { x: at[0], y: at[1], z: at[2], t0: now, size });
+      return i;
+    },
+    shape(m, now) {
+      const age = now - m.t0;
+      if (age < 0 || age >= life || m.size <= 0) return null;
+      return { at: [m.x, m.y, m.z], size: m.size * Math.sqrt(1 - age / life) };
+    },
+    live(now) { return marks.filter((m) => now - m.t0 >= 0 && now - m.t0 < life && m.size > 0).length; },
+    marks,
+  };
+}
+
+/** Where a footprint goes: beside the line of travel, alternating feet. `dir` is [x, z] (any length). */
+export function footprint(pos, dir, stride) {
+  const l = Math.hypot(dir[0], dir[1]) || 1, side = stride % 2 ? 0.11 : -0.11;
+  return [pos[0] + (-dir[1] / l) * side, pos[1], pos[2] + (dir[0] / l) * side];
+}
+
+/**
+ * Snell's window: from under water the world above is squeezed into a cone of 48.6 degrees around straight up, and
+ * outside it the surface is a mirror of the dark below. Returns what the post pass needs: the straight-up direction
+ * in camera space and the tangent of the half field of view on each axis.
+ * @param {{ right: number[], up: number[], forward: number[] }} cam unit vectors in world space
+ */
+export const SNELL_COS = Math.cos(Math.asin(1 / 1.333));
+export function snellWindow(cam, fovDeg, aspect) {
+  const t = Math.tan((fovDeg * Math.PI) / 360);
+  return { zenith: [cam.right[1], cam.up[1], cam.forward[1]], lens: [t * aspect, t] };
+}
+
+/** Whether a screen point (ndc, -1..1) looks out through the window (for tests; the shader does the same sum). */
+export function inWindow(win, ndc) {
+  const v = [ndc[0] * win.lens[0], ndc[1] * win.lens[1], 1], l = Math.hypot(...v);
+  return (v[0] * win.zenith[0] + v[1] * win.zenith[1] + v[2] * win.zenith[2]) / l > SNELL_COS;
 }

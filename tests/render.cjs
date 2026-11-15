@@ -81,9 +81,14 @@ const BASE = process.env.UNDERFLOW_URL || 'http://localhost:5173';
     const grade = () => (E.chain.find((pp) => pp.name === 'grade') || {}).uniforms || {};
     const free = grade().under, damp = grade().damp;
     const f = E.floaters[0]; let held = null;
-    if (f) { f.state = 'holding'; f.holdT = 2.5; u.step(1); held = grade().under; f.state = 'revealed'; }
-    return { sector, free, damp, held }; });
+    const above = grade().below; let below = null, zen = null, back = null;
+    if (f) { const c = E.center(...f.cell); E.player.pos = [c[0], 0, c[2]]; u.step(2);
+      for (let k = 0; k < 50; k++) { f.state = 'holding'; f.holdT = 2.5; u.setState({ health: 1e6 }); u.step(1); }
+      held = grade().under; below = grade().below; zen = grade().zenith; f.state = 'revealed';
+      for (let k = 0; k < 6; k++) u.step(30); back = grade().below; }
+    return { sector, free, damp, held, above, below, zen, back }; });
   check('on foot the walls above the water are drawn damp, and being held under tints the picture', r.sector >= 0 && r.free === 0 && r.damp === 1 && r.held > 0, JSON.stringify(r));
+  check('held under, the view sinks below the surface and shows the world through the window overhead; let go, it comes back up', r.above === 0 && r.below === 1 && Array.isArray(r.zen) && r.zen.length === 3 && r.back === 0, JSON.stringify(r));
   // Automatic quality thins the extras before it drops a tier: the mirror redraws every other frame at 80% scale,
   // goes away at the lowest scale, and comes back at full scale.
   r = await page.evaluate(() => { const u = window.__underflow; u.beginSector(2); u.startRide(); u.startExplore(); u.step(2); const E = window.__explore;

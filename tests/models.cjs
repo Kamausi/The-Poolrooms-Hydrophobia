@@ -67,7 +67,7 @@ const { open, newCampaign, check, finish } = require('./lib.cjs');
     const ride = { parts: R.partCount, batches: R.batches.length }; u.startExplore(); u.step(2); const E = window.__explore.renderer;
     const fixtures = window.__explore.models().filter((m) => m.model === 'fluorescent').length;
     return { ride, foot: { parts: E.partCount, batches: E.batches.length }, fixtures }; });
-  check('instancing: the raft scene draws its parts in under 150 batches and on foot in under 120 (dozens of light fixtures add none)', inst.ride.parts > 1000 && inst.ride.batches < 150 && inst.foot.batches < 120 && inst.fixtures > 20, JSON.stringify(inst));
+  check('instancing: the raft scene draws its parts in under 150 batches and on foot in under 125 (dozens of light fixtures add none)', inst.ride.parts > 1000 && inst.ride.batches < 150 && inst.foot.batches < 125 && inst.fixtures > 20, JSON.stringify(inst));
   // A model stands on the floor: a locker's base is at floor height, next to its wall.
   const r = await page.evaluate(() => { const u = window.__underflow; u.beginSector(0); u.startRide(); u.startExplore(); u.step(2); const E = window.__explore;
     const l = E.lockers[0]; if (!l) return null; E.player.pos = [l.pos[0] - l.wd[0] * 1.5, 0, l.pos[2] - l.wd[1] * 1.5]; u.step(2);

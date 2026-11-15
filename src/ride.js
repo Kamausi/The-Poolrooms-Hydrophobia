@@ -6,7 +6,7 @@ import { CHAMBER_BEARING, hitKind } from './hudcues.js';
 import { Renderer67 } from '67js';
 import { box, sphere, cylinder, torus } from './render/shapes.js';
 import { dot, writeYaw, writeBasis, writeSegment, hide, add, sub, scale, normalize, clamp, damp, rng, screenRay, raySphere, rayPlaneY, linear, cross, display, project, angleTo, soundDir, distance } from './math.js';
-import { tileTexture, tileNormal } from './render/textures.js';
+import { tileTexture, tileNormal, causticTexture } from './render/textures.js';
 import { signMaterial, quad } from './labels.js';
 import { createCrewFigure, hideCrewFigure, poseSeated, poseProne, VISITOR_LOOK } from './crewfigure.js';
 import { createCallouts } from './callouts.js';
@@ -20,7 +20,7 @@ import { planColonnade, archRadius } from './poolrooms.js';
 import { createBudget } from './ai/pressure.js';
 import { createRig } from './feel/spring.js';
 import { createEffectPool } from './render/effectpool.js';
-import { createWaterField, ringShape, wakeStrips, streaks, foamLevel } from './render/waterfx.js';
+import { createWaterField, ringShape, wakeStrips, streaks, foamLevel, causticDrift, causticStrength, snellWindow } from './render/waterfx.js';
 import { assignShadows } from './render/shadows.js';
 import { surface } from './render/surfaces.js';
 import { createLightPool, mergeLights } from './render/lightpool.js';
@@ -58,6 +58,10 @@ export function createRide(canvas, state, sector, events, opts = {}) {
   // turbidity, with a Fresnel reflection at grazing angles. No planar mirror on the raft: the channel water
   // changes height along the track, and the engine's mirror reflects at one height.
   const optics = waterOptics(sector);
+  // Caustic sheets for the channel floor: one shared quad and two shared materials, so they add at most one batch.
+  const causticSheet = quad();
+  const causticMat = (k) => ({ color: [0.85, 1, 0.98], metallic: 0, roughness: 1, emission: 0.1 + k, emissiveColor: [0.85, 1, 0.98], map: causticTexture(), alphaMode: 'blend', opacity: 0.3, doubleSided: true });
+  const causticA = causticMat(causticStrength({ light: 0.8, turbidity: optics.turbidity })), causticB = causticMat(causticStrength({ light: 0.8, turbidity: optics.turbidity }) * 0.8);
   const waterMat = () => ({ tag: 'water', color: optics.scatter, metallic: 0.2, roughness: 0.06, emission: 0.1, emissiveColor: optics.scatter, alphaMode: 'blend', opacity: 0.6, absorption: optics.absorption, turbidity: optics.turbidity });
   const slab = box(0, 1);
   const ball = sphere(28, 18);
@@ -86,6 +90,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
       left: P(`Wall L${i}`, slab, tileMat), right: P(`Wall R${i}`, slab, tileMat),
       ceiling: P(`Ceiling ${i}`, slab, ceilingMat), floor: P(`Floor ${i}`, slab, poolFloorMat),
       water: P(`Water ${i}`, slab, waterMat()),
+      caustA: P(`Caustic ${i}a`, causticSheet, causticA), caustB: P(`Caustic ${i}b`, causticSheet, causticB),
       belt: P(`Lift belt ${i}`, slab, { color: [0.12, 0.13, 0.12], metallic: 0.5, roughness: 0.5 }),
       lamp: P(`Lamp ${i}`, slab, glow(lampColor, 9)),
       rib: P(`Tube rib ${i}`, ring, { color: [0.35, 0.38, 0.36], metallic: 0.8, roughness: 0.35 }),
@@ -2245,7 +2250,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
     // Eye adaptation: the dark lifts slowly, a lit room clamps down at once.
     eyeExposure = settings.autoExposure === false ? 1 : adaptExposure(eyeExposure, targetExposure(lightAtEye(frameLights, eye, frameAmbient)), dt);
     if (overboard || capsize) state.wetLens = 1; // water on the lens runs off over a few seconds once you are out
-    lastChain = !hasDepth || settings.postChain === false ? [] : buildChain(quality.tier, { shaft: settings.shafts === false ? null : shaftSource(frameLights.filter((l) => l.range > 6), { eye, forward: fwd, right: rgt, up, tanHalf: Math.tan((fov * Math.PI) / 360), aspect }), drift: state.drift, health: state.health, hurt: state.hurtFx, wet: state.wetLens, reduceFlash: settings.flashReduce, distortion: settings.distortion, under: capsize && capsize.t > 0.8 && capsize.t < 4.4 ? 1 : overboard ? 0.35 : 0, warm: sector.index === 0, damp: sec.sky ? 0 : 1, waterLevel: 0 });
+    lastChain = !hasDepth || settings.postChain === false ? [] : buildChain(quality.tier, { shaft: settings.shafts === false ? null : shaftSource(frameLights.filter((l) => l.range > 6), { eye, forward: fwd, right: rgt, up, tanHalf: Math.tan((fov * Math.PI) / 360), aspect }), drift: state.drift, health: state.health, hurt: state.hurtFx, wet: state.wetLens, reduceFlash: settings.flashReduce, distortion: settings.distortion, under: capsize && capsize.t > 0.8 && capsize.t < 4.4 ? 1 : overboard ? 0.35 : 0, window: (capsize && capsize.t > 0.8 && capsize.t < 4.4) || eye[1] < track.at(s).p[1] ? snellWindow({ right: rgt, up, forward: fwd }, fov, aspect) : null, warm: sector.index === 0, damp: sec.sky ? 0 : 1, waterLevel: 0 });
     if (hasDepth) renderer.userPasses.set(lastChain);
     renderer.render({
       eye, target: look, up, fov, time,
@@ -3056,7 +3061,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
 
   const TWIN_KEYS = ['glass', 'farWater', 'farWall', 'post'];
   const HALL_KEYS = ['deckL', 'deckR', 'chairL', 'chairR', 'backL', 'backR', 'upperWin', 'slide', 'bigWin', 'farRaft', 'marker', 'rules'];
-  const SEG_KEYS = ['bandL', 'bandR', 'left', 'right', 'ceiling', 'floor', 'water', 'belt', 'lamp', 'rib', 'winL', 'winR', 'figure', 'debris', ...HALL_KEYS, ...TWIN_KEYS];
+  const SEG_KEYS = ['bandL', 'bandR', 'left', 'right', 'ceiling', 'floor', 'water', 'caustA', 'caustB', 'belt', 'lamp', 'rib', 'winL', 'winR', 'figure', 'debris', ...HALL_KEYS, ...TWIN_KEYS];
   function placeSegments() {
     for (const seg of segments) {
       while (seg.s + SEG < s - SEG) seg.s += SEGMENTS * SEG;
@@ -3097,11 +3102,20 @@ export function createRide(canvas, state, sector, events, opts = {}) {
       else put(seg.ceiling, 0, H + 0.3, half * 2 + 1.8, 0.6, L);
       put(seg.floor, 0, sec.shallow ? -0.75 : -0.9, half * 2 + 1.2, 0.6, L);
       if (sec.belt) {
-        hide(seg.water);
+        hide(seg.water); hide(seg.caustA); hide(seg.caustB);
         put(seg.belt, 0, -0.06, half * 2 - 0.3, 0.1, L);
       } else {
         hide(seg.belt);
         put(seg.water, 0, sec.shallow ? -0.32 : -0.01, half * 2 + 0.2, 0.02, L);
+        // Caustics on the channel floor: two sheets of the caustic web drifting against each other (waterfx.js), under
+        // lit water only. A flat quad: across the channel, along it, facing up.
+        if (sec.sky || sec.lamps === 'none' || sec.lamps === 'dark') { hide(seg.caustA); hide(seg.caustB); }
+        else {
+          const [da, db] = causticDrift(time), fy = (sec.shallow ? -0.45 : -0.6) + 0.012;
+          const sheet = (part, d, up, k) => writeBasis(part.matrix, add(add(add(B.a.p, scale(B.xL, d[0])), scale(B.z, d[1])), scale(B.y, up)), B.xL, B.z, B.y, (half * 2 + 0.2) * k, L * k, 1);
+          sheet(seg.caustA, da, fy, 1);
+          sheet(seg.caustB, db, fy + 0.006, 0.86);
+        }
       }
       const lampOn = sec.sky ? false : sec.lamps === 'posts' ? n % 2 === 0 : sec.lamps === 'none' ? false : sec.lamps === 'bright' ? true : sec.lamps === 'normal' || sec.lamps === 'flicker' ? n % 2 === 0 : sec.lamps === 'sparse' ? n % 3 === 0 : !!sec.lit && n % 2 === 0;
       if (lampOn && sec.lamps === 'posts') {
