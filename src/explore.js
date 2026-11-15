@@ -5,6 +5,9 @@ import { bearing, hitKind } from './hudcues.js';
 import { waterOptics } from './render/waterlook.js';
 import { applyWaterReflection, attachWaterReflection } from '67js/addons/water-reflection';
 import { createLaneRope } from './render/lanerope.js';
+import { createRope, settle } from './feel/rope.js';
+import { steer } from './ai/steering.js';
+import { takeSpread } from './scatter.js';
 import { rumble } from './feel/haptics.js';
 import { wedges as threatWedges } from './feel/aim.js';
 import { driftSign, driftState } from './driftsign.js';
@@ -85,6 +88,8 @@ const WATERISH = new Set(['~', 'u', 'L', 'f', 'R', 'r', '>', '<', '^', 'v']);
 export function createExplore(canvas, state, sector, events, opts = {}) {
   const rules = sector.explore || {};
   const random = rng(2000 + sector.index * 17 + state.attempt * 3 + (state.seed || 0));
+  // Decoration (the cold shiver in the view) has its own seeded stream, apart from the one that builds the map.
+  const decor = rng(0x7a11 + sector.index * 131 + state.attempt * 17 + (state.seed || 0));
   const rows = sector.map;
   const H = rows.length, W = rows[0].length;
   const key = state.sectorKey;
@@ -508,7 +513,9 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     return { pos: [c[0] + wd[0] * (CELL / 2 - 0.08), 1.7, c[2] + wd[1] * (CELL / 2 - 0.08)], normal: [-wd[0], 0, -wd[1]] };
   };
   const floorCells = find('.').filter(([x, z]) => Math.abs(x - dx0) + Math.abs(z - dz0) > 3);
-  const takeCell = () => floorCells.splice(Math.floor(random() * floorCells.length), 1)[0];
+  // Spread, not clumped: each taken cell keeps 3 cells from the others while the map has room (scatter.js).
+  const takenCells = [];
+  const takeCell = () => takeSpread(floorCells, takenCells, random, 3);
 
   // ---------- The lighting circuit ----------
   // A relay on the wall switches the dock between its main lights and the emergency strips. Under emergency
@@ -1095,7 +1102,12 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     body: createLaneRope(P, `Foot rope ${i}`, 3, { emission: 0.6 }),
     floats: [0, 1, 2].map(() => ({ alive: true })),
     x, z, cut: false, holding: 0, cooldown: 0,
+    // The line itself: a Verlet rope resting on the water between the walls (feel/rope.js).
+    sim: settle(createRope({ length: CELL })),
   }));
+  for (const r of ropes) r.simRest = r.sim.heightAt(0.5);
+  /** Where float j sits along its rope, 0..1. */
+  const ropeU = (j) => ((j - 1) * 1.2 + CELL / 2) / CELL;
   let marcoApart = false;
   let blown = 0; // how far the inspection lamp has blown the picture out (0..1)
   // The camera's springs (spring.js), as on the raft: a hit dips and nods the view, then it comes back.
@@ -1571,6 +1583,8 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     });
     for (const r of ropes) if (!r.cut) r.floats.forEach((f, j) => f.alive && test(ropeFloatPos(r, j), 0.4, () => {
       f.alive = false;
+      r.sim.kick(ropeU(j), -3);
+      r.sim.floats(ropeU(j) - 0.12, ropeU(j) + 0.12, false);
       sound.burst();
       hud.hitmarker();
       if (r.floats.every((q) => !q.alive)) { r.cut = true; r.holding = 0; hud.toast('LANE ROPE CUT'); events.cleared(); }
@@ -1701,7 +1715,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
   }
   function ropeFloatPos(r, j) {
     const c = center(r.x, r.z);
-    return [c[0] + (j - 1) * 1.2, surface(r.x, r.z) + 0.2, c[2]];
+    return [c[0] + (j - 1) * 1.2, surface(r.x, r.z) + 0.2 + r.sim.heightAt(ropeU(j)) - r.simRest, c[2]];
   }
   function reflectionPos() {
     const c = center(...reflCell);
@@ -1807,7 +1821,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     if (state.sitting) player.pitch = damp(player.pitch, -0.25, 1, dt);
     camRig.step(dt);
     const camK = settings.camera ?? 1;
-    const eye = [player.pos[0] + (Math.random() - 0.5) * shiver, player.floor + EYE - sink - (state.downed ? 1.1 : 0) + swayY + (Math.random() - 0.5) * shiver + camRig.get('heave') * 0.12 * camK, player.pos[2]];
+    const eye = [player.pos[0] + (decor() - 0.5) * shiver, player.floor + EYE - sink - (state.downed ? 1.1 : 0) + swayY + (decor() - 0.5) * shiver + camRig.get('heave') * 0.12 * camK, player.pos[2]];
     // Field dressing: H. Takes a moment, and you cannot fire while you do it.
     if (wasPressed('h') && !healing && state.dressings > 0 && state.health < 100) { healing = 2.5; state.dressings -= 1; hud.toast('APPLYING A FIELD DRESSING'); }
     if (healing > 0) {
@@ -2362,8 +2376,12 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
       const to = [target[0] - f.pos[0], 0, target[2] - f.pos[2]];
       const dd = Math.hypot(to[0], to[2]);
       const spd = dd > 6 ? 5.5 : 3.6;
-      const moving = dd > 0.6;
-      if (moving) f.pos = add(f.pos, scale(normalize(to), Math.min(dd, spd * dt)));
+      // Steering (ai/steering.js): arrive at the trail point and ease into it, keep out of the others' space and
+      // yours (not when they are kneeling at your side), with limited acceleration so paths bend instead of snapping.
+      const near = followers.filter((o) => o !== f && o.pos).map((o) => o.pos);
+      if (!(state.downed && f.k === 0)) near.push(player.pos);
+      const { moving } = steer(f, target, near, dt, { maxSpeed: spd });
+      if (moving) { to[0] = f.vel[0]; to[2] = f.vel[1]; }
       pushOutOfColumns(f.pos, columns, 0.35);
       // Stride from actual movement, so feet don't skate: pace eases in and out.
       f.pace = damp(f.pace, moving ? Math.min(1, spd / 5) : 0, 6, dt);
@@ -2826,7 +2844,10 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     for (const r of ropes) {
       if (r.cut) { r.body.hideAll(); continue; }
       const c = center(r.x, r.z), y = surface(r.x, r.z) + 0.2;
-      r.body.place([c[0] - CELL / 2, y, c[2]], [c[0] + CELL / 2, y, c[2]], [0, 1, 2].map((j) => ropeFloatPos(r, j)), r.floats.map((f) => f.alive), (j) => Math.sin(time * 3 + j) * 0.05, [isWall(r.x - 1, r.z), isWall(r.x + 1, r.z)]);
+      r.sim.step(dt);
+      // Wading into the line pushes it down where you are.
+      if (r.holding > 0 && pcx === r.x && pcz === r.z) r.sim.kick(clamp((player.pos[0] - c[0] + CELL / 2) / CELL, 0, 1), -0.6);
+      r.body.place([c[0] - CELL / 2, y, c[2]], [c[0] + CELL / 2, y, c[2]], [0, 1, 2].map((j) => ropeFloatPos(r, j)), r.floats.map((f) => f.alive), (j) => Math.sin(time * 3 + j) * 0.03, [isWall(r.x - 1, r.z), isWall(r.x + 1, r.z)]);
       r.cooldown = Math.max(0, r.cooldown - dt);
       if (r.holding > 0) {
         r.holding -= dt;
@@ -3649,7 +3670,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     for (let i = 0; i < (r.valves || 0); i++) { const v = pumpValves.find((x) => x.id === valveOrder[i]); if (v) v.open = true; }
     valveStep = r.valves || 0;
   }
-  if (import.meta.env.DEV) window.__explore = { parts, camRig, wetMarks: wet, wetParts, waterField: field, ringParts, caustics, waterLevel, stir, jolt, effects, get blown() { return blown; }, flashes, frameEnv: () => lastEnv, marcos, get marcoApart() { return marcoApart; }, mirror: () => mirrorSurface && detachMirror && { height: mirrorSurface.height, parts: mirrorSurface.partIndices.length, key: mirrorKey }, models: () => parts.filter((p) => p.model).map((p) => ({ model: p.model, name: p.name, at: [p.matrix[12], p.matrix[13], p.matrix[14]] })), flashes, budget, wave: (n, f) => wave(n, f), lineOfSight, get remembered() { return remembered; }, get chain() { return lastChain; }, get eyeExposure() { return eyeExposure; }, renderer, get driftSigns() { return driftSigns; }, get wedges() { return lastWedges; }, survey, get surveyCoverage() { return surveyCoverage(survey, surveyOpen); }, surveyOpen, omen: (k) => startFomen(k), circuit, setEmergency, setBlackout, get blackout() { return blackout; }, signParts, get resetT() { return resetT; }, get emergency() { return emergency; }, blocked, isWall, finds, found, get lampPlaced() { return lampPlaced; }, lights: () => gatherLights(add(player.pos, [0, 1.6, 0])), get hesitation() { return hesitation; }, get lastOmen() { return lastFomen; }, get marcoAct() { return marcoAct; }, set marcoAct(v) { marcoAct = v; }, marcos, columns, wavePool, get basin() { return basin; }, isWater, floorTop, get operating() { return operating; }, set operating(v) { operating = v; }, panelFront, holdT, shoot, spawnBloom, occupant, lockers, noise, violate, get omenState() { return fomen; }, door, blooms, lamps, director, followers, get dockKind() { return dockKind; }, get valves() { return { order: valveOrder, step: valveStep, list: pumpValves }; }, june: juneEvent, thread, get clock() { return clock; }, stagnant, player, center, undertow, lifeguard, cellPos, panelPos, raftPos, code, find, floaters, restorePower };
+  if (import.meta.env.DEV) window.__explore = { parts, camRig, takenCells, wetMarks: wet, wetParts, waterField: field, ringParts, caustics, waterLevel, stir, jolt, effects, get blown() { return blown; }, flashes, frameEnv: () => lastEnv, marcos, get marcoApart() { return marcoApart; }, mirror: () => mirrorSurface && detachMirror && { height: mirrorSurface.height, parts: mirrorSurface.partIndices.length, key: mirrorKey }, models: () => parts.filter((p) => p.model).map((p) => ({ model: p.model, name: p.name, at: [p.matrix[12], p.matrix[13], p.matrix[14]] })), flashes, budget, wave: (n, f) => wave(n, f), lineOfSight, get remembered() { return remembered; }, get chain() { return lastChain; }, get eyeExposure() { return eyeExposure; }, renderer, get driftSigns() { return driftSigns; }, get wedges() { return lastWedges; }, survey, get surveyCoverage() { return surveyCoverage(survey, surveyOpen); }, surveyOpen, omen: (k) => startFomen(k), circuit, setEmergency, setBlackout, get blackout() { return blackout; }, signParts, get resetT() { return resetT; }, get emergency() { return emergency; }, blocked, isWall, finds, found, get lampPlaced() { return lampPlaced; }, lights: () => gatherLights(add(player.pos, [0, 1.6, 0])), get hesitation() { return hesitation; }, get lastOmen() { return lastFomen; }, get marcoAct() { return marcoAct; }, set marcoAct(v) { marcoAct = v; }, marcos, columns, wavePool, get basin() { return basin; }, isWater, floorTop, get operating() { return operating; }, set operating(v) { operating = v; }, panelFront, holdT, shoot, spawnBloom, occupant, lockers, noise, violate, get omenState() { return fomen; }, door, blooms, lamps, director, followers, get dockKind() { return dockKind; }, get valves() { return { order: valveOrder, step: valveStep, list: pumpValves }; }, june: juneEvent, thread, get clock() { return clock; }, stagnant, player, center, undertow, lifeguard, cellPos, panelPos, raftPos, code, find, floaters, restorePower };
 
   /** ?show=: put the dock into a fixed, readable state for screenshots and visual review. */
   function showcase(name) {

@@ -19,6 +19,8 @@ import { rumble } from './feel/haptics.js';
 import { planColonnade, archRadius } from './poolrooms.js';
 import { createBudget } from './ai/pressure.js';
 import { createRig } from './feel/spring.js';
+import { seaState, raftOnWaves } from './feel/float.js';
+import { createRope, settle } from './feel/rope.js';
 import { createEffectPool } from './render/effectpool.js';
 import { createWaterField, ringShape, wakeStrips, streaks, foamLevel, causticDrift, causticStrength, snellWindow } from './render/waterfx.js';
 import { assignShadows } from './render/shadows.js';
@@ -47,6 +49,9 @@ export function createRide(canvas, state, sector, events, opts = {}) {
   const plan = state.ride;
   const track = new Track(plan.items, plan.choices);
   const random = rng(1000 + sector.index * 31 + state.attempt * 7 + (state.seed || 0));
+  // Decoration (foam, camera shake) draws from its own seeded stream: it replays from the seed like everything else,
+  // and never takes numbers from the stream that decides what the run does.
+  const decor = rng(0x51ed + sector.index * 131 + state.attempt * 17 + (state.seed || 0));
   const map = tileTexture(sector);
   const tileMat = { color: [1, 1, 1], metallic: 0, roughness: 0.22, map, normalMap: tileNormal(), normalScale: [1, 1], boxMapScale: 0.5 };
   // Generated surfaces (surfaces.js): stained acoustic ceiling tiles overhead, aqua pool tile under the water.
@@ -241,10 +246,10 @@ export function createRide(canvas, state, sector, events, opts = {}) {
     const afloat = !overboard && !(capsize && capsize.t > 0.6) && Math.abs(base[1] - wy) < 0.6;
     const strips = afloat ? wakeStrips([base[0], wy, base[2]], [fwd[0], fwd[2]], speed) : [];
     wakeParts.forEach((part, i) => { const w = strips[i]; if (!w) { hide(part); return; } writeYaw(part.matrix, [w.centre[0], wy + 0.012, w.centre[2]], w.yaw, w.width, 0.01, w.length); });
-    // Foam where the water makes it (waterfx.js foamLevel): fast sections whiten, still ones stay clear. Math.random,
-    // not the run's seeded stream, so decoration never changes what the run does.
+    // Foam where the water makes it (waterfx.js foamLevel): fast sections whiten, still ones stay clear. From the
+    // decoration stream, so it never changes what the run does.
     const lvl = foamLevel({ flow: track.sectionAt(s).sec?.speed ?? 0, turbidity: optics.turbidity });
-    if (lvl > 0 && Math.random() < lvl * 0.05) effects.burst('foam', track.lateral(s + 3 + Math.random() * 10, (Math.random() * 2 - 1) * (Math.min(track.sectionAt(s).sec?.half ?? 3, 6) - 0.6), 0.01), { count: 1, speed: 0.3, spread: 1 });
+    if (lvl > 0 && decor() < lvl * 0.05) effects.burst('foam', track.lateral(s + 3 + decor() * 10, (decor() * 2 - 1) * (Math.min(track.sectionAt(s).sec?.half ?? 3, 6) - 0.6), 0.01), { count: 1, speed: 0.3, spread: 1 });
     // Current streaks are anchored to the channel, not the raft: they slide past the walls at the current's speed.
     const sec = track.sectionAt(s).sec;
     const from = s - 10, flow = sec?.speed ?? 0, half = Math.min(sec?.half ?? 3, 6);
@@ -565,6 +570,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
   // The hull, the paddle, and the water outside the raft.
   const hull = createHull(state, { hud, sound, random });
   let hullFx = hull.effects();
+  let raftUpTest = [0, 1, 0], seaSec = null, seaPool = false, sea = seaState({}), waveRide = { heave: 0, roll: 0, pitch: 0 };
   let paddleT = 0, strokeTimer = 0, strokePhase = 0, bladeHeld = 0;
   let repairing = false, hullPrompt = '';
   let lastHullHealth = state.health;
@@ -1133,7 +1139,8 @@ export function createRide(canvas, state, sector, events, opts = {}) {
       if (r) {
         r.active = true;
         r.s = s + 28;
-        r.floats.forEach((f, j) => Object.assign(f, { alive: true, pos: track.lateral(r.s, (j - 2) * 1.2, 1.25) }));
+        r.floats.forEach((f, j) => Object.assign(f, { alive: true, lat: (j - 2) * 1.2, pos: track.lateral(r.s, (j - 2) * 1.2, 1.25) }));
+        r.sim = null;
       }
       sound.thump();
       hud.caption('[a lane rope snaps taut across the channel — ahead]');
@@ -1237,7 +1244,8 @@ export function createRide(canvas, state, sector, events, opts = {}) {
       if (!r) return;
       r.active = true;
       r.s = at;
-      r.floats.forEach((f, j) => Object.assign(f, { alive: true, pos: track.lateral(at, (j - 2) * (half * 0.38), 1.25) }));
+      r.floats.forEach((f, j) => Object.assign(f, { alive: true, lat: (j - 2) * (half * 0.38), pos: track.lateral(at, (j - 2) * (half * 0.38), 1.25) }));
+      r.sim = null;
       r.anchors = [2, 2];
       r.tight = false;
       sound.floatKnock(0);
@@ -1517,6 +1525,9 @@ export function createRide(canvas, state, sector, events, opts = {}) {
     });
     for (const r of ropes) if (r.active) for (const f of r.floats) if (f.alive) T(f.pos, 0.45, () => {
       f.alive = false;
+      // The shot knocks the line down where it hit and takes that target's floats: the dip runs along the rope
+      // and the gap sags (feel/rope.js).
+      if (r.sim) { const u = ropeU(r, f); r.sim.kick(u, -3); r.sim.floats(u - 0.07, u + 0.07, false); }
       sound.burst();
       hud.hitmarker();
       sound.accent?.('snap');
@@ -1985,11 +1996,16 @@ export function createRide(canvas, state, sector, events, opts = {}) {
 
     // Camera on the rail
     const swayOn = settings.sway ? 1 : 0;
-    const bob = (Math.sin(time * 2.1) * 0.05 + Math.sin(time * 1.3) * 0.03) * swayOn;
+    // The raft rides a Gerstner surface (feel/float.js): heave from the water under its four chambers, roll and pitch
+    // from the slope. A wave pool's swell comes from the same sum, so what you see is what you ride.
+    if (seaSec !== sec || seaPool !== !!sec.wavepool) { seaSec = sec; seaPool = !!sec.wavepool; sea = seaState(sec); }
+    waveRide = raftOnWaves(sea, offset, s, time);
+    const bob = waveRide.heave * swayOn;
+    waveRide.roll *= swayOn; waveRide.pitch *= swayOn;
     shake = Math.max(0, shake - dt);
     camRig.step(dt);
     const camK = settings.camera ?? 1;
-    const jitter = shake > 0 ? [(Math.random() - 0.5) * shake * 0.3 * settings.camera, (Math.random() - 0.5) * shake * 0.3 * settings.camera, 0] : [0, 0, 0];
+    const jitter = shake > 0 ? [(decor() - 0.5) * shake * 0.3 * settings.camera, (decor() - 0.5) * shake * 0.3 * settings.camera, 0] : [0, 0, 0];
     // Sitting down in the water: the camera sinks toward the surface.
     sink = damp(sink, state.sitting ? 0.7 : 0, 1.5, dt);
     const duck = (braced ? 0.5 : 0) + (state.downed ? 0.75 : 0);
@@ -2004,7 +2020,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
       const c = Math.cos(viewYaw), sn = Math.sin(viewYaw);
       look = add(eye, [d[0] * c + d[2] * sn, d[1], -d[0] * sn + d[2] * c]);
     }
-    let roll = (settings.distortion ? (state.passenger.stage >= 5 ? 0.1 : 0) + (state.raft < 40 ? 0.05 : 0) : 0) + hullFx.list * (settings.sway ? 1 : 0.4) * settings.camera + camRig.get('roll') * 0.08 * camK;
+    let roll = (settings.distortion ? (state.passenger.stage >= 5 ? 0.1 : 0) + (state.raft < 40 ? 0.05 : 0) : 0) + hullFx.list * (settings.sway ? 1 : 0.4) * settings.camera + camRig.get('roll') * 0.08 * camK + waveRide.roll * 0.6 * camK;
     look = add(look, [0, camRig.get('pitch') * 0.25 * camK, 0]);
     if (overboard) {
       // In the water, behind the raft, looking at it.
@@ -2479,8 +2495,10 @@ export function createRide(canvas, state, sector, events, opts = {}) {
   function placeRaft(dt, fwd, rgt, bob) {
     const base = add(track.lateral(s + 0.85, offset, 0.08 + jumpY - hullFx.sag), [0, bob * 0.5, 0]);
     const upV = capsize && capsize.t > 0.6 && capsize.t < 4.4 ? scale(cross(rgt, fwd), -1) : cross(rgt, fwd);
-    const list = (state.passenger.stage >= 5 ? 0.12 : 0) + hullFx.list * 1.4;
-    const tiltUp = normalize(add(upV, scale(rgt, list)));
+    const list = (state.passenger.stage >= 5 ? 0.12 : 0) + hullFx.list * 1.4 + waveRide.roll;
+    const pitch = (hullFx.pitch || 0) * 1.4 + waveRide.pitch; // + bow down
+    const tiltUp = normalize(add(add(upV, scale(rgt, list)), scale(fwd, pitch)));
+    raftUpTest = tiltUp;
     // Squash and stretch: wider and flatter on a landing, taller as it leaves; flatter overall when soft.
     const soft = 1 - 0.28 * (1 - (state.raft ?? 100) / 100);
     writeBasis(raft.lip.matrix, base, rgt, fwd, tiltUp, 1.05 * (1 + raftSq * 0.07), 1.05 * (1 + raftSq * 0.07), Math.max(0.45, soft * (1 - raftSq * 0.3)));
@@ -3325,6 +3343,9 @@ export function createRide(canvas, state, sector, events, opts = {}) {
   }
 
   // ---------- Entities per frame ----------
+  /** Where a rope target sits along its line, 0 (left anchor) to 1 (right anchor). */
+  function ropeU(r, f) { return clamp(((f.lat ?? 0) + (r.simHalf || 3)) / (2 * (r.simHalf || 3)), 0, 1); }
+
   function updateEntities(dt, eye, fwd, aimDir) {
     // The raft's gauge trembles while something grips it; a crewmate in trouble gets a marker at that edge.
     hud.carry('');
@@ -3445,7 +3466,10 @@ export function createRide(canvas, state, sector, events, opts = {}) {
     for (const r of ropes) {
       if (!r.active) { r.body.hideAll(); continue; }
       const rh = track.sectionAt(r.s).sec.half;
-      r.body.place(track.lateral(r.s, -rh, 1.25), track.lateral(r.s, rh, 1.25), r.floats.map((f) => f.pos), r.floats.map((f) => f.alive), (j) => Math.sin(time * 3 + j) * 0.08);
+      // The line is a Verlet rope on the water (feel/rope.js): each target rides the rope's height where it sits.
+      if (!r.sim || r.simHalf !== rh) { r.sim = settle(createRope({ length: rh * 2 })); r.simHalf = rh; r.simRest = r.sim.heightAt(0.5); }
+      r.sim.step(dt);
+      r.body.place(track.lateral(r.s, -rh, 1.25), track.lateral(r.s, rh, 1.25), r.floats.map((f) => f.pos), r.floats.map((f) => f.alive), (j) => Math.sin(time * 3 + j) * 0.05 + r.sim.heightAt(ropeU(r, r.floats[j])) - r.simRest);
       if (r.s < s + 0.5) {
         r.active = false;
         if (jumpY > 0.35) {
@@ -4014,7 +4038,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
     bloomAhead() { return spawnBloom(s + 10, offset * 0.6, 1.2); },
     get locks() { return locks.length; },
   };
-  if (import.meta.env.DEV) window.__ride = { parts, camRig, effects, undertowWake: wake, waterField: field, ringParts, wakeParts, streakParts, stir, flashes, gatherLights: () => gatherLights(fx.eye), budget, blaster, get wedges() { return lastWedges; }, get chain() { return lastChain; }, get eyeExposure() { return eyeExposure; }, renderer, get scenery() { return lastScenery; }, room, shots, set padAssist(v) { padAssistTest = v; }, get aimFriction() { return input.aimFriction; }, parts, blooms, tokens, drop, spawnDrop, get assess() { return assess; }, set assessAt(v) { assessAt = v; }, set tokenCool(v) { tokenCool = v; }, get offset() { return offset; }, set offset(v) { offset = v; }, omen: (k) => startOmen(k), get omenState() { return omen; }, get director() { return director; }, get eye() { return fx.eye; }, track, hull, puncture: (c, cause = 'scrape') => hull.puncture(c, cause), overboard: () => goOverboard('test'), free: () => restrained && !restrained.freed && freeRestrained(), shove: () => shove(fx.eye, fx.fwd), ping: () => ping(fx.eye, fx.fwd), fireAt: (dir) => { fireProfile(fx.eye, fx.look, dir || fx.fwd); return state.profile; }, hitTarget: (key) => { const t = targets().find((x) => x.key === key); if (t) { shotProfile = state.profile; t.fn(); } return !!t; }, get wave() { return wave; }, set bot(v) { devBot = v; }, spawnEnc: (kind, extra = {}) => spawn({ e: { kind, ...extra }, s: s + 10, sec: track.sectionAt(s).sec }), get coop() { return { climber, crewGrab, ballast, restrained, protect, focusing, fov, profile: state.profile, special: state.special }; }, reset: () => { overboard = null; capsize = null; trailGrab = null; hull.state.capsized = false; }, capsize: () => startCapsize(), get swimming() { return overboard; }, get capsized() { return capsize; }, get grab() { return trailGrab; }, valve, linked, lifeguard, locker, wake, passengerStep, burst: () => burst(fx.eye, fx.fwd), get s() { return s; }, set s(v) { s = v; } };
+  if (import.meta.env.DEV) window.__ride = { parts, camRig, effects, undertowWake: wake, waterField: field, ringParts, wakeParts, streakParts, stir, flashes, gatherLights: () => gatherLights(fx.eye), budget, blaster, get wedges() { return lastWedges; }, get chain() { return lastChain; }, get eyeExposure() { return eyeExposure; }, renderer, get scenery() { return lastScenery; }, room, shots, set padAssist(v) { padAssistTest = v; }, get aimFriction() { return input.aimFriction; }, parts, blooms, tokens, drop, spawnDrop, get assess() { return assess; }, set assessAt(v) { assessAt = v; }, set tokenCool(v) { tokenCool = v; }, get offset() { return offset; }, set offset(v) { offset = v; }, omen: (k) => startOmen(k), get omenState() { return omen; }, get director() { return director; }, get eye() { return fx.eye; }, track, hull, puncture: (c, cause = 'scrape') => hull.puncture(c, cause), overboard: () => goOverboard('test'), free: () => restrained && !restrained.freed && freeRestrained(), shove: () => shove(fx.eye, fx.fwd), ping: () => ping(fx.eye, fx.fwd), fireAt: (dir) => { fireProfile(fx.eye, fx.look, dir || fx.fwd); return state.profile; }, hitTarget: (key) => { const t = targets().find((x) => x.key === key); if (t) { shotProfile = state.profile; t.fn(); } return !!t; }, get wave() { return wave; }, set bot(v) { devBot = v; }, spawnEnc: (kind, extra = {}) => spawn({ e: { kind, ...extra }, s: s + 10, sec: track.sectionAt(s).sec }), get coop() { return { climber, crewGrab, ballast, restrained, protect, focusing, fov, profile: state.profile, special: state.special }; }, reset: () => { overboard = null; capsize = null; trailGrab = null; hull.state.capsized = false; }, capsize: () => startCapsize(), get swimming() { return overboard; }, get capsized() { return capsize; }, get grab() { return trailGrab; }, valve, linked, lifeguard, locker, wake, passengerStep, burst: () => burst(fx.eye, fx.fwd), get s() { return s; }, set s(v) { s = v; }, get waveRide() { return waveRide; }, ropes, get sea() { return sea; }, get hullFx() { return hullFx; }, get raftUp() { return raftUpTest; } };
 
   /** ?show=: put the ride into a fixed, readable state for screenshots and visual review. */
   function showcase(name) {

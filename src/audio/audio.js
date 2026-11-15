@@ -1,5 +1,6 @@
 // Sound: recorded where a recording exists (samples.js, the Oculus Audio Pack), synthesised everywhere else and
 // as the fallback while recordings load. Beds (water, machinery, the vent, underwater, the drone) follow the space.
+import { ROOMS, reverbFor } from './acoustics.js';
 import { loadSamples, playSample, createBed, hasSample } from './samples.js';
 import { settings } from '../settings.js';
 import { createVoicePool, priorityOf } from './voicepool.js';
@@ -26,7 +27,9 @@ let verb = null, verbGain = null, space = null;
 let bedBus = null, musicVol = null;
 const beds = {};
 const bedLevel = {}; // what each bed should be at; applied once its recording has loaded
-const SPACES = { tile: [1.3, 0.28, 3.2], hall: [3.4, 0.38, 2.2], tube: [0.5, 0.2, 6], room: [0.9, 0.22, 3.6], dry: [0.25, 0.05, 6], reservoir: [4.5, 0.42, 1.8] };
+// Each space's reverb comes from a room of that kind (audio/acoustics.js): Sabine's RT60 from its size and surfaces,
+// the wet level from the critical distance. [impulse seconds, wet, envelope exponent].
+const SPACES = Object.fromEntries(Object.entries(ROOMS).map(([k, room]) => { const r = reverbFor(room); return [k, [r.seconds, r.wet, r.decay]]; }));
 function impulse(seconds, decay) {
   const len = Math.ceil(ctx.sampleRate * seconds);
   const buf = ctx.createBuffer(2, len, ctx.sampleRate);
@@ -473,6 +476,8 @@ export const sound = {
   chains(pan = 0) { rec('chains', { gain: 0.3, pan }); },
   gear() { rec('gear', { gain: 0.25 }); },
   /** Set the room's acoustics: 'tile', 'hall', 'reservoir', 'tube', 'room' or 'dry'. */
+  /** The reverb settings now in use (for tests). */
+  get spaceSettings() { return space ? { kind: space, ...Object.fromEntries(['seconds', 'wet', 'decay'].map((k, i) => [k, SPACES[space][i]])) } : null; },
   setSpace(kind) {
     if (!ensure() || kind === space || !SPACES[kind]) return;
     space = kind;

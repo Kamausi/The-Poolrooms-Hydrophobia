@@ -1,5 +1,6 @@
 // Keyboard, mouse, pointer lock and touch, collected into one state object read once per frame.
 // Rebinding: the game reads each action's default key; settings.bindings maps the physical key onto it.
+import { lockPointer } from './platform.js';
 import { padTables } from './padmap.js';
 import { settings, ACTIONS } from './settings.js';
 
@@ -111,7 +112,7 @@ export function initInput(target) {
 
 export function requestLock() {
   if (input.touch || !canvas || document.pointerLockElement === canvas) return;
-  canvas.requestPointerLock?.()?.catch?.(() => {});
+  lockPointer(canvas); // raw movement where the browser allows it (platform.js)
 }
 
 export function releaseLock() {

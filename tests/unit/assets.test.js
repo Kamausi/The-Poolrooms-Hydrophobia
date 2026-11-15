@@ -29,4 +29,11 @@ describe('asset registry', () => {
   it('docs/CREDITS.md names every source in the registry', () => {
     for (const s of new Set(reg.entries.map((e) => e.source.split(' (')[0].replace(/ \d[\d.]*$/, '')))) expect(credits, s).toContain(s);
   });
+  it('every model is compressed (meshopt and quantised, which 67js decodes itself): run scripts/compress-models.mjs on a new one', () => {
+    for (const f of shipped.filter((x) => x.endsWith('.glb'))) {
+      const b = fs.readFileSync(path.join(root, f)), json = JSON.parse(b.subarray(20, 20 + b.readUInt32LE(12)).toString('utf8'));
+      expect(json.extensionsUsed || [], f).toContain('EXT_meshopt_compression');
+      expect(json.asset.extras?.compressed, f).toBe('meshopt-quantized');
+    }
+  });
 });

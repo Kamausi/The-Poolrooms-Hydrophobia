@@ -50,6 +50,8 @@ Touch: left half of the screen moves, right half aims or looks, with buttons for
 - **Water you can read.** Pool and channel water refracts the floor and darkens with real depth. Shots, splashes, wading and paddle strokes send out several rings at once; the raft trails a wake; foam streaks ride the current and fast water throws up foam; caustics move on the floor of flooded pools and lit channels. Climbing out leaves a puddle and wet footprints that dry. Under water (capsized, overboard, held under) the world above shows only through a bright circle overhead.
 - **Things that hunt by sense.** Blooms and the Lifeguard act on what they see and hear: they investigate a noise, chase, lose you, search where they last sensed you, and go back. Only so many may commit at once. The Undertow follows the raft's noise, circles after it strikes, and sinks away after three strikes.
 - **Feedback that tells you what happened.** A hit shows as an arc on the side it came from; health stays off the screen until you are hurt; the reticle marks a weak point, a kill or a wasted shot; hits throw sparks, droplets and bubbles; the view dips and rolls on a spring when the raft is struck.
+- **A raft that floats.** The raft rides a sum of Gerstner waves under its four air chambers, so it heaves, rolls and pitches with the water, and the wave pool's swell lifts it properly. Each chamber's air is its buoyancy: a soft side lists the raft that way, a soft bow puts the nose down, soft all round sits it deeper. The Lane Rope is a tensioned line on the water: a shot float dips its neighbours, the gap sags.
+- **Crew and rooms that behave.** Crewmates on foot steer (they ease into their spot and keep out of each other's way and yours). Each kind of space reverbs by Sabine's formula from its size and surfaces: tiled halls ring for seconds, the Safe Room is dry. Pickups and fixtures on foot are spread over the map from the sector's seed.
 - **A picture that adapts.** Four quality tiers with an automatic mode that lowers the render scale, then thins mirrors, shadows, haze and particles before it drops a tier.
 
 ## Modes
@@ -84,8 +86,9 @@ Touch: left half of the screen moves, right half aims or looks, with buttons for
 | `src/render/props.js`, `src/render/shapes.js` | 3D props as GLB models inlined into the build, each with a primitive stand-in; shared primitive shapes so identical parts draw as one instanced batch |
 | `src/render/lanerope.js` | The Lane Rope: red and white disc floats on a steel cable between wall anchors |
 | `src/render/waterlook.js`, `src/render/waterfx.js` | Water optics by depth and murk; rings, the raft's wake, current streaks, caustics, wet marks, the view from under water |
-| `src/ai/` | Perception, the pursuit cycle (investigate, chase, search, return), attack slots, spawn scoring, the pacing director |
-| `src/feel/` | Damped springs, controller vibration, aim help |
+| `src/ai/` | Perception, the pursuit cycle (investigate, chase, search, return), attack slots, spawn scoring, steering for the crew on foot, the pacing director |
+| `src/feel/` | Damped springs, controller vibration, aim help, how the raft floats (waves and buoyancy), the Lane Rope's Verlet line |
+| `src/audio/acoustics.js`, `src/scatter.js`, `src/platform.js` | Reverb from room size and surfaces; spreading placed things over a map; raw mouse input, screen wake lock and persistent storage where the browser allows |
 | `src/render/effectpool.js` | Sparks, droplets and bubbles from a fixed pool |
 | `src/render/surfaces.js` | Generated surface textures (ceiling, floor tile, painted steel, PVC, wet concrete, clouds) |
 | `src/input.js`, `src/settings.js`, `src/render/quality.js`, `src/labels.js`, `src/render/textures.js`, `src/math.js` | Input, options, render quality, sign textures, tile textures, maths |
@@ -102,8 +105,9 @@ The first prototype (a single minified Three.js file) is kept at `public/legacy/
 - All of this is checked by headless tests (props load, stand where they should, stay clear of the moored raft, draw in under 150 batches on the raft and 125 on foot). None of it has been checked by human play or on real GPUs.
 
 ## Testing
-- `npm test` runs the unit tests for the pure modules and then 22 headless browser test files that drive the game through its developer hooks (software rendering, no GPU).
+- `npm test` runs the unit tests for the pure modules and then 23 headless browser test files that drive the game through its developer hooks (software rendering, no GPU).
 - `npm run test:balance` sends a bot through all eight attractions. As last measured it reaches every dock with 33–50 health at its lowest and the raft at 75–100% ([docs/PRODUCTION.md](docs/PRODUCTION.md) has the table).
+- Property tests (fast-check) check rules such as the buoyancy signs and the steering speed limit against generated cases.
 - These tests check state and rules, not feel. Nobody has played this build by hand, and it has not been run on a real GPU.
 
 ## Design

@@ -2,6 +2,7 @@
 // Campaign: eight attractions. Each is a ride (raft) → holding pool → optional dock (on foot) → service gate →
 // arrival bay → Safe Room. Skipping the dock takes the bypass: no checkpoint, straight into the next sector.
 // Endless: seeded, escalating sectors with a score and per-seed records.
+import { keepAwake, persistStorage, platformStatus } from './platform.js';
 import '67js/addons/world-material-shader';
 import '67js/addons/liquid-shader';
 import { VERSION } from '67js';
@@ -13,7 +14,7 @@ import { createRide } from './ride.js';
 import { createExplore } from './explore.js';
 import { createSafeRoom } from './saferoom.js';
 import { createMenuScene } from './menuscene.js';
-import { initInput, input, endFrame, releaseLock, wasPressed, pollGamepad } from './input.js';
+import { initInput, input, endFrame, releaseLock, requestLock, wasPressed, pollGamepad } from './input.js';
 import { initHud, hud } from './hud.js';
 import { sound } from './audio/audio.js';
 import { quality, setTier, applyQualitySetting } from './render/quality.js';
@@ -90,6 +91,7 @@ function snapshot() {
 function saveCheckpoint() {
   if (state.endless) return;
   try { localStorage.setItem(SAVE_KEY, JSON.stringify(snapshot())); } catch {}
+  persistStorage();
 }
 function loadJSON(key) {
   try { return JSON.parse(localStorage.getItem(key) || 'null'); } catch { return null; }
@@ -959,6 +961,7 @@ function frame(now) {
   const ms = now - last;
   const dt = Math.min(0.05, ms / 1000);
   last = now;
+  keepAwake((mode === 'ride' || mode === 'explore' || mode === 'safe') && !paused);
   if (bench && mode === 'ride') benchFrame(ms, now);
   if (mode === 'ride' || mode === 'explore') {
     frames.push(ms);
@@ -1068,6 +1071,7 @@ window.__underflow = {
   get scene() { return scene; },
   startExplore, enterSafeRoom, startRide, newCampaign, startEndless, beginSector, events, startChallenge, startCustom, parseRoute, expeditionRecord,
   setState(patch) { Object.assign(state, patch); },
+  platform: platformStatus, toMenu, saveCheckpoint, requestLock,
   settings, quality, setTier,
   /** Tests: drive the render scale directly, and read what it is. */
   setResScale(k) { applyResScale(k); return resScale; },

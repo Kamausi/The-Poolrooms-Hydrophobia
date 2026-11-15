@@ -52,9 +52,9 @@ These target the biggest gap: there are no finished characters, creatures or arc
 | **Scenario Skills** | Agent skills that coordinate Blender, Maya, Unity and others, and estimate generation cost | An asset pipeline for whoever owns technical art | A hosted service with credits |
 | **ShaderAgent**, Nerfstudio | Procedural materials; neural reconstruction from photos | Reference for the tile and water materials. Nerfstudio only if a real pool is photographed | Output must be ported to 67js materials by hand |
 
-## Algorithms, libraries, APIs and languages (survey, nothing adopted)
+## Algorithms, libraries, APIs and languages (survey; what was built is marked)
 
-A survey of methods and code that could serve the game. None of it is in the build. Licences and versions are from the npm registry as of this survey; check them again before anything is added, and record it in `THIRD_PARTY_CODE.md` and `assets/registry.json`. The constraints still hold: one offline browser file, 67js 0.16 (no three.js), no server, and post passes limited to 4 passes, 4096 bytes and 16 uniforms.
+A survey of methods and code that could serve the game. Rows marked **Built** are in the build and exercised by the tests named; everything else is not built. None of it has been verified by human play or on target GPUs. Licences and versions are from the npm registry as of this survey; check them again before anything is added, and record it in `THIRD_PARTY_CODE.md` and `assets/registry.json`. The constraints still hold: one offline browser file, 67js 0.16 (no three.js), no server, and post passes limited to 4 passes, 4096 bytes and 16 uniforms.
 
 **Look in 67js first.** The pinned engine already ships addons the game does not use yet: `navmesh` (`createNavmesh`), `cloth` (`createCloth`, `bakeCloth`), `heightfield`, `spume` (pre-baked spray and water frames), `water-reflection`, `physics` (Rapier baked into a timeline, not live), `light-bake`, `crowd-skinning` and `vehicle`. Each would need a test that it runs in Renderer67, as the material hooks did not.
 
@@ -63,17 +63,17 @@ A survey of methods and code that could serve the game. None of it is in the bui
 | Method | What it would do here | Notes |
 |---|---|---|
 | Heightfield wave equation (a small grid, `h += c²∇²h·dt²` with damping) | Real ripples that cross, reflect off the channel walls and fade, in place of the six torus rings | CPU on a 32×32 to 64×64 grid per nearby water area; drawn through the `heightfield` addon or as part vertices. Needs a check that vertex updates are cheap enough |
-| Gerstner (trochoidal) waves | The wave pool's swell, the raft's bob and roll sampled from the same sum, so what you see is what you ride | A few waves; pure and unit-testable like `waterfx.js` |
-| Archimedes buoyancy on the raft's chambers | Each chamber's submerged volume pushes it up; a punctured chamber lists the raft by physics instead of a table | Fits the existing springs and chamber model |
+| Gerstner (trochoidal) waves | The wave pool's swell, the raft's bob and roll sampled from the same sum, so what you see is what you ride | **Built**: `feel/float.js`; the raft heaves, rolls and pitches on the sum, the wave pool adds a swell (`tests/unit/float.test.js`, `tests/systems.cjs`) |
+| Archimedes buoyancy on the raft's chambers | Each chamber's submerged volume pushes it up; a punctured chamber lists the raft by physics instead of a table | **Built**: `feel/float.js` through `hull.js`; a soft side lists the raft, a soft bow pitches it, soft all round sits it deeper (same tests) |
 | Schlick's Fresnel, Beer-Lambert, Snell | Already used (`waterlook.js`, `waterfx.js`) | — |
-| Verlet integration with distance constraints | The Lane Rope sagging and swinging when hit; the Ariadne thread on foot | Or the engine's `cloth` addon |
+| Verlet integration with distance constraints | The Lane Rope sagging and swinging when hit; the Ariadne thread on foot | **Built**: `feel/rope.js`; the Lane Rope on the raft and on foot dips where shot, sags where a target is gone, and dips where you wade into it (`tests/unit/properties.test.js`, `tests/models.cjs`). The Ariadne thread is not changed |
 | A* on a navmesh, or flow fields | Followers and the Lifeguard route round obstacles instead of steering at a point; one flow field serves a whole Bloom swarm | Engine `navmesh` addon first |
-| Reynolds steering (seek, arrive, separation, wander, path following) | Smoother swarm and follower motion; separation already exists for Marco | Pure; small |
+| Reynolds steering (seek, arrive, separation, wander, path following) | Smoother swarm and follower motion; separation already exists for Marco | **Built** (arrive and separation): `ai/steering.js` moves the crewmates on foot (`tests/unit/steering.test.js`, `tests/systems.cjs`). Blooms and the Lifeguard are unchanged |
 | Utility AI (scored considerations with response curves) | Choosing what an entity does next from many inputs; fits `perception.js` and `pursuit.js` | Fits the existing scoring style (`spawnscore.js`) |
-| Poisson-disc sampling (Bridson) | Even but natural placement of debris, stains, caustic patches and pickups | Pure, seeded |
-| Seeded PRNG and simplex/value noise | One seed reproduces a run's tile ageing, clutter and omens; noise for flicker and drift | `math.js` already has a seeded `rng`; `ride.js` (3 calls) and `explore.js` (1) still use `Math.random`, so those moments do not replay from a seed |
+| Poisson-disc sampling (Bridson) | Even but natural placement of debris, stains, caustic patches and pickups | **Built** as dart throwing over map cells: `scatter.js` spreads the pickups, clock, notice and lockers on foot (`tests/unit/scatter.test.js`, `tests/systems.cjs`). Not used for debris or stains |
+| Seeded PRNG and simplex/value noise | One seed reproduces a run's tile ageing, clutter and omens; noise for flicker and drift | **Built** (PRNG): the scenes' decoration (foam, camera shake, the cold shiver) now draws from its own seeded stream, so it replays from the seed without touching the gameplay stream. No `Math.random` is left in `ride.js` or `explore.js`; the HUD, menus, audio and blaster flicker still use it. Noise is not built |
 | Wave function collapse, or graph grammars | Generated dock layouts from authored tiles, still sent through `playable()` | Authored maps stay the default; generated ones must pass `tests/maps.mjs` |
-| Inverse-distance attenuation, Doppler, Sabine reverb time (RT60 = 0.161·V/A) | Reverb that follows the room's size and tile surfaces; pitch shift on things passing the raft | Web Audio `ConvolverNode` with generated impulse responses |
+| Inverse-distance attenuation, Doppler, Sabine reverb time (RT60 = 0.161·V/A) | Reverb that follows the room's size and tile surfaces; pitch shift on things passing the raft | **Built** (Sabine): `audio/acoustics.js` derives each space's reverb length and level from a room model with air absorption and the critical distance (`tests/unit/acoustics.test.js`, `tests/audio.cjs`). Doppler is not built |
 | Left 4 Dead-style intensity director | Already the model for `ai/director.js` | — |
 | Critically damped springs, PID | Springs are used (`feel/spring.js`); PID only for things that must track a target with steady load, like the raft's autopilot | — |
 | AgX or ACES tonemapping, temporal anti-aliasing | Better highlight roll-off on the bright tile and water; TAA would fix shimmer on thin cables | Tonemapping fits the grade pass if the byte budget allows; TAA needs history buffers the user-pass system may not give |
@@ -89,11 +89,11 @@ A survey of methods and code that could serve the game. None of it is in the bui
 | @dimforge/rapier3d-compat | 0.21.0, Apache-2.0 | Live rigid bodies: debris, floating crates, the raft hitting things | The engine's `physics` addon bakes with it; live use adds about 1–2 MB of WASM |
 | cannon-es | 0.20.0, MIT | Pure-JS rigid bodies | Smaller than Rapier, slower |
 | simplex-noise | 4.0.3, MIT | 2D–4D noise, seedable | Tiny |
-| @gltf-transform/core and cli, meshoptimizer | 4.5.1 MIT; 1.3.0 MIT | Compress the inlined GLB props at build time (quantise, meshopt, texture resize) | The single file is about 19.6 MB; 67js decodes `EXT_meshopt_compression` and `KHR_mesh_quantization` itself, so no runtime decoder is needed |
+| @gltf-transform/core and cli, meshoptimizer | 4.5.1 MIT; 1.3.0 MIT | Compress the inlined GLB props at build time (quantise, meshopt, texture resize) | **Built** (dev only): `scripts/compress-models.mjs` deduplicates, quantises and meshopt-compresses all 48 models; 12.9 MB of models became 7.3 MB and the single file went from about 19.6 MB to 12.4 MB. Every model still loads with the same triangle count, sizes within 0.1 mm (`tests/unit/assets.test.js`). Textures are untouched |
 | fflate | 0.8.3, MIT | Compress saves, play logs and inlined data | Small |
 | idb-keyval | 6.3.0, Apache-2.0 | IndexedDB saves if `localStorage` (about 5 MB) gets tight | Storage keys could stay `underflow-*` |
 | comlink | 4.4.2, Apache-2.0 | Move the director, perception or a wave grid into a Web Worker | Workers must be inlined for the single file |
-| fast-check | 4.10.2, MIT | Property tests for the pure modules (score, memory, placement rules) | Dev dependency only; works with Vitest |
+| fast-check | 4.10.2, MIT | Property tests for the pure modules (score, memory, placement rules) | **Built** (dev only): `tests/unit/properties.test.js`, eight properties over the new and water modules |
 | spectorjs | 0.9.33, MIT | Capture a WebGL frame and list its draw calls | Dev only; would show the batch counts the models test checks |
 | lil-gui, stats-gl | 0.21.0 MIT; 4.2.3 MIT | Live tuning panel and GPU timing in the dev build | Dev only |
 | Omnitone, Resonance Audio | 2.0.0 Apache-2.0; 1.0.0 Apache-2.0 | Ambisonic and room-modelled spatial sound (HRTF), for headphones | Both from Google and no longer maintained; Web Audio's `PannerNode` with `HRTF` already gives basic binaural sound |
@@ -105,10 +105,10 @@ A survey of methods and code that could serve the game. None of it is in the bui
 |---|---|
 | Gamepad API with `vibrationActuator` (`dual-rumble`, `trigger-rumble`) | Already used for controller haptics (`feel/haptics.js`); trigger rumble is Chromium only |
 | Web Audio: `ConvolverNode`, `PannerNode` (`HRTF`), `AudioWorklet` | Room reverb, binaural position, synthesis off the main thread |
-| Pointer Lock with `unadjustedMovement: true` | Raw mouse input without OS acceleration |
-| Screen Wake Lock, Fullscreen, Page Visibility | Keep the screen on during long rides; pause when the tab is hidden |
+| Pointer Lock with `unadjustedMovement: true` | Raw mouse input without OS acceleration. **Built**: `platform.js`, with a fall-back where unsupported (`tests/platform.cjs`, against a stand-in lock) |
+| Screen Wake Lock, Fullscreen, Page Visibility | Keep the screen on during long rides; pause when the tab is hidden. **Built** (wake lock): held while a run is played, released on the menu and when paused (`tests/platform.cjs`, against a stand-in; headless Chromium refuses the real one) |
 | Web Workers and OffscreenCanvas | Simulation off the main thread |
-| IndexedDB, `navigator.storage.persist()` | Saves and the facility's memory that the browser will not clear |
+| IndexedDB, `navigator.storage.persist()` | Saves and the facility's memory that the browser will not clear. **Built** (`persist()` only): asked once after the first save (`tests/platform.cjs`) |
 | File System Access, or a download link | Export and import saves and play logs |
 | `EXT_disjoint_timer_query_webgl2` | GPU time per pass for the `?bench` report, where the browser exposes it |
 | WebXR | A seated VR ride; a large change, only if wanted |

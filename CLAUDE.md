@@ -19,9 +19,12 @@ A first-person cooperative horror rail-shooter and explorer set in the Poolrooms
 | `src/render/postchain.js`, `src/render/exposure.js`, `src/debug/bench.js`, `src/render/shadows.js` | The four post passes and their uniforms, eye adaptation and haze, the `?bench` report, which lights cast shadows and the hand lamp (pure, unit-tested) |
 | `src/feel/spring.js`, `src/ai/pressure.js`, `src/ai/spawnscore.js`, `src/render/lightpool.js`, `src/render/effectpool.js`, `src/ai/perception.js`, `src/ai/pursuit.js` | Damped springs, the attack-slot budget, spawn-point scoring, brief shot lights from a fixed pool, sparks, droplets and bubbles from a fixed pool, awareness from sight and sound, and what an entity does with it (unaware, suspicious, investigate, observe, warn, pursue, search, return) (pure, unit-tested) |
 | `src/render/surfaces.js`, `src/render/tileflavour.js` | Generated surface textures (ceiling, aqua floor tile, painted steel, clouds), inlined, provenance in `assets/registry.json`; how the procedural wall tile has aged in each place (pure, unit-tested) |
-| `src/render/props.js`, `src/render/shapes.js` | 3D props as inlined GLB files (10 generated with Higgsfield, 38 CC0 from Poly Haven), placed with a primitive fallback; shared primitive shapes so identical parts draw as one instanced batch. Provenance in `assets/registry.json`, status in `docs/ASSET_BACKLOG.md` |
+| `src/render/props.js`, `src/render/shapes.js` | 3D props as inlined GLB files (10 generated with Higgsfield, 38 CC0 from Poly Haven), compressed with `scripts/compress-models.mjs`, placed with a primitive fallback; shared primitive shapes so identical parts draw as one instanced batch. Provenance in `assets/registry.json`, status in `docs/ASSET_BACKLOG.md` |
 | `src/render/waterlook.js`, `src/render/waterfx.js` | Water optics per attraction: absorption by depth (Beer-Lambert) and turbidity from the water colour; what disturbs the water and the shapes that show it: several rings at once, the raft's Kelvin wake, current streaks, caustic drift, wet marks that dry, Snell's window (pure, unit-tested) |
 | `src/render/lanerope.js` | The Lane Rope's body: disc floats on a steel cable between wall anchors (the disc layout is pure and unit-tested) |
+| `src/feel/float.js`, `src/feel/rope.js` | How the raft sits in the water: Gerstner waves under its four chambers and Archimedes buoyancy from their air (list, pitch, sink); the Lane Rope as a Verlet line that dips where shot and sags where a target is gone (pure, unit-tested) |
+| `src/ai/steering.js`, `src/scatter.js` | Arrive and separation for the crewmates on foot; spreading placed things over a dock map by Poisson-disc dart throwing (pure, unit-tested) |
+| `src/audio/acoustics.js`, `src/platform.js` | Each space's reverb from Sabine's formula and a room model (pure, unit-tested); browser services, each optional: raw mouse input, screen wake lock while playing, persistent storage |
 | `src/driftsign.js` | Which signs change at high Drift and what they say (pure, unit-tested) |
 | `src/survey.js` | The on-foot survey map: what has been seen, coverage, text rendering (pure, unit-tested) |
 | `src/feel/aim.js` | Controller aim help and threat-marker geometry (pure, unit-tested) |
@@ -47,6 +50,7 @@ npm test               # unit tests, then the browser tests (starts its own dev 
 npm run typecheck      # tsc over the files listed in tsconfig.json
 npm run test:unit      # Vitest: pure modules, no browser (tests/unit/)
 npm run test:balance   # the competent-player bot through all eight attractions (slow)
+node scripts/compress-models.mjs   # compress a newly added GLB (meshopt + quantisation; 67js decodes it)
 ```
 
 If the dev server serves a stale 67js after a dependency change: `rm -rf node_modules/.vite` and `npx vite --force`.
