@@ -4,7 +4,7 @@
 //   optics   what the lens does: wet beads bending the view, chromatic fringing toward the corners, horizontal
 //            streaks off the fixtures, dirt that only shows where there is glare
 //   grade    what the picture means: a filmic contrast curve, a teal/warm split tone, colour draining with Drift,
-//            the blue-green of being under water, red closing in when you are hurt or nearly gone; and wet tile:
+//            the blue-green of being under water, the surface seen from below (Snell's window), red closing in when you are hurt or nearly gone; and wet tile:
 //            a darker band and a mineral line on the walls just above the water (found from depth)
 //   fxaa     edge smoothing
 //   finish   a light sharpen, then dither so dark gradients do not band
@@ -86,6 +86,17 @@ vec4 userPass(vec2 uv) {
     float far = smoothstep(0.9, 1.0, depthAt(uv));
     c = mix(c, c * vec3(0.35, 0.8, 0.85) + vec3(0.0, 0.05, 0.07) * far, under);
   }
+  if (below > 0.0) {
+    // Snell's window: from under water the world above shows only within 48.6 degrees of straight up, with a bright
+    // wavering rim; outside it the surface mirrors the dark below.
+    vec3 v = normalize(vec3((uv * 2.0 - 1.0) * lens, 1.0));
+    float ca = dot(v, zenith) + (gn(uv.x * 9.0 + time * 1.3) - 0.5) * 0.05;
+    float win = smoothstep(0.63, 0.69, ca);
+    vec3 mirror = c * vec3(0.07, 0.2, 0.23);
+    vec3 sky = c * vec3(0.85, 1.08, 1.08) + vec3(0.03, 0.06, 0.06);
+    float rim = smoothstep(0.05, 0.0, abs(ca - 0.661));
+    c = mix(c, mix(mirror, sky, win) + vec3(0.2, 0.34, 0.34) * rim, below);
+  }
   float edge = smoothstep(0.25, 0.85, length(uv - 0.5) * 1.35);
   float red = clamp(hurt + lowHealth * (0.6 + 0.4 * sin(time * 5.0)), 0.0, 1.0);
   l = dot(c, vec3(0.2126, 0.7152, 0.0722));
@@ -153,6 +164,7 @@ export function buildChain(tier, g = {}) {
       contrast: 0.35, split: 0.6,
       shadowTint: g.warm ? [0.96, 1.0, 1.02] : [0.9, 1.01, 1.07], highTint: g.warm ? [1.07, 1.01, 0.9] : [1.04, 1.01, 0.95],
       damp: clamp01(g.damp), waterLevel: g.waterLevel ?? 0,
+      below: g.window ? 1 : 0, zenith: g.window ? g.window.zenith : [0, 1, 0], lens: g.window ? g.window.lens : [1, 1],
       drift, under: clamp01(g.under), hurt: clamp01(g.hurt) * calm, lowHealth: health < 35 ? clamp01((35 - health) / 35) * calm : 0,
     },
     fxaa: {},

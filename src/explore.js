@@ -15,7 +15,7 @@ import { createPerceiver, sense } from './ai/perception.js';
 import { createPursuit, advance } from './ai/pursuit.js';
 import { createRig } from './feel/spring.js';
 import { createEffectPool } from './render/effectpool.js';
-import { createWaterField, ringShape, causticDrift, causticStrength } from './render/waterfx.js';
+import { createWaterField, ringShape, causticDrift, causticStrength, createWetMarks, footprint, WET_STRIDES, snellWindow } from './render/waterfx.js';
 import { assignShadows, handLamp } from './render/shadows.js';
 import { surface as genSurface } from './render/surfaces.js';
 import { model, modelPart, placeModel } from './render/props.js';
@@ -1114,27 +1114,31 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
   // Impact effects from a fixed pool (effectpool.js), as on the raft: sparks off tile, droplets off water.
   const effects = createEffectPool();
   const fxDot = sphere(8, 6);
+  // One material per kind, shared, so each kind draws as one instanced batch.
+  const bubbleMat = { color: [0.8, 0.93, 0.95], metallic: 0, roughness: 0.05, emission: 0.2, emissiveColor: [0.8, 0.93, 0.95] };
+  const foamPatchMat = { color: [0.86, 0.93, 0.92], metallic: 0, roughness: 0.6, emission: 0.2, emissiveColor: [0.86, 0.93, 0.92] };
   const fxParts = {
     spark: Array.from({ length: effects.sizes.spark }, (_, i) => P(`Spark ${i}`, fxDot, glow([1, 0.9, 0.6], 8))),
     droplet: Array.from({ length: effects.sizes.droplet }, (_, i) => P(`Droplet ${i}`, fxDot, { color: [0.75, 0.9, 0.92], metallic: 0, roughness: 0.05, emission: 0.3, emissiveColor: [0.75, 0.9, 0.92] })),
-    bubble: Array.from({ length: effects.sizes.bubble }, (_, i) => P(`Bubble ${i}`, fxDot, { color: [0.8, 0.93, 0.95], metallic: 0, roughness: 0.05, emission: 0.2, emissiveColor: [0.8, 0.93, 0.95] })),
-    foam: Array.from({ length: effects.sizes.foam }, (_, i) => P(`Foam ${i}`, fxDot, { color: [0.86, 0.93, 0.92], metallic: 0, roughness: 0.6, emission: 0.2, emissiveColor: [0.86, 0.93, 0.92] })),
+    bubble: Array.from({ length: effects.sizes.bubble }, (_, i) => P(`Bubble ${i}`, fxDot, bubbleMat)),
+    foam: Array.from({ length: effects.sizes.foam }, (_, i) => P(`Foam ${i}`, fxDot, foamPatchMat)),
   };
   // Water disturbances (waterfx.js): up to six rings at once, flat tori that widen and thin out on the surface.
   const field = createWaterField();
-  const ringGeo = torus(0.05, 40, 6);
-  const ringParts = field.rings.map((_, i) => P(`Water ring ${i}`, ringGeo, { color: [0.82, 0.92, 0.92], metallic: 0, roughness: 0.15, emission: 0.25, emissiveColor: [0.82, 0.92, 0.92] }));
+  const ringGeo = torus(0.06, 32, 8); // the ping marker's torus: same shape, so the rings join its batch
+  const ringMat = { color: [0.82, 0.92, 0.92], metallic: 0, roughness: 0.15, emission: 0.25, emissiveColor: [0.82, 0.92, 0.92] }; // shared: one batch
+  const ringParts = field.rings.map((_, i) => P(`Water ring ${i}`, ringGeo, ringMat));
   const drawRings = () => field.rings.forEach((r, i) => {
     const sh = ringShape(r, time);
     if (!sh) { hide(ringParts[i]); return; }
     writeBasis(ringParts[i].matrix, [sh.at[0], sh.at[1] + 0.01, sh.at[2]], [1, 0, 0], [0, 0, -1], [0, 1, 0], sh.radius, sh.radius, Math.max(0.05, sh.fade * 0.6));
-    ringParts[i].material.emission = 0.05 + sh.fade * 0.4;
   });
   // Caustics: two sheets of the caustic web just above the floor of every flooded cell, drifting against each other.
   const causticK = causticStrength({ light: rules.openSky ? 1.2 : 0.8, turbidity: optics.turbidity });
   const causticMat = (k) => ({ color: [0.85, 1, 0.98], metallic: 0, roughness: 1, emission: 0.1 + k, emissiveColor: [0.85, 1, 0.98], map: causticTexture(), alphaMode: 'blend', opacity: 0.3 });
+  const causticA = causticMat(causticK), causticB = causticMat(causticK * 0.8); // two shared materials: two batches
   const sheet = quad(); // flat, with the UVs a textured part needs
-  const caustics = waterParts.map((w, i) => ({ x: w.x, z: w.z, a: P(`Caustic ${i}a`, sheet, causticMat(causticK)), b: P(`Caustic ${i}b`, sheet, causticMat(causticK * 0.8)) }));
+  const caustics = waterParts.map((w, i) => ({ x: w.x, z: w.z, a: P(`Caustic ${i}a`, sheet, causticA), b: P(`Caustic ${i}b`, sheet, causticB) }));
   const flat = (part, pos, yaw, size) => { const c = Math.cos(yaw), sn = Math.sin(yaw); writeBasis(part.matrix, pos, [c, 0, -sn], [-sn, 0, -c], [0, 1, 0], size, size, 1); };
   const drawCaustics = () => {
     const [da, db] = causticDrift(time);
@@ -1155,6 +1159,12 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     if (st && st.time === time) { ripple = [...st.at]; rippleTime = time; }
   };
   let wadeT = 0;
+  // Wet marks on dry floor: a puddle where you climb out and footprints for a few strides after, shrinking as they dry.
+  const wet = createWetMarks();
+  const wetMat = { color: [0.02, 0.04, 0.05], metallic: 0, roughness: 0.08, alphaMode: 'blend', opacity: 0.42 };
+  const wetParts = wet.marks.map((_, i) => P(`Wet mark ${i}`, cylinder(), wetMat));
+  const drawWet = () => wet.marks.forEach((m, i) => { const sh = wet.shape(m, time); if (!sh) { hide(wetParts[i]); return; } writeYaw(wetParts[i].matrix, sh.at, i * 1.3, sh.size, 0.004, sh.size * 0.8); });
+  let wetStrides = 0, wetStepT = 0;
   const drawFx = () => { for (const [k, list] of Object.entries(fxParts)) effects.slots(k).forEach((p, i) => { if (!p.on) { hide(list[i]); return; } const sz = p.size * (1 - effects.fade(p) * 0.7); writeYaw(list[i].matrix, p.pos, 0, sz, k === 'foam' ? sz * 0.06 : sz, sz); if (k === 'spark') list[i].material.emissiveColor = p.color; }); };
   { const showBeam = blaster.showBeam; blaster.showBeam = (from, to, ...rest) => {
     const c = PROFILES[state.profile]?.color || [1, 0.85, 0.6];
@@ -1709,6 +1719,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     drawFx();
     drawRings();
     drawCaustics();
+    drawWet();
     time += dt;
     hud.update(dt);
     state.mounted = false;
@@ -1762,6 +1773,12 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     // Wading: every stride through water sends out a ring.
     wadeT -= dt;
     if (water && nowMoving && wadeT <= 0) { wadeT = 0.45; stir(player.pos, 'step'); }
+    // Climbing out leaves a puddle, then wet footprints for a few strides.
+    { const ft0 = floorTop(pcx, pcz), dry = !water && ft0 > -1;
+      if (wasWater && dry) { wet.add([player.pos[0], ft0 + 0.006, player.pos[2]], 0.5, time); wetStrides = WET_STRIDES; wetStepT = 0.4; }
+      wetStepT -= dt;
+      if (dry && nowMoving && wetStrides > 0 && wetStepT <= 0) { wetStepT = 0.4; wetStrides -= 1; const f = forwardVec(); wet.add(footprint([player.pos[0], ft0 + 0.006, player.pos[2]], [f[0], f[2]], wetStrides), 0.17, time); }
+      if (water) wetStrides = 0; }
     wasWater = water;
     const ft = floorTop(pcx, pcz);
     player.floor = damp(player.floor, ft > -1 ? ft : 0, 10, dt);
@@ -1783,7 +1800,10 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     // Cold water makes you shiver. The shivering stops as the water starts to feel warm, which is worse.
     const shiver = water && state.drift < 35 && settings.sway ? (35 - state.drift) / 35 * 0.008 : 0;
     // Sitting down in the water: you lower yourself until your eyes are almost at the surface.
-    sink = damp(sink, state.sitting ? EYE - 0.35 : 0, 1.2, dt);
+    // Held under: the view goes below the surface (the eye ends 0.3 m under it), and comes back up when you are let go.
+    const pulledUnder = undertow.holding > 0 || floaters.some((f) => f.state === 'holding') || ropes.some((r) => r.holding > 0);
+    const surfaceHere = waterLevel(...cellOf(player.pos[0], player.pos[2]));
+    sink = damp(sink, state.sitting ? EYE - 0.35 : pulledUnder ? Math.min(EYE - 0.2, player.floor + EYE - (surfaceHere - 0.3)) : 0, pulledUnder ? 4 : 1.2, dt); // never through the floor
     if (state.sitting) player.pitch = damp(player.pitch, -0.25, 1, dt);
     camRig.step(dt);
     const camK = settings.camera ?? 1;
@@ -2260,7 +2280,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     const frameSpots = spotLightsFor(eye, camF, camR);
     eyeExposure = settings.autoExposure === false ? 1 : adaptExposure(eyeExposure, targetExposure(lightAtEye(frameLights, eye, rules.openSky ? 0.7 : rules.uv ? 0.08 : 0.15)), dt);
     if (undertow.alive && undertow.holding > 0) state.wetLens = 1;
-    lastChain = !hasDepth || settings.postChain === false ? [] : buildChain(quality.tier, { shaft: settings.shafts === false ? null : shaftSource(frameLights.filter((l) => l.range > 6), { eye, forward: camF, right: camR, up: camU, tanHalf: Math.tan((FOV * Math.PI) / 360), aspect: canvas.clientWidth / Math.max(1, canvas.clientHeight) }), drift: state.drift, health: state.health, hurt: state.hurtFx, wet: state.wetLens, reduceFlash: settings.flashReduce, distortion: settings.distortion, under: undertow.alive && undertow.holding > 0 ? 0.8 : (lifeguard && lifeguard.state === 'grab') || floaters.some((f) => f.state === 'holding') || ropes.some((r) => r.holding > 0) ? 0.6 : 0, damp: rules.openSky ? 0 : 1, waterLevel: waterLevel(...cellOf(player.pos[0], player.pos[2])), warm: sector.index === 0 });
+    lastChain = !hasDepth || settings.postChain === false ? [] : buildChain(quality.tier, { shaft: settings.shafts === false ? null : shaftSource(frameLights.filter((l) => l.range > 6), { eye, forward: camF, right: camR, up: camU, tanHalf: Math.tan((FOV * Math.PI) / 360), aspect: canvas.clientWidth / Math.max(1, canvas.clientHeight) }), drift: state.drift, health: state.health, hurt: state.hurtFx, wet: state.wetLens, reduceFlash: settings.flashReduce, distortion: settings.distortion, under: undertow.alive && undertow.holding > 0 ? 0.8 : floaters.some((f) => f.state === 'holding') || ropes.some((r) => r.holding > 0) ? 0.6 : 0, window: eye[1] < waterLevel(...cellOf(player.pos[0], player.pos[2])) ? snellWindow({ right: camR, up: camU, forward: camF }, FOV, canvas.clientWidth / Math.max(1, canvas.clientHeight)) : null, damp: rules.openSky ? 0 : 1, waterLevel: waterLevel(...cellOf(player.pos[0], player.pos[2])), warm: sector.index === 0 });
     if (hasDepth) renderer.userPasses.set(lastChain);
     renderer.render({
       eye, target, fov: FOV, time,
@@ -3629,7 +3649,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     for (let i = 0; i < (r.valves || 0); i++) { const v = pumpValves.find((x) => x.id === valveOrder[i]); if (v) v.open = true; }
     valveStep = r.valves || 0;
   }
-  if (import.meta.env.DEV) window.__explore = { parts, camRig, waterField: field, ringParts, caustics, waterLevel, stir, jolt, effects, get blown() { return blown; }, flashes, frameEnv: () => lastEnv, marcos, get marcoApart() { return marcoApart; }, mirror: () => mirrorSurface && detachMirror && { height: mirrorSurface.height, parts: mirrorSurface.partIndices.length, key: mirrorKey }, models: () => parts.filter((p) => p.model).map((p) => ({ model: p.model, name: p.name, at: [p.matrix[12], p.matrix[13], p.matrix[14]] })), flashes, budget, wave: (n, f) => wave(n, f), lineOfSight, get remembered() { return remembered; }, get chain() { return lastChain; }, get eyeExposure() { return eyeExposure; }, renderer, get driftSigns() { return driftSigns; }, get wedges() { return lastWedges; }, survey, get surveyCoverage() { return surveyCoverage(survey, surveyOpen); }, surveyOpen, omen: (k) => startFomen(k), circuit, setEmergency, setBlackout, get blackout() { return blackout; }, signParts, get resetT() { return resetT; }, get emergency() { return emergency; }, blocked, isWall, finds, found, get lampPlaced() { return lampPlaced; }, lights: () => gatherLights(add(player.pos, [0, 1.6, 0])), get hesitation() { return hesitation; }, get lastOmen() { return lastFomen; }, get marcoAct() { return marcoAct; }, set marcoAct(v) { marcoAct = v; }, marcos, columns, wavePool, get basin() { return basin; }, isWater, floorTop, get operating() { return operating; }, set operating(v) { operating = v; }, panelFront, holdT, shoot, spawnBloom, occupant, lockers, noise, violate, get omenState() { return fomen; }, door, blooms, lamps, director, followers, get dockKind() { return dockKind; }, get valves() { return { order: valveOrder, step: valveStep, list: pumpValves }; }, june: juneEvent, thread, get clock() { return clock; }, stagnant, player, center, undertow, lifeguard, cellPos, panelPos, raftPos, code, find, floaters, restorePower };
+  if (import.meta.env.DEV) window.__explore = { parts, camRig, wetMarks: wet, wetParts, waterField: field, ringParts, caustics, waterLevel, stir, jolt, effects, get blown() { return blown; }, flashes, frameEnv: () => lastEnv, marcos, get marcoApart() { return marcoApart; }, mirror: () => mirrorSurface && detachMirror && { height: mirrorSurface.height, parts: mirrorSurface.partIndices.length, key: mirrorKey }, models: () => parts.filter((p) => p.model).map((p) => ({ model: p.model, name: p.name, at: [p.matrix[12], p.matrix[13], p.matrix[14]] })), flashes, budget, wave: (n, f) => wave(n, f), lineOfSight, get remembered() { return remembered; }, get chain() { return lastChain; }, get eyeExposure() { return eyeExposure; }, renderer, get driftSigns() { return driftSigns; }, get wedges() { return lastWedges; }, survey, get surveyCoverage() { return surveyCoverage(survey, surveyOpen); }, surveyOpen, omen: (k) => startFomen(k), circuit, setEmergency, setBlackout, get blackout() { return blackout; }, signParts, get resetT() { return resetT; }, get emergency() { return emergency; }, blocked, isWall, finds, found, get lampPlaced() { return lampPlaced; }, lights: () => gatherLights(add(player.pos, [0, 1.6, 0])), get hesitation() { return hesitation; }, get lastOmen() { return lastFomen; }, get marcoAct() { return marcoAct; }, set marcoAct(v) { marcoAct = v; }, marcos, columns, wavePool, get basin() { return basin; }, isWater, floorTop, get operating() { return operating; }, set operating(v) { operating = v; }, panelFront, holdT, shoot, spawnBloom, occupant, lockers, noise, violate, get omenState() { return fomen; }, door, blooms, lamps, director, followers, get dockKind() { return dockKind; }, get valves() { return { order: valveOrder, step: valveStep, list: pumpValves }; }, june: juneEvent, thread, get clock() { return clock; }, stagnant, player, center, undertow, lifeguard, cellPos, panelPos, raftPos, code, find, floaters, restorePower };
 
   /** ?show=: put the dock into a fixed, readable state for screenshots and visual review. */
   function showcase(name) {

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { createWaterField, ringShape, wakeStrips, onWakeArm, streaks, foamLevel, causticStrength, causticDrift, RING_SLOTS, RING_LIFE, KELVIN } from '../../src/render/waterfx.js';
+import { createWetMarks, footprint, snellWindow, inWindow, SNELL_COS, WET_LIFE, createWaterField, ringShape, wakeStrips, onWakeArm, streaks, foamLevel, causticStrength, causticDrift, RING_SLOTS, RING_LIFE, KELVIN } from '../../src/render/waterfx.js';
 
 describe('waterfx', () => {
   it('keeps several rings at once and reuses the oldest slot when full', () => {
@@ -59,5 +59,31 @@ describe('waterfx', () => {
     const [a, b] = causticDrift(5);
     expect(a).not.toEqual(b);
     expect(Math.max(...a.map(Math.abs), ...b.map(Math.abs))).toBeLessThanOrEqual(0.35);
+  });
+  it('wet marks shrink as they dry and the pool reuses the oldest', () => {
+    const w = createWetMarks({ slots: 2 });
+    w.add([0, 0, 0], 0.5, 0); w.add([1, 0, 0], 0.2, 1);
+    expect(w.live(2)).toBe(2);
+    expect(w.shape(w.marks[0], 7).size).toBeLessThan(0.5);
+    expect(w.shape(w.marks[0], 7).size).toBeGreaterThan(w.shape(w.marks[0], 13).size);
+    expect(w.shape(w.marks[0], WET_LIFE + 0.1)).toBeNull();
+    expect(w.add([2, 0, 0], 0.3, 2)).toBe(0); // both still wet: the older one is taken
+  });
+  it('footprints alternate either side of the line of travel', () => {
+    const a = footprint([0, 0, 0], [0, -1], 0), b = footprint([0, 0, 0], [0, -1], 1);
+    expect(a[0]).toBeCloseTo(-b[0]);
+    expect(Math.abs(a[0])).toBeCloseTo(0.11);
+    expect(a[2]).toBeCloseTo(0);
+  });
+  it('from under water the world shows only in a 48.6 degree window around straight up', () => {
+    expect(Math.acos(SNELL_COS) * 180 / Math.PI).toBeCloseTo(48.6, 0);
+    const up = snellWindow({ right: [1, 0, 0], up: [0, 0, -1], forward: [0, 1, 0] }, 60, 1.6); // looking straight up
+    expect(inWindow(up, [0, 0])).toBe(true);
+    const level = snellWindow({ right: [1, 0, 0], up: [0, 1, 0], forward: [0, 0, -1] }, 60, 1.6); // looking level
+    expect(inWindow(level, [0, 0])).toBe(false);   // straight ahead is the mirror
+    expect(inWindow(level, [0, 1])).toBe(false);   // the top of a 60 degree view is only 30 degrees up
+    const tilted = snellWindow({ right: [1, 0, 0], up: [0, Math.SQRT1_2, Math.SQRT1_2], forward: [0, Math.SQRT1_2, -Math.SQRT1_2] }, 60, 1.6); // 45 degrees up
+    expect(inWindow(tilted, [0, 1])).toBe(true);
+    expect(inWindow(tilted, [0, -1])).toBe(false);
   });
 });

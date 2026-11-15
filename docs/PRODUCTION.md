@@ -90,6 +90,21 @@ Filtration Works stays the hardest. A bot is not a person: this replaces guessin
 
 **Re-measured on 13 November 2026 (`npm run test:balance`): the bot reaches 7 of 8 docks.** Lowest health on the way 29–50 and the raft at 84–100% in the seven it finishes (Filtration Works now 44). It does not reach the Rooftop Lagoon's dock: health falls to 1 and the raft to 46–47%, to the Undertow in a full run and to Ballast ("something heavy sat with you") when the Lagoon is ridden on its own. The same failure, with the same numbers, appears at every commit tried back to the first one that carries `tests/balance.cjs` in the repository (6f035b7), so it was not introduced by later work; the "8 of 8" above was measured before the tests were committed and cannot be reproduced from the repository. `npm run test:balance` fails until the Rooftop Lagoon is tuned or the bot learns to brace and dodge.
 
+**Re-measured on 15 November 2026 after tuning the Undertow (`npm run test:balance`): the bot reaches 8 of 8 docks.** Lowest health on the way 33–50 and the raft at 75–100% at the dock:
+
+| Attraction | Lowest health | Raft at the dock |
+|---|---|---|
+| 0 | 46 | 90% |
+| 1 | 43 | 79% |
+| 2 | 49 | 100% |
+| 3 | 50 | 96% |
+| 4 | 40 | 91% |
+| 5 (Filtration Works) | 33 | 75% |
+| 6 | 33 | 92% |
+| 7 (Rooftop Lagoon) | 34 | 84% |
+
+What changed: the bot's log on the Lagoon showed the Undertow surfacing under the raft nine times in 90 m for 12 health each, because a crew that keeps firing holds noise at its ceiling. Noise now draws it at 0.03 m/s per point (was 0.05), it backs off to 34 m and waits five seconds after surfacing, and after three strikes in one pursuit it sinks away until the next wake encounter. This applies wherever the Undertow chases the raft, not only in the Lagoon. As before, a bot is not a person: this has not been played by a human.
+
 ## Resume, interruption-tested
 
 Verified by automated test:

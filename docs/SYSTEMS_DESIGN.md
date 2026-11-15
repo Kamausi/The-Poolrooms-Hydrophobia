@@ -171,7 +171,7 @@ Each entity needs a warning, a behaviour and practical counterplay. **The blaste
 
 ### The Undertow (expanded)
 Lives in connected bodies of deep enough water. You rarely see a body: a wake moving against the current, a shadow passing a drain, a disturbance arriving before its sound.
-- **Raft:** follows your wake; repeated firing draws it; impacts against the underside warn of an attack; spillways, wash gates or a disruption burst break pursuit. *(Current build: still-water patch that holds the raft.)*
+- **Raft:** follows your wake; repeated firing draws it; impacts against the underside warn of an attack; spillways, wash gates or a disruption burst break pursuit. After a strike it circles wide for a few seconds, and after three strikes in one pursuit it sinks away until the next wake. *(Current build: still-water patch that holds the raft.)*
 - **Foot:** fast movement through deep water attracts it; dry islands and shallow ledges protect you; a fountain or an object released into another channel distracts it. *(Current build: it follows you through water cells and can't enter drained ones.)*
 - Depth markings become strategic information.
 

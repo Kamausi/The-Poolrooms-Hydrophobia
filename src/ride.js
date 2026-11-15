@@ -6,7 +6,7 @@ import { CHAMBER_BEARING, hitKind } from './hudcues.js';
 import { Renderer67 } from '67js';
 import { box, sphere, cylinder, torus } from './render/shapes.js';
 import { dot, writeYaw, writeBasis, writeSegment, hide, add, sub, scale, normalize, clamp, damp, rng, screenRay, raySphere, rayPlaneY, linear, cross, display, project, angleTo, soundDir, distance } from './math.js';
-import { tileTexture, tileNormal } from './render/textures.js';
+import { tileTexture, tileNormal, causticTexture } from './render/textures.js';
 import { signMaterial, quad } from './labels.js';
 import { createCrewFigure, hideCrewFigure, poseSeated, poseProne, VISITOR_LOOK } from './crewfigure.js';
 import { createCallouts } from './callouts.js';
@@ -20,7 +20,7 @@ import { planColonnade, archRadius } from './poolrooms.js';
 import { createBudget } from './ai/pressure.js';
 import { createRig } from './feel/spring.js';
 import { createEffectPool } from './render/effectpool.js';
-import { createWaterField, ringShape, wakeStrips, streaks, foamLevel } from './render/waterfx.js';
+import { createWaterField, ringShape, wakeStrips, streaks, foamLevel, causticDrift, causticStrength, snellWindow } from './render/waterfx.js';
 import { assignShadows } from './render/shadows.js';
 import { surface } from './render/surfaces.js';
 import { createLightPool, mergeLights } from './render/lightpool.js';
@@ -58,6 +58,10 @@ export function createRide(canvas, state, sector, events, opts = {}) {
   // turbidity, with a Fresnel reflection at grazing angles. No planar mirror on the raft: the channel water
   // changes height along the track, and the engine's mirror reflects at one height.
   const optics = waterOptics(sector);
+  // Caustic sheets for the channel floor: one shared quad and two shared materials, so they add at most one batch.
+  const causticSheet = quad();
+  const causticMat = (k) => ({ color: [0.85, 1, 0.98], metallic: 0, roughness: 1, emission: 0.1 + k, emissiveColor: [0.85, 1, 0.98], map: causticTexture(), alphaMode: 'blend', opacity: 0.3, doubleSided: true });
+  const causticA = causticMat(causticStrength({ light: 0.8, turbidity: optics.turbidity })), causticB = causticMat(causticStrength({ light: 0.8, turbidity: optics.turbidity }) * 0.8);
   const waterMat = () => ({ tag: 'water', color: optics.scatter, metallic: 0.2, roughness: 0.06, emission: 0.1, emissiveColor: optics.scatter, alphaMode: 'blend', opacity: 0.6, absorption: optics.absorption, turbidity: optics.turbidity });
   const slab = box(0, 1);
   const ball = sphere(28, 18);
@@ -86,6 +90,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
       left: P(`Wall L${i}`, slab, tileMat), right: P(`Wall R${i}`, slab, tileMat),
       ceiling: P(`Ceiling ${i}`, slab, ceilingMat), floor: P(`Floor ${i}`, slab, poolFloorMat),
       water: P(`Water ${i}`, slab, waterMat()),
+      caustA: P(`Caustic ${i}a`, causticSheet, causticA), caustB: P(`Caustic ${i}b`, causticSheet, causticB),
       belt: P(`Lift belt ${i}`, slab, { color: [0.12, 0.13, 0.12], metallic: 0.5, roughness: 0.5 }),
       lamp: P(`Lamp ${i}`, slab, glow(lampColor, 9)),
       rib: P(`Tube rib ${i}`, ring, { color: [0.35, 0.38, 0.36], metallic: 0.8, roughness: 0.35 }),
@@ -199,22 +204,26 @@ export function createRide(canvas, state, sector, events, opts = {}) {
   // Impact effects from a fixed pool (effectpool.js): sparks in the blaster's colour, droplets where a shot hits water.
   const effects = createEffectPool();
   const fxDot = sphere(8, 6);
+  // One material per kind, shared, so each kind draws as one instanced batch.
+  const bubbleMat = { color: [0.8, 0.93, 0.95], metallic: 0, roughness: 0.05, emission: 0.2, emissiveColor: [0.8, 0.93, 0.95] };
+  const foamPatchMat = { color: [0.86, 0.93, 0.92], metallic: 0, roughness: 0.6, emission: 0.2, emissiveColor: [0.86, 0.93, 0.92] };
   const fxParts = {
     spark: Array.from({ length: effects.sizes.spark }, (_, i) => P(`Spark ${i}`, fxDot, glow([1, 0.9, 0.6], 8))),
     droplet: Array.from({ length: effects.sizes.droplet }, (_, i) => P(`Droplet ${i}`, fxDot, { color: [0.75, 0.9, 0.92], metallic: 0, roughness: 0.05, emission: 0.3, emissiveColor: [0.75, 0.9, 0.92] })),
-    bubble: Array.from({ length: effects.sizes.bubble }, (_, i) => P(`Bubble ${i}`, fxDot, { color: [0.8, 0.93, 0.95], metallic: 0, roughness: 0.05, emission: 0.2, emissiveColor: [0.8, 0.93, 0.95] })),
-    foam: Array.from({ length: effects.sizes.foam }, (_, i) => P(`Foam ${i}`, fxDot, { color: [0.86, 0.93, 0.92], metallic: 0, roughness: 0.6, emission: 0.2, emissiveColor: [0.86, 0.93, 0.92] })),
+    bubble: Array.from({ length: effects.sizes.bubble }, (_, i) => P(`Bubble ${i}`, fxDot, bubbleMat)),
+    foam: Array.from({ length: effects.sizes.foam }, (_, i) => P(`Foam ${i}`, fxDot, foamPatchMat)),
   };
   const drawFx = () => { for (const [k, list] of Object.entries(fxParts)) effects.slots(k).forEach((p, i) => { if (!p.on) { hide(list[i]); return; } const sz = p.size * (1 - effects.fade(p) * 0.7); writeYaw(list[i].matrix, p.pos, 0, sz, k === 'foam' ? sz * 0.06 : sz, sz); if (k === 'spark') list[i].material.emissiveColor = p.color; }); };
   // Water disturbances (waterfx.js): up to six rings at once, the raft's wake (two arms at the Kelvin angle and a
   // churned trail) and foam streaks carried by the current. Fixed parts, hidden when idle.
   const field = createWaterField();
   const foamMat = (e, blend = false) => ({ color: [0.82, 0.92, 0.92], metallic: 0, roughness: 0.15, emission: e, emissiveColor: [0.82, 0.92, 0.92], ...(blend ? { alphaMode: 'blend', opacity: 0.4 } : {}) });
-  const ringGeo = torus(0.05, 40, 6);
-  const ringParts = field.rings.map((_, i) => P(`Water ring ${i}`, ringGeo, foamMat(0.25)));
-  const wakeParts = [0, 1, 2].map((i) => P(`Wake ${i}`, box(), foamMat(0.2, true)));
+  const ringGeo = thinRing; // a torus the scene already draws, so the rings add no batch
+  const ringMat = foamMat(0.25), wakeMat = foamMat(0.2, true), streakMat = foamMat(0.15, true); // shared: one batch each
+  const ringParts = field.rings.map((_, i) => P(`Water ring ${i}`, ringGeo, ringMat));
+  const wakeParts = [0, 1, 2].map((i) => P(`Wake ${i}`, box(), wakeMat));
   const STREAKS = 8, STREAK_SPAN = 40;
-  const streakParts = Array.from({ length: STREAKS }, (_, i) => P(`Current streak ${i}`, box(), foamMat(0.15, true)));
+  const streakParts = Array.from({ length: STREAKS }, (_, i) => P(`Current streak ${i}`, box(), streakMat));
   /** A disturbance on the water: a ring, and the engine's own ripple when it is strong enough. */
   const stir = (pos, kind = 'splash') => {
     field.impulse([pos[0], track.at(s).p[1], pos[2]], kind, time);
@@ -228,7 +237,6 @@ export function createRide(canvas, state, sector, events, opts = {}) {
       const sh = ringShape(r, time);
       if (!sh) { hide(ringParts[i]); return; }
       writeBasis(ringParts[i].matrix, [sh.at[0], sh.at[1] + 0.01, sh.at[2]], [1, 0, 0], [0, 0, -1], [0, 1, 0], sh.radius, sh.radius, Math.max(0.05, sh.fade * 0.6));
-      ringParts[i].material.emission = 0.05 + sh.fade * 0.4;
     });
     const afloat = !overboard && !(capsize && capsize.t > 0.6) && Math.abs(base[1] - wy) < 0.6;
     const strips = afloat ? wakeStrips([base[0], wy, base[2]], [fwd[0], fwd[2]], speed) : [];
@@ -1344,7 +1352,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
       const side = random() < 0.5 ? -1 : 1;
       Object.assign(c, { active: true, pos: track.lateral(at, side * (half - 0.4), 2.6), falling: 0, item: e.item });
     } else if (e.kind === 'wake') {
-      Object.assign(wake, { active: true, phase: 'approach', ws: at + 40, dist: 30, thumpTimer: 0, stun: 0 });
+      Object.assign(wake, { active: true, phase: 'approach', ws: at + 40, dist: 30, thumpTimer: 0, stun: 0, strikes: 0 });
       hud.say('JUNE', 'There\'s a wake ahead. Moving against the current. Toward us.', 'crew');
     } else if (e.kind === 'spillway') {
       Object.assign(spill, { active: true, s: at, side: random() < 0.5 ? -1 : 1, passed: false });
@@ -2242,7 +2250,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
     // Eye adaptation: the dark lifts slowly, a lit room clamps down at once.
     eyeExposure = settings.autoExposure === false ? 1 : adaptExposure(eyeExposure, targetExposure(lightAtEye(frameLights, eye, frameAmbient)), dt);
     if (overboard || capsize) state.wetLens = 1; // water on the lens runs off over a few seconds once you are out
-    lastChain = !hasDepth || settings.postChain === false ? [] : buildChain(quality.tier, { shaft: settings.shafts === false ? null : shaftSource(frameLights.filter((l) => l.range > 6), { eye, forward: fwd, right: rgt, up, tanHalf: Math.tan((fov * Math.PI) / 360), aspect }), drift: state.drift, health: state.health, hurt: state.hurtFx, wet: state.wetLens, reduceFlash: settings.flashReduce, distortion: settings.distortion, under: capsize && capsize.t > 0.8 && capsize.t < 4.4 ? 1 : overboard ? 0.35 : 0, warm: sector.index === 0, damp: sec.sky ? 0 : 1, waterLevel: 0 });
+    lastChain = !hasDepth || settings.postChain === false ? [] : buildChain(quality.tier, { shaft: settings.shafts === false ? null : shaftSource(frameLights.filter((l) => l.range > 6), { eye, forward: fwd, right: rgt, up, tanHalf: Math.tan((fov * Math.PI) / 360), aspect }), drift: state.drift, health: state.health, hurt: state.hurtFx, wet: state.wetLens, reduceFlash: settings.flashReduce, distortion: settings.distortion, under: capsize && capsize.t > 0.8 && capsize.t < 4.4 ? 1 : overboard ? 0.35 : 0, window: (capsize && capsize.t > 0.8 && capsize.t < 4.4) || eye[1] < track.at(s).p[1] ? snellWindow({ right: rgt, up, forward: fwd }, fov, aspect) : null, warm: sector.index === 0, damp: sec.sky ? 0 : 1, waterLevel: 0 });
     if (hasDepth) renderer.userPasses.set(lastChain);
     renderer.render({
       eye, target: look, up, fov, time,
@@ -3053,7 +3061,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
 
   const TWIN_KEYS = ['glass', 'farWater', 'farWall', 'post'];
   const HALL_KEYS = ['deckL', 'deckR', 'chairL', 'chairR', 'backL', 'backR', 'upperWin', 'slide', 'bigWin', 'farRaft', 'marker', 'rules'];
-  const SEG_KEYS = ['bandL', 'bandR', 'left', 'right', 'ceiling', 'floor', 'water', 'belt', 'lamp', 'rib', 'winL', 'winR', 'figure', 'debris', ...HALL_KEYS, ...TWIN_KEYS];
+  const SEG_KEYS = ['bandL', 'bandR', 'left', 'right', 'ceiling', 'floor', 'water', 'caustA', 'caustB', 'belt', 'lamp', 'rib', 'winL', 'winR', 'figure', 'debris', ...HALL_KEYS, ...TWIN_KEYS];
   function placeSegments() {
     for (const seg of segments) {
       while (seg.s + SEG < s - SEG) seg.s += SEGMENTS * SEG;
@@ -3094,11 +3102,20 @@ export function createRide(canvas, state, sector, events, opts = {}) {
       else put(seg.ceiling, 0, H + 0.3, half * 2 + 1.8, 0.6, L);
       put(seg.floor, 0, sec.shallow ? -0.75 : -0.9, half * 2 + 1.2, 0.6, L);
       if (sec.belt) {
-        hide(seg.water);
+        hide(seg.water); hide(seg.caustA); hide(seg.caustB);
         put(seg.belt, 0, -0.06, half * 2 - 0.3, 0.1, L);
       } else {
         hide(seg.belt);
         put(seg.water, 0, sec.shallow ? -0.32 : -0.01, half * 2 + 0.2, 0.02, L);
+        // Caustics on the channel floor: two sheets of the caustic web drifting against each other (waterfx.js), under
+        // lit water only. A flat quad: across the channel, along it, facing up.
+        if (sec.sky || sec.lamps === 'none' || sec.lamps === 'dark') { hide(seg.caustA); hide(seg.caustB); }
+        else {
+          const [da, db] = causticDrift(time), fy = (sec.shallow ? -0.45 : -0.6) + 0.012;
+          const sheet = (part, d, up, k) => writeBasis(part.matrix, add(add(add(B.a.p, scale(B.xL, d[0])), scale(B.z, d[1])), scale(B.y, up)), B.xL, B.z, B.y, (half * 2 + 0.2) * k, L * k, 1);
+          sheet(seg.caustA, da, fy, 1);
+          sheet(seg.caustB, db, fy + 0.006, 0.86);
+        }
       }
       const lampOn = sec.sky ? false : sec.lamps === 'posts' ? n % 2 === 0 : sec.lamps === 'none' ? false : sec.lamps === 'bright' ? true : sec.lamps === 'normal' || sec.lamps === 'flicker' ? n % 2 === 0 : sec.lamps === 'sparse' ? n % 3 === 0 : !!sec.lit && n % 2 === 0;
       if (lampOn && sec.lamps === 'posts') {
@@ -3838,7 +3855,9 @@ export function createRide(canvas, state, sector, events, opts = {}) {
       }
     } else {
       wake.stun = Math.max(0, wake.stun - dt);
-      if (!wake.stun) wake.dist -= dt * (0.9 + state.noise * 0.05 + (state.visible ? 0.6 : 0));
+      // Firing draws it, but not so hard that a crew defending itself is surfaced under every few seconds (measured
+      // with the bot: at 0.05 per point of noise it struck nine times in 90 m of the Rooftop Lagoon).
+      if (!wake.stun) wake.dist -= dt * (0.9 + state.noise * 0.03 + (state.visible ? 0.6 : 0));
       wake.ws = s - wake.dist;
       if (wake.dist < 8) {
         wake.thumpTimer -= dt;
@@ -3855,7 +3874,11 @@ export function createRide(canvas, state, sector, events, opts = {}) {
         damage(12, 'The Undertow surfaced under the raft.', 15);
         { const at = track.lateral(s, offset, 0); stir(at, 'surface'); effects.burst('bubble', add(at, [0, -0.1, 0]), { count: 6, speed: 0.8, spread: 1, density: quality.particles ?? 1 }); effects.burst('foam', add(at, [0, 0.01, 0]), { count: 4, speed: 1, spread: 1, density: quality.particles ?? 1 }); }
         state.drift = Math.min(100, state.drift + 12);
-        wake.dist = 28;
+        wake.dist = 34;
+        wake.stun = 5; // it circles wide after surfacing before it comes again
+        // Three strikes and it sinks away: a pursuit ends on its own, not only at a spillway. The next wake brings it back.
+        wake.strikes = (wake.strikes || 0) + 1;
+        if (wake.strikes >= 3) { wake.active = false; hud.caption('[the wake sinks away — behind]'); }
       }
     }
     const c = track.lateral(wake.ws, 0, 0.015);
@@ -3991,7 +4014,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
     bloomAhead() { return spawnBloom(s + 10, offset * 0.6, 1.2); },
     get locks() { return locks.length; },
   };
-  if (import.meta.env.DEV) window.__ride = { parts, camRig, effects, waterField: field, ringParts, wakeParts, streakParts, stir, flashes, gatherLights: () => gatherLights(fx.eye), budget, blaster, get wedges() { return lastWedges; }, get chain() { return lastChain; }, get eyeExposure() { return eyeExposure; }, renderer, get scenery() { return lastScenery; }, room, shots, set padAssist(v) { padAssistTest = v; }, get aimFriction() { return input.aimFriction; }, parts, blooms, tokens, drop, spawnDrop, get assess() { return assess; }, set assessAt(v) { assessAt = v; }, set tokenCool(v) { tokenCool = v; }, get offset() { return offset; }, set offset(v) { offset = v; }, omen: (k) => startOmen(k), get omenState() { return omen; }, get director() { return director; }, get eye() { return fx.eye; }, track, hull, puncture: (c, cause = 'scrape') => hull.puncture(c, cause), overboard: () => goOverboard('test'), free: () => restrained && !restrained.freed && freeRestrained(), shove: () => shove(fx.eye, fx.fwd), ping: () => ping(fx.eye, fx.fwd), fireAt: (dir) => { fireProfile(fx.eye, fx.look, dir || fx.fwd); return state.profile; }, hitTarget: (key) => { const t = targets().find((x) => x.key === key); if (t) { shotProfile = state.profile; t.fn(); } return !!t; }, get wave() { return wave; }, set bot(v) { devBot = v; }, spawnEnc: (kind, extra = {}) => spawn({ e: { kind, ...extra }, s: s + 10, sec: track.sectionAt(s).sec }), get coop() { return { climber, crewGrab, ballast, restrained, protect, focusing, fov, profile: state.profile, special: state.special }; }, reset: () => { overboard = null; capsize = null; trailGrab = null; hull.state.capsized = false; }, capsize: () => startCapsize(), get swimming() { return overboard; }, get capsized() { return capsize; }, get grab() { return trailGrab; }, valve, linked, lifeguard, locker, wake, passengerStep, burst: () => burst(fx.eye, fx.fwd), get s() { return s; }, set s(v) { s = v; } };
+  if (import.meta.env.DEV) window.__ride = { parts, camRig, effects, undertowWake: wake, waterField: field, ringParts, wakeParts, streakParts, stir, flashes, gatherLights: () => gatherLights(fx.eye), budget, blaster, get wedges() { return lastWedges; }, get chain() { return lastChain; }, get eyeExposure() { return eyeExposure; }, renderer, get scenery() { return lastScenery; }, room, shots, set padAssist(v) { padAssistTest = v; }, get aimFriction() { return input.aimFriction; }, parts, blooms, tokens, drop, spawnDrop, get assess() { return assess; }, set assessAt(v) { assessAt = v; }, set tokenCool(v) { tokenCool = v; }, get offset() { return offset; }, set offset(v) { offset = v; }, omen: (k) => startOmen(k), get omenState() { return omen; }, get director() { return director; }, get eye() { return fx.eye; }, track, hull, puncture: (c, cause = 'scrape') => hull.puncture(c, cause), overboard: () => goOverboard('test'), free: () => restrained && !restrained.freed && freeRestrained(), shove: () => shove(fx.eye, fx.fwd), ping: () => ping(fx.eye, fx.fwd), fireAt: (dir) => { fireProfile(fx.eye, fx.look, dir || fx.fwd); return state.profile; }, hitTarget: (key) => { const t = targets().find((x) => x.key === key); if (t) { shotProfile = state.profile; t.fn(); } return !!t; }, get wave() { return wave; }, set bot(v) { devBot = v; }, spawnEnc: (kind, extra = {}) => spawn({ e: { kind, ...extra }, s: s + 10, sec: track.sectionAt(s).sec }), get coop() { return { climber, crewGrab, ballast, restrained, protect, focusing, fov, profile: state.profile, special: state.special }; }, reset: () => { overboard = null; capsize = null; trailGrab = null; hull.state.capsized = false; }, capsize: () => startCapsize(), get swimming() { return overboard; }, get capsized() { return capsize; }, get grab() { return trailGrab; }, valve, linked, lifeguard, locker, wake, passengerStep, burst: () => burst(fx.eye, fx.fwd), get s() { return s; }, set s(v) { s = v; } };
 
   /** ?show=: put the ride into a fixed, readable state for screenshots and visual review. */
   function showcase(name) {
