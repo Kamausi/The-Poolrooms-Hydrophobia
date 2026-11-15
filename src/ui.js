@@ -527,7 +527,7 @@ export function showSafeRoom(state, sector, nextSector, nextPlan, onLeave, onSav
       g.globalAlpha = 1;
       g.fillStyle = '#f2efe6';
       g.font = `${Math.round(c.height * 0.05)}px "IBM Plex Mono", monospace`;
-      g.fillText(`UNDERFLOW PARK · GUEST ${state.band}`, c.width * 0.03, c.height * 0.95);
+      g.fillText(`THE POOLROOMS · GUEST ${state.band}`, c.width * 0.03, c.height * 0.95);
     };
     img.src = photo.url;
     wrap.append(c, el('p', null, ['The empty seat appears occupied.', 'There are more of you in it than there were.', 'Your life vest has someone else\'s number on it.', 'It shows the raft coming from a route nobody took.'][state.guests % 4]));

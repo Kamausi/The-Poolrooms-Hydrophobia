@@ -15,7 +15,7 @@ export function labelTexture(text, style = 'sign', width = 512, height = 128) {
   canvas.height = height;
   const g = canvas.getContext('2d');
   const palette = {
-    // The UNDERFLOW palette: dead porcelain, faded pool teal, deep water, worn safety yellow, warning coral,
+    // The Hydrophobia palette: dead porcelain, faded pool teal, deep water, worn safety yellow, warning coral,
     // checkpoint green and blacklight violet. Official, credible lettering; the information is what is wrong.
     sign: ['#112b31', '#d8d8ca', '#4d7472'],
     rule: ['#d8d8ca', '#c45a50', '#c45a50'],

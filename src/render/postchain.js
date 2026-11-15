@@ -1,4 +1,4 @@
-// UNDERFLOW's post chain: up to four full-screen passes that run on the finished frame, after the engine's own
+// Hydrophobia's post chain: up to four full-screen passes that run on the finished frame, after the engine's own
 // bloom, exposure and view transform. Colours here are display-referred (0 to 1).
 //
 //   optics   what the lens does: wet beads bending the view, chromatic fringing toward the corners, horizontal
@@ -149,7 +149,7 @@ const clamp01 = (v) => Math.max(0, Math.min(1, v || 0));
 /**
  * The chain for this frame.
  * @param {string} tier low | medium | high | ultra
- * @param {{ drift?: number, health?: number, hurt?: number, wet?: number, under?: number, warm?: boolean, damp?: number, waterLevel?: number, shaft?: { uv: number[], strength: number, color: number[] } | null,
+ * @param {{ drift?: number, health?: number, hurt?: number, wet?: number, under?: number, warm?: boolean, damp?: number, waterLevel?: number, window?: { zenith: number[], lens: number[] } | null, shaft?: { uv: number[], strength: number, color: number[] } | null,
  *   reduceFlash?: boolean, distortion?: boolean }} g drift and health are 0..100; hurt, wet and under are 0..1
  * @returns {{ name: string, fragment: string, uniforms: Record<string, number | number[]> }[]}
  */

@@ -1,4 +1,4 @@
-// Systems from the reference brief, rebuilt for UNDERFLOW: springs on the viewmodel, the pressure budget (who may
+// Systems from the reference brief, rebuilt for Hydrophobia: springs on the viewmodel, the pressure budget (who may
 // commit an attack), and spawn scoring (nothing appears in plain sight).
 const { open, newCampaign, check, finish } = require('./lib.cjs');
 (async () => {
@@ -161,9 +161,9 @@ const { open, newCampaign, check, finish } = require('./lib.cjs');
   check('climbing out of the water leaves a wet mark on the floor that shrinks and dries', !r.none && r.before === 0 && r.marks >= 1 && r.shrinks && r.dried === 0, JSON.stringify(r));
   r = await page.evaluate(() => { const u = window.__underflow; u.beginSector(0); u.startRide(); u.setState({ health: 1e6 }); for (let k = 0; k < 4; k++) u.step(20); const R = window.__ride;
     const sheets = R.parts.filter((q) => /^Caustic /.test(q.name) && Math.abs(q.matrix[0]) + Math.abs(q.matrix[5]) + Math.abs(q.matrix[10]) > 0.01);
-    const one = sheets[0], at0 = one ? [one.matrix[12], one.matrix[13], one.matrix[14]] : null;
-    const water = R.parts.find((q) => /^Water \d/.test(q.name) && Math.abs(q.matrix[0]) > 0.01);
-    return { shown: sheets.length, underWater: !!one && !!water && at0[1] < water.matrix[13] - 0.2 }; });
+    // Each sheet against the water of its own channel segment (the track slopes, so heights differ between segments).
+    const pairs = sheets.map((q) => { const i = q.name.match(/^Caustic (\d+)/)[1]; const w = R.parts.find((x) => x.name === `Water ${i}`); return w && Math.abs(w.matrix[0]) > 0.01 ? q.matrix[13] - w.matrix[13] : null; }).filter((d) => d !== null);
+    return { shown: sheets.length, paired: pairs.length, underWater: pairs.length > 0 && pairs.every((d) => d < -0.05), deepest: Math.min(...pairs), shallowest: Math.max(...pairs) }; });
   check('the raft channel floor carries caustic sheets under the water', r.shown >= 2 && r.underWater, JSON.stringify(r));
   // The Undertow's pursuit of the raft ends on its own: it circles after each strike and sinks away after the third.
   r = await page.evaluate(() => { const u = window.__underflow; u.beginSector(0); u.startRide(); u.setState({ health: 1e6 }); u.step(5); const R = window.__ride, W = R.undertowWake;

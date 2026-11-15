@@ -1,4 +1,4 @@
-# UNDERFLOW · Art direction
+# The Poolrooms: Hydrophobia · Art direction
 
 **Stale institutional beauty.** An empty aquatic complex that is still operating, though its layout and procedures no longer make sense: yellowed porcelain, exhausted fluorescent light, deep water, worn safety equipment, and occasional details that are unmistakably wrong. The earlier concept board had too much comfortable daylight, open visibility and relaxed human presence; this direction replaces it.
 
@@ -183,7 +183,7 @@ Four textures generated with Higgsfield from text prompts written for this proje
 
 ## Models
 
-Props on foot and in the Safe Room are textured meshes; `docs/ASSET_BACKLOG.md` lists each one and what is still primitive. Eight are generated for UNDERFLOW: the supply lockers, pool ladders, pump valves, rubber ducks, the Lifeguard's chair, the blaster you hold, the work lamp and the ring buoys. Twenty-one are CC0 from Poly Haven: the room furniture of a working facility (light fixtures, wall lamps, the electrical cabinet, tools, crates, pipe sections, extinguishers, chairs, benches, a kettle). Rails are brushed stainless, windows are real glass, the landing is wet concrete, and the raft's PVC shows its seams. Custom identity pieces stay ours. Commodity fittings come from CC0 libraries, in a palette that already sits in the Poolrooms: painted steel, faded paint, white plastic. These have been seen in headless screenshots only.
+Props on foot and in the Safe Room are textured meshes; `docs/ASSET_BACKLOG.md` lists each one and what is still primitive. Eight are generated for Hydrophobia: the supply lockers, pool ladders, pump valves, rubber ducks, the Lifeguard's chair, the blaster you hold, the work lamp and the ring buoys. Twenty-one are CC0 from Poly Haven: the room furniture of a working facility (light fixtures, wall lamps, the electrical cabinet, tools, crates, pipe sections, extinguishers, chairs, benches, a kettle). Rails are brushed stainless, windows are real glass, the landing is wet concrete, and the raft's PVC shows its seams. Custom identity pieces stay ours. Commodity fittings come from CC0 libraries, in a palette that already sits in the Poolrooms: painted steel, faded paint, white plastic. These have been seen in headless screenshots only.
 
 ## Generated models
 

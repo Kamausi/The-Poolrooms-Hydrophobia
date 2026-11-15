@@ -1,4 +1,4 @@
-# UNDERFLOW — Systems Design
+# The Poolrooms: Hydrophobia — Systems Design
 
 > **The founding rule:** every sector contains something you change from the raft, something you discover on foot, and a consequence that connects the two.
 
@@ -315,7 +315,7 @@ Survivors pulled out on the raft or on foot are counted. Names read back at roll
 
 ## 15. The core: Left 4 Dead in the Backrooms
 
-**The moment-to-moment game is cooperative survival:** explore strange places, fight through sudden danger, protect the crew, reach the next Safe Room. The raft is UNDERFLOW's signature; Drift is the threat that belongs to this setting. Names, lore, body horror and endings reinforce that experience; they don't replace it.
+**The moment-to-moment game is cooperative survival:** explore strange places, fight through sudden danger, protect the crew, reach the next Safe Room. The raft is Hydrophobia's signature; Drift is the threat that belongs to this setting. Names, lore, body horror and endings reinforce that experience; they don't replace it.
 
 ### Pacing director (implemented, `src/ai/director.js`)
 After Valve's Left 4 Dead director: build intensity, sustain a peak, let it subside, then rest.
@@ -376,9 +376,9 @@ Each influence has one job:
 - **River-rafting party games:** raft movement, obstacles, hops, alternate paths, cooperative navigation.
 - **Arcade rail shooters:** aiming, defensive actions, target locking, branching, audiovisual feedback.
 
-UNDERFLOW adapts mechanics, not content: no names, characters, art or music from any of them.
+Hydrophobia adapts mechanics, not content: no names, characters, art or music from any of them.
 
-| Mechanic | Where it comes from | UNDERFLOW version (implemented) |
+| Mechanic | Where it comes from | Hydrophobia version (implemented) |
 |---|---|---|
 | Side-to-side raft steering, jumps, airborne pickups, marker gates, elevated routes | River-rafting party games | Weighted lateral steering (A/D, left stick) with currents you can read from foam streaks; **Space hops** over low ropes, floating debris and still water; **ramps** (water piled against a lip, foam, chevrons) launch the raft onto **service aqueducts** above the building; Crew Seven ID tags and salvage hang in the air above them; orange **gate markers** reward a clean line |
 | Actions change the route | Branching space shooters, light-gun games with rescue routes | **Forks** decided by what you did: shoot the **sluice** control (bypass), protect a **stranded Drainer** (they open a gate further on), beat a **closing bulkhead** (boost), take the **ramp** (upper route); each decision tells you why in plain words |
@@ -544,7 +544,7 @@ Campaigns open with a Pumphouse dispatch sheet (route, crew, last maintenance st
 - **Versus (not built):** four Drainers against four players controlling Undertow (exploit an exposed position), Marco (redirect attention with authored calls), Lane Rope (a temporary obstruction) and Grout (alter a limited part of the route), then swap. Rules to hold: entities spawn out of sight; attacks don't overlap on one Drainer; Grout can never remove every exit; scoring compares objectives, legitimate progress and extraction on matched routes; the cooperative director's recovery rules are replaced by a competitive ruleset. It needs the online layer, which does not exist yet.
 
 ### Reference notes
-Redbeet's *Raft* and *Raft Survival Simulator* (published on the Nintendo eShop by GAMETOTOP.CC) are separate titles. Steam Workshop custom campaigns are a *Left 4 Dead 2* feature. Melee fatigue was added to the original *Left 4 Dead*'s Versus mode in a 2009 update, not as a universal rule. The Backrooms Wiki has several canons; UNDERFLOW keeps its own continuity (Drift, the Attendant, the Pumphouse, the Lido and its own entities) rather than importing a roster.
+Redbeet's *Raft* and *Raft Survival Simulator* (published on the Nintendo eShop by GAMETOTOP.CC) are separate titles. Steam Workshop custom campaigns are a *Left 4 Dead 2* feature. Melee fatigue was added to the original *Left 4 Dead*'s Versus mode in a 2009 update, not as a universal rule. The Backrooms Wiki has several canons; Hydrophobia keeps its own continuity (Drift, the Attendant, the Pumphouse, the Lido and its own entities) rather than importing a roster.
 
 ## 20. Sector problems: the Yellow Channel loop and the Last Drain surge (implemented)
 
@@ -769,7 +769,7 @@ Limits. All of this has been drawn only by a software renderer in headless tests
 
 ## 35. Springs, the pressure budget, spawn scoring, showcase modes (implemented)
 
-Written for UNDERFLOW from a description of another game's systems; see `docs/THIRD_PARTY_CODE.md` for what was and was not taken.
+Written for Hydrophobia from a description of another game's systems; see `docs/THIRD_PARTY_CODE.md` for what was and was not taken.
 
 **Springs** (`src/feel/spring.js`, pure). A damped spring with substeps, stable at 30 FPS and on a long frame, and a rig of named channels. The blaster's viewmodel now uses one: a shot kicks its push, lift and roll channels, and each profile's settle rate sets the spring's stiffness, so Scatter shoves further, overshoots and settles slowly while Pulse snaps back. The aim itself is not displaced: the shot goes where the reticle is. The raft and the camera still use their earlier, hand-tuned motion; moving them onto springs is not done.
 
@@ -813,7 +813,7 @@ Each has a setting. Checked by a headless screenshot of the blackout-with-lamp a
 
 ## 39. 3D props and instancing (implemented)
 
-**Props.** `src/render/props.js` loads every GLB prop once at start, inlined so the single-file build carries them. There are 48: ten generated for UNDERFLOW with Higgsfield (starting block, floor drain, supply locker, pool ladder, rubber duck, gate valve, lifeguard chair, blaster body, work lamp, ring buoy) and thirty-eight CC0 models from Poly Haven (security camera, caged hanging lamp, wheelchair, generator, toolbox, drain cleaner, searchlight, wet-floor sign, wall clock, megaphone, metal stool, broom, chemical jug, bleach and cleaner bottles, cardboard box, bin bag, first aid kit, hose reel, fire alarm, radio, raft pump, jerrycan, roller shutter, ceiling light fixture, wall lamp, electrical cabinet, junction box, extinguisher, bins, bench, plastic chair, tool chest, tool cart, parts rack, kettle, equipment crate, pipe sections). A model's meshes are baked into one frame, and pieces that share a material are merged, so a prop costs as many parts as it has materials. `placeModel` stands a model on the floor at a yaw and height. `placeModelBasis` moves it in any frame; the first-person blaster uses it to follow the camera with the same springs as before. On a landing the moored raft fills the middle of the dock, so the dock dressing lines the side wall (`row(t, depth)` in `explore.js`) and stays out of the raft's footprint; `tests/models.cjs` checks every dock prop against it. Every placement keeps a primitive fallback for a scene built before its model has loaded.
+**Props.** `src/render/props.js` loads every GLB prop once at start, inlined so the single-file build carries them. There are 48: ten generated for Hydrophobia with Higgsfield (starting block, floor drain, supply locker, pool ladder, rubber duck, gate valve, lifeguard chair, blaster body, work lamp, ring buoy) and thirty-eight CC0 models from Poly Haven (security camera, caged hanging lamp, wheelchair, generator, toolbox, drain cleaner, searchlight, wet-floor sign, wall clock, megaphone, metal stool, broom, chemical jug, bleach and cleaner bottles, cardboard box, bin bag, first aid kit, hose reel, fire alarm, radio, raft pump, jerrycan, roller shutter, ceiling light fixture, wall lamp, electrical cabinet, junction box, extinguisher, bins, bench, plastic chair, tool chest, tool cart, parts rack, kettle, equipment crate, pipe sections). A model's meshes are baked into one frame, and pieces that share a material are merged, so a prop costs as many parts as it has materials. `placeModel` stands a model on the floor at a yaw and height. `placeModelBasis` moves it in any frame; the first-person blaster uses it to follow the camera with the same springs as before. On a landing the moored raft fills the middle of the dock, so the dock dressing lines the side wall (`row(t, depth)` in `explore.js`) and stays out of the raft's footprint; `tests/models.cjs` checks every dock prop against it. Every placement keeps a primitive fallback for a scene built before its model has loaded.
 
 **Instancing.** 67js draws parts that share one geometry object and the same texture maps as one instanced batch. Colour, emission and roughness travel per instance. Two things make that happen here:
 

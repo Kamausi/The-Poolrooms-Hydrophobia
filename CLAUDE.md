@@ -1,4 +1,4 @@
-# UNDERFLOW
+# The Poolrooms: Hydrophobia
 
 A first-person cooperative horror rail-shooter and explorer set in the Poolrooms, built on 67js (a WebGL2 engine whose scene is plain data). You ride a raft through attractions, dock, explore on foot, reach Safe Rooms. Single-player with an AI crew; no server.
 
@@ -33,6 +33,8 @@ A first-person cooperative horror rail-shooter and explorer set in the Poolrooms
 
 `src/` is grouped by area: `render/` (post chain, exposure, tiers, textures, props, shapes, water, light and effect pools), `feel/` (springs, haptics, aim help), `ai/` (perception, pursuit, attack slots, spawn scoring, the director), `audio/` (sound, recorded samples, voice cap) and `debug/` (benchmark, play log). The scenes (`main.js`, `ride.js`, `explore.js`), content, HUD and menus stay at the top of `src/`.
 
+The game was called UNDERFLOW before it was renamed. Some internal names keep the old word on purpose: the browser storage keys (`underflow-save-v2`, `underflow-settings`, `underflow-facility` and the rest), so saved games, settings and the facility's memory survive the rename; the DEV hooks (`window.__underflow`); the single-file audio global (`__UNDERFLOW_AUDIO`); and the tests' `UNDERFLOW_URL` variable. In the story, "underflow" is still the crew's word for what the water does to people.
+
 Local notes: `src/CLAUDE.md` (engine and module rules). Skills in `.claude/skills/`: design-pass, review, debug, balance, release, untangle. Start with `docs/ARCHITECTURE.md`; code provenance is in `docs/THIRD_PARTY_CODE.md`; decisions are in `docs/decisions/`, and tools and assets considered for the project are in `docs/TOOLS_AND_ASSETS.md`.
 
 ## Commands
@@ -40,7 +42,7 @@ Local notes: `src/CLAUDE.md` (engine and module rules). Skills in `.claude/skill
 ```sh
 npm run dev            # http://localhost:5173 (DEV hooks: window.__underflow, __ride, __explore)
 npm run build          # dist/
-npm run build:single   # dist/UNDERFLOW.html, one playable file
+npm run build:single   # dist/HYDROPHOBIA.html, one playable file
 npm test               # unit tests, then the browser tests (starts its own dev server)
 npm run typecheck      # tsc over the files listed in tsconfig.json
 npm run test:unit      # Vitest: pure modules, no browser (tests/unit/)

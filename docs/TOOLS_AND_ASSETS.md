@@ -1,4 +1,4 @@
-# UNDERFLOW · Tools and assets considered
+# The Poolrooms: Hydrophobia · Tools and assets considered
 
 An assessment of the tools, models and asset libraries passed along for this project: what each could do for the game, and whether to use it now. None has been added as a dependency. Only the `untangle-codebase` skill was read at its source; the Hugging Face dataset could not be reached from the build environment. The rest is judged from the descriptions that came with the links.
 

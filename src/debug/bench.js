@@ -12,7 +12,7 @@ export function summarize(frames) {
 
 /** The report as text, for the screen and for pasting. */
 export function report(info, stats) {
-  const lines = ['UNDERFLOW BENCHMARK', `GPU          ${info.gpu}`, `quality      ${info.tier}${info.auto ? ' (auto)' : ''}`, `resolution   ${info.width} x ${info.height} · device ratio ${info.dpr} · render scale ${Math.round(info.scale * 100)}%`];
+  const lines = ['HYDROPHOBIA BENCHMARK', `GPU          ${info.gpu}`, `quality      ${info.tier}${info.auto ? ' (auto)' : ''}`, `resolution   ${info.width} x ${info.height} · device ratio ${info.dpr} · render scale ${Math.round(info.scale * 100)}%`];
   if (stats) lines.push(`frames       ${stats.frames}`, `average      ${stats.average} ms (${stats.fps} FPS)`, `median       ${stats.median} ms`, `99th pct     ${stats.p99} ms`, `worst        ${stats.worst} ms`);
   lines.push(`errors       ${info.errors.length ? info.errors.join(' | ') : 'none'}`);
   return lines.join('\n');

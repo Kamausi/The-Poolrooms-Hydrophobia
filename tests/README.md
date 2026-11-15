@@ -27,7 +27,7 @@ Headless Chromium (software GL, `?quality=low`) driving the game through its DEV
 | `shows.cjs` | Every `?show=` scene sets up on the high tier and draws without errors; screenshots to `SHOW_DIR` | ~5 min |
 | `audio.cjs` | Every recorded sound in `public/audio/manifest.json` loads and decodes | <1 min |
 | `balance.cjs` | The competent-player bot reaches every dock; reports lowest health and raft condition | several min |
-| `single.cjs` | `dist/UNDERFLOW.html` opens from disk, starts and carries its recorded sound (run `npm run build:single` first) | <1 min |
+| `single.cjs` | `dist/HYDROPHOBIA.html` opens from disk, starts and carries its recorded sound (run `npm run build:single` first) | <1 min |
 
 ```sh
 npm test                    # unit tests, then the quick browser set

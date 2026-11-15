@@ -1,4 +1,4 @@
-// UNDERFLOW: game flow.
+// Hydrophobia: game flow.
 // Campaign: eight attractions. Each is a ride (raft) → holding pool → optional dock (on foot) → service gate →
 // arrival bay → Safe Room. Skipping the dock takes the bypass: no checkpoint, straight into the next sector.
 // Endless: seeded, escalating sectors with a score and per-seed records.
@@ -358,7 +358,7 @@ function swap(next) {
     scene = next();
   } catch (error) {
     console.error(error);
-    showModal('This browser could not start the renderer.', `UNDERFLOW needs WebGL2. The renderer reported: ${error.message}`, [['BACK TO MENU', toMenu]]);
+    showModal('This browser could not start the renderer.', `The Poolrooms: Hydrophobia needs WebGL2. The renderer reported: ${error.message}`, [['BACK TO MENU', toMenu]]);
   }
 }
 
@@ -854,7 +854,7 @@ $('settings-btn').onclick = () => {
 };
 $('credits-btn').onclick = () => {
   const body = document.createElement('div');
-  body.innerHTML = `<p>UNDERFLOW. Rendered with <b>67js</b> (MIT).</p>
+  body.innerHTML = `<p>The Poolrooms: Hydrophobia. Rendered with <b>67js</b> (MIT).</p>
 <p><b>Sound:</b> "Oculus Audio Pack 01" by Oculus VR, LLC (<a href="https://developers.meta.com/vr/downloads/package/oculus-audio-pack-1/" target="_blank" rel="noopener">source</a>), licensed under <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener">CC BY 4.0</a>. Edited: trimmed, made mono, loops crossfaded.</p>
 <p><b>Surface detail:</b> normal maps from @pmndrs/assets, CC0 1.0.</p>
 <p><b>Type:</b> Barlow Condensed, IBM Plex Sans and Mono, Caveat, Reenie Beanie, Shadows Into Light, Nanum Pen Script (SIL Open Font License).</p>

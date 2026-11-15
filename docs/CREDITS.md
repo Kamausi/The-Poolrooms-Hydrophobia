@@ -8,7 +8,7 @@ Everything not listed here is made in this repository: code, synthesised sound, 
 
 Taken from the Meta Open Sound repository (github.com/facebookincubator/meta-open-sound, `corpora/oculus-audio-pack`).
 
-**Changes made for UNDERFLOW:** each file was mixed to mono, re-encoded as MP3, trimmed of leading and trailing silence and normalised. Loops were cut and their ends crossfaded into their starts so they repeat without a seam. The files are in `public/audio/` and the transcoding script's file list is in `public/audio/manifest.json`.
+**Changes made for Hydrophobia:** each file was mixed to mono, re-encoded as MP3, trimmed of leading and trailing silence and normalised. Loops were cut and their ends crossfaded into their starts so they repeat without a seam. The files are in `public/audio/` and the transcoding script's file list is in `public/audio/manifest.json`.
 
 The credit also appears on the main menu.
 
@@ -46,7 +46,7 @@ The tile relief itself (recessed grout, bevelled edges, tiles set slightly off t
 
 ## Generated textures
 
-Higgsfield (Z Image model): four surface textures generated for UNDERFLOW from text prompts written for it, used in `src/render/surfaces.js` (stained ceiling tiles, aqua pool floor tile, painted steel, painted cloud tiles). Two more ship as well: raft PVC (made greyscale so it keeps the raft's colour) and wet concrete. Two are kept in `assets/generated/` but not shipped (porcelain wall tile, and a creature skin that came out looking like corrugated plastic). Their use is governed by the account holder's Higgsfield terms, not an open licence.
+Higgsfield (Z Image model): four surface textures generated for Hydrophobia from text prompts written for it, used in `src/render/surfaces.js` (stained ceiling tiles, aqua pool floor tile, painted steel, painted cloud tiles). Two more ship as well: raft PVC (made greyscale so it keeps the raft's colour) and wet concrete. Two are kept in `assets/generated/` but not shipped (porcelain wall tile, and a creature skin that came out looking like corrugated plastic). Their use is governed by the account holder's Higgsfield terms, not an open licence.
 
 ## Models: Poly Haven (CC0)
 
@@ -93,4 +93,4 @@ Twenty-one props from Poly Haven (polyhaven.com), CC0. Credit is not required, a
 
 ## Generated models
 
-Higgsfield: ten textured 3D models made for UNDERFLOW. Each started from a generated reference image (Z Image or GPT Image 2.6) and was turned into a mesh by Tripo 3D H3.1 at a game triangle count with PBR maps: supply locker, pool ladder, gate valve, floor drain, work lamp, ring buoy, the blaster, the lifeguard tower and a starting block. The rubber duck was made with SAM 3D. The geometry is used as generated: textures were re-encoded smaller, and the ring buoy was rotated flat. The reference images are kept in `assets/generated/models/`. Earlier versions of seven of them were made with SAM 3D, or simplified heavily from very dense meshes, and looked rough; they were replaced. Their use is governed by the account holder's Higgsfield terms, not an open licence.
+Higgsfield: ten textured 3D models made for Hydrophobia. Each started from a generated reference image (Z Image or GPT Image 2.6) and was turned into a mesh by Tripo 3D H3.1 at a game triangle count with PBR maps: supply locker, pool ladder, gate valve, floor drain, work lamp, ring buoy, the blaster, the lifeguard tower and a starting block. The rubber duck was made with SAM 3D. The geometry is used as generated: textures were re-encoded smaller, and the ring buoy was rotated flat. The reference images are kept in `assets/generated/models/`. Earlier versions of seven of them were made with SAM 3D, or simplified heavily from very dense meshes, and looked rough; they were replaced. Their use is governed by the account holder's Higgsfield terms, not an open licence.

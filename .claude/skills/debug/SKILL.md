@@ -1,6 +1,6 @@
 ---
 name: debug
-description: Find and fix an UNDERFLOW bug (a crash, a page error, a stuck state, something invisible or wrong in a scene). Use when something in the game misbehaves or a test fails.
+description: Find and fix an Hydrophobia bug (a crash, a page error, a stuck state, something invisible or wrong in a scene). Use when something in the game misbehaves or a test fails.
 ---
 
 # Debugging

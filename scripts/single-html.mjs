@@ -1,4 +1,4 @@
-// Builds dist/ and inlines its one script and one stylesheet into a single playable file: dist/UNDERFLOW.html.
+// Builds dist/ and inlines its one script and one stylesheet into a single playable file: dist/HYDROPHOBIA.html.
 // Fonts still load from Google Fonts; everything else, recorded sound included, is in the file.
 import { execSync } from 'node:child_process';
 import { readFileSync, writeFileSync, readdirSync, rmSync } from 'node:fs';
@@ -20,5 +20,5 @@ const files = {};
 for (const list of Object.values(manifest)) for (const f of list) files[f] = `data:audio/mpeg;base64,${readFileSync(`public/audio/${f}.mp3`).toString('base64')}`;
 html = html.replace('<script type="module">', () => `<script>window.__UNDERFLOW_AUDIO = ${JSON.stringify({ manifest, files })};</script>\n<script type="module">`);
 if (html.includes('/assets/')) throw new Error('an asset reference was not inlined');
-writeFileSync('dist/UNDERFLOW.html', html);
-console.log(`dist/UNDERFLOW.html · ${(html.length / 1024).toFixed(0)} KB`);
+writeFileSync('dist/HYDROPHOBIA.html', html);
+console.log(`dist/HYDROPHOBIA.html · ${(html.length / 1024).toFixed(0)} KB`);
