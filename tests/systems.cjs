@@ -145,5 +145,12 @@ const { open, newCampaign, check, finish } = require('./lib.cjs');
     if (foam) { const q = R.parts.find((x) => /^Foam /.test(x.name) && Math.abs(x.matrix[0]) > 0.01); flat = !!q && Math.abs(q.matrix[5]) < Math.abs(q.matrix[0]) * 0.2; }
     return { wake, back, streak, rings: shown(R.ringParts), foam, flat }; });
   check('on the raft the wake opens behind it, current streaks show, three splashes ring at once, and fast water throws up flat foam patches', r.wake === 3 && r.back < 0 && r.streak > 0 && r.rings === 3 && r.foam > 0 && r.flat, JSON.stringify(r));
+  // The Undertow's pursuit of the raft ends on its own: it circles after each strike and sinks away after the third.
+  r = await page.evaluate(() => { const u = window.__underflow; u.beginSector(0); u.startRide(); u.setState({ health: 1e6 }); u.step(5); const R = window.__ride, W = R.undertowWake;
+    Object.assign(W, { active: true, phase: 'pursue', dist: 3, thumpTimer: 0, stun: 0, strikes: 0 });
+    let strikes = 0, stunAfter = 0, distAfter = 0, frames = 0;
+    for (; frames < 4000 && W.active; frames++) { u.setState({ health: 1e6, noise: 100 }); const before = W.strikes; u.step(1); if (W.strikes > before) { strikes++; if (strikes === 1) { stunAfter = W.stun; distAfter = W.dist; } if (W.active) W.dist = Math.min(W.dist, 3), W.stun = 0; } }
+    return { strikes, stunAfter, distAfter, active: W.active }; });
+  check('the Undertow under the raft circles wide after a strike and gives up after three', r.strikes === 3 && r.stunAfter > 3 && r.distAfter > 30 && !r.active, JSON.stringify(r));
   await finish(browser, errors);
 })();

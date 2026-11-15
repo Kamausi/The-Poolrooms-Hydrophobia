@@ -1347,7 +1347,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
       const side = random() < 0.5 ? -1 : 1;
       Object.assign(c, { active: true, pos: track.lateral(at, side * (half - 0.4), 2.6), falling: 0, item: e.item });
     } else if (e.kind === 'wake') {
-      Object.assign(wake, { active: true, phase: 'approach', ws: at + 40, dist: 30, thumpTimer: 0, stun: 0 });
+      Object.assign(wake, { active: true, phase: 'approach', ws: at + 40, dist: 30, thumpTimer: 0, stun: 0, strikes: 0 });
       hud.say('JUNE', 'There\'s a wake ahead. Moving against the current. Toward us.', 'crew');
     } else if (e.kind === 'spillway') {
       Object.assign(spill, { active: true, s: at, side: random() < 0.5 ? -1 : 1, passed: false });
@@ -3841,7 +3841,9 @@ export function createRide(canvas, state, sector, events, opts = {}) {
       }
     } else {
       wake.stun = Math.max(0, wake.stun - dt);
-      if (!wake.stun) wake.dist -= dt * (0.9 + state.noise * 0.05 + (state.visible ? 0.6 : 0));
+      // Firing draws it, but not so hard that a crew defending itself is surfaced under every few seconds (measured
+      // with the bot: at 0.05 per point of noise it struck nine times in 90 m of the Rooftop Lagoon).
+      if (!wake.stun) wake.dist -= dt * (0.9 + state.noise * 0.03 + (state.visible ? 0.6 : 0));
       wake.ws = s - wake.dist;
       if (wake.dist < 8) {
         wake.thumpTimer -= dt;
@@ -3858,7 +3860,11 @@ export function createRide(canvas, state, sector, events, opts = {}) {
         damage(12, 'The Undertow surfaced under the raft.', 15);
         { const at = track.lateral(s, offset, 0); stir(at, 'surface'); effects.burst('bubble', add(at, [0, -0.1, 0]), { count: 6, speed: 0.8, spread: 1, density: quality.particles ?? 1 }); effects.burst('foam', add(at, [0, 0.01, 0]), { count: 4, speed: 1, spread: 1, density: quality.particles ?? 1 }); }
         state.drift = Math.min(100, state.drift + 12);
-        wake.dist = 28;
+        wake.dist = 34;
+        wake.stun = 5; // it circles wide after surfacing before it comes again
+        // Three strikes and it sinks away: a pursuit ends on its own, not only at a spillway. The next wake brings it back.
+        wake.strikes = (wake.strikes || 0) + 1;
+        if (wake.strikes >= 3) { wake.active = false; hud.caption('[the wake sinks away — behind]'); }
       }
     }
     const c = track.lateral(wake.ws, 0, 0.015);
@@ -3994,7 +4000,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
     bloomAhead() { return spawnBloom(s + 10, offset * 0.6, 1.2); },
     get locks() { return locks.length; },
   };
-  if (import.meta.env.DEV) window.__ride = { parts, camRig, effects, waterField: field, ringParts, wakeParts, streakParts, stir, flashes, gatherLights: () => gatherLights(fx.eye), budget, blaster, get wedges() { return lastWedges; }, get chain() { return lastChain; }, get eyeExposure() { return eyeExposure; }, renderer, get scenery() { return lastScenery; }, room, shots, set padAssist(v) { padAssistTest = v; }, get aimFriction() { return input.aimFriction; }, parts, blooms, tokens, drop, spawnDrop, get assess() { return assess; }, set assessAt(v) { assessAt = v; }, set tokenCool(v) { tokenCool = v; }, get offset() { return offset; }, set offset(v) { offset = v; }, omen: (k) => startOmen(k), get omenState() { return omen; }, get director() { return director; }, get eye() { return fx.eye; }, track, hull, puncture: (c, cause = 'scrape') => hull.puncture(c, cause), overboard: () => goOverboard('test'), free: () => restrained && !restrained.freed && freeRestrained(), shove: () => shove(fx.eye, fx.fwd), ping: () => ping(fx.eye, fx.fwd), fireAt: (dir) => { fireProfile(fx.eye, fx.look, dir || fx.fwd); return state.profile; }, hitTarget: (key) => { const t = targets().find((x) => x.key === key); if (t) { shotProfile = state.profile; t.fn(); } return !!t; }, get wave() { return wave; }, set bot(v) { devBot = v; }, spawnEnc: (kind, extra = {}) => spawn({ e: { kind, ...extra }, s: s + 10, sec: track.sectionAt(s).sec }), get coop() { return { climber, crewGrab, ballast, restrained, protect, focusing, fov, profile: state.profile, special: state.special }; }, reset: () => { overboard = null; capsize = null; trailGrab = null; hull.state.capsized = false; }, capsize: () => startCapsize(), get swimming() { return overboard; }, get capsized() { return capsize; }, get grab() { return trailGrab; }, valve, linked, lifeguard, locker, wake, passengerStep, burst: () => burst(fx.eye, fx.fwd), get s() { return s; }, set s(v) { s = v; } };
+  if (import.meta.env.DEV) window.__ride = { parts, camRig, effects, undertowWake: wake, waterField: field, ringParts, wakeParts, streakParts, stir, flashes, gatherLights: () => gatherLights(fx.eye), budget, blaster, get wedges() { return lastWedges; }, get chain() { return lastChain; }, get eyeExposure() { return eyeExposure; }, renderer, get scenery() { return lastScenery; }, room, shots, set padAssist(v) { padAssistTest = v; }, get aimFriction() { return input.aimFriction; }, parts, blooms, tokens, drop, spawnDrop, get assess() { return assess; }, set assessAt(v) { assessAt = v; }, set tokenCool(v) { tokenCool = v; }, get offset() { return offset; }, set offset(v) { offset = v; }, omen: (k) => startOmen(k), get omenState() { return omen; }, get director() { return director; }, get eye() { return fx.eye; }, track, hull, puncture: (c, cause = 'scrape') => hull.puncture(c, cause), overboard: () => goOverboard('test'), free: () => restrained && !restrained.freed && freeRestrained(), shove: () => shove(fx.eye, fx.fwd), ping: () => ping(fx.eye, fx.fwd), fireAt: (dir) => { fireProfile(fx.eye, fx.look, dir || fx.fwd); return state.profile; }, hitTarget: (key) => { const t = targets().find((x) => x.key === key); if (t) { shotProfile = state.profile; t.fn(); } return !!t; }, get wave() { return wave; }, set bot(v) { devBot = v; }, spawnEnc: (kind, extra = {}) => spawn({ e: { kind, ...extra }, s: s + 10, sec: track.sectionAt(s).sec }), get coop() { return { climber, crewGrab, ballast, restrained, protect, focusing, fov, profile: state.profile, special: state.special }; }, reset: () => { overboard = null; capsize = null; trailGrab = null; hull.state.capsized = false; }, capsize: () => startCapsize(), get swimming() { return overboard; }, get capsized() { return capsize; }, get grab() { return trailGrab; }, valve, linked, lifeguard, locker, wake, passengerStep, burst: () => burst(fx.eye, fx.fwd), get s() { return s; }, set s(v) { s = v; } };
 
   /** ?show=: put the ride into a fixed, readable state for screenshots and visual review. */
   function showcase(name) {
