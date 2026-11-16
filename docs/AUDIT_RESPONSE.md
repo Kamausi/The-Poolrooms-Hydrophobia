@@ -35,7 +35,7 @@ A list of what the Closed Wave Pool should pass before it counts as a finished s
 
 | Gate | How it is checked now | Verified |
 |---|---|---|
-| Completable start to finish by a new player without help | The bot completes it (`npm run test:balance`) | No (needs playtests) |
+| Completable start to finish by a new player without help | The bot reaches every dock (`npm run test:balance`, last run 16 November 2026) | No (needs playtests) |
 | No unfair death: every damage source is telegraphed and avoidable | Burst tell and damage scaled by depth are tested (`systems.cjs`). One human player died after the power cell; this led to the burst tell | No |
 | 60 FPS on the primary tier, 30 FPS on the constrained profile, p99 under 1.5× budget | CPU cost measured; software rendering only | No (needs real GPUs) |
 | A damaged or old save never loses the campaign | `savefile.test.js`, `platform.cjs` | Automated only |
