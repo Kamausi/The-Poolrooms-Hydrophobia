@@ -52,6 +52,10 @@ Touch: left half of the screen moves, right half aims or looks, with buttons for
 - **Feedback that tells you what happened.** A hit shows as an arc on the side it came from; health stays off the screen until you are hurt; the reticle marks a weak point, a kill or a wasted shot; hits throw sparks, droplets and bubbles; the view dips and rolls on a spring when the raft is struck.
 - **A raft that floats.** The raft rides a sum of Gerstner waves under its four air chambers, so it heaves, rolls and pitches with the water, and the wave pool's swell lifts it properly. Each chamber's air is its buoyancy: a soft side lists the raft that way, a soft bow puts the nose down, soft all round sits it deeper. The Lane Rope is a tensioned line on the water: a shot float dips its neighbours, the gap sags.
 - **Crew and rooms that behave.** Crewmates on foot steer (they ease into their spot and keep out of each other's way and yours). Each kind of space reverbs by Sabine's formula from its size and surfaces: tiled halls ring for seconds, the Safe Room is dry. Pickups and fixtures on foot are spread over the map from the sector's seed.
+- **Things that find their way.** On foot, Blooms route round walls by a shared flow field, crewmates and the Lifeguard by A*; crewmates choose what to shoot by utility scoring.
+- **More water.** Ripples on foot come from the wave equation and bounce off pool walls; debris on the raft channel floats on the waves and is shoved and spun when the raft hits it; the Ariadne thread floats on the water and sinks where it is cut; failing tubes flicker by noise.
+- **Endless docks you haven't seen.** In endless mode each dock is a wave-function-collapse variation of its attraction's map, built in a worker while you ride and kept only if it passes the solvability rules.
+- **Options.** Headphone (HRTF) sound, an AgX tone curve, Doppler on things coming at you, save files you can export and import, and ride photos that survive a reload.
 - **A picture that adapts.** Four quality tiers with an automatic mode that lowers the render scale, then thins mirrors, shadows, haze and particles before it drops a tier.
 
 ## Modes
@@ -105,7 +109,7 @@ The first prototype (a single minified Three.js file) is kept at `public/legacy/
 - All of this is checked by headless tests (props load, stand where they should, stay clear of the moored raft, draw in under 150 batches on the raft and 125 on foot). None of it has been checked by human play or on real GPUs.
 
 ## Testing
-- `npm test` runs the unit tests for the pure modules and then 23 headless browser test files that drive the game through its developer hooks (software rendering, no GPU).
+- `npm test` runs the unit tests for the pure modules and then 24 headless browser test files that drive the game through its developer hooks (software rendering, no GPU).
 - `npm run test:balance` sends a bot through all eight attractions. As last measured it reaches every dock with 33–50 health at its lowest and the raft at 75–100% ([docs/PRODUCTION.md](docs/PRODUCTION.md) has the table).
 - Property tests (fast-check) check rules such as the buoyancy signs and the steering speed limit against generated cases.
 - These tests check state and rules, not feel. Nobody has played this build by hand, and it has not been run on a real GPU.

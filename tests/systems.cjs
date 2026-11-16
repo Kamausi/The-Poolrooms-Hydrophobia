@@ -100,6 +100,61 @@ const { open, newCampaign, check, finish } = require('./lib.cjs');
       out.push({ n: t.length, closest: t.length > 1 ? +m.toFixed(2) : null }); }
     return out; });
   check('on foot the placed things (pickups, clock, notice, lockers) are spread over the map, three cells apart where there is room', r.every((x) => x.closest === null || x.closest >= 3), JSON.stringify(r));
+  r = await page.evaluate(() => { const u = window.__underflow; const out = [];
+    for (let i = 0; i < 8 && out.length < 3; i++) { u.beginSector(i); u.startRide(); u.startExplore(); u.setState({ health: 1e6 }); u.step(1);
+      const E = window.__explore, cells = [];
+      for (let z = 0; z < E.H; z++) for (let x = 0; x < E.W; x++) if (!E.isWall(x, z)) cells.push([x, z]);
+      // A pair of open cells with a wall between them (no straight line), far enough apart to need a route.
+      const me = E.cellOf(E.player.pos[0], E.player.pos[2]);
+      let start = null;
+      for (const c of cells) { const p = E.center(c[0], c[1]); p[1] = 1.2; const t = [E.player.pos[0], 1.2, E.player.pos[2]]; if (Math.hypot(c[0] - me[0], c[1] - me[1]) > 3 && E.routeTo(p, t, {}) && !(function () { const d = [t[0] - p[0], t[2] - p[2]]; for (let k = 1; k < 40; k++) if (E.isWall(...E.cellOf(p[0] + d[0] * k / 40, p[2] + d[1] * k / 40))) return false; return true; })()) { start = p; break; } }
+      if (!start) continue;
+      const pos = [...start], target = [E.player.pos[0], 1.2, E.player.pos[2]], memo = {};
+      let wall = 0, steps = 0;
+      for (; steps < 900 && Math.hypot(pos[0] - target[0], pos[2] - target[2]) > 1.5; steps++) {
+        const d = E.routeTo(pos, target, memo), l = Math.hypot(d[0], d[2]) || 1;
+        pos[0] += d[0] / l * 0.2; pos[2] += d[2] / l * 0.2;
+        if (E.isWall(...E.cellOf(pos[0], pos[2]))) wall++;
+      }
+      out.push({ sector: i, reached: Math.hypot(pos[0] - target[0], pos[2] - target[2]) <= 1.5, steps, wall });
+    }
+    return out; });
+  check('on foot a Bloom (or anything routed) goes round the walls to you: it gets there and never enters a wall cell', r.length > 0 && r.every((x) => x.reached && x.wall === 0), JSON.stringify(r));
+  r = await page.evaluate(() => { const u = window.__underflow; let E = null, cell = null;
+    for (let i = 0; i < 8 && !cell; i++) { u.beginSector(i); u.startRide(); u.startExplore(); u.setState({ health: 1e6 }); u.step(1); E = window.__explore;
+      cell = ['~', 'w', 'x', 'd'].map((c) => E.find(c)).flat()[0] || null; }
+    if (!cell) return { none: true };
+    const c = E.center(cell[0], cell[1]); E.player.pos = [c[0], E.player.pos[1], c[2]]; u.step(2);
+    const shown = (p) => Math.abs(p.matrix[0]) + Math.abs(p.matrix[5]) + Math.abs(p.matrix[10]) > 0.01;
+    const before = { e: E.ripGrid.energy(), shown: shown(E.ripPart) };
+    E.stir([c[0] + 1, 0, c[2] + 0.5], 'shot'); E.stir([c[0] - 1.5, 0, c[2] - 1], 'splash');
+    u.step(6);
+    const ys = E.ripPart.geometry.positions.filter((_, k) => k % 3 === 1);
+    const moving = { e: E.ripGrid.energy(), shown: shown(E.ripPart), spread: Math.max(...ys) - Math.min(...ys), cell: E.ripCell };
+    for (let k = 0; k < 40; k++) u.step(30);
+    return { before, moving, after: { e: E.ripGrid.energy(), shown: shown(E.ripPart) } }; });
+  check('on foot the water carries wave-equation ripples: shots and splashes move the sheet around you, then it goes still and hides', r.none || (r.moving.e > 0 && r.moving.shown && r.moving.spread > 0.001 && r.after.e < r.moving.e * 0.01 && !r.after.shown), JSON.stringify(r));
+  r = await page.evaluate(() => { const u = window.__underflow; u.beginSector(0); u.startRide(); u.setState({ health: 1e6 }); u.step(3); const R = window.__ride;
+    R.spawnEnc('debris', { lane: 0 }); u.step(1);
+    const d = R.debrisPool.find((x) => x.active && x.body); if (!d) return { none: true };
+    const ys = [];
+    let hit = null;
+    for (let k = 0; k < 240 && d.active; k++) { R.offset = d.lane - (hit ? 0 : 0.2); u.step(1); ys.push(d.body.y); if (d.done && !hit) hit = { x: d.body.x, spin: d.body.spin, lane0: d.lane }; }
+    const lo = Math.min(...ys), hi = Math.max(...ys);
+    return { bob: +(hi - lo).toFixed(3), hit: !!hit, shoved: hit ? +(d.body.x - hit.x).toFixed(2) : 0, spun: hit ? +Math.abs(d.body.spin - hit.spin).toFixed(2) : 0 }; });
+  check('floating debris on the raft is a body on the water: it bobs, and the raft hitting it shoves it aside and spins it', r.none || (r.bob > 0.01 && r.hit && Math.abs(r.shoved) > 0.3 && r.spun > 0.3), JSON.stringify(r));
+  r = await page.evaluate(() => { const u = window.__underflow; let E = null, cell = null;
+    for (let i = 0; i < 8 && !cell; i++) { u.beginSector(i); u.startRide(); u.startExplore(); u.setState({ health: 1e6 }); u.step(1); E = window.__explore;
+      cell = ['~', 'w', 'x', 'd'].map((c) => E.find(c)).flat()[0] || null; }
+    if (!cell) return { none: true };
+    const c = E.center(cell[0], cell[1]); E.player.pos = [c[0] + 1.5, E.player.pos[1], c[2]]; u.step(2);
+    E.thread.length = 0; E.thread.push([c[0] - 1, 0, c[2]], [c[0], 0, c[2]]);
+    E.stir([c[0] - 0.6, 0, c[2]], 'splash');
+    const ys = []; for (let k = 0; k < 20; k++) { u.step(1); ys.push(E.thread[1][1]); }
+    const afloat = E.thread[1][1];
+    E.thread[1].cut = true; for (let k = 0; k < 10; k++) u.step(15);
+    return { swing: +(Math.max(...ys) - Math.min(...ys)).toFixed(4), afloat: +afloat.toFixed(3), sunk: +E.thread[1][1].toFixed(3) }; });
+  check('over water the Ariadne thread floats and rides the ripples; cut, it sinks to the pool floor', r.none || (r.swing > 0.0005 && r.afloat > -0.95 && r.sunk < r.afloat - 0.1), JSON.stringify(r));
   r = await page.evaluate(() => { const u = window.__underflow; u.beginSector(2); u.startRide(); u.setState({ health: 1e6 }); u.step(3); const R = window.__ride;
     R.spawnEnc('climber'); u.step(1); let both = 0, climbed = !!R.coop.climber, slotHeld = R.budget.holds('climber');
     for (let k = 0; k < 120; k++) { if (k % 20 === 0) R.spawnEnc('crewGrab'); u.setState({ health: 1e6 }); u.step(1); if (R.coop.climber && R.coop.crewGrab) both++; }

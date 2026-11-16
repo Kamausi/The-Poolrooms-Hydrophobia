@@ -25,6 +25,14 @@ No other code in `src/` or `tests/` is copied from another project. Three.js is 
 | `src/audio/acoustics.js` | Sabine's reverberation formula with air absorption; critical distance | Our own room models and published typical absorption coefficients |
 | `src/scatter.js` | Poisson-disc sampling by dart throwing | Our own discrete version over map cells with a furthest-cell fallback |
 | `src/platform.js` | Browser APIs: Pointer Lock `unadjustedMovement`, Screen Wake Lock, `navigator.storage.persist()` | Our own handling, each optional |
+| `src/ai/path.js` | A* (Hart, Nilsson and Raphael, 1968) with an octile heuristic; Dijkstra flow fields | Our own grid rules (no corner cutting) and caching |
+| `src/ai/utility.js` | Utility scoring with response curves and the compensation factor (Dave Mark, "Infinite Axis Utility System") | Our own considerations for crew targeting |
+| `src/render/wavegrid.js` | The 2D wave equation by explicit finite differences, with Courant-limited substeps | Our own grid, mask and mesh writing |
+| `src/feel/body.js` | Damped-spring buoyancy on a Gerstner surface, semi-implicit Euler | Our own constants |
+| `src/render/noise.js` | Simplex noise as described by Stefan Gustavson ("Simplex noise demystified", 2005) | Written from the description, seeded by our PRNG |
+| `src/mapgen.js` | Wave function collapse, simple tiled model (Maxim Gumin, 2016) | Our own adjacency learning from the authored maps, fixed features and solvability check |
+| `src/audio/doppler.js` | The Doppler formula for moving source and listener | Our own clamping |
+| `src/render/gputimer.js`, `src/storage.js` | `EXT_disjoint_timer_query_webgl2`; IndexedDB; CompressionStream | Our own handling, each optional |
 
 ### Saltline
 

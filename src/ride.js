@@ -21,6 +21,10 @@ import { createBudget } from './ai/pressure.js';
 import { createRig } from './feel/spring.js';
 import { seaState, raftOnWaves } from './feel/float.js';
 import { createRope, settle } from './feel/rope.js';
+import { createFloater, stepFloater, knock, floaterBasis } from './feel/body.js';
+import { tubeFlicker } from './render/noise.js';
+import { dopplerRatio, velocity } from './audio/doppler.js';
+import { savePhoto } from './storage.js';
 import { createEffectPool } from './render/effectpool.js';
 import { createWaterField, ringShape, wakeStrips, streaks, foamLevel, causticDrift, causticStrength, snellWindow } from './render/waterfx.js';
 import { assignShadows } from './render/shadows.js';
@@ -1387,7 +1391,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
       });
     } else if (e.kind === 'debris') {
       const d = debrisPool.find((x) => !x.active);
-      if (d) Object.assign(d, { active: true, s: at, lane: e.lane * (Math.min(half, 6) - 1), done: false });
+      if (d) { Object.assign(d, { active: true, s: at, lane: e.lane * (Math.min(half, 6) - 1), done: false }); d.body = createFloater({ x: d.lane, z: at }); d.body.spin = at; }
     } else if (e.kind === 'airPickup') {
       const k = pickups.find((x) => !x.active);
       if (k) Object.assign(k, { active: true, s: at, lane: e.lane * (half - 0.9), item: e.item, done: false });
@@ -2285,7 +2289,9 @@ export function createRide(canvas, state, sector, events, opts = {}) {
     // The ride photo: taken by the park, at the top of a launch or a set piece.
     if (photoPending && (jumpV < 0.5 || setpiece.active)) {
       try {
-        (state.photos ||= []).push({ sector: state.sectorKey, label: photoPending, url: canvas.toDataURL('image/jpeg', 0.5) });
+        const shot = { sector: state.sectorKey, label: photoPending, url: canvas.toDataURL('image/jpeg', 0.5) };
+        (state.photos ||= []).push(shot);
+        savePhoto(shot); // kept across sessions in IndexedDB (storage.js)
         if (state.photos.length > 4) state.photos.shift();
       } catch {}
       photoPending = null;
@@ -3144,7 +3150,8 @@ export function createRide(canvas, state, sector, events, opts = {}) {
       } else if (lampOn) {
         put(seg.lamp, 0, H - 0.02, 1.5, 0.06, 0.5);
         const f = hash(n);
-        const flick = sec.lamps === 'flicker' ? (Math.sin(time * 23 + f * 70) > 0.2 ? 0.1 : 1) : f > 0.85 ? (Math.sin(time * 37 + f * 90) > 0.6 ? 0.15 : 1) : 1;
+        // Failing tubes stutter in stretches (render/noise.js): a flicker section's are badly gone, a few others start to go.
+        const flick = sec.lamps === 'flicker' ? tubeFlicker(time, f * 100 + n, 0.85) : f > 0.85 ? tubeFlicker(time, f * 100 + n, 0.35) : 1;
         const out = lightsOut(seg.s);
         seg.lamp.material.emission = 9 * flick * (out ? 0.002 : 1);
         seg.flickerDark = flick < 0.5 || out;
@@ -3346,6 +3353,12 @@ export function createRide(canvas, state, sector, events, opts = {}) {
   /** Where a rope target sits along its line, 0 (left anchor) to 1 (right anchor). */
   function ropeU(r, f) { return clamp(((f.lat ?? 0) + (r.simHalf || 3)) / (2 * (r.simHalf || 3)), 0, 1); }
 
+  /**
+   * A Bloom's sound as heard on the raft (audio/doppler.js): you ride toward it at the raft's speed and it comes at
+   * you, so it is pitched up a few per cent.
+   */
+  let lastDt = 1 / 60;
+  const bloomDoppler = (b) => dopplerRatio(b.pos, velocity(b.prevPos, b.pos, lastDt), fx.eye, scale(fx.fwd, speed), 343);
   function updateEntities(dt, eye, fwd, aimDir) {
     // The raft's gauge trembles while something grips it; a crewmate in trouble gets a marker at that edge.
     hud.carry('');
@@ -3365,7 +3378,9 @@ export function createRide(canvas, state, sector, events, opts = {}) {
       return d[0] * fwd[0] + d[2] * fwd[2] < -3;
     };
     const closeRate = state.visible ? 1.35 : 1;
+    lastDt = dt;
     for (const b of blooms) {
+      const was = b.seenPos; b.prevPos = was; b.seenPos = [...b.pos]; // for the Doppler of its sounds
       if (!b.active) { hide(b.core); hide(b.spikes); hide(b.heart); b.lobes.forEach(hide); b.threads.forEach(hide); continue; }
       if (b.dying) {
         b.dying += dt;
@@ -3386,7 +3401,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
       // Rear swarms chase the raft, so they have to be faster than it.
       let closing = d < 22 ? (2.2 + sector.index * 0.3) * closeRate : 0;
       // A full performance: rest far off, notice (a turn and an intake), approach, swell, then commit with a lunge.
-      if (d < 22 && !b.noticed && !b.rear) { b.noticed = true; sound.breath(soundDir(fx.eye, fx.fwd, b.pos).pan * 0.6); }
+      if (d < 22 && !b.noticed && !b.rear) { b.noticed = true; sound.doppler(bloomDoppler(b), () => sound.breath(soundDir(fx.eye, fx.fwd, b.pos).pan * 0.6)); }
       if (d < 2.6 && !b.goal && !b.spitter) { closing *= 2.2; if (!b.lunged) { b.lunged = true; b.flash = 0.15; } }
       if (b.flinch > 0) { b.flinch -= dt; closing = -2.2; }
       if (b.rear) closing = speed + 2.4;
@@ -3421,7 +3436,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
       b.phase += dt * 3;
       // Wind-up: a Bloom about to burst swells and brightens. Readable, so you can answer it.
       const windup = !b.goal && !b.spitter ? clamp((4.5 - d) / 3.4, 0, 1) : 0;
-      if (windup > 0 && !b.warned) { b.warned = true; sound.breath(soundDir(fx.eye, fx.fwd, b.pos).pan); }
+      if (windup > 0 && !b.warned) { b.warned = true; sound.doppler(bloomDoppler(b), () => sound.breath(soundDir(fx.eye, fx.fwd, b.pos).pan)); }
       const pulse = (0.45 + Math.sin(b.phase * (1 + windup * 3)) * 0.05) * (1 + windup * 0.45);
       const squash = (b.stagger > 0 ? 0.75 : 1) * (d > 22 ? 1 + Math.sin(b.phase * 0.5) * 0.04 : 1); // resting: slow breathing
       writeYaw(b.core.matrix, [b.pos[0], b.pos[1] + Math.sin(b.phase * 0.7) * 0.15, b.pos[2]], b.phase * 0.4, pulse / squash, pulse * 0.92 * squash, pulse);
@@ -3635,10 +3650,17 @@ export function createRide(canvas, state, sector, events, opts = {}) {
     // Floating debris: steer around it or hop it.
     for (const d of debrisPool) {
       if (!d.active) { hide(d.a); hide(d.b); continue; }
-      const p = track.lateral(d.s, d.lane, 0.12);
-      const yaw = track.at(d.s).yaw + d.s;
-      writeYaw(d.a.matrix, p, yaw, 1.1, 0.25, 0.7);
-      writeYaw(d.b.matrix, add(p, [0.3, 0.35, 0]), yaw * 1.7, 0.5, 0.45, 0.5);
+      // A floating body (feel/body.js) on the section's waves: it bobs and tips with the water, and a knock from the
+      // raft shoves it aside and spins it. Snagged in the channel, it does not drift with the current.
+      if (d.body) {
+        stepFloater(d.body, seaState(track.sectionAt(d.body.z).sec), time, dt, 0);
+        d.lane = d.body.x; d.s = d.body.z;
+      }
+      const p = track.lateral(d.s, d.lane, 0.12 + (d.body ? d.body.y + d.body.draft : 0));
+      const fw = normalize(sub(track.at(d.s + 0.5).p, track.at(d.s).p)), flatF = normalize([fw[0], 0, fw[2]]);
+      const B = d.body ? floaterBasis(d.body, cross(flatF, [0, 1, 0]), flatF) : { right: cross(flatF, [0, 1, 0]), up: [0, 1, 0], forward: flatF };
+      writeBasis(d.a.matrix, p, B.right, B.up, B.forward, 1.1, 0.25, 0.7);
+      writeBasis(d.b.matrix, add(add(p, scale(B.right, 0.3)), scale(B.up, 0.35)), B.forward, B.up, scale(B.right, -1), 0.5, 0.45, 0.5);
       if (!d.done && Math.abs(d.s - s - 1.2) < 0.8) {
         d.done = true;
         if (Math.abs(offset - d.lane) < 1.15 && jumpY < 0.3) {
@@ -3646,9 +3668,10 @@ export function createRide(canvas, state, sector, events, opts = {}) {
           jolt(0.5);
           held = Math.max(held, 0.6);
           damage(6, 'The raft hit floating debris.', 8, 'bow', 'scrape');
+          if (d.body) knock(d.body, Math.sign(d.lane - offset || 1) * 3.2, 1.5, -1.2, (d.lane > offset ? 1 : -1) * 5);
         } else if (jumpY >= 0.3) { if (Math.abs(offset - d.lane) < 1.15) events.award('hop'); }
         // Past it with a hand's width to spare: nothing was hit, and it still counts for something.
-        else if (Math.abs(offset - d.lane) < 1.75) { events.award('nearMiss'); jolt(0.12); sound.splash(); }
+        else if (Math.abs(offset - d.lane) < 1.75) { events.award('nearMiss'); jolt(0.12); sound.splash(); if (d.body) knock(d.body, Math.sign(d.lane - offset || 1) * 1.2, 0.4, -0.4, 1.5); }
       }
       if (d.s < s - 6) d.active = false;
     }
@@ -4038,7 +4061,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
     bloomAhead() { return spawnBloom(s + 10, offset * 0.6, 1.2); },
     get locks() { return locks.length; },
   };
-  if (import.meta.env.DEV) window.__ride = { parts, camRig, effects, undertowWake: wake, waterField: field, ringParts, wakeParts, streakParts, stir, flashes, gatherLights: () => gatherLights(fx.eye), budget, blaster, get wedges() { return lastWedges; }, get chain() { return lastChain; }, get eyeExposure() { return eyeExposure; }, renderer, get scenery() { return lastScenery; }, room, shots, set padAssist(v) { padAssistTest = v; }, get aimFriction() { return input.aimFriction; }, parts, blooms, tokens, drop, spawnDrop, get assess() { return assess; }, set assessAt(v) { assessAt = v; }, set tokenCool(v) { tokenCool = v; }, get offset() { return offset; }, set offset(v) { offset = v; }, omen: (k) => startOmen(k), get omenState() { return omen; }, get director() { return director; }, get eye() { return fx.eye; }, track, hull, puncture: (c, cause = 'scrape') => hull.puncture(c, cause), overboard: () => goOverboard('test'), free: () => restrained && !restrained.freed && freeRestrained(), shove: () => shove(fx.eye, fx.fwd), ping: () => ping(fx.eye, fx.fwd), fireAt: (dir) => { fireProfile(fx.eye, fx.look, dir || fx.fwd); return state.profile; }, hitTarget: (key) => { const t = targets().find((x) => x.key === key); if (t) { shotProfile = state.profile; t.fn(); } return !!t; }, get wave() { return wave; }, set bot(v) { devBot = v; }, spawnEnc: (kind, extra = {}) => spawn({ e: { kind, ...extra }, s: s + 10, sec: track.sectionAt(s).sec }), get coop() { return { climber, crewGrab, ballast, restrained, protect, focusing, fov, profile: state.profile, special: state.special }; }, reset: () => { overboard = null; capsize = null; trailGrab = null; hull.state.capsized = false; }, capsize: () => startCapsize(), get swimming() { return overboard; }, get capsized() { return capsize; }, get grab() { return trailGrab; }, valve, linked, lifeguard, locker, wake, passengerStep, burst: () => burst(fx.eye, fx.fwd), get s() { return s; }, set s(v) { s = v; }, get waveRide() { return waveRide; }, ropes, get sea() { return sea; }, get hullFx() { return hullFx; }, get raftUp() { return raftUpTest; } };
+  if (import.meta.env.DEV) window.__ride = { parts, camRig, effects, undertowWake: wake, waterField: field, ringParts, wakeParts, streakParts, stir, flashes, gatherLights: () => gatherLights(fx.eye), budget, blaster, get wedges() { return lastWedges; }, get chain() { return lastChain; }, get eyeExposure() { return eyeExposure; }, renderer, get scenery() { return lastScenery; }, room, shots, set padAssist(v) { padAssistTest = v; }, get aimFriction() { return input.aimFriction; }, parts, blooms, tokens, drop, spawnDrop, get assess() { return assess; }, set assessAt(v) { assessAt = v; }, set tokenCool(v) { tokenCool = v; }, get offset() { return offset; }, set offset(v) { offset = v; }, omen: (k) => startOmen(k), get omenState() { return omen; }, get director() { return director; }, get eye() { return fx.eye; }, track, hull, puncture: (c, cause = 'scrape') => hull.puncture(c, cause), overboard: () => goOverboard('test'), free: () => restrained && !restrained.freed && freeRestrained(), shove: () => shove(fx.eye, fx.fwd), ping: () => ping(fx.eye, fx.fwd), fireAt: (dir) => { fireProfile(fx.eye, fx.look, dir || fx.fwd); return state.profile; }, hitTarget: (key) => { const t = targets().find((x) => x.key === key); if (t) { shotProfile = state.profile; t.fn(); } return !!t; }, get wave() { return wave; }, set bot(v) { devBot = v; }, spawnEnc: (kind, extra = {}) => spawn({ e: { kind, ...extra }, s: s + 10, sec: track.sectionAt(s).sec }), get coop() { return { climber, crewGrab, ballast, restrained, protect, focusing, fov, profile: state.profile, special: state.special }; }, reset: () => { overboard = null; capsize = null; trailGrab = null; hull.state.capsized = false; }, capsize: () => startCapsize(), get swimming() { return overboard; }, get capsized() { return capsize; }, get grab() { return trailGrab; }, valve, linked, lifeguard, locker, wake, passengerStep, burst: () => burst(fx.eye, fx.fwd), get s() { return s; }, set s(v) { s = v; }, get waveRide() { return waveRide; }, ropes, debrisPool, get sea() { return sea; }, get hullFx() { return hullFx; }, get raftUp() { return raftUpTest; } };
 
   /** ?show=: put the ride into a fixed, readable state for screenshots and visual review. */
   function showcase(name) {

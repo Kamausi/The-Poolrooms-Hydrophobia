@@ -21,6 +21,9 @@ import { quality, setTier, applyQualitySetting } from './render/quality.js';
 import { createAutoTier, thinning } from './render/tiers.js';
 import { summarize, report as benchReport } from './debug/bench.js';
 import { rng } from './math.js';
+import { generateDock } from './mapgen.js';
+import { loadPhotos } from './storage.js';
+import MapWorker from './mapgen.worker.js?worker&inline';
 import { playlog, createFrameStats } from './debug/playlog.js';
 import { facility, recordSector, recordDeath, note, nameVisitor, commitVisitors, authorExpedition, saveFacility } from './memory.js';
 import { settings } from './settings.js';
@@ -58,6 +61,28 @@ let manual = false; // automated tests step the scene themselves
 let last = performance.now();
 let lastPosition = null;
 
+// ---------- Generated docks (endless) ----------
+const CORPUS = [...SECTORS.map((s) => s.map), REFERENCE_CHAPTER.map];
+let mapWorker = null, workerBroken = false;
+const pendingDocks = new Set();
+/** Ask for a generated dock for endless depth `index`; the result lands in state.genMaps[index]. */
+function requestDock(index, base, seed) {
+  const key = `${index}:${seed}`;
+  if (pendingDocks.has(key)) return;
+  pendingDocks.add(key);
+  const store = (r) => { pendingDocks.delete(key); if (state.seed * 31 + index === seed) (state.genMaps ||= {})[index] = { seed, map: r.map, fallback: !!r.fallback, tries: r.tries || 0, worker: r.worker }; };
+  if (!workerBroken && typeof Worker !== 'undefined') {
+    try {
+      mapWorker ||= new MapWorker();
+      const onMsg = (e) => { if (e.data.id !== key) return; mapWorker.removeEventListener('message', onMsg); store({ ...e.data, worker: true }); };
+      mapWorker.addEventListener('message', onMsg);
+      mapWorker.postMessage({ id: key, base, corpus: CORPUS, seed });
+      return;
+    } catch { workerBroken = true; }
+  }
+  store(generateDock(base, CORPUS, seed)); // no worker here: a few milliseconds on the main thread
+}
+
 // ---------- Sectors ----------
 function sectorAt(index) {
   // A custom or shared route: one attraction's look, the player's own ride tokens.
@@ -75,7 +100,13 @@ function sectorAt(index) {
   const r = rng(state.seed * 131 + index * 7919);
   const base = SECTORS[Math.floor(r() * SECTORS.length)];
   const { tokens, threat } = buildEndlessPlan(r, index);
-  return { ...base, index, endless: true, ride: tokens, threat, name: base.name, depth: base.depth + index * 6, crew: [] };
+  // Its dock is a generated variation of the attraction's map (mapgen.js), built in a worker while you ride; until it
+  // is ready, or if no solvable variation was found, the authored map.
+  const genSeed = state.seed * 31 + index;
+  const gen = state.genMaps?.[index];
+  if (!gen || gen.seed !== genSeed) requestDock(index, base.map, genSeed);
+  const map = gen && gen.seed === genSeed && !gen.fallback ? gen.map : base.map;
+  return { ...base, index, endless: true, ride: tokens, threat, name: base.name, depth: base.depth + index * 6, crew: [], map, generated: map !== base.map };
 }
 function planFor(sector) {
   const random = rng(5000 + sector.index * 97 + state.attempt * 13 + state.seed * 3);
@@ -934,9 +965,13 @@ function benchFrame(ms, now) {
   bench.start ||= now;
   state.health = 100; state.drift = 0; // measure rendering, not survival
   if (now - bench.start > 2000) bench.frames.push(ms); // the first two seconds compile shaders
+  const gpuMs = scene?.renderer?.gpuMilliseconds;
+  if (now - bench.start > 2000 && typeof gpuMs === 'number') (bench.gpuFrames ||= []).push(gpuMs);
   if (now - bench.start < bench.seconds * 1000) return;
   const info = { gpu: quality.gpu, tier: quality.tier, auto: !!quality.auto, width: canvas.width, height: canvas.height, dpr: Math.round((window.devicePixelRatio || 1) * 100) / 100, scale: resScale, errors: bench.errors };
   const stats = summarize(bench.frames);
+  const gpuStats = bench.gpuFrames?.length ? summarize(bench.gpuFrames) : null;
+  if (gpuStats) Object.assign(stats || {}, { gpuAverage: gpuStats.average, gpuP99: gpuStats.p99 });
   window.__bench = { ...info, ...stats };
   const text = benchReport(info, stats);
   bench = null;
@@ -1063,6 +1098,9 @@ requestAnimationFrame(frame);
 if (new URLSearchParams(location.search).has('show')) setTimeout(() => startShowcase(new URLSearchParams(location.search).get('show')), 600);
 else if (new URLSearchParams(location.search).has('bench')) setTimeout(() => startBench(Number(new URLSearchParams(location.search).get('bench')) || 20), 600);
 
+// Photos from earlier sessions (IndexedDB, storage.js) come back into the album at boot.
+loadPhotos().then((list) => { if (list.length && !(state.photos || []).length) state.photos = list.slice(-4).map(({ sector, label, url }) => ({ sector, label, url })); });
+
 // For automated checks.
 window.__underflow = {
   modelsReady, modelState,
@@ -1071,7 +1109,7 @@ window.__underflow = {
   get scene() { return scene; },
   startExplore, enterSafeRoom, startRide, newCampaign, startEndless, beginSector, events, startChallenge, startCustom, parseRoute, expeditionRecord,
   setState(patch) { Object.assign(state, patch); },
-  platform: platformStatus, toMenu, saveCheckpoint, requestLock,
+  platform: platformStatus, toMenu, saveCheckpoint, requestLock, storage: () => import('./storage.js'),
   settings, quality, setTier,
   /** Tests: drive the render scale directly, and read what it is. */
   setResScale(k) { applyResScale(k); return resScale; },

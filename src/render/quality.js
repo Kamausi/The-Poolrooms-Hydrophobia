@@ -1,6 +1,9 @@
 // Render quality. A tier (tiers.js) says what is drawn: low is for software renderers (no GPU), medium, high and
 // ultra add the depth target, ambient occlusion, haze, the post chain, more lamps and more samples.
 // ?quality=low|medium|high|ultra in the URL overrides the player's setting and the detection.
+import '67js/addons/view-transform-shader'; // the AgX curve's shader code
+import '67js/addons/world-material-shader'; // the engine asks for it once the view-transform shader is registered
+import { createGpuTimer } from './gputimer.js';
 import { TIERS, resolveTier, tierRatio, SETTING_TIERS } from './tiers.js';
 import { settings } from '../settings.js';
 
@@ -19,6 +22,7 @@ function detectSoftware() {
 }
 
 const forced = new URLSearchParams(location.search).get('quality');
+const benchMode = new URLSearchParams(location.search).has('bench');
 
 /** Mutable: setTier replaces the fields. Scenes read it every frame, and read `renderer` when they are built. */
 export const quality = { gpu: 'unknown', forced: forced && TIERS[forced] ? forced : null };
@@ -27,9 +31,15 @@ const software = detectSoftware();
 /** Apply a tier. Lamps, bloom, AO, haze and the post chain change at once; samples, shading and depth on the next scene. */
 export function setTier(name) {
   const t = TIERS[name] || TIERS.high;
+  const base = { samples: t.samples, pixelRatio: tierRatio(name, typeof devicePixelRatio === 'number' ? devicePixelRatio : 1), shading: t.shading, ...(t.depth ? { depth: true } : {}) };
+  // Read when a scene builds its renderer: the tier's options, the player's tone curve (the engine's view transform:
+  // ACES, or AgX, which rolls bright saturated colour off instead of clipping it) and, under ?bench, a GPU timer.
+  Object.defineProperty(quality, 'renderer', {
+    configurable: true, enumerable: true,
+    get: () => ({ ...base, viewTransform: settings.agx ? 'agx' : 'aces', ...(benchMode ? { createGpuTimer } : {}) }),
+  });
   Object.assign(quality, {
     tier: TIERS[name] ? name : 'high', low: name === 'low',
-    renderer: { samples: t.samples, pixelRatio: tierRatio(name, typeof devicePixelRatio === 'number' ? devicePixelRatio : 1), shading: t.shading, ...(t.depth ? { depth: true } : {}) },
     shadows: t.shadows, ao: t.ao, haze: t.haze, hazeSteps: t.hazeSteps, lights: t.lights, bloom: t.bloom, reflection: t.reflection, reflectionEvery: 1, particles: 1,
   });
   return quality.tier;

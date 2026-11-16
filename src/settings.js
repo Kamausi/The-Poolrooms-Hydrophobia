@@ -37,6 +37,8 @@ const DEFAULTS = {
   threatWedges: true, // rim markers for threats that are close and out of view
   rumble: 1, // controller vibration strength (0 = off)
   hudPersistent: false, // keep the objective, roster and controls at full size instead of letting them settle
+  agx: false, // the display curve: off is ACES (contrasty, the look the game was graded for); on is AgX (softer highlights)
+  binaural: false, // headphones: position sounds with the browser's HRTF (head-related) panner instead of plain stereo
 };
 
 export const settings = { ...DEFAULTS };
@@ -51,6 +53,8 @@ export function saveSettings() {
 }
 
 export const SETTING_LABELS = {
+  agx: 'Softer highlights (AgX tone curve, next scene)',
+  binaural: 'Headphones: binaural sound (HRTF)',
   grain: 'Film grain',
   distortion: 'Drift distortion and camera roll',
   sway: 'Raft and head sway',

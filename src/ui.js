@@ -1,5 +1,6 @@
 // Overlays: the shared modal, the Safe Room, the logbook, documents, the keypad, settings.
 import { settings, saveSettings, SETTING_LABELS, ACTIONS } from './settings.js';
+import { exportSave, importSave } from './storage.js';
 import { claimLost, LOST_FOUND_COST } from './collectibles.js';
 import { sound } from './audio/audio.js';
 import { input, applyBindings, PAD_ACTIONS, PAD_NAMES } from './input.js';
@@ -738,10 +739,26 @@ export function settingsView(onChange) {
   range(audio, 'Effects volume', 'volEffects', 0, 1, 0.05, () => sound.setVolumes());
   range(audio, 'Music volume', 'volMusic', 0, 1, 0.05, () => sound.setVolumes());
   range(audio, 'Ambience volume (water, machinery)', 'volAmbience', 0, 1, 0.05, () => sound.setVolumes());
+  check(audio, 'binaural');
+
+  // Save files (storage.js): the campaign, settings and the facility's memory as one compressed file, and back.
+  const saves = group('SAVE FILES');
+  const note = el('p', 'note', 'Keep a copy of your campaign, or move it to another browser.');
+  const exp = el('button', 'choice', 'EXPORT SAVE FILE');
+  exp.onclick = async () => { const r = await exportSave(); note.textContent = `Saved a ${Math.max(1, Math.round(r.bytes / 1024))} KB file${r.compressed ? ' (compressed)' : ''}.`; };
+  const pick = el('input'); pick.type = 'file'; pick.accept = '.gz,.json'; pick.hidden = true;
+  const imp = el('button', 'choice', 'IMPORT SAVE FILE');
+  imp.onclick = () => pick.click();
+  pick.onchange = async () => {
+    const f = pick.files?.[0]; if (!f) return;
+    try { const keys = await importSave(new Uint8Array(await f.arrayBuffer())); note.textContent = `Restored ${keys.length} records. Reloading…`; setTimeout(() => location.reload(), 900); }
+    catch (e) { note.textContent = e.message; }
+  };
+  saves.append(note, exp, imp, pick);
 
   const cam = group('CAMERA AND EFFECTS');
   range(cam, 'Camera motion (shake, roll, impacts)', 'camera', 0, 1);
-  for (const k of ['sway', 'distortion', 'grain', 'flashReduce']) check(cam, k);
+  for (const k of ['sway', 'distortion', 'grain', 'flashReduce', 'agx']) check(cam, k);
 
   const assist = group('GAMEPLAY ASSISTANCE');
   range(assist, 'Incoming damage (assist)', 'damageAssist', 0.3, 1);

@@ -8,6 +8,12 @@ import { createLaneRope } from './render/lanerope.js';
 import { createRope, settle } from './feel/rope.js';
 import { steer } from './ai/steering.js';
 import { takeSpread } from './scatter.js';
+import { findPath, flowField, flowStep, nextCorner, straight } from './ai/path.js';
+import { choose, TARGETING } from './ai/utility.js';
+import { createWaveGrid, sheetGeometry } from './render/wavegrid.js';
+import { tubeFlicker } from './render/noise.js';
+import { dopplerRatio } from './audio/doppler.js';
+import { updatePartVertices } from '67js/addons/update-part-vertices';
 import { rumble } from './feel/haptics.js';
 import { wedges as threatWedges } from './feel/aim.js';
 import { driftSign, driftState } from './driftsign.js';
@@ -18,7 +24,7 @@ import { createPerceiver, sense } from './ai/perception.js';
 import { createPursuit, advance } from './ai/pursuit.js';
 import { createRig } from './feel/spring.js';
 import { createEffectPool } from './render/effectpool.js';
-import { createWaterField, ringShape, causticDrift, causticStrength, createWetMarks, footprint, WET_STRIDES, snellWindow } from './render/waterfx.js';
+import { createWaterField, ringShape, causticDrift, causticStrength, createWetMarks, footprint, WET_STRIDES, snellWindow, IMPULSE } from './render/waterfx.js';
 import { assignShadows, handLamp } from './render/shadows.js';
 import { surface as genSurface } from './render/surfaces.js';
 import { model, modelPart, placeModel } from './render/props.js';
@@ -1167,9 +1173,43 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     const [cx, cz] = cellOf(pos[0], pos[2]);
     const h = WATERISH.has(at(cx, cz)) || at(cx, cz) === 'x' || at(cx, cz) === 'B' ? waterLevel(cx, cz) : pos[1];
     field.impulse([pos[0], h, pos[2]], kind, time);
+    const local = ripIn(pos);
+    if (local) ripGrid.disturb(local[0], local[1], 0.045 * (typeof kind === 'number' ? kind : IMPULSE[kind] ?? 0.6), 0.45);
     const st = field.strongest();
     if (st && st.time === time) { ripple = [...st.at]; rippleTime = time; }
   };
+  // Ripples by the wave equation (render/wavegrid.js) on a sheet over the water around you: they cross each other and
+  // bounce off the pool walls. The sheet re-centres when you wade into another cell; its vertices are rewritten each
+  // frame while anything is moving (67js updatePartVertices), and it is hidden when the water is still.
+  const RIP = 3 * CELL, RIP_N = 40;
+  const ripGrid = createWaveGrid({ n: RIP_N, size: RIP });
+  const ripGeo = sheetGeometry(RIP_N, RIP);
+  const ripPart = P('Ripple sheet', ripGeo, { color: [0.82, 0.93, 0.95], metallic: 0, roughness: 0.04, emission: 0.02, alphaMode: 'blend', opacity: 0.16 });
+  let ripCell = null, ripY = 0, ripOrigin = [0, 0, 0], ripShown = false;
+  const ripIn = (pos) => { const x = pos[0] - ripOrigin[0], z = pos[2] - ripOrigin[2]; return ripCell && x >= 0 && z >= 0 && x <= RIP && z <= RIP ? [x, z] : null; };
+  let ripLast = null;
+  function updateRipples(dt) {
+    const moving = !!ripLast && dt > 0 && Math.hypot(player.pos[0] - ripLast[0], player.pos[2] - ripLast[2]) / dt > 0.5;
+    ripLast = [player.pos[0], player.pos[2]];
+    const [pcx, pcz] = cellOf(player.pos[0], player.pos[2]);
+    if (isWater(pcx, pcz) && (!ripCell || ripCell[0] !== pcx || ripCell[1] !== pcz)) {
+      ripCell = [pcx, pcz]; ripY = waterLevel(pcx, pcz);
+      const c = center(pcx, pcz);
+      ripOrigin = [c[0] - RIP / 2, 0, c[2] - RIP / 2];
+      ripGrid.clear();
+      ripGrid.setMask((x, z) => { const [cx, cz] = cellOf(ripOrigin[0] + x, ripOrigin[2] + z); return isWater(cx, cz) && Math.abs(waterLevel(cx, cz) - ripY) < 0.05; });
+    }
+    if (!ripCell) { hide(ripPart); return; }
+    // Wading pushes a bow wave ahead of your legs.
+    const local = ripIn(player.pos);
+    if (local && moving && isWater(pcx, pcz)) ripGrid.disturb(local[0], local[1], 0.012 * dt * 60, 0.35);
+    ripGrid.step(dt);
+    if (ripGrid.energy() < 1e-7) { if (ripShown) { hide(ripPart); ripShown = false; } return; }
+    ripGrid.writeMesh(ripGeo.positions, ripGeo.normals, 2.2);
+    updatePartVertices(renderer, ripPart, ripGeo.positions, ripGeo.normals);
+    writeBasis(ripPart.matrix, [ripOrigin[0], ripY + 0.008, ripOrigin[2]], [1, 0, 0], [0, 1, 0], [0, 0, 1], 1, 1, 1);
+    ripShown = true;
+  }
   let wadeT = 0;
   // Wet marks on dry floor: a puddle where you climb out and footprints for a few strides after, shrinking as they dry.
   const wet = createWetMarks();
@@ -1506,6 +1546,32 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
       }
     }
   }
+  // Ways round walls for things that float or walk (ai/path.js). One flow field toward the player serves every Bloom
+  // closing in, rebuilt only when the player changes cell or the emergency doorway opens or shuts.
+  const openCell = (x, z) => !isWall(x, z);
+  let toPlayer = null, toPlayerKey = '';
+  /**
+   * A direction from `pos` toward `target` that goes round walls: straight at it when it can be seen, else toward the
+   * next cell on a route (the shared field for the player, A* for anything else, cached in `memo`).
+   */
+  function routeTo(pos, target, memo = {}) {
+    if (lineOfSight(pos, target)) return sub(target, pos);
+    const from = cellOf(pos[0], pos[2]), goal = cellOf(target[0], target[2]);
+    const pc = cellOf(player.pos[0], player.pos[2]);
+    let next = null;
+    if (goal[0] === pc[0] && goal[1] === pc[1]) {
+      const key = `${pc[0]},${pc[1]},${!!emergency}`;
+      if (key !== toPlayerKey) { toPlayer = flowField(openCell, W, H, pc); toPlayerKey = key; }
+      next = flowStep(toPlayer, openCell, from[0], from[1]);
+    } else {
+      const key = `${from[0]},${from[1]}>${goal[0]},${goal[1]},${!!emergency}`;
+      if (memo.key !== key) { memo.key = key; memo.path = findPath(openCell, W, H, from, goal); }
+      next = nextCorner(memo.path, from, (a, b) => straight(openCell, a, b));
+    }
+    if (!next) return sub(target, pos);
+    const c = center(next[0], next[1]);
+    return [c[0] - pos[0], target[1] - pos[1], c[2] - pos[2]];
+  }
   function lineOfSight(a, b) {
     const d = sub(b, a);
     const n = Math.ceil(Math.hypot(d[0], d[2]) / 0.5);
@@ -1732,6 +1798,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     effects.tick(dt);
     drawFx();
     drawRings();
+    updateRipples(dt);
     drawCaustics();
     drawWet();
     time += dt;
@@ -2380,7 +2447,11 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
       // yours (not when they are kneeling at your side), with limited acceleration so paths bend instead of snapping.
       const near = followers.filter((o) => o !== f && o.pos).map((o) => o.pos);
       if (!(state.downed && f.k === 0)) near.push(player.pos);
-      const { moving } = steer(f, target, near, dt, { maxSpeed: spd });
+      // Out of sight of the point (a wall between): go by a route (ai/path.js), not into the wall.
+      f.route ||= {};
+      const seesIt = lineOfSight(f.pos, target);
+      const aim = seesIt ? target : add(f.pos, routeTo(f.pos, target, f.route));
+      const { moving } = steer(f, aim, near, dt, { maxSpeed: spd, slow: seesIt ? 1.6 : 0.3 });
       if (moving) { to[0] = f.vel[0]; to[2] = f.vel[1]; }
       pushOutOfColumns(f.pos, columns, 0.35);
       // Stride from actual movement, so feet don't skate: pace eases in and out.
@@ -2403,7 +2474,11 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
       let tgt = null;
       if (undertow.alive && undertow.holding > 0) tgt = { pos: undertow.pos, hit: () => { undertow.hp -= 1; } };
       else {
-        const b = blooms.filter((x) => x.active && !x.dying && !x.dormant && distance(x.pos, from) < 14 && lineOfSight(from, x.pos)).sort((a, c) => distance(a.pos, from) - distance(c.pos, from))[0];
+        // Utility scoring (ai/utility.js): near the shooter, near you, attacking you, nearly finished.
+        const seen = blooms.filter((x) => x.active && !x.dying && !x.dormant && distance(x.pos, from) < 14 && lineOfSight(from, x.pos));
+        const pick = choose(seen.map((x) => ({ b: x, dist: distance(x.pos, from), toPlayer: distance(x.pos, player.pos), committed: !!x.commit, hp: x.hp, grabbing: false })), TARGETING);
+        const b = pick?.option.b;
+        f.lastPick = pick ? { score: pick.score, of: seen.length } : null;
         if (b) tgt = { pos: b.pos, hit: () => { b.hp -= 1; b.stagger = 0.3; if (b.hp <= 0) { b.dying = 0.001; sound.burst(); events.cleared(); } } };
       }
       if (!tgt) continue;
@@ -2569,10 +2644,20 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
       thread.push([player.pos[0], player.floor + 0.03, player.pos[2]]);
       if (thread.length > threadParts.length) thread.shift();
     }
+    // Over water the thread floats: each point rides the surface and the ripples on it (render/wavegrid.js). Where it
+    // has been cut, the loose line soaks and sinks to the pool floor.
+    for (const t of thread) {
+      const [cx, cz] = cellOf(t[0], t[2]);
+      if (!isWater(cx, cz)) continue;
+      const local = ripIn(t);
+      const surf = waterLevel(cx, cz) + (local ? ripGrid.heightAt(local[0], local[1]) * 2.2 : 0) + 0.012;
+      t.sink = t.cut ? Math.min(1, (t.sink || 0) + dt * 0.25) : 0;
+      t[1] = surf + (POOL + 0.03 - surf) * t.sink;
+    }
     threadParts.forEach((part, i) => {
       const a = i === 0 ? [raftPos[0], 0.05, raftPos[2]] : thread[i - 1];
       const b = thread[i];
-      if (!a || !b || b.cut) return hide(part);
+      if (!a || !b || (b.cut && !(b.sink > 0))) return hide(part);
       // Stop short of your own feet, so the line guides from the floor ahead instead of running into the lens.
       if (Math.hypot(b[0] - player.pos[0], b[2] - player.pos[2]) < 1.4) return hide(part);
       const d = [b[0] - a[0], 0, b[2] - a[2]];
@@ -2976,7 +3061,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
         }
       }
       const on = !emergency && !blackout && !l.broken && !l.out && (!l.dark || powered());
-      const flick = l.flicker > 0.88 ? (Math.sin(time * 41 + l.flicker * 50) > 0.5 ? 0.12 : 1) : 1;
+      const flick = l.flicker > 0.88 ? tubeFlicker(time, l.flicker * 100, 0.6) : 1; // a failing tube (render/noise.js)
       if (on) {
         // With a fixture the lit tube sits inside its housing; without, the bare panel.
         if (l.fixture) writeYaw(l.part.matrix, [l.pos[0], wallH - 0.05, l.pos[2]], 0, 0.82, 0.02, 0.36);
@@ -3085,7 +3170,10 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
       b.blind = blackout && !lure && !b.commit && !carrying && d > 3.8;
       if (!b.blind) b.lastSeen = [eye[0], eye[1] - 0.3, eye[2]];
       const unsure = !lure && !b.blind && !knows;
-      const to = lure ? sub(add(lampPlaced, [0, 0.9, 0]), b.pos) : b.blind ? sub(b.lastSeen || b.pos, b.pos) : unsure ? sub(b.pur.goal || b.pos, b.pos) : b.commit || !b.perc.lastKnown ? sub(add(eye, [0, -0.3, 0]), b.pos) : sub(b.perc.lastKnown, b.pos); // where it senses you (live while it does), or you, once committed and close
+      let to = lure ? sub(add(lampPlaced, [0, 0.9, 0]), b.pos) : b.blind ? sub(b.lastSeen || b.pos, b.pos) : unsure ? sub(b.pur.goal || b.pos, b.pos) : b.commit || !b.perc.lastKnown ? sub(add(eye, [0, -0.3, 0]), b.pos) : sub(b.perc.lastKnown, b.pos); // where it senses you (live while it does), or you, once committed and close
+      // Round the walls, not into them: when the point it is heading for is out of sight, follow a route there.
+      b.route ||= {};
+      if (Math.hypot(to[0], to[2]) > 1.2) to = routeTo(b.pos, add(b.pos, to), b.route);
       b.stagger = Math.max(0, (b.stagger || 0) - dt);
       b.flash = Math.max(0, (b.flash || 0) - dt);
       if (b.retreat) {
@@ -3309,33 +3397,27 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
   // toward the water under its tower: kick free (SPACE), burst it, or a crewmate pulls you loose.
   /** The next point on a shortest walkable path from `from` toward `to`, by cells. */
   function stepToward(from, to) {
-    const [sx, sz] = cellOf(from[0], from[2]);
-    const [tx, tz] = cellOf(to[0], to[2]);
-    if (sx === tx && sz === tz) return to;
-    const prev = new Map([[`${tx},${tz}`, null]]);
-    const q = [[tx, tz]];
-    for (let i = 0; i < q.length; i++) {
-      const [x, z] = q[i];
-      if (x === sx && z === sz) break;
-      for (const [dx, dz] of DIRS) {
-        const nx = x + dx, nz = z + dz, k = `${nx},${nz}`;
-        if (nx < 0 || nz < 0 || nx >= W || nz >= H || prev.has(k)) continue;
-        if (blocked(nx, nz) && !(nx === sx && nz === sz)) continue;
-        prev.set(k, [x, z]);
-        q.push([nx, nz]);
-      }
-    }
-    const n = prev.get(`${sx},${sz}`);
-    if (!n) return to;
-    return n[0] === tx && n[1] === tz ? to : center(n[0], n[1]);
+    const s0 = cellOf(from[0], from[2]), t0 = cellOf(to[0], to[2]);
+    if (s0[0] === t0[0] && s0[1] === t0[1]) return to;
+    // A* on the cell grid (ai/path.js): 8-way, never squeezing past a wall corner; then the furthest cell along the
+    // path it can walk to in a straight line, so it crosses a room on the diagonal instead of in steps.
+    const open = (x, z) => !blocked(x, z) || (x === s0[0] && z === s0[1]);
+    const path = findPath(open, W, H, s0, t0);
+    if (!path) return to;
+    const c = nextCorner(path, s0, (a, b) => straight(open, a, b));
+    return c[0] === t0[0] && c[1] === t0[1] ? to : center(c[0], c[1]);
   }
+  /** The whistle's pitch as heard by you: higher when it is coming at you (audio/doppler.js). */
+  const lgDoppler = (L) => dopplerRatio(L.pos, L.moving ? L.vel || [0, 0, 0] : [0, 0, 0], player.pos, [0, 0, 0]);
   function walkLG(L, target, speed, dt) {
     L.pathT = (L.pathT || 0) - dt;
     if (L.pathT <= 0 || !L.next) { L.next = stepToward(L.pos, target); L.pathT = 0.3; }
     const to = [L.next[0] - L.pos[0], 0, L.next[2] - L.pos[2]];
     const dd = Math.hypot(to[0], to[2]);
     if (dd < 0.05) { L.pathT = 0; L.moving = false; return Math.hypot(target[0] - L.pos[0], target[2] - L.pos[2]); }
-    L.pos = add(L.pos, scale(normalize(to), Math.min(dd, speed * dt)));
+    const step = Math.min(dd, speed * dt);
+    L.pos = add(L.pos, scale(normalize(to), step));
+    L.vel = scale(normalize(to), dt > 0 ? step / dt : 0);
     L.heading = Math.atan2(to[0], to[2]);
     L.moving = true;
     return Math.hypot(target[0] - L.pos[0], target[2] - L.pos[2]);
@@ -3401,7 +3483,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     } else if (L.state === 'noticed') {
       L.noticeT += dt;
       if (L.noticeT > 1.9) {
-        if (seesYou) { L.state = 'pursuit'; L.lostSight = 0; L.next = null; L.act = 0; L.violations = Math.max(1, L.violations); sound.whistle(soundDir(player.pos, forwardVec(), L.pos).pan); hud.say('MARS', 'It saw you. Move!', 'crew'); }
+        if (seesYou) { L.state = 'pursuit'; L.lostSight = 0; L.next = null; L.act = 0; L.violations = Math.max(1, L.violations); sound.doppler(lgDoppler(L), () => sound.whistle(soundDir(player.pos, forwardVec(), L.pos).pan)); hud.say('MARS', 'It saw you. Move!', 'crew'); }
         else { L.state = 'rounds'; hud.caption('[it looks at where you were. It writes something. It goes on]'); }
       }
     } else if (L.state === 'pursuit') {
@@ -3420,7 +3502,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     } else if (L.state === 'investigate' || L.state === 'search') {
       if (seesYou && L.blind <= 0) {
         L.state = 'pursuit'; L.lostSight = 0; L.next = null;
-        sound.whistle(soundDir(player.pos, forwardVec(), L.pos).pan);
+        sound.doppler(lgDoppler(L), () => sound.whistle(soundDir(player.pos, forwardVec(), L.pos).pan));
         hud.caption('[a whistle — it has seen you]');
         return;
       }
@@ -3670,7 +3752,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     for (let i = 0; i < (r.valves || 0); i++) { const v = pumpValves.find((x) => x.id === valveOrder[i]); if (v) v.open = true; }
     valveStep = r.valves || 0;
   }
-  if (import.meta.env.DEV) window.__explore = { parts, camRig, takenCells, wetMarks: wet, wetParts, waterField: field, ringParts, caustics, waterLevel, stir, jolt, effects, get blown() { return blown; }, flashes, frameEnv: () => lastEnv, marcos, get marcoApart() { return marcoApart; }, mirror: () => mirrorSurface && detachMirror && { height: mirrorSurface.height, parts: mirrorSurface.partIndices.length, key: mirrorKey }, models: () => parts.filter((p) => p.model).map((p) => ({ model: p.model, name: p.name, at: [p.matrix[12], p.matrix[13], p.matrix[14]] })), flashes, budget, wave: (n, f) => wave(n, f), lineOfSight, get remembered() { return remembered; }, get chain() { return lastChain; }, get eyeExposure() { return eyeExposure; }, renderer, get driftSigns() { return driftSigns; }, get wedges() { return lastWedges; }, survey, get surveyCoverage() { return surveyCoverage(survey, surveyOpen); }, surveyOpen, omen: (k) => startFomen(k), circuit, setEmergency, setBlackout, get blackout() { return blackout; }, signParts, get resetT() { return resetT; }, get emergency() { return emergency; }, blocked, isWall, finds, found, get lampPlaced() { return lampPlaced; }, lights: () => gatherLights(add(player.pos, [0, 1.6, 0])), get hesitation() { return hesitation; }, get lastOmen() { return lastFomen; }, get marcoAct() { return marcoAct; }, set marcoAct(v) { marcoAct = v; }, marcos, columns, wavePool, get basin() { return basin; }, isWater, floorTop, get operating() { return operating; }, set operating(v) { operating = v; }, panelFront, holdT, shoot, spawnBloom, occupant, lockers, noise, violate, get omenState() { return fomen; }, door, blooms, lamps, director, followers, get dockKind() { return dockKind; }, get valves() { return { order: valveOrder, step: valveStep, list: pumpValves }; }, june: juneEvent, thread, get clock() { return clock; }, stagnant, player, center, undertow, lifeguard, cellPos, panelPos, raftPos, code, find, floaters, restorePower };
+  if (import.meta.env.DEV) window.__explore = { parts, camRig, takenCells, rows, thread, threadParts, ripGrid, ripPart, get ripCell() { return ripCell; }, routeTo, get W() { return W; }, get H() { return H; }, isWall, cellOf, center, wetMarks: wet, wetParts, waterField: field, ringParts, caustics, waterLevel, stir, jolt, effects, get blown() { return blown; }, flashes, frameEnv: () => lastEnv, marcos, get marcoApart() { return marcoApart; }, mirror: () => mirrorSurface && detachMirror && { height: mirrorSurface.height, parts: mirrorSurface.partIndices.length, key: mirrorKey }, models: () => parts.filter((p) => p.model).map((p) => ({ model: p.model, name: p.name, at: [p.matrix[12], p.matrix[13], p.matrix[14]] })), flashes, budget, wave: (n, f) => wave(n, f), lineOfSight, get remembered() { return remembered; }, get chain() { return lastChain; }, get eyeExposure() { return eyeExposure; }, renderer, get driftSigns() { return driftSigns; }, get wedges() { return lastWedges; }, survey, get surveyCoverage() { return surveyCoverage(survey, surveyOpen); }, surveyOpen, omen: (k) => startFomen(k), circuit, setEmergency, setBlackout, get blackout() { return blackout; }, signParts, get resetT() { return resetT; }, get emergency() { return emergency; }, blocked, isWall, finds, found, get lampPlaced() { return lampPlaced; }, lights: () => gatherLights(add(player.pos, [0, 1.6, 0])), get hesitation() { return hesitation; }, get lastOmen() { return lastFomen; }, get marcoAct() { return marcoAct; }, set marcoAct(v) { marcoAct = v; }, marcos, columns, wavePool, get basin() { return basin; }, isWater, floorTop, get operating() { return operating; }, set operating(v) { operating = v; }, panelFront, holdT, shoot, spawnBloom, occupant, lockers, noise, violate, get omenState() { return fomen; }, door, blooms, lamps, director, followers, get dockKind() { return dockKind; }, get valves() { return { order: valveOrder, step: valveStep, list: pumpValves }; }, june: juneEvent, thread, get clock() { return clock; }, stagnant, player, center, undertow, lifeguard, cellPos, panelPos, raftPos, code, find, floaters, restorePower };
 
   /** ?show=: put the dock into a fixed, readable state for screenshots and visual review. */
   function showcase(name) {

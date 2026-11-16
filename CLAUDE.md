@@ -25,6 +25,10 @@ A first-person cooperative horror rail-shooter and explorer set in the Poolrooms
 | `src/feel/float.js`, `src/feel/rope.js` | How the raft sits in the water: Gerstner waves under its four chambers and Archimedes buoyancy from their air (list, pitch, sink); the Lane Rope as a Verlet line that dips where shot and sags where a target is gone (pure, unit-tested) |
 | `src/ai/steering.js`, `src/scatter.js` | Arrive and separation for the crewmates on foot; spreading placed things over a dock map by Poisson-disc dart throwing (pure, unit-tested) |
 | `src/audio/acoustics.js`, `src/platform.js` | Each space's reverb from Sabine's formula and a room model (pure, unit-tested); browser services, each optional: raw mouse input, screen wake lock while playing, persistent storage |
+| `src/ai/path.js`, `src/ai/utility.js` | Grid A*, flow fields and straight-line checks for routing round walls on foot; utility scoring for which threat a crewmate shoots (pure, unit-tested) |
+| `src/render/wavegrid.js`, `src/feel/body.js`, `src/render/noise.js` | Wave-equation ripples on a sheet around you on foot; floating debris as bodies on the waves; simplex noise and failing-tube flicker (pure, unit-tested) |
+| `src/mapgen.js`, `src/mapgen.worker.js` | Endless-mode docks: WFC variations of the authored maps, checked by the same rules as `tests/maps.mjs`, built in a worker (pure, unit-tested) |
+| `src/audio/doppler.js`, `src/render/gputimer.js`, `src/storage.js` | Doppler pitch for moving sources (pure, unit-tested); GPU time for `?bench`; the IndexedDB photo album and gzip save files (packing pure, unit-tested) |
 | `src/driftsign.js` | Which signs change at high Drift and what they say (pure, unit-tested) |
 | `src/survey.js` | The on-foot survey map: what has been seen, coverage, text rendering (pure, unit-tested) |
 | `src/feel/aim.js` | Controller aim help and threat-marker geometry (pure, unit-tested) |
