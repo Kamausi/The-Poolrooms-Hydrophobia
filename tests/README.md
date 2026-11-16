@@ -29,7 +29,7 @@ Headless Chromium (software GL, `?quality=low`) driving the game through its DEV
 | `balance.cjs` | The competent-player bot reaches every dock; reports lowest health and raft condition | several min |
 | `platform.cjs` | Browser services; save files; the save envelope and backup restore with the menu notice; time per subsystem and 1–3 steps per frame; the AgX tone curve | ~1 min |
 | `mapgen.cjs` | Endless docks generated in a worker and checked as solvable | <1 min |
-| `horror.cjs` | Scanning is noticed by the omens; the silence omen stops the machinery (and the wave machine), brings nothing and ends; sounds behind a wall are muffled; `?debug=ai` shows the director, habits, Attendant and entities; the Attendant's honest and false instructions and what following or ignoring each does; the Bloom that keeps coming once the burst tell has been learned; the Observer (takes a place out of view, moves when lost or approached, leaves, never hurts); footsteps that stop when you look | ~3 min |
+| `horror.cjs` | Scanning is noticed by the omens; the silence omen stops the machinery (and the wave machine), brings nothing and ends; sounds behind a wall are muffled; `?debug=ai` shows the director, habits, Attendant and entities; the Attendant's honest and false instructions and what following or ignoring each does; the Bloom that keeps coming once the burst tell has been learned; the Observer (takes a place out of view, moves when lost or approached, leaves, never hurts); footsteps that stop when you look; the sign on a spot you passed and the voice from the wrong side | ~3 min |
 | `single.cjs` | `dist/HYDROPHOBIA.html` opens from disk, starts and carries its recorded sound (run `npm run build:single` first) | <1 min |
 
 ```sh

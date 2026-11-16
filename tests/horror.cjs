@@ -157,5 +157,29 @@ const { open, newCampaign, check, finish, BASE } = require('./lib.cjs');
     const n = D.n; u.step(30);
     return { walking, stopped: D.stopped, gone: E.driftSteps === null, after: D.n - n }; });
   check('at low Drift, footsteps behind you stop the moment you turn to look; nothing is there', !fs.none && fs.walking.n >= 3 && fs.walking.running && fs.stopped && fs.gone && fs.after === 0, JSON.stringify(fs));
+
+  // Moderate Drift: a sign on a spot you already walked past, put there while you looked away; a crewmate's voice from
+  // the wrong side, with the caption saying so.
+  const md = await page.evaluate(() => { const u = window.__underflow, E = window.__explore;
+    E.blooms.forEach((b) => { b.active = false; });
+    u.setState({ health: 1000, drift: 60 }); u.step(1);
+    const shown = () => (E.movedSign?.group || []).some((p) => p.matrix[13] > -100);
+    if (!E.movedSign) return { noModel: true };
+    const dry = E.find('.').map(([x, z]) => E.center(x, z)).filter((c) => !E.isWater(c[0], c[2]));
+    // A spot you walked past 20 s ago, about 8 m behind you.
+    const fwd = [-Math.sin(E.player.yaw), -Math.cos(E.player.yaw)];
+    const behind = dry.filter((c) => { const dx = c[0] - E.player.pos[0], dz = c[2] - E.player.pos[2], d = Math.hypot(dx, dz); return d > 6 && d < 12 && (dx * fwd[0] + dz * fwd[1]) < -0.7 * d; });
+    if (!behind.length) return { noSpot: true };
+    E.trail.length = 0; E.trail.push({ t: E.time - 20, pos: [behind[0][0], 0, behind[0][2]] });
+    const at = E.placeMoved(); u.step(1);
+    const placed = { at: !!at, shown: shown(), noticed: E.moved.noticed };
+    E.player.yaw = Math.atan2(-(at[0] - E.player.pos[0]), -(at[2] - E.player.pos[2])); u.step(2);
+    const seen = { noticed: E.moved.noticed, caption: document.getElementById('caption').textContent };
+    u.setState({ drift: 20 }); u.step(2); const stillThere = shown(); // looking at it: it stays
+    E.player.yaw += Math.PI; u.step(2); const putAway = !shown();
+    const v = E.wrongVoice(); u.step(1);
+    return { placed, seen, stillThere, putAway, v, voiceCaption: document.getElementById('caption').textContent }; });
+  check('at moderate Drift a sign stands on a spot you already passed, put there while you looked away, and is put away only while you are not looking', md.noModel || md.noSpot || (md.placed.at && md.placed.shown && !md.placed.noticed && md.seen.noticed && /walked/.test(md.seen.caption) && md.stillThere && md.putAway), JSON.stringify(md));
+  check('a crewmate\'s voice comes from the opposite side to where they are, and the caption says both', md.noModel || md.noSpot || (md.v && md.v.fake !== md.v.real && md.voiceCaption.includes(md.v.fake) && md.voiceCaption.includes(md.v.real)), JSON.stringify(md));
   await finish(browser, errors);
 })();
