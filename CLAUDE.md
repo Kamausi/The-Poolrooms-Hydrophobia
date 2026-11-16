@@ -29,6 +29,8 @@ A first-person cooperative horror rail-shooter and explorer set in the Poolrooms
 | `src/render/wavegrid.js`, `src/feel/body.js`, `src/render/noise.js` | Wave-equation ripples on a sheet around you on foot; floating debris as bodies on the waves; simplex noise and failing-tube flicker (pure, unit-tested) |
 | `src/mapgen.js`, `src/mapgen.worker.js` | Endless-mode docks: WFC variations of the authored maps, checked by the same rules as `tests/maps.mjs`, built in a worker (pure, unit-tested) |
 | `src/audio/doppler.js`, `src/render/gputimer.js`, `src/storage.js` | Doppler pitch for moving sources (pure, unit-tested); GPU time for `?bench`; the IndexedDB photo album and gzip save files (packing pure, unit-tested) |
+| `src/savefile.js`, `src/feel/timestep.js`, `src/debug/profile.js` | Save envelope (schema, build, checksum, backup, migration, validation); bounded fixed timestep; time per subsystem for `?bench` (pure, unit-tested) |
+| `src/ai/habits.js`, `src/debug/aiview.js` | What the player has been doing (scanning, rushing, lingering, hurt), which on-foot omen answers it; the `?debug=ai` text view (pure, unit-tested) |
 | `src/driftsign.js` | Which signs change at high Drift and what they say (pure, unit-tested) |
 | `src/survey.js` | The on-foot survey map: what has been seen, coverage, text rendering (pure, unit-tested) |
 | `src/feel/aim.js` | Controller aim help and threat-marker geometry (pure, unit-tested) |
@@ -42,7 +44,7 @@ A first-person cooperative horror rail-shooter and explorer set in the Poolrooms
 
 The game was called UNDERFLOW before it was renamed. Some internal names keep the old word on purpose: the browser storage keys (`underflow-save-v2`, `underflow-settings`, `underflow-facility` and the rest), so saved games, settings and the facility's memory survive the rename; the DEV hooks (`window.__underflow`); the single-file audio global (`__UNDERFLOW_AUDIO`); and the tests' `UNDERFLOW_URL` variable. In the story, "underflow" is still the crew's word for what the water does to people.
 
-Local notes: `src/CLAUDE.md` (engine and module rules). Skills in `.claude/skills/`: design-pass, review, debug, balance, release, untangle. Start with `docs/ARCHITECTURE.md`; code provenance is in `docs/THIRD_PARTY_CODE.md`; decisions are in `docs/decisions/`, and tools and assets considered for the project are in `docs/TOOLS_AND_ASSETS.md`.
+Local notes: `src/CLAUDE.md` (engine and module rules). Skills in `.claude/skills/`: design-pass, review, debug, balance, release, untangle. Start with `docs/ARCHITECTURE.md`; the audit and the vertical-slice gate are in `docs/AUDIT_RESPONSE.md`; code provenance is in `docs/THIRD_PARTY_CODE.md`; decisions are in `docs/decisions/`, and tools and assets considered for the project are in `docs/TOOLS_AND_ASSETS.md`.
 
 ## Commands
 

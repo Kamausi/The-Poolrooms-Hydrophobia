@@ -56,6 +56,8 @@ Touch: left half of the screen moves, right half aims or looks, with buttons for
 - **More water.** Ripples on foot come from the wave equation and bounce off pool walls; debris on the raft channel floats on the waves and is shoved and spun when the raft hits it; the Ariadne thread floats on the water and sinks where it is cut; failing tubes flicker by noise.
 - **Endless docks you haven't seen.** In endless mode each dock is a wave-function-collapse variation of its attraction's map, built in a worker while you ride and kept only if it passes the solvability rules.
 - **Options.** Headphone (HRTF) sound, an AgX tone curve, Doppler on things coming at you, save files you can export and import, and ride photos that survive a reload.
+- **Omens that answer you.** On foot, what comes next depends on what you have been doing: keep scanning and things happen outside the beam; rush and you hear your name; linger and the door handle turns, or the pumps simply stop and nothing happens at all. After a hard fight the omens hold off. Sounds from behind a wall come out muffled.
+- **Saves that survive.** Saves carry a version and a checksum, a damaged one falls back to the previous checkpoint and says why, and saves from older builds are migrated.
 - **A picture that adapts.** Four quality tiers with an automatic mode that lowers the render scale, then thins mirrors, shadows, haze and particles before it drops a tier.
 
 ## Modes
@@ -109,10 +111,11 @@ The first prototype (a single minified Three.js file) is kept at `public/legacy/
 - All of this is checked by headless tests (props load, stand where they should, stay clear of the moored raft, draw in under 150 batches on the raft and 125 on foot). None of it has been checked by human play or on real GPUs.
 
 ## Testing
-- `npm test` runs the unit tests for the pure modules and then 24 headless browser test files that drive the game through its developer hooks (software rendering, no GPU).
+- `npm test` runs the unit tests for the pure modules and then 25 headless browser test files that drive the game through its developer hooks (software rendering, no GPU).
 - `npm run test:balance` sends a bot through all eight attractions. As last measured it reaches every dock with 33–50 health at its lowest and the raft at 75–100% ([docs/PRODUCTION.md](docs/PRODUCTION.md) has the table).
 - Property tests (fast-check) check rules such as the buoyancy signs and the steering speed limit against generated cases.
-- These tests check state and rules, not feel. Nobody has played this build by hand, and it has not been run on a real GPU.
+- These tests check state and rules, not feel. One person has played an earlier build once (and died on foot after the power cell, which led to the Bloom burst tell); this build has not been played by hand or run on a real GPU.
+- `?debug=ai` shows what the director, the player habits and each entity believe; `?bench` reports time per subsystem. The audit response and the vertical-slice gate are in [docs/AUDIT_RESPONSE.md](docs/AUDIT_RESPONSE.md).
 
 ## Design
 - [docs/GAME_DESIGN.md](docs/GAME_DESIGN.md): concept, mechanics, architecture and what's built so far

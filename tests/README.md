@@ -27,6 +27,9 @@ Headless Chromium (software GL, `?quality=low`) driving the game through its DEV
 | `shows.cjs` | Every `?show=` scene sets up on the high tier and draws without errors; screenshots to `SHOW_DIR` | ~5 min |
 | `audio.cjs` | Every recorded sound in `public/audio/manifest.json` loads and decodes | <1 min |
 | `balance.cjs` | The competent-player bot reaches every dock; reports lowest health and raft condition | several min |
+| `platform.cjs` | Browser services; save files; the save envelope and backup restore with the menu notice; time per subsystem and 1–3 steps per frame; the AgX tone curve | ~1 min |
+| `mapgen.cjs` | Endless docks generated in a worker and checked as solvable | <1 min |
+| `horror.cjs` | Scanning is noticed by the omens; the silence omen stops the machinery, brings nothing and ends; sounds behind a wall are muffled; `?debug=ai` shows the director, habits and entities | ~1 min |
 | `single.cjs` | `dist/HYDROPHOBIA.html` opens from disk, starts and carries its recorded sound (run `npm run build:single` first) | <1 min |
 
 ```sh
