@@ -15,6 +15,8 @@ export function report(info, stats) {
   const lines = ['HYDROPHOBIA BENCHMARK', `GPU          ${info.gpu}`, `quality      ${info.tier}${info.auto ? ' (auto)' : ''}`, `resolution   ${info.width} x ${info.height} · device ratio ${info.dpr} · render scale ${Math.round(info.scale * 100)}%`];
   if (stats) lines.push(`frames       ${stats.frames}`, `average      ${stats.average} ms (${stats.fps} FPS)`, `median       ${stats.median} ms`, `99th pct     ${stats.p99} ms`, `worst        ${stats.worst} ms`);
   lines.push(stats && stats.gpuAverage !== undefined ? `GPU time     ${stats.gpuAverage} ms average · ${stats.gpuP99} ms 99th pct` : 'GPU time     not available (the browser hides the timer query)');
+  // Where the time went: the scene update (simulation and its render), the render alone, audio.
+  for (const sec of info.sections || []) lines.push(`${(sec.name + ' ms').padEnd(13)}${sec.avg} average · ${sec.p99} 99th pct`);
   lines.push(`errors       ${info.errors.length ? info.errors.join(' | ') : 'none'}`);
   return lines.join('\n');
 }

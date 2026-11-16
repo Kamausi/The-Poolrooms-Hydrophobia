@@ -23,6 +23,12 @@ import { summarize, report as benchReport } from './debug/bench.js';
 import { rng } from './math.js';
 import { generateDock } from './mapgen.js';
 import { loadPhotos } from './storage.js';
+import { writeSave, readSave, problemWith } from './savefile.js';
+import { planSteps } from './feel/timestep.js';
+import { profiler, timed } from './debug/profile.js';
+let stepsLast = 0;
+/* global __BUILD__ */
+const BUILD = typeof __BUILD__ === 'string' ? __BUILD__ : 'dev';
 import MapWorker from './mapgen.worker.js?worker&inline';
 import { playlog, createFrameStats } from './debug/playlog.js';
 import { facility, recordSector, recordDeath, note, nameVisitor, commitVisitors, authorExpedition, saveFacility } from './memory.js';
@@ -121,18 +127,29 @@ function snapshot() {
 }
 function saveCheckpoint() {
   if (state.endless) return;
-  try { localStorage.setItem(SAVE_KEY, JSON.stringify(snapshot())); } catch {}
+  writeSave(localStorage, SAVE_KEY, snapshot(), SAVE_OPTS);
   persistStorage();
 }
 function loadJSON(key) {
   try { return JSON.parse(localStorage.getItem(key) || 'null'); } catch { return null; }
+}
+// Saves go through savefile.js: a versioned envelope with a checksum, a shape check, and a backup of the last good
+// one. A damaged save falls back a checkpoint and says so; one that cannot be used is not loaded into a broken run.
+const SAVE_OPTS = { build: BUILD, sectors: SECTORS.length };
+const RESUME_OPTS = { ...SAVE_OPTS, check: (r) => (r && r.state ? problemWith(r.state, SAVE_OPTS) : 'it holds no game') };
+let saveNotice = '';
+function loadSave(key) {
+  const r = readSave(localStorage, key, key === RESUME_KEY ? RESUME_OPTS : SAVE_OPTS);
+  if (r.problem && r.from === 'backup') saveNotice = `The last save was damaged (${r.problem}). Restored the one before it.`;
+  else if (r.problem && !r.state) saveNotice = `A save could not be used: ${r.problem}.`;
+  return r.state;
 }
 function saveResume() {
   // Capture the position now (not the last periodic snapshot) when the scene can say where it is.
   const fresh = scene?.snapshot?.();
   if (fresh) lastPosition = fresh;
   if (!lastPosition || (mode !== 'ride' && mode !== 'explore')) return;
-  try { localStorage.setItem(RESUME_KEY, JSON.stringify({ state: snapshot(), position: lastPosition })); } catch {}
+  writeSave(localStorage, RESUME_KEY, { state: snapshot(), position: lastPosition }, RESUME_OPTS);
 }
 function clearResume() {
   try { localStorage.removeItem(RESUME_KEY); } catch {}
@@ -506,7 +523,7 @@ function enterSafeRoom() {
     if (state.endless) return;
     const s = snapshot();
     s.sectorIndex = nextIndex;
-    try { localStorage.setItem(SAVE_KEY, JSON.stringify(s)); } catch {}
+    writeSave(localStorage, SAVE_KEY, s, SAVE_OPTS);
   };
   saveNow();
   // Playing well earns access (an override, full route data) and carries you deeper: the next sector is harder.
@@ -625,7 +642,7 @@ Best on this seed: depth ${rec.depth}, score ${rec.score}.`, [
 Somewhere above, a raft comes back up the slide. Empty.`, [
     ['RETRY FROM THE LAST SAFE ROOM ↗', () => {
       hideModal();
-      const save = loadJSON(SAVE_KEY);
+      const save = loadSave(SAVE_KEY);
       const attempt = state.attempt + 1;
       // A retry continues the same expedition: same accepted world, same expedition number. Uncommitted
       // rescues are lost with the run.
@@ -816,6 +833,7 @@ function resume(data) {
 }
 
 function toMenu() {
+  document.getElementById('ai-debug')?.remove();
   hideModal();
   scene?.dispose();
   scene = null;
@@ -833,7 +851,7 @@ function toMenu() {
 
 /** Where a saved expedition stands, from the actual save: never a hint of what is ahead. */
 function saveSummary() {
-  const res = loadJSON(RESUME_KEY), save = loadJSON(SAVE_KEY);
+  const res = loadSave(RESUME_KEY), save = loadSave(SAVE_KEY);
   const st = res?.state || save;
   if (!st) return '';
   const sec = st.custom?.chapter ? REFERENCE_CHAPTER : SECTORS[st.sectorIndex];
@@ -844,7 +862,8 @@ function saveSummary() {
 }
 
 function refreshMenu() {
-  $('continue').hidden = !loadJSON(RESUME_KEY) && !loadJSON(SAVE_KEY);
+  $('continue').hidden = !loadSave(RESUME_KEY) && !loadSave(SAVE_KEY);
+  if (saveNotice) { hud.toast(saveNotice.toUpperCase()); saveNotice = ''; }
   $('continue-sub').textContent = saveSummary();
   showMenuList('main');
   const seedParam = new URLSearchParams(location.search).get('seed');
@@ -971,6 +990,7 @@ function benchFrame(ms, now) {
   const info = { gpu: quality.gpu, tier: quality.tier, auto: !!quality.auto, width: canvas.width, height: canvas.height, dpr: Math.round((window.devicePixelRatio || 1) * 100) / 100, scale: resScale, errors: bench.errors };
   const stats = summarize(bench.frames);
   const gpuStats = bench.gpuFrames?.length ? summarize(bench.gpuFrames) : null;
+  info.sections = profiler.report();
   if (gpuStats) Object.assign(stats || {}, { gpuAverage: gpuStats.average, gpuP99: gpuStats.p99 });
   window.__bench = { ...info, ...stats };
   const text = benchReport(info, stats);
@@ -1026,8 +1046,20 @@ function frame(now) {
   input.context = mode === 'explore' ? 'explore' : 'ride';
   if ($('modal').hidden && (wasPressed('escape') || wasPressed('p')) && now - pausedAt > 250) setPaused(!paused);
   if (mode === 'menu' && $('modal').hidden && !$('start-menu').hidden && wasPressed('escape')) showMenuList('main');
-  if (scene && !paused && !manual && (mode === 'ride' || mode === 'explore' || mode === 'safe' || mode === 'menu')) scene.update(dt);
-  if (!paused && (mode === 'ride' || mode === 'explore')) sound.music(state.directorPhase || 'relax', state.drift);
+  if (scene && !paused && !manual && (mode === 'ride' || mode === 'explore' || mode === 'safe' || mode === 'menu')) {
+    // Bounded semi-fixed steps (feel/timestep.js): a long frame is split so no step is longer than 1/30 s, at most three
+    // of them; key presses and mouse movement count once, in the first step; only the last step renders.
+    const plan = planSteps(ms / 1000);
+    for (let i = 0; i < plan.steps; i++) {
+      quality.skipRender = i < plan.steps - 1;
+      timed('scene', () => scene.update(plan.dt));
+      if (i < plan.steps - 1) endFrame();
+    }
+    quality.skipRender = false;
+    stepsLast = plan.steps;
+  }
+  if (!paused && (mode === 'ride' || mode === 'explore')) timed('audio', () => sound.music(state.directorPhase || 'relax', state.drift));
+  profiler.frame();
   $('modal').classList.toggle('safe', mode === 'safe');
   endFrame();
   requestAnimationFrame(frame);
@@ -1050,9 +1082,9 @@ const begin = () => { sound.unlock(); sound.startHum(); $('menu').hidden = true;
 $('start').onclick = () => { begin(); newCampaign(); };
 $('continue').onclick = () => {
   begin();
-  const res = loadJSON(RESUME_KEY);
+  const res = loadSave(RESUME_KEY);
   if (res) return resume(res);
-  const save = loadJSON(SAVE_KEY);
+  const save = loadSave(SAVE_KEY);
   if (!save) return;
   state = { ...freshState(), ...save };
   hud.setPlayer(state.name);
@@ -1109,7 +1141,7 @@ window.__underflow = {
   get scene() { return scene; },
   startExplore, enterSafeRoom, startRide, newCampaign, startEndless, beginSector, events, startChallenge, startCustom, parseRoute, expeditionRecord,
   setState(patch) { Object.assign(state, patch); },
-  platform: platformStatus, toMenu, saveCheckpoint, requestLock, storage: () => import('./storage.js'),
+  platform: platformStatus, sound, profile: () => profiler.report(), get stepsLast() { return stepsLast; }, toMenu, saveCheckpoint, requestLock, loadSave, get saveNotice() { return saveNotice; }, SAVE_KEY, RESUME_KEY, storage: () => import('./storage.js'),
   settings, quality, setTier,
   /** Tests: drive the render scale directly, and read what it is. */
   setResScale(k) { applyResScale(k); return resScale; },

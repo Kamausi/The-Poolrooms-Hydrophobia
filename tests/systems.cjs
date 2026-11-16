@@ -194,7 +194,7 @@ const { open, newCampaign, check, finish } = require('./lib.cjs');
     const before = count(); const p = [...E.player.pos];
     // A Bloom that reaches you bursts against you (the game's own path, not a test call).
     const b = E.spawnBloom([p[0], 1.3, p[2]], false); let lit = 0, burst = false;
-    for (let k = 0; k < 4 && !burst; k++) { u.setState({ health: 1e6 }); E.player.pos = [...p]; u.step(1); burst = !b.active; lit = Math.max(lit, count()); }
+    for (let k = 0; k < 40 && !burst; k++) { u.setState({ health: 1e6 }); E.player.pos = [...p]; b.pos = [p[0], 1.3, p[2]]; u.step(1); burst = !b.active; lit = Math.max(lit, count()); } // it swells first (the wind-up), then bursts
     for (let k = 0; k < 12; k++) u.step(1); const after = count();
     return { before, burst, lit, after }; });
   check('a burst lights the room from the shared light pool, then it is gone', r.before === 0 && r.burst && r.lit === 1 && r.after === 0, JSON.stringify(r));

@@ -122,10 +122,21 @@ function noiseBuffer(seconds) {
 
 // Pitch for the next sounds: the Doppler ratio while a moving source is heard (sound.doppler). 1 otherwise.
 let pitch = 1;
+let silentHeld = false, silenceRestore = [];
 // Panners made for binaural playback, counted for tests.
 let hrtfMade = 0;
+// Occlusion for the next sounds (sound.occluded): 0 heard directly, 1 through a wall (duller and quieter).
+let occl = 0, occludedMade = 0;
 function out(pan) {
-  if (!pan) return bus;
+  let dest = bus;
+  if (occl > 0) {
+    const f = ctx.createBiquadFilter();
+    f.type = 'lowpass'; f.frequency.value = 6000 * (1 - occl) + 650 * occl;
+    const g = ctx.createGain(); g.gain.value = 1 - 0.45 * occl;
+    f.connect(g).connect(bus);
+    dest = f; occludedMade++;
+  }
+  if (!pan) return dest;
   const k = Math.max(-1, Math.min(1, pan));
   if (settings.binaural && ctx.createPanner) {
     // Headphones: the browser's HRTF panner places the sound on a circle round the head at the angle the pan implies,
@@ -135,13 +146,13 @@ function out(pan) {
     p.distanceModel = 'linear'; p.refDistance = 1; p.maxDistance = 10000; p.rolloffFactor = 0; // level is set by the caller
     const a = Math.asin(k / 0.9 > 1 ? 1 : k / 0.9 < -1 ? -1 : k / 0.9);
     if (p.positionX) { p.positionX.value = Math.sin(a); p.positionY.value = 0; p.positionZ.value = -Math.cos(a); } else p.setPosition(Math.sin(a), 0, -Math.cos(a));
-    p.connect(bus);
+    p.connect(dest);
     hrtfMade++;
     return p;
   }
   const p = ctx.createStereoPanner();
   p.pan.value = k;
-  p.connect(bus);
+  p.connect(dest);
   return p;
 }
 
@@ -502,8 +513,44 @@ export const sound = {
     try { fn(); } finally { pitch = was; }
     return ratio;
   },
-  /** Tests: how many HRTF panners have been made, and the pitch in force. */
-  get spatialStats() { return { hrtfMade, pitch }; },
+  /** Play whatever `fn` plays as heard through `amount` (0..1) of wall: duller and quieter. */
+  occluded(amount, fn) {
+    const was = occl;
+    occl = Math.max(0, Math.min(1, amount || 0));
+    try { fn(); } finally { occl = was; }
+  },
+  /** Tests: how many HRTF panners and occlusion filters have been made, and the pitch in force. */
+  get spatialStats() { return { hrtfMade, pitch, occludedMade }; },
+  /**
+   * Authored silence: the machinery and the water you have been hearing fade out over a second and stay out until
+   * `release()`, so it follows game time (a pause holds it). `seconds` is only a safety limit on audio time in case
+   * nothing releases it. Nothing else happens; that is the point.
+   */
+  silence(seconds = 60) {
+    silentHeld = true;
+    if (!ctx || !bedBus) return false;
+    const t = ctx.currentTime;
+    silenceRestore = [];
+    for (const g of [bedBus.gain, hum?.g.gain]) {
+      if (!g) continue;
+      const v = g.value;
+      silenceRestore.push([g, v]);
+      g.cancelScheduledValues(t); g.setValueAtTime(v, t);
+      g.linearRampToValueAtTime(0.0001, t + 1.2); g.setValueAtTime(0.0001, t + seconds); g.linearRampToValueAtTime(v, t + seconds + 3);
+    }
+    return true;
+  },
+  /** The silence ends: the machinery comes back over three seconds. */
+  release() {
+    if (!silentHeld) return;
+    silentHeld = false;
+    if (!ctx) return;
+    const t = ctx.currentTime;
+    for (const [g, v] of silenceRestore) { g.cancelScheduledValues(t); g.setValueAtTime(Math.max(0.0001, g.value), t); g.linearRampToValueAtTime(v, t + 3); }
+    silenceRestore = [];
+  },
+  /** Tests: whether an authored silence is in force. */
+  get silent() { return silentHeld; },
   /** Set the room's acoustics: 'tile', 'hall', 'reservoir', 'tube', 'room' or 'dry'. */
   /** The reverb settings now in use (for tests). */
   get spaceSettings() { return space ? { kind: space, ...Object.fromEntries(['seconds', 'wet', 'decay'].map((k, i) => [k, SPACES[space][i]])) } : null; },

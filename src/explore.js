@@ -1,6 +1,7 @@
 // On foot at a dock. You can go anywhere you can reach, but you must find your own way back to the raft.
 // The goal: carry the power cell to the service panel (which opens the gate to the Safe Room's arrival
 // bay), then return to the moored raft. Each attraction adds its own rules (see sectors.js).
+import { timed } from './debug/profile.js';
 import { bearing, hitKind } from './hudcues.js';
 import { waterOptics } from './render/waterlook.js';
 import { applyWaterReflection, attachWaterReflection } from '67js/addons/water-reflection';
@@ -13,6 +14,8 @@ import { choose, TARGETING } from './ai/utility.js';
 import { createWaveGrid, sheetGeometry } from './render/wavegrid.js';
 import { tubeFlicker } from './render/noise.js';
 import { dopplerRatio } from './audio/doppler.js';
+import { createHabits, weigh, pickWeighted } from './ai/habits.js';
+import { describeAI } from './debug/aiview.js';
 import { updatePartVertices } from '67js/addons/update-part-vertices';
 import { rumble } from './feel/haptics.js';
 import { wedges as threatWedges } from './feel/aim.js';
@@ -1259,6 +1262,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
       skyTop: display(sky ? sky.top : sector.fog), skyBottom: display(sky ? sky.bottom : sector.fog), lightDirection: [0.4, 1, 0.3],
     },
   });
+  { const draw = renderer.render.bind(renderer); renderer.render = (o) => timed('render', () => draw(o)); } // per-subsystem timing (debug/profile.js)
   let mirrorKey = mirrorSurface ? `${quality.reflection}/${quality.reflectionEvery}` : '';
   let detachMirror = mirrorSurface ? attachWaterReflection(renderer, mirrorSurface, { scale: quality.reflection, updateEvery: quality.reflectionEvery }) : null;
   // Automatic quality may redraw the mirror less often, at lower resolution, or drop it (tiers.js `thinning`).
@@ -1295,6 +1299,14 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
   let lastPanelHealth = state.health;
   let waterT = 0;
   let stillT = 0;
+  // What the player has been doing lately, for the omens (ai/habits.js).
+  const habits = createHabits();
+  // ?debug=ai: what every entity believes and intends, on screen (debug/aiview.js).
+  const aiView = typeof location !== 'undefined' && new URLSearchParams(location.search).get('debug') === 'ai'
+    ? (document.getElementById('ai-debug') || document.body.appendChild(Object.assign(document.createElement('pre'), { id: 'ai-debug', className: 'mono', style: 'position:fixed;left:8px;top:8px;z-index:98;margin:0;padding:8px 10px;max-width:60vw;font-size:11px;line-height:1.35;background:#080d10d9;color:#cfe8e4;pointer-events:none;white-space:pre-wrap' })))
+    : null;
+  let aiViewT = 0;
+  let habLast = null, habHealth = state.health;
   let vel = [0, 0, 0];
   let hesitation = 0;
   let sink = 0;
@@ -1379,6 +1391,8 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
   const doorDist = () => (door ? Math.hypot(door.hinge[0] - player.pos[0], door.hinge[2] - player.pos[2]) : 99);
   let viewEye = [0, 1.6, 0], viewDir = [0, 0, -1];
   const panTo = (p) => soundDir(viewEye, viewDir, p).pan;
+  /** Play a sound from `p` as heard from here: through a wall it comes out duller and quieter (audio occlusion). */
+  const heard = (p, fn) => sound.occluded(viewEye && !lineOfSight(viewEye, p) ? 1 : 0, fn);
   function startFomen(kind) {
     lastFomen = kind;
     fused.add(kind);
@@ -1397,11 +1411,12 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
       hud.caption('[the lights are going out — one at a time — toward you]');
     }
     else if (kind === 'extraStep') fomen.armed = true;
+    else if (kind === 'silence') { hud.hush(24); sound.silence(); director.omen(0.25, 24); } // no caption, no prompt, no attack: the pumps simply stop
     else if (kind === 'drain') { sound.gurgle(); setTimeout(() => { sound.breath(0); hud.caption('[the drain empties — and at the end of it, a breath drawn in]'); }, 1900); hud.hush(10); }
     else if (kind === 'echo') { hud.say(who, 'Radio check. Everyone okay?', 'crew'); setTimeout(() => { hud.say('VOICE · UNDER THE WATER', '…okay?', 'voice'); hud.caption('[the last word again — from under the water]'); }, 3200); hud.hush(12); }
     else if (kind === 'name') { sound.gurgle(); setTimeout(() => { hud.say('VOICE · THE DRAIN', `${state.name}?`, 'voice'); hud.caption('[your own voice, calling your name, from the drain]'); }, 1200); hud.hush(12); }
   }
-  function endFomen() { fomen = null; fomenCool = 40 + random() * 35; }
+  function endFomen() { if (fomen?.kind === 'silence') sound.release(); fomen = null; fomenCool = 40 + random() * 35; }
   function updateFomens(dt, ask) {
     // Door bookkeeping that outlives any one omen.
     if (door) {
@@ -1415,17 +1430,21 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
       // Hesitation: standing still with the objective known, or doubling back, is noticed. It brings the next
       // unexplained thing sooner. It never brings enemies: confusion should be frightening, not punished.
       hesitation = stillT > 8 ? Math.min(1, hesitation + dt / 20) : Math.max(0, hesitation - dt / 30);
-      if ((fomenCool -= dt * (1 + hesitation * 1.5)) > 0) return;
-      const CAT = { handle: 'door', crack: 'door', keyhole: 'door', forced: 'door', lights: 'light', extraStep: 'presence', drain: 'sound', echo: 'voice', name: 'voice' };
-      let pool = ['handle', 'crack', 'keyhole', 'forced', 'lights', 'extraStep', 'drain', 'echo', 'name'].filter((k) => !fused.has(k) && k !== lastFomen
+      // After a hard fight the omens hold off (ai/habits.js): a protected recovery, not a pile-on.
+      if ((fomenCool -= dt * (1 + hesitation * 1.5) / habits.recovery()) > 0) return;
+      const CAT = { handle: 'door', crack: 'door', keyhole: 'door', forced: 'door', lights: 'light', extraStep: 'presence', drain: 'sound', echo: 'voice', name: 'voice', silence: 'sound' };
+      let pool = ['handle', 'crack', 'keyhole', 'forced', 'lights', 'extraStep', 'drain', 'echo', 'name', 'silence'].filter((k) => !fused.has(k) && k !== lastFomen
         && (door || !['handle', 'crack', 'keyhole', 'forced'].includes(k))
         && !(k === 'forced' && (sector.index === 0 || !fused.has('handle') && !fused.has('crack')))
         && !(k === 'name' && state.drift < 35)
-        && !(k === 'echo' && !followers.length));
+        && !(k === 'echo' && !followers.length)
+        && !(k === 'silence' && sector.index === 0));
       // Not the same kind of thing twice running: a door, then a sound, then a voice, not door, door, door.
       const varied = pool.filter((k) => CAT[k] !== CAT[lastFomen]);
       if (varied.length) pool = varied;
-      if (pool.length) startFomen(pool[Math.floor(random() * pool.length)]);
+      // What you have been doing decides what comes (ai/habits.js): scan a lot and things happen outside the beam,
+      // rush and the facility misdirects you, linger and the slow ones come.
+      if (pool.length) startFomen(pickWeighted(pool, weigh(pool, habits.h), random));
       else fomenCool = 60;
       return;
     }
@@ -1440,6 +1459,8 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
       if (!f.wider && (doorDist() > 6 || f.t > 30)) { f.wider = true; sound.chair(panTo(door.hinge)); hud.caption('[behind you — the door, opening wider]'); }
       if (f.wider) door.angle = Math.min(0.5, door.angle + dt * 0.4);
       if (f.wider && door.angle >= 0.5) endFomen();
+    } else if (f.kind === 'silence') {
+      if (f.t > 22) endFomen();
     } else if (f.kind === 'keyhole') {
       if (f.t > 10) endFomen();
     } else if (f.kind === 'forced') {
@@ -1909,6 +1930,12 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     // A short scouting trip is cheap; staying still in warm water is not.
     waterT = water ? waterT + dt : Math.max(0, waterT - dt * 2);
     stillT = moving ? 0 : stillT + dt;
+    {
+      const sp = habLast && dt > 0 ? Math.hypot(player.pos[0] - habLast[0], player.pos[2] - habLast[2]) / dt : 0;
+      habits.observe({ dt, scanning: !!input.scanning, speed: sp, hurt: Math.max(0, habHealth - state.health), still: stillT > 8 });
+      habLast = [player.pos[0], player.pos[2]]; habHealth = state.health;
+    }
+    if (aiView && (aiViewT -= dt) <= 0) { aiViewT = 0.25; aiView.textContent = describeAI({ blooms, lifeguard, followers, habits: habits.h, phase: director.phase, me: player.pos }); }
     const fromRaft = Math.hypot(raftPos[0] - player.pos[0], raftPos[2] - player.pos[2]);
     const driftRate = (water ? 0.6 + Math.min(2.4, waterT * 0.12) : 0.08) + (stillT > 6 ? 0.8 : 0) + (fromRaft > 34 ? 0.35 : 0) + (litHere ? 0 : 0.5);
     // A dry pack: out of the water, Drift does not rise while it lasts.
@@ -3026,7 +3053,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
         const k = front[Math.floor(random() * front.length)];
         grout.set(k, { cleared: 0 });
         const [gx, gz] = k.split(',').map(Number);
-        sound.grind(soundDir(player.pos, forwardVec(), center(gx, gz)).pan);
+        heard(center(gx, gz), () => sound.grind(soundDir(player.pos, forwardVec(), center(gx, gz)).pan));
         hud.caption('[a deeper scrape — the grout lines have moved. That passage is different now]');
         // It cuts the thread where it crosses.
         const before = thread.length;
@@ -3216,7 +3243,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
       });
       // Contact is telegraphed, as on the raft: a Bloom that reaches you swells and gasps before it bursts, so you can
       // step back or stagger it with a shot. The wind-up is longest, and the burst weakest, in the first attractions.
-      if (d < 1.1 && !b.windup && !b.stagger) { b.windup = 0.001; sound.breath(panTo(b.pos)); b.flash = 0.15; }
+      if (d < 1.1 && !b.windup && !b.stagger) { b.windup = 0.001; heard(b.pos, () => sound.breath(panTo(b.pos))); b.flash = 0.15; }
       if (b.windup) {
         b.windup += dt;
         writeYaw(b.core.matrix, core, b.phase * 0.4, pulse * (1 + b.windup), pulse * (1 + b.windup) * 0.92, pulse * (1 + b.windup));
@@ -3383,7 +3410,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     L.warn = breaking ? (L.warn || 0) + dt : Math.max(0, (L.warn || 0) - dt * 2);
     if (breaking && L.warn > 0 && !L.warned) {
       L.warned = true;
-      sound.chair(soundDir(player.pos, forwardVec(), L.base).pan * 0.5);
+      heard(L.base, () => sound.chair(soundDir(player.pos, forwardVec(), L.base).pan * 0.5));
       hud.caption('[the lamp on the tower brightens. The chair creaks. Its head is turning]');
     }
     if (breaking && L.warn > 1.6 && !L.handSaid) { L.handSaid = true; hud.caption('[its hand comes up to the whistle]'); }
@@ -3454,7 +3481,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     if (kind !== 'light' && lineOfSight(L.base, at)) return false;
     L.state = 'investigate'; L.pos = [...L.base]; L.target = [...at]; L.searchT = 0; L.next = null; L.heard = kind;
     hud.caption(k.caption);
-    sound.chair(soundDir(player.pos, forwardVec(), L.base).pan * 0.5);
+    heard(L.base, () => sound.chair(soundDir(player.pos, forwardVec(), L.base).pan * 0.5));
     return true;
   }
   function huntStep(dt) {
@@ -3473,7 +3500,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     if (L.state === 'rounds') {
       if (seesYou && dd < 9) {
         L.state = 'noticed'; L.noticeT = 0;
-        sound.chair(soundDir(player.pos, forwardVec(), L.pos).pan * 0.5);
+        heard(L.pos, () => sound.chair(soundDir(player.pos, forwardVec(), L.pos).pan * 0.5));
         hud.caption('[it stops. Its head comes round. Get out of its sight]');
         return;
       }
@@ -3495,7 +3522,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     } else if (L.state === 'noticed') {
       L.noticeT += dt;
       if (L.noticeT > 1.9) {
-        if (seesYou) { L.state = 'pursuit'; L.lostSight = 0; L.next = null; L.act = 0; L.violations = Math.max(1, L.violations); sound.doppler(lgDoppler(L), () => sound.whistle(soundDir(player.pos, forwardVec(), L.pos).pan)); hud.say('MARS', 'It saw you. Move!', 'crew'); }
+        if (seesYou) { L.state = 'pursuit'; L.lostSight = 0; L.next = null; L.act = 0; L.violations = Math.max(1, L.violations); heard(L.pos, () => sound.doppler(lgDoppler(L), () => sound.whistle(soundDir(player.pos, forwardVec(), L.pos).pan))); hud.say('MARS', 'It saw you. Move!', 'crew'); }
         else { L.state = 'rounds'; hud.caption('[it looks at where you were. It writes something. It goes on]'); }
       }
     } else if (L.state === 'pursuit') {
@@ -3514,7 +3541,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     } else if (L.state === 'investigate' || L.state === 'search') {
       if (seesYou && L.blind <= 0) {
         L.state = 'pursuit'; L.lostSight = 0; L.next = null;
-        sound.doppler(lgDoppler(L), () => sound.whistle(soundDir(player.pos, forwardVec(), L.pos).pan));
+        heard(L.pos, () => sound.doppler(lgDoppler(L), () => sound.whistle(soundDir(player.pos, forwardVec(), L.pos).pan)));
         hud.caption('[a whistle — it has seen you]');
         return;
       }
@@ -3529,7 +3556,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
             L.doorUsed = true;
             L.pos = [door.hinge[0] + door.t[0] * 0.45 + door.n[0] * 0.7, 0, door.hinge[2] + door.t[2] * 0.45 + door.n[2] * 0.7];
             door.angle = 1.5; door.printsOn = true;
-            sound.door(); sound.chains(soundDir(player.pos, forwardVec(), L.pos).pan);
+            sound.door(); heard(L.pos, () => sound.chains(soundDir(player.pos, forwardVec(), L.pos).pan));
             hud.caption('[the service door slams open. It came round the other way]');
             events.ledger?.('changes', `${sector.name}: the Lifeguard came through the service door to cut us off`);
             L.state = 'search'; L.target = [...player.pos]; L.searchT = 0; L.next = null;
@@ -3764,7 +3791,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     for (let i = 0; i < (r.valves || 0); i++) { const v = pumpValves.find((x) => x.id === valveOrder[i]); if (v) v.open = true; }
     valveStep = r.valves || 0;
   }
-  if (import.meta.env.DEV) window.__explore = { parts, camRig, takenCells, burstDamage, burstWindup, rows, thread, threadParts, ripGrid, ripPart, get ripCell() { return ripCell; }, routeTo, get W() { return W; }, get H() { return H; }, isWall, cellOf, center, wetMarks: wet, wetParts, waterField: field, ringParts, caustics, waterLevel, stir, jolt, effects, get blown() { return blown; }, flashes, frameEnv: () => lastEnv, marcos, get marcoApart() { return marcoApart; }, mirror: () => mirrorSurface && detachMirror && { height: mirrorSurface.height, parts: mirrorSurface.partIndices.length, key: mirrorKey }, models: () => parts.filter((p) => p.model).map((p) => ({ model: p.model, name: p.name, at: [p.matrix[12], p.matrix[13], p.matrix[14]] })), flashes, budget, wave: (n, f) => wave(n, f), lineOfSight, get remembered() { return remembered; }, get chain() { return lastChain; }, get eyeExposure() { return eyeExposure; }, renderer, get driftSigns() { return driftSigns; }, get wedges() { return lastWedges; }, survey, get surveyCoverage() { return surveyCoverage(survey, surveyOpen); }, surveyOpen, omen: (k) => startFomen(k), circuit, setEmergency, setBlackout, get blackout() { return blackout; }, signParts, get resetT() { return resetT; }, get emergency() { return emergency; }, blocked, isWall, finds, found, get lampPlaced() { return lampPlaced; }, lights: () => gatherLights(add(player.pos, [0, 1.6, 0])), get hesitation() { return hesitation; }, get lastOmen() { return lastFomen; }, get marcoAct() { return marcoAct; }, set marcoAct(v) { marcoAct = v; }, marcos, columns, wavePool, get basin() { return basin; }, isWater, floorTop, get operating() { return operating; }, set operating(v) { operating = v; }, panelFront, holdT, shoot, spawnBloom, occupant, lockers, noise, violate, get omenState() { return fomen; }, door, blooms, lamps, director, followers, get dockKind() { return dockKind; }, get valves() { return { order: valveOrder, step: valveStep, list: pumpValves }; }, june: juneEvent, thread, get clock() { return clock; }, stagnant, player, center, undertow, lifeguard, cellPos, panelPos, raftPos, code, find, floaters, restorePower };
+  if (import.meta.env.DEV) window.__explore = { parts, camRig, takenCells, habits, get fomen() { return fomen; }, startFomen: (k) => startFomen(k), burstDamage, burstWindup, rows, thread, threadParts, ripGrid, ripPart, get ripCell() { return ripCell; }, routeTo, get W() { return W; }, get H() { return H; }, isWall, cellOf, center, wetMarks: wet, wetParts, waterField: field, ringParts, caustics, waterLevel, stir, jolt, effects, get blown() { return blown; }, flashes, frameEnv: () => lastEnv, marcos, get marcoApart() { return marcoApart; }, mirror: () => mirrorSurface && detachMirror && { height: mirrorSurface.height, parts: mirrorSurface.partIndices.length, key: mirrorKey }, models: () => parts.filter((p) => p.model).map((p) => ({ model: p.model, name: p.name, at: [p.matrix[12], p.matrix[13], p.matrix[14]] })), flashes, budget, wave: (n, f) => wave(n, f), lineOfSight, get remembered() { return remembered; }, get chain() { return lastChain; }, get eyeExposure() { return eyeExposure; }, renderer, get driftSigns() { return driftSigns; }, get wedges() { return lastWedges; }, survey, get surveyCoverage() { return surveyCoverage(survey, surveyOpen); }, surveyOpen, omen: (k) => startFomen(k), circuit, setEmergency, setBlackout, get blackout() { return blackout; }, signParts, get resetT() { return resetT; }, get emergency() { return emergency; }, blocked, isWall, finds, found, get lampPlaced() { return lampPlaced; }, lights: () => gatherLights(add(player.pos, [0, 1.6, 0])), get hesitation() { return hesitation; }, get lastOmen() { return lastFomen; }, get marcoAct() { return marcoAct; }, set marcoAct(v) { marcoAct = v; }, marcos, columns, wavePool, get basin() { return basin; }, isWater, floorTop, get operating() { return operating; }, set operating(v) { operating = v; }, panelFront, holdT, shoot, spawnBloom, occupant, lockers, noise, violate, get omenState() { return fomen; }, door, blooms, lamps, director, followers, get dockKind() { return dockKind; }, get valves() { return { order: valveOrder, step: valveStep, list: pumpValves }; }, june: juneEvent, thread, get clock() { return clock; }, stagnant, player, center, undertow, lifeguard, cellPos, panelPos, raftPos, code, find, floaters, restorePower };
 
   /** ?show=: put the dock into a fixed, readable state for screenshots and visual review. */
   function showcase(name) {
@@ -3784,7 +3811,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     resize: () => renderer.resize(),
     /** Render scale relative to the quality tier's own pixel ratio (automatic resolution). */
     setScale: (k) => { renderer.pixelRatio = quality.renderer.pixelRatio * k; renderer.resize(); },
-    dispose: () => renderer.dispose(),
+    dispose: () => { sound.release(); renderer.dispose(); }, // leaving the dock mid-silence brings the machinery back
     /** Where the player is right now, for an immediate resume save. */
     snapshot: () => ({ mode: 'explore', pos: [...player.pos], yaw: player.yaw, hasCell, taken: takenState() }),
   };

@@ -2,6 +2,7 @@
 // channel sections recycle a fixed pool of segment parts ahead of the camera, and rooms (holding pools,
 // the arrival bay) have their own parts. A 67js renderer keeps the part list it was built with, so every
 // entity here is a pool of parts that are moved, recoloured or hidden.
+import { timed } from './debug/profile.js';
 import { CHAMBER_BEARING, hitKind } from './hudcues.js';
 import { Renderer67 } from '67js';
 import { box, sphere, cylinder, torus } from './render/shapes.js';
@@ -505,6 +506,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
       lightDirection: [0.4, 1, 0.3],
     },
   });
+  { const draw = renderer.render.bind(renderer); renderer.render = (o) => timed('render', () => draw(o)); } // per-subsystem timing (debug/profile.js)
   renderer.resize();
   // The depth target is fixed for the life of this scene: AO, haze and the post chain all need it.
   const hasDepth = !!quality.renderer.depth;
