@@ -24,7 +24,8 @@ const { open, check, finish } = require('./lib.cjs');
     const w = E.find('~')[4]; const wetBefore = E.isWater(...w);
     E.player.pos = [E.cellPos[0], 0, E.cellPos[2]]; u.step(2); u.press('e'); u.step(2);
     E.player.pos = [...E.panelFront]; u.step(2); u.hold('e', true);
-    for (let i = 0; i < 30 && E.basin === 'full'; i++) { u.setState({ health: 1e6 }); u.step(15); } u.hold('e', false);
+    // This checks where the water goes, not the fight: the swarm that comes for you at the machine is cleared.
+    for (let i = 0; i < 30 && E.basin === 'full'; i++) { u.setState({ health: 1e6 }); E.blooms.forEach((b) => { b.active = false; }); u.step(15); } u.hold('e', false);
     return { wetBefore, basin: E.basin, wetAfter: E.isWater(...w), undertow: E.undertow.alive }; });
   check('draining the basin leaves dry floor between you and the dock, and no Undertow', r.wetBefore && r.basin === 'drained' && !r.wetAfter && !r.undertow, JSON.stringify(r));
   r = await page.evaluate(() => { const u = window.__underflow; u.events.board(); u.step(3); const dock = u.state.ride.items.find((i) => i.type === 'pool' && i.dock); const ex = dock.exits.find((e) => e.modded); return { label: ex?.sections?.[0]?.label }; });
@@ -37,7 +38,7 @@ const { open, check, finish } = require('./lib.cjs');
     // Start it, then let go: the crewmate at the machine keeps it turning.
     const f = E.followers.find((x) => x.k === 0); u.hold('e', true); u.step(10); u.hold('e', false);
     let seen = { took: 0, lamp: false };
-    for (let i = 0; i < 80 && E.basin === 'full'; i++) { f.pos = [...E.panelFront]; u.setState({ health: 1e6 }); const before = E.operating; u.step(10); if (E.operating > before) seen.took++; if (E.lifeguard.state !== 'watching') seen.lamp = true; }
+    for (let i = 0; i < 80 && E.basin === 'full'; i++) { f.pos = [...E.panelFront]; u.setState({ health: 1e6 }); E.blooms.forEach((b) => { b.active = false; }); const before = E.operating; u.step(10); if (E.operating > before) seen.took++; if (E.lifeguard.state !== 'watching') seen.lamp = true; }
     return { ...seen, basin: E.basin }; });
   check('at pump control a crewmate keeps the diverter turning and the lamp leaves the tower', r.took > 3 && r.lamp && r.basin === 'bypass', JSON.stringify(r));
   r = await page.evaluate(() => { const u = window.__underflow, E = window.__explore;

@@ -742,7 +742,8 @@ export function settingsView(onChange) {
   check(audio, 'binaural');
 
   // Save files (storage.js): the campaign, settings and the facility's memory as one compressed file, and back.
-  const saves = group('SAVE FILES');
+  const saves = iface; // in the Interface group: the settings keep their six categories
+  saves.append(el('h4', 'sheet-sub', 'Save files'));
   const note = el('p', 'note', 'Keep a copy of your campaign, or move it to another browser.');
   const exp = el('button', 'choice', 'EXPORT SAVE FILE');
   exp.onclick = async () => { const r = await exportSave(); note.textContent = `Saved a ${Math.max(1, Math.round(r.bytes / 1024))} KB file${r.compressed ? ' (compressed)' : ''}.`; };
