@@ -28,7 +28,10 @@ const { open, newCampaign, check, finish } = require('./lib.cjs');
   const back = await page.evaluate(() => ({ ...window.__wake, wake: window.__underflow.platform().wake }));
   check('the screen is kept awake while a run is played, asked for once, and let go on the menu',
     menu.wake === 'off' && riding.wake === 'on' && riding.requests === menu.requests + 1 && back.wake === 'off' && back.releases === riding.releases + 1, JSON.stringify({ menu, riding, back }));
-  const saved = await page.evaluate(async () => { const u = window.__underflow; u.setState({ endless: false }); u.saveCheckpoint(); await new Promise((r) => setTimeout(r, 300)); return u.platform().persist; });
+  const saved = await page.evaluate(async () => { const u = window.__underflow; u.setState({ endless: false }); u.saveCheckpoint();
+    // The browser answers in its own time; wait for the answer (up to 5 s) rather than a fixed 300 ms.
+    for (let i = 0; i < 50 && u.platform().persist === 'asking'; i++) await new Promise((r) => setTimeout(r, 100));
+    return u.platform().persist; });
   check('after a save the game asks once for persistent storage', ['granted', 'denied', 'unsupported'].includes(saved), saved);
   const lock = await page.evaluate(async () => { window.__underflow.requestLock(); await new Promise((r) => setTimeout(r, 100)); return { args: window.__lockArgs, raw: window.__underflow.platform().rawMouse }; });
   check('the pointer lock asks for raw, unaccelerated mouse movement', lock.args.some((a) => a && a.unadjustedMovement === true) && lock.raw === 'on', JSON.stringify(lock));
