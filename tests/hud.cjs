@@ -32,7 +32,7 @@ const { open, newCampaign, check, finish } = require('./lib.cjs');
     const row = () => document.getElementById('vitals').parentElement.classList.contains('rest');
     const whole = row(); const p = [...E.player.pos], y = E.player.yaw;
     const b = E.spawnBloom([p[0] + Math.cos(y) * 0.6, 1.3, p[2] - Math.sin(y) * 0.6], false); let burst = false;
-    for (let k = 0; k < 4 && !burst; k++) { E.player.pos = [...p]; E.player.yaw = y; u.step(1); burst = !b.active; }
+    const at = [...b.pos]; for (let k = 0; k < 40 && !burst; k++) { E.player.pos = [...p]; E.player.yaw = y; b.pos = [...at]; u.step(1); burst = !b.active; } // the burst has a wind-up now
     const side = Number(document.getElementById('damage-arcs').dataset.last), shown = !row();
     u.setState({ health: 100 }); for (let k = 0; k < 6; k++) u.step(50); const rests = row();
     u.setState({ health: 60 }); for (let k = 0; k < 6; k++) u.step(50); const hurt = !row();
