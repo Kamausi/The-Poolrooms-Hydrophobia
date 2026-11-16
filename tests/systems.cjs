@@ -155,6 +155,19 @@ const { open, newCampaign, check, finish } = require('./lib.cjs');
     E.thread[1].cut = true; for (let k = 0; k < 10; k++) u.step(15);
     return { swing: +(Math.max(...ys) - Math.min(...ys)).toFixed(4), afloat: +afloat.toFixed(3), sunk: +E.thread[1][1].toFixed(3) }; });
   check('over water the Ariadne thread floats and rides the ripples; cut, it sinks to the pool floor', r.none || (r.swing > 0.0005 && r.afloat > -0.95 && r.sunk < r.afloat - 0.1), JSON.stringify(r));
+  r = await page.evaluate(() => { const u = window.__underflow; const out = {};
+    for (const [label, stay] of [['stay', true], ['step', false]]) {
+      u.beginSector(0); u.startRide(); u.startExplore(); u.setState({ health: 100 }); u.step(2);
+      const E = window.__explore; E.blooms.forEach((b) => { b.active = false; });
+      const me = [...E.player.pos]; E.spawnBloom([me[0] + 0.6, 1.2, me[2]]); const b = E.blooms.find((x) => x.active);
+      // Somewhere open about 2.5 m away to step to once it starts to swell.
+      const away = [[-2.5, 0], [0, 2.5], [0, -2.5], [2.5, 0]].map(([dx, dz]) => [me[0] + dx, me[1], me[2] + dz]).find((p) => !E.isWall(...E.cellOf(p[0], p[2])) && Math.hypot(p[0] - me[0] - 0.6, p[2] - me[2]) > 2.3);
+      let wound = false; const h0 = u.state.health;
+      for (let k = 0; k < 40; k++) { E.player.pos = stay || !wound ? [...me] : [...away]; if (!wound) b.pos = [me[0] + 0.6, 1.2, me[2]]; u.step(1); if (b.windup) wound = true; if (!b.active || (!stay && wound && !b.windup)) break; }
+      out[label] = { wound, lost: +(h0 - u.state.health).toFixed(1), burst: E.burstDamage, windup: E.burstWindup };
+    }
+    return out; });
+  check('on foot a Bloom swells before it bursts: stay and it costs the sector burst damage (8 in the first attraction), step away and it costs nothing', r.stay.wound && Math.abs(r.stay.lost - r.stay.burst) < 0.5 && r.stay.burst === 8 && r.step.wound && r.step.lost === 0 && r.stay.windup >= 0.5, JSON.stringify(r));
   r = await page.evaluate(() => { const u = window.__underflow; u.beginSector(2); u.startRide(); u.setState({ health: 1e6 }); u.step(3); const R = window.__ride;
     R.spawnEnc('climber'); u.step(1); let both = 0, climbed = !!R.coop.climber, slotHeld = R.budget.holds('climber');
     for (let k = 0; k < 120; k++) { if (k % 20 === 0) R.spawnEnc('crewGrab'); u.setState({ health: 1e6 }); u.step(1); if (R.coop.climber && R.coop.crewGrab) both++; }

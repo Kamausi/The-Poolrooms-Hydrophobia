@@ -1331,7 +1331,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     // What it does with that (pursuit.js): it never reads where you really are once it has lost you; it goes to
     // where it last sensed you, searches there, then drifts back to the grate it came out of.
     if (b) b.pur = createPursuit({ home: [...pos], profile: 'bloom' });
-    if (b) Object.assign(b, { active: true, pos: [...pos], hp: 2 + (sector.index > 3 ? 1 : 0), phase: random() * 6, dying: 0, stagger: 0, flash: 0, retreat: false, ch: [1, 1], dormant, waking: 0, lunge: 0, woken: false, floorY: pos[1] });
+    if (b) Object.assign(b, { active: true, pos: [...pos], hp: 2 + (sector.index > 3 ? 1 : 0), phase: random() * 6, dying: 0, stagger: 0, flash: 0, windup: 0, retreat: false, ch: [1, 1], dormant, waking: 0, lunge: 0, woken: false, floorY: pos[1] });
     return b;
   };
   // Placed Blooms wait collapsed on the floor: a heap of wet vinyl, a dropped jacket. Close enough, it breathes in.
@@ -3094,6 +3094,8 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
 
   // Who may commit an attack (pressure.js): two melee slots, three in the deep sectors. The rest circle.
   const budget = createBudget({ extra: { melee: sector.index >= 5 ? 1 : 0 } });
+  /** A Bloom burst on foot: 8 health in the first attraction, rising by 2 a level to 14; the wind-up before it. */
+  const burstDamage = Math.min(14, 8 + 2 * sector.index), burstWindup = sector.index === 0 ? 0.8 : sector.index < 3 ? 0.65 : 0.5;
   function updateBlooms(dt, eye) {
     budget.tick(dt);
     for (const b of blooms) if (b.commit && (!b.active || b.dying || b.dormant)) { b.commit = false; budget.release(b); }
@@ -3180,7 +3182,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
         // After the peak, survivors sink back into the grates.
         b.pos = add(b.pos, [0, -dt * 1.2, 0]);
         if (b.pos[1] < -0.5) b.active = false;
-      } else if (!b.stagger) {
+      } else if (!b.stagger && !b.windup) { // a Bloom swelling to burst holds where it is: that is the tell
         // Swarm movement: close in, but spread around you instead of queueing in one line.
         // Freshly filled, it launches: a short fast lunge before it settles into the swarm's pace.
         b.lunge = Math.max(0, b.lunge - dt);
@@ -3212,12 +3214,22 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
         const at = add(core, add(scale(sideV, sg * (0.22 + 0.2 * f) * pulse / 0.45), [0, (k ? -0.08 : 0.06) - (1 - f) * 0.25, 0]));
         writeYaw(lb.matrix, at, b.phase * 0.4, (0.1 + 0.16 * f) * pulse / 0.45, (0.05 + 0.19 * f) * pulse / 0.45, (0.08 + 0.13 * f) * pulse / 0.45);
       });
-      if (d < 1) {
-        b.active = false;
-        sound.burst();
-        events.damage(14, 'A Bloom burst against you.', false, bearing(player.yaw, player.pos, b.pos));
-        flashes.flash(b.pos, { color: [0.77, 0.35, 0.31], intensity: 6, range: 5, life: 0.18 });
-        jolt(1);
+      // Contact is telegraphed, as on the raft: a Bloom that reaches you swells and gasps before it bursts, so you can
+      // step back or stagger it with a shot. The wind-up is longest, and the burst weakest, in the first attractions.
+      if (d < 1.1 && !b.windup && !b.stagger) { b.windup = 0.001; sound.breath(panTo(b.pos)); b.flash = 0.15; }
+      if (b.windup) {
+        b.windup += dt;
+        writeYaw(b.core.matrix, core, b.phase * 0.4, pulse * (1 + b.windup), pulse * (1 + b.windup) * 0.92, pulse * (1 + b.windup));
+        b.heart.material.emission = 4 + 10 * b.windup;
+        if (b.stagger || d > 2.2) b.windup = 0; // shot or stepped away from: it deflates and comes again
+        else if (b.windup >= burstWindup) {
+          b.windup = 0;
+          b.active = false;
+          sound.burst();
+          if (d < 1.8) events.damage(burstDamage, 'A Bloom burst against you.', false, bearing(player.yaw, player.pos, b.pos));
+          flashes.flash(b.pos, { color: [0.77, 0.35, 0.31], intensity: 6, range: 5, life: 0.18 });
+          jolt(d < 1.8 ? 1 : 0.4);
+        }
       }
     }
   }
@@ -3752,7 +3764,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     for (let i = 0; i < (r.valves || 0); i++) { const v = pumpValves.find((x) => x.id === valveOrder[i]); if (v) v.open = true; }
     valveStep = r.valves || 0;
   }
-  if (import.meta.env.DEV) window.__explore = { parts, camRig, takenCells, rows, thread, threadParts, ripGrid, ripPart, get ripCell() { return ripCell; }, routeTo, get W() { return W; }, get H() { return H; }, isWall, cellOf, center, wetMarks: wet, wetParts, waterField: field, ringParts, caustics, waterLevel, stir, jolt, effects, get blown() { return blown; }, flashes, frameEnv: () => lastEnv, marcos, get marcoApart() { return marcoApart; }, mirror: () => mirrorSurface && detachMirror && { height: mirrorSurface.height, parts: mirrorSurface.partIndices.length, key: mirrorKey }, models: () => parts.filter((p) => p.model).map((p) => ({ model: p.model, name: p.name, at: [p.matrix[12], p.matrix[13], p.matrix[14]] })), flashes, budget, wave: (n, f) => wave(n, f), lineOfSight, get remembered() { return remembered; }, get chain() { return lastChain; }, get eyeExposure() { return eyeExposure; }, renderer, get driftSigns() { return driftSigns; }, get wedges() { return lastWedges; }, survey, get surveyCoverage() { return surveyCoverage(survey, surveyOpen); }, surveyOpen, omen: (k) => startFomen(k), circuit, setEmergency, setBlackout, get blackout() { return blackout; }, signParts, get resetT() { return resetT; }, get emergency() { return emergency; }, blocked, isWall, finds, found, get lampPlaced() { return lampPlaced; }, lights: () => gatherLights(add(player.pos, [0, 1.6, 0])), get hesitation() { return hesitation; }, get lastOmen() { return lastFomen; }, get marcoAct() { return marcoAct; }, set marcoAct(v) { marcoAct = v; }, marcos, columns, wavePool, get basin() { return basin; }, isWater, floorTop, get operating() { return operating; }, set operating(v) { operating = v; }, panelFront, holdT, shoot, spawnBloom, occupant, lockers, noise, violate, get omenState() { return fomen; }, door, blooms, lamps, director, followers, get dockKind() { return dockKind; }, get valves() { return { order: valveOrder, step: valveStep, list: pumpValves }; }, june: juneEvent, thread, get clock() { return clock; }, stagnant, player, center, undertow, lifeguard, cellPos, panelPos, raftPos, code, find, floaters, restorePower };
+  if (import.meta.env.DEV) window.__explore = { parts, camRig, takenCells, burstDamage, burstWindup, rows, thread, threadParts, ripGrid, ripPart, get ripCell() { return ripCell; }, routeTo, get W() { return W; }, get H() { return H; }, isWall, cellOf, center, wetMarks: wet, wetParts, waterField: field, ringParts, caustics, waterLevel, stir, jolt, effects, get blown() { return blown; }, flashes, frameEnv: () => lastEnv, marcos, get marcoApart() { return marcoApart; }, mirror: () => mirrorSurface && detachMirror && { height: mirrorSurface.height, parts: mirrorSurface.partIndices.length, key: mirrorKey }, models: () => parts.filter((p) => p.model).map((p) => ({ model: p.model, name: p.name, at: [p.matrix[12], p.matrix[13], p.matrix[14]] })), flashes, budget, wave: (n, f) => wave(n, f), lineOfSight, get remembered() { return remembered; }, get chain() { return lastChain; }, get eyeExposure() { return eyeExposure; }, renderer, get driftSigns() { return driftSigns; }, get wedges() { return lastWedges; }, survey, get surveyCoverage() { return surveyCoverage(survey, surveyOpen); }, surveyOpen, omen: (k) => startFomen(k), circuit, setEmergency, setBlackout, get blackout() { return blackout; }, signParts, get resetT() { return resetT; }, get emergency() { return emergency; }, blocked, isWall, finds, found, get lampPlaced() { return lampPlaced; }, lights: () => gatherLights(add(player.pos, [0, 1.6, 0])), get hesitation() { return hesitation; }, get lastOmen() { return lastFomen; }, get marcoAct() { return marcoAct; }, set marcoAct(v) { marcoAct = v; }, marcos, columns, wavePool, get basin() { return basin; }, isWater, floorTop, get operating() { return operating; }, set operating(v) { operating = v; }, panelFront, holdT, shoot, spawnBloom, occupant, lockers, noise, violate, get omenState() { return fomen; }, door, blooms, lamps, director, followers, get dockKind() { return dockKind; }, get valves() { return { order: valveOrder, step: valveStep, list: pumpValves }; }, june: juneEvent, thread, get clock() { return clock; }, stagnant, player, center, undertow, lifeguard, cellPos, panelPos, raftPos, code, find, floaters, restorePower };
 
   /** ?show=: put the dock into a fixed, readable state for screenshots and visual review. */
   function showcase(name) {
