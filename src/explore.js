@@ -54,6 +54,7 @@ import { documentFor } from './documents.js';
 import { createDirector, AFTERMATH } from './ai/director.js';
 import { compressorRefill } from './hull.js';
 import { facility as facilityMem, saveFacility, recordSurvey, surveyMem } from './memory.js';
+import { chooseDirective, judge as judgeDirective, nextTrust, placeName, createLearning } from './ai/attendant.js';
 import { plan as planFinds, collect as collectFind, headcountLine } from './collectibles.js';
 import { planColumns, pushOutOfColumns, columnBlocks, planArches } from './poolrooms.js';
 import { showModal, hideModal } from './ui.js';
@@ -1417,6 +1418,61 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     else if (kind === 'name') { sound.gurgle(); setTimeout(() => { hud.say('VOICE · THE DRAIN', `${state.name}?`, 'voice'); hud.caption('[your own voice, calling your name, from the drain]'); }, 1200); hud.hush(12); }
   }
   function endFomen() { if (fomen?.kind === 'silence') sound.release(); fomen = null; fomenCool = 40 + random() * 35; }
+  // ---------- The Attendant acts (ai/attendant.js) ----------
+  // Instructions over the public address that the facility then acts on. Most are honest. Once you have done as told
+  // twice running, one may be false, and a false one always gets the number of guests wrong. Following a false one
+  // costs you (the lights here go, or something is waiting where it sent you); ignoring any instruction costs nothing.
+  const attendantAI = { trust: 0, lastFalse: false, d: null, t: 0, held: 0, at: null, cool: 35 + random() * 15, issued: 0, lies: 0, caught: 0 };
+  const learning = createLearning();
+  let learnedSeen = false;
+  const guestsHere = () => 1 + followers.filter((f) => !f.gone && !(state.forgotten || []).includes(f.id)).length;
+  function issueDirective(force = {}) {
+    const near = floorCells.filter(([x, z]) => { const c = center(x, z); const dd = Math.hypot(c[0] - player.pos[0], c[2] - player.pos[2]); return dd > 10 && dd < 24; });
+    const cell = near.length ? near[Math.floor(random() * near.length)] : null;
+    const place = cell ? (() => { const c = center(...cell); return { pos: [c[0], floorTop(...cell), c[2]], name: placeName(c[0] - player.pos[0], c[2] - player.pos[2]) }; })() : null;
+    const d = chooseDirective({ trust: attendantAI.trust, lastFalse: attendantAI.lastFalse, sectorIndex: sector.index, guests: guestsHere(), place, area: 'this hall', random, kind: force.kind ?? null, lie: force.lie ?? null });
+    attendantAI.d = d; attendantAI.t = 0; attendantAI.held = 0; attendantAI.at = [...player.pos]; attendantAI.issued++;
+    if (d.lie) attendantAI.lies++;
+    sound.chime?.();
+    hud.say('THE ATTENDANT', d.text, 'attendant', true);
+    return d;
+  }
+  function updateAttendant(dt, calm) {
+    const A = attendantAI, d = A.d;
+    if (!d) {
+      if (!calm || fomen || state.downed) return;
+      if ((A.cool -= dt) > 0) return;
+      issueDirective();
+      return;
+    }
+    A.t += dt;
+    const near = Math.hypot(player.pos[0] - A.at[0], player.pos[2] - A.at[2]) < 2.5;
+    if (d.kind === 'wait' && near) A.held += dt;
+    const outcome = judgeDirective(d, { held: A.held, t: A.t, moved: d.kind === 'wait' && !near, distance: d.pos ? Math.hypot(player.pos[0] - d.pos[0], player.pos[2] - d.pos[2]) : Infinity });
+    if (!outcome) return;
+    if (outcome === 'complied' && d.lie) {
+      // It was wrong about how many of you there are, and you did as it said.
+      if (d.kind === 'wait') {
+        if (!fomen && lamps.some((l) => !l.broken && distance(l.pos, player.pos) < 22)) startFomen('lights');
+        else { hud.caption('[the lights in this hall go out, then come back on]'); director.omen(0.3, 10); }
+      } else {
+        spawnBloom(add(d.pos, [1.5, 1.2, 0]));
+        hud.caption('[nobody from the staff. Something was waiting where it sent you]');
+      }
+      events.facility?.('attendant-lie-followed');
+    } else if (outcome === 'complied') {
+      hud.say('THE ATTENDANT', 'Thank you.', 'attendant');
+    } else if (d.lie) {
+      A.caught++;
+      hud.say('THE ATTENDANT', 'Thank you for your patience.', 'attendant'); // it carries on as if you had
+    }
+    A.trust = d.lie ? 0 : nextTrust(A.trust, outcome);
+    A.lastFalse = d.lie;
+    A.outcome = outcome;
+    A.d = null;
+    A.cool = 50 + random() * 30;
+  }
+
   function updateFomens(dt, ask) {
     // Door bookkeeping that outlives any one omen.
     if (door) {
@@ -1935,7 +1991,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
       habits.observe({ dt, scanning: !!input.scanning, speed: sp, hurt: Math.max(0, habHealth - state.health), still: stillT > 8 });
       habLast = [player.pos[0], player.pos[2]]; habHealth = state.health;
     }
-    if (aiView && (aiViewT -= dt) <= 0) { aiViewT = 0.25; aiView.textContent = describeAI({ blooms, lifeguard, followers, habits: habits.h, phase: director.phase, me: player.pos }); }
+    if (aiView && (aiViewT -= dt) <= 0) { aiViewT = 0.25; aiView.textContent = describeAI({ blooms, lifeguard, followers, habits: habits.h, attendant: attendantAI, learned: learning.s, phase: director.phase, me: player.pos }); }
     const fromRaft = Math.hypot(raftPos[0] - player.pos[0], raftPos[2] - player.pos[2]);
     const driftRate = (water ? 0.6 + Math.min(2.4, waterT * 0.12) : 0.08) + (stillT > 6 ? 0.8 : 0) + (fromRaft > 34 ? 0.35 : 0) + (litHere ? 0 : 0.5);
     // A dry pack: out of the water, Drift does not rise while it lasts.
@@ -2298,6 +2354,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
 
     runDirector(dt, eye);
     updateFomens(dt, ask);
+    updateAttendant(dt, director.phase === 'relax' && !(lifeguard && lifeguard.state !== 'watching') && !(undertow.alive && undertow.holding > 0));
     voices(dt);
 
     let scanText = '';
@@ -2983,7 +3040,8 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
       return;
     }
     if (!rules.waves) { tidal.forEach((t) => hide(t.part)); return; }
-    waveT += dt;
+    // In an authored silence the wave machine stops with every other pump, and sends nothing in.
+    if (fomen?.kind !== 'silence') waveT += dt;
     const was = waveOn;
     waveOn = waveT % 14 > 9;
     if (waveOn && !was) {
@@ -3209,6 +3267,12 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
         // After the peak, survivors sink back into the grates.
         b.pos = add(b.pos, [0, -dt * 1.2, 0]);
         if (b.pos[1] < -0.5) b.active = false;
+      } else if (b.windup && b.creep && !b.stagger) {
+        // The exception (ai/attendant.js, learned behaviour): this one keeps coming while it swells.
+        const step = scale(normalize([to[0], 0, to[2]]), 4 * dt);
+        const next = add(b.pos, step);
+        if (!isWall(...cellOf(next[0], next[2]))) b.pos = next;
+        pushOutOfColumns(b.pos, columns, 0.4);
       } else if (!b.stagger && !b.windup) { // a Bloom swelling to burst holds where it is: that is the tell
         // Swarm movement: close in, but spread around you instead of queueing in one line.
         // Freshly filled, it launches: a short fast lunge before it settles into the swarm's pace.
@@ -3243,14 +3307,25 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
       });
       // Contact is telegraphed, as on the raft: a Bloom that reaches you swells and gasps before it bursts, so you can
       // step back or stagger it with a shot. The wind-up is longest, and the burst weakest, in the first attractions.
-      if (d < 1.1 && !b.windup && !b.stagger) { b.windup = 0.001; heard(b.pos, () => sound.breath(panTo(b.pos))); b.flash = 0.15; }
+      if (d < 1.1 && !b.windup && !b.stagger) {
+        b.windup = 0.001; heard(b.pos, () => sound.breath(panTo(b.pos))); b.flash = 0.15;
+        // Learned the tell? One Bloom per dock breaks it, and says so: it breathes in twice.
+        b.creep = learning.takeException();
+        if (b.creep) {
+          setTimeout(() => heard(b.pos, () => sound.breath(panTo(b.pos))), 300);
+          if (!learnedSeen) { learnedSeen = true; hud.caption('[it breathes in twice — and this one is still coming while it swells. Shoot it or run]'); }
+        }
+      }
       if (b.windup) {
         b.windup += dt;
         writeYaw(b.core.matrix, core, b.phase * 0.4, pulse * (1 + b.windup), pulse * (1 + b.windup) * 0.92, pulse * (1 + b.windup));
         b.heart.material.emission = 4 + 10 * b.windup;
-        if (b.stagger || d > 2.2) b.windup = 0; // shot or stepped away from: it deflates and comes again
+        if (b.stagger || d > (b.creep ? 5 : 2.2)) { // shot or stepped away from: it deflates and comes again
+          if (!b.stagger && !b.creep) learning.stepAway();
+          b.windup = 0; b.creep = false;
+        }
         else if (b.windup >= burstWindup) {
-          b.windup = 0;
+          b.windup = 0; b.creep = false;
           b.active = false;
           sound.burst();
           if (d < 1.8) events.damage(burstDamage, 'A Bloom burst against you.', false, bearing(player.yaw, player.pos, b.pos));
@@ -3791,7 +3866,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     for (let i = 0; i < (r.valves || 0); i++) { const v = pumpValves.find((x) => x.id === valveOrder[i]); if (v) v.open = true; }
     valveStep = r.valves || 0;
   }
-  if (import.meta.env.DEV) window.__explore = { parts, camRig, takenCells, habits, get fomen() { return fomen; }, startFomen: (k) => startFomen(k), burstDamage, burstWindup, rows, thread, threadParts, ripGrid, ripPart, get ripCell() { return ripCell; }, routeTo, get W() { return W; }, get H() { return H; }, isWall, cellOf, center, wetMarks: wet, wetParts, waterField: field, ringParts, caustics, waterLevel, stir, jolt, effects, get blown() { return blown; }, flashes, frameEnv: () => lastEnv, marcos, get marcoApart() { return marcoApart; }, mirror: () => mirrorSurface && detachMirror && { height: mirrorSurface.height, parts: mirrorSurface.partIndices.length, key: mirrorKey }, models: () => parts.filter((p) => p.model).map((p) => ({ model: p.model, name: p.name, at: [p.matrix[12], p.matrix[13], p.matrix[14]] })), flashes, budget, wave: (n, f) => wave(n, f), lineOfSight, get remembered() { return remembered; }, get chain() { return lastChain; }, get eyeExposure() { return eyeExposure; }, renderer, get driftSigns() { return driftSigns; }, get wedges() { return lastWedges; }, survey, get surveyCoverage() { return surveyCoverage(survey, surveyOpen); }, surveyOpen, omen: (k) => startFomen(k), circuit, setEmergency, setBlackout, get blackout() { return blackout; }, signParts, get resetT() { return resetT; }, get emergency() { return emergency; }, blocked, isWall, finds, found, get lampPlaced() { return lampPlaced; }, lights: () => gatherLights(add(player.pos, [0, 1.6, 0])), get hesitation() { return hesitation; }, get lastOmen() { return lastFomen; }, get marcoAct() { return marcoAct; }, set marcoAct(v) { marcoAct = v; }, marcos, columns, wavePool, get basin() { return basin; }, isWater, floorTop, get operating() { return operating; }, set operating(v) { operating = v; }, panelFront, holdT, shoot, spawnBloom, occupant, lockers, noise, violate, get omenState() { return fomen; }, door, blooms, lamps, director, followers, get dockKind() { return dockKind; }, get valves() { return { order: valveOrder, step: valveStep, list: pumpValves }; }, june: juneEvent, thread, get clock() { return clock; }, stagnant, player, center, undertow, lifeguard, cellPos, panelPos, raftPos, code, find, floaters, restorePower };
+  if (import.meta.env.DEV) window.__explore = { parts, camRig, takenCells, habits, attendant: attendantAI, issueDirective, learning, guestsHere, get fomen() { return fomen; }, startFomen: (k) => startFomen(k), burstDamage, burstWindup, rows, thread, threadParts, ripGrid, ripPart, get ripCell() { return ripCell; }, routeTo, get W() { return W; }, get H() { return H; }, isWall, cellOf, center, wetMarks: wet, wetParts, waterField: field, ringParts, caustics, waterLevel, stir, jolt, effects, get blown() { return blown; }, flashes, frameEnv: () => lastEnv, marcos, get marcoApart() { return marcoApart; }, mirror: () => mirrorSurface && detachMirror && { height: mirrorSurface.height, parts: mirrorSurface.partIndices.length, key: mirrorKey }, models: () => parts.filter((p) => p.model).map((p) => ({ model: p.model, name: p.name, at: [p.matrix[12], p.matrix[13], p.matrix[14]] })), flashes, budget, wave: (n, f) => wave(n, f), lineOfSight, get remembered() { return remembered; }, get chain() { return lastChain; }, get eyeExposure() { return eyeExposure; }, renderer, get driftSigns() { return driftSigns; }, get wedges() { return lastWedges; }, survey, get surveyCoverage() { return surveyCoverage(survey, surveyOpen); }, surveyOpen, omen: (k) => startFomen(k), circuit, setEmergency, setBlackout, get blackout() { return blackout; }, signParts, get resetT() { return resetT; }, get emergency() { return emergency; }, blocked, isWall, finds, found, get lampPlaced() { return lampPlaced; }, lights: () => gatherLights(add(player.pos, [0, 1.6, 0])), get hesitation() { return hesitation; }, get lastOmen() { return lastFomen; }, get marcoAct() { return marcoAct; }, set marcoAct(v) { marcoAct = v; }, marcos, columns, wavePool, get basin() { return basin; }, isWater, floorTop, get operating() { return operating; }, set operating(v) { operating = v; }, panelFront, holdT, shoot, spawnBloom, occupant, lockers, noise, violate, get omenState() { return fomen; }, door, blooms, lamps, director, followers, get dockKind() { return dockKind; }, get valves() { return { order: valveOrder, step: valveStep, list: pumpValves }; }, june: juneEvent, thread, get clock() { return clock; }, stagnant, player, center, undertow, lifeguard, cellPos, panelPos, raftPos, code, find, floaters, restorePower };
 
   /** ?show=: put the dock into a fixed, readable state for screenshots and visual review. */
   function showcase(name) {

@@ -57,6 +57,7 @@ Touch: left half of the screen moves, right half aims or looks, with buttons for
 - **Endless docks you haven't seen.** In endless mode each dock is a wave-function-collapse variation of its attraction's map, built in a worker while you ride and kept only if it passes the solvability rules.
 - **Options.** Headphone (HRTF) sound, an AgX tone curve, Doppler on things coming at you, save files you can export and import, and ride photos that survive a reload.
 - **Omens that answer you.** On foot, what comes next depends on what you have been doing: keep scanning and things happen outside the beam; rush and you hear your name; linger and the door handle turns, or the pumps simply stop and nothing happens at all. After a hard fight the omens hold off. Sounds from behind a wall come out muffled.
+- **An Attendant that acts.** On foot the public address tells you to wait, or to go somewhere, and the facility acts on it. Most instructions are honest. When it has the number of guests wrong, it is lying, and doing as it says will cost you; ignoring it never does. Learn to step back from a swelling Bloom, and one Bloom in that dock will keep coming.
 - **Saves that survive.** Saves carry a version and a checksum, a damaged one falls back to the previous checkpoint and says why, and saves from older builds are migrated.
 - **A picture that adapts.** Four quality tiers with an automatic mode that lowers the render scale, then thins mirrors, shadows, haze and particles before it drops a tier.
 
