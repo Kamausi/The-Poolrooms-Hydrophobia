@@ -10,7 +10,7 @@ The audit read the single-file release (`dist/HYDROPHOBIA.html`). That file is o
 
 | Recommendation | Status | Where | Test |
 |---|---|---|---|
-| Modular source, with the single file as an optional target | Already there. The source is 79 modules grouped by area. | `src/` | `npm run typecheck`, `tests/unit/` |
+| Modular source, with the single file as an optional target | Already there. The source is 80 modules grouped by area. | `src/` | `npm run typecheck`, `tests/unit/` |
 | Deterministic simulation | Already there for gameplay. The run seed is saved, and scene decoration has its own seeded stream. The remaining `Math.random` calls are cosmetic, or pick a fresh seed that is then saved. | `src/math.js` (`rng`) | `systems.cjs` |
 | Save integrity | **Built.** A save is an envelope holding the schema, build, time, checksum and state. Unversioned saves from older builds are migrated. A save is refused, with a reason, if it comes from a newer schema, its checksum fails, or the game can't use its state. The previous good save is kept as a backup and the menu says when it was used. | `src/savefile.js`, `src/main.js` | `savefile.test.js`, `platform.cjs` |
 | Performance attribution | **Built.** `?bench` reports time in scene update, rendering and audio, plus GPU time where the browser exposes it. | `src/debug/profile.js`, `src/debug/bench.js` | `timestep.test.js`, `platform.cjs` |
@@ -47,7 +47,7 @@ The audit's director table lists six player signals. Each row below is one signa
 | Stays in a supposedly safe area → unsettling evidence, no attack | **Built** (on foot). Lingering weights the slow omens: a door handle turning, a crack of light under a door, silence. | `src/ai/habits.js` | `habits.test.js` |
 | Weighted selection, cooldowns, protected recovery | **Built** | `src/ai/habits.js`, `src/explore.js` | `habits.test.js` |
 | Any of the above on the raft | **Not built.** The raft keeps its own director (dread, holds, attack slots). | | |
-| Drift as unreliable information, in three stages | **Partly there.** The crew notices Drift in three stages, signs change, the Floater becomes lucid, and the Attendant speaks to you by name. **Not built:** reflections that lag, footsteps that stop when watched, crew voices from impossible directions, corridors that change, false routes, a reflection that acts on its own. | `src/driftsign.js`, `src/explore.js` | `dread.cjs` |
+| Drift as unreliable information, in three stages | **Partly built.** The crew notices Drift in three stages, the Floater becomes lucid, and the Attendant speaks to you by name. From the low stage: **footsteps behind you that stop the moment you turn to look** (from Drift 30, not in the first attraction; nothing is there and nothing comes), and at high Drift **signs that change only while you are not looking at them** (puzzle signs never change). **Not built:** reflections that lag, crew voices from impossible directions, corridors that change, false routes, a reflection that acts on its own. | `src/driftsign.js`, `src/explore.js` | `dread.cjs`, `circuit.cjs`, `horror.cjs` |
 
 ## Section 5: enemy AI and encounters
 
@@ -55,8 +55,8 @@ The audit's director table lists six player signals. Each row below is one signa
 |---|---|---|---|
 | Perception memory, investigation, routing, recovery states | Already there: unaware, suspicious, investigate, observe, warn, pursue, search, return. | `src/ai/perception.js`, `src/ai/pursuit.js`, `src/ai/path.js` | `perception`/`pursuit`/`path` unit tests, `hunt.cjs` |
 | Utility scoring | Already there for which threat a crewmate shoots. Not for enemy actions. | `src/ai/utility.js` | `utility.test.js` |
-| A debug view of what each entity believes | **Built:** `?debug=ai`. It now includes the Attendant (trust, the current instruction and whether it is false) and how often the burst tell has been dodged. | `src/debug/aiview.js` | `aiview.test.js`, `horror.cjs` |
-| Three threat types: Observer, Pursuer, Attendant | Partly. The Blooms and the Lifeguard pursue, and the Attendant now acts (above). **No Observer** (something that watches from places you can't reach and moves when the line of sight breaks). | | |
+| A debug view of what each entity believes | **Built:** `?debug=ai`. It now includes the Attendant (trust, the current instruction and whether it is false), the Observer (where, how many moves, how long out of sight) and how often the burst tell has been dodged. | `src/debug/aiview.js` | `aiview.test.js`, `horror.cjs` |
+| Three threat types: Observer, Pursuer, Attendant | **Built, all three on foot.** The Blooms and the Lifeguard pursue; the Attendant acts (above). **The Observer**, from the third attraction on, once per dock: a still figure in staff colours that takes a place only where you are not looking and that can see you, stays while you watch it, and moves when it has been out of your sight for 1.5 s, when you come within 10 m, or after 40 s unnoticed. Each place is a little closer (never under 9 m). After four places it leaves. It never attacks and cannot be shot. | `src/ai/observer.js`, `src/explore.js` | `observer.test.js`, `horror.cjs` |
 | Not every threat vulnerable to the blaster | Already there in part. The Lifeguard is escaped by breaking its line of sight, not by shooting it. The Undertow is beaten through the water (shoot the still water, kick free). | `src/explore.js` | `hunt.cjs`, `systems.cjs` |
 
 ## Section 6: visuals
@@ -115,9 +115,8 @@ The audit's gate, as it wrote it. **0 of 12 verified**: every item needs unfamil
 ## Not built, all in one place
 
 - The Attendant opening and locking doors; the Attendant on the raft.
-- An Observer threat.
 - The two newest director signals, and the habit weighting, on the raft.
-- The audit's Drift effects: lagging reflections, footsteps that stop when watched, voices from impossible directions, changing corridors, false routes, an independent reflection.
+- The rest of the audit's Drift effects: lagging reflections, voices from impossible directions, changing corridors, false routes, an independent reflection.
 - Tiers of controls, and a controller-first usability pass.
 - The loop restructured around water flow, with a consequence stage at every dock.
 - A lighting style for each kind of space; the architectural credibility pass; water that breaks the facility's rules.

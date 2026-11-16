@@ -54,6 +54,7 @@ import { documentFor } from './documents.js';
 import { createDirector, AFTERMATH } from './ai/director.js';
 import { compressorRefill } from './hull.js';
 import { facility as facilityMem, saveFacility, recordSurvey, surveyMem } from './memory.js';
+import { createObserver, stepObserver, placeObserver, choosePerch } from './ai/observer.js';
 import { chooseDirective, judge as judgeDirective, nextTrust, placeName, createLearning } from './ai/attendant.js';
 import { plan as planFinds, collect as collectFind, headcountLine } from './collectibles.js';
 import { planColumns, pushOutOfColumns, columnBlocks, planArches } from './poolrooms.js';
@@ -575,27 +576,39 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     } else hud.caption('[the lights come back. The wall is a wall]');
     return true;
   }
-  // High Drift: the signs that are allowed to change are about you now. Swapped in place; nothing animates.
-  let driftSigns = false, driftSignsTold = false;
-  function setDriftSigns(v) {
-    driftSigns = v;
+  // High Drift: the signs that are allowed to change are about you now. Swapped in place, and only while you are not
+  // looking at them (the audit's low-Drift inconsistency): turn back and the sign you just read says something else.
+  // Nothing animates. Coming back down works the same way.
+  let driftSigns = false, driftSignsTold = false, driftSignT = 0;
+  function signSeen(m) {
+    const p = [m[12], m[13], m[14]];
+    if (angleTo(viewEye, viewDir, p) > 0.75) return false;
+    // A sign is on a wall: test the line to a point just in front of it, not into the tile.
+    const toEye = normalize(sub(viewEye, p));
+    return lineOfSight(viewEye, add(p, scale(toEye, 0.4)));
+  }
+  function tickDriftSigns() {
     let n = 0;
     for (const s of signParts) {
       if (!s.alt) continue;
-      if (v) {
-        if (s.part.matrix[13] < -100) continue; // not standing anywhere right now
+      if (driftSigns && !s.home) {
+        if (s.part.matrix[13] < -100 || signSeen(s.part.matrix)) continue; // not standing anywhere, or being looked at
         s.home = Float32Array.from(s.part.matrix);
         s.alt.matrix.set(s.home); hide(s.part); n += 1;
-      } else if (s.home) { s.part.matrix.set(s.home); hide(s.alt); s.home = null; }
+      } else if (!driftSigns && s.home) {
+        if (signSeen(s.alt.matrix)) continue;
+        s.part.matrix.set(s.home); hide(s.alt); s.home = null; n += 1;
+      }
     }
-    if (v && n && !driftSignsTold) {
+    if (driftSigns && n && !driftSignsTold) {
       driftSignsTold = true;
-      hud.caption('[the signs have your wristband number on them. All of them]');
+      hud.caption('[the sign you passed has your wristband number on it now. You did not see it change]');
       hud.say(followers[0]?.id.toUpperCase() || 'MARS', 'Don\'t read the signs. Read the map.', 'crew');
       events.ledger?.('changes', `${sector.name}: at high Drift the signs are addressed to you`);
     }
     return n;
   }
+  function setDriftSigns(v) { driftSigns = v; return tickDriftSigns(); }
   function setBlackout(v) {
     if (!circuit || v === blackout) return false;
     blackout = v;
@@ -702,6 +715,9 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     });
   }
   const omenFigure = createCrewFigure(P, 'visitor', ' standing at the far lamp', { ...VISITOR_LOOK, jacket: '#5d6461', vest: '#6d4a36' });
+  // The Observer (ai/observer.js): tall, still, dressed like staff. It has its own figure so it never steals an omen's.
+  const watcherFig = createCrewFigure(P, 'visitor', ' watching from the far end', { ...VISITOR_LOOK, jacket: '#3c4643', vest: '#3c4643', tall: 1.08, broad: 0.9 });
+  hideCrewFigure(watcherFig);
   const vestMat = { color: linear('#b46a3c'), metallic: 0, roughness: 0.65 };
   const cupMat = { color: [0.88, 0.88, 0.84], metallic: 0, roughness: 0.4 };
   // The same small details, in the same places relative to a wall: they will be here, and again later.
@@ -1418,6 +1434,82 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     else if (kind === 'name') { sound.gurgle(); setTimeout(() => { hud.say('VOICE · THE DRAIN', `${state.name}?`, 'voice'); hud.caption('[your own voice, calling your name, from the drain]'); }, 1200); hud.hush(12); }
   }
   function endFomen() { if (fomen?.kind === 'silence') sound.release(); fomen = null; fomenCool = 40 + random() * 35; }
+  // ---------- Low Drift: footsteps that stop when you look (the audit's first Drift stage) ----------
+  // From Drift 30, now and then: someone walking behind you, out of sight. Turn and look at where they are and they stop.
+  // Nothing is there. It brings nothing with it; it is information you cannot trust, not a threat.
+  let driftSteps = null, driftStepsT = 70 + random() * 30, driftStepsTold = false;
+  function startDriftSteps() {
+    const back = scale(forwardVec(), -1);
+    const cands = floorCells.map(([x, z]) => { const c = center(x, z); return [c[0], floorTop(x, z), c[2]]; })
+      .filter((p) => { const d = Math.hypot(p[0] - player.pos[0], p[2] - player.pos[2]); return d > 7 && d < 15 && ((p[0] - player.pos[0]) * back[0] + (p[2] - player.pos[2]) * back[2]) > d * 0.6; });
+    if (!cands.length) return null;
+    driftSteps = { at: cands[Math.floor(random() * cands.length)], t: 0, next: 0, n: 0, stopped: false };
+    return driftSteps;
+  }
+  function updateDriftSteps(dt, calm) {
+    if (!driftSteps) {
+      if (sector.index === 0 || state.drift < 30 || !calm || fomen) return;
+      if ((driftStepsT -= dt) > 0) return;
+      driftStepsT = 70 + random() * 40;
+      startDriftSteps();
+      return;
+    }
+    const D = driftSteps;
+    D.t += dt;
+    const where = add(D.at, [0, 1, 0]);
+    if (inViewNow(where) || angleTo(viewEye, viewDir, where) < 0.6) {
+      // Looked at: they stop, mid-stride.
+      D.stopped = true;
+      if (!driftStepsTold && D.n > 2) { driftStepsTold = true; hud.caption('[footsteps behind you. When you turn, they stop. Nobody there]'); }
+      driftSteps = null;
+      return;
+    }
+    if ((D.next -= dt) <= 0 && D.t < 8) { D.next = 0.55; D.n++; heard(D.at, () => sound.footstep(panTo(D.at), false)); }
+    if (D.t >= 8) driftSteps = null;
+  }
+
+  // ---------- The Observer (ai/observer.js) ----------
+  // From the third attraction on, once per dock: something that watches from where you cannot get to it, and is
+  // somewhere else when you look back. It never attacks and cannot be shot.
+  const watcher = createObserver();
+  let watcherT = 50 + random() * 30, watcherTold = 0;
+  const watcherHead = () => add(watcher.at, [0, 1.65, 0]);
+  const inViewNow = (p) => angleTo(viewEye, viewDir, p) < 0.75 && lineOfSight(viewEye, p);
+  function perchWatcher() {
+    const cands = floorCells.map(([x, z]) => { const c = center(x, z); return [c[0], floorTop(x, z), c[2]]; });
+    const at = choosePerch(cands, { me: player.pos, moves: watcher.moves, random, last: watcher.at,
+      inView: (p) => inViewNow(add(p, [0, 1.65, 0])), sees: (p) => lineOfSight(add(p, [0, 1.65, 0]), viewEye) });
+    if (!at) { watcher.mode = 'waiting'; watcherT = 3; hideCrewFigure(watcherFig); return false; }
+    placeObserver(watcher, at);
+    return true;
+  }
+  function updateObserver(dt, calm) {
+    if (sector.index < 2 || watcher.mode === 'gone') return;
+    if (watcher.mode === 'waiting') {
+      if (!calm || fomen || state.downed) return;
+      if ((watcherT -= dt) > 0) return;
+      perchWatcher();
+      return;
+    }
+    const head = watcherHead();
+    poseStanding(watcherFig, { feet: watcher.at, yaw: Math.atan2(player.pos[0] - watcher.at[0], player.pos[2] - watcher.at[2]), walk: 0, pace: 0 });
+    const looked = angleTo(viewEye, viewDir, head) < 0.35 && lineOfSight(viewEye, head);
+    const ev = stepObserver(watcher, { dt, looked, dist: Math.hypot(watcher.at[0] - player.pos[0], watcher.at[2] - player.pos[2]) });
+    if (ev === 'seen') {
+      watcherTold++;
+      hud.caption(watcherTold === 1 ? '[at the far end, someone in staff colours, standing still. Watching you]' : '[it is there again. Closer than before]');
+      director.omen(0.15, 6);
+      state.drift = Math.min(100, state.drift + 2);
+    } else if (ev === 'move') {
+      hideCrewFigure(watcherFig);
+      perchWatcher();
+    } else if (ev === 'leave') {
+      hideCrewFigure(watcherFig);
+      watcher.mode = 'gone';
+      if (watcherTold) hud.caption('[the far end is empty. Where it stood, the tiles are dry: the only dry tiles in the hall]');
+    }
+  }
+
   // ---------- The Attendant acts (ai/attendant.js) ----------
   // Instructions over the public address that the facility then acts on. Most are honest. Once you have done as told
   // twice running, one may be false, and a false one always gets the number of guests wrong. Following a false one
@@ -1455,9 +1547,12 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
       if (d.kind === 'wait') {
         if (!fomen && lamps.some((l) => !l.broken && distance(l.pos, player.pos) < 22)) startFomen('lights');
         else { hud.caption('[the lights in this hall go out, then come back on]'); director.omen(0.3, 10); }
-      } else {
-        spawnBloom(add(d.pos, [1.5, 1.2, 0]));
+      } else if (spawnBloom(add(d.pos, [1.5, 1.2, 0]))) {
         hud.caption('[nobody from the staff. Something was waiting where it sent you]');
+      } else {
+        // Every Bloom is already out: the lights here go instead.
+        if (!fomen && lamps.some((l) => !l.broken && distance(l.pos, player.pos) < 22)) startFomen('lights');
+        hud.caption('[nobody from the staff. The lights over the gallery go out, one by one]');
       }
       events.facility?.('attendant-lie-followed');
     } else if (outcome === 'complied') {
@@ -1991,7 +2086,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
       habits.observe({ dt, scanning: !!input.scanning, speed: sp, hurt: Math.max(0, habHealth - state.health), still: stillT > 8 });
       habLast = [player.pos[0], player.pos[2]]; habHealth = state.health;
     }
-    if (aiView && (aiViewT -= dt) <= 0) { aiViewT = 0.25; aiView.textContent = describeAI({ blooms, lifeguard, followers, habits: habits.h, attendant: attendantAI, learned: learning.s, phase: director.phase, me: player.pos }); }
+    if (aiView && (aiViewT -= dt) <= 0) { aiViewT = 0.25; aiView.textContent = describeAI({ blooms, lifeguard, followers, habits: habits.h, attendant: attendantAI, learned: learning.s, observer: watcher, phase: director.phase, me: player.pos }); }
     const fromRaft = Math.hypot(raftPos[0] - player.pos[0], raftPos[2] - player.pos[2]);
     const driftRate = (water ? 0.6 + Math.min(2.4, waterT * 0.12) : 0.08) + (stillT > 6 ? 0.8 : 0) + (fromRaft > 34 ? 0.35 : 0) + (litHere ? 0 : 0.5);
     // A dry pack: out of the water, Drift does not rise while it lasts.
@@ -2354,7 +2449,10 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
 
     runDirector(dt, eye);
     updateFomens(dt, ask);
-    updateAttendant(dt, director.phase === 'relax' && !(lifeguard && lifeguard.state !== 'watching') && !(undertow.alive && undertow.holding > 0));
+    const calmNow = director.phase === 'relax' && !(lifeguard && lifeguard.state !== 'watching') && !(undertow.alive && undertow.holding > 0);
+    updateAttendant(dt, calmNow);
+    updateObserver(dt, calmNow);
+    updateDriftSteps(dt, calmNow);
     voices(dt);
 
     let scanText = '';
@@ -2635,6 +2733,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     updateLamp(dt, eye, ask);
     updateSurvey();
     if (driftState(driftSigns, state.drift) !== driftSigns) setDriftSigns(!driftSigns);
+    else if ((driftSignT -= dt) <= 0) { driftSignT = 0.25; tickDriftSigns(); }
     if (attendant0417T > 0 && (attendant0417T -= dt) <= 0) hud.say('THE ATTENDANT', 'Thank you. The item removed from Locker 0417 has been returned.', 'attendant', true);
     // Where you stand still the longest: the Safe Room window remembers it.
     if (sector.chapter) { const sp = Math.hypot(player.pos[0] - (lastStill?.[0] ?? 0), player.pos[2] - (lastStill?.[2] ?? 0)); if (sp < 0.3) { stillHere += dt; if (stillHere > (state.hesitation?.t || 0)) state.hesitation = { t: stillHere, near: nearestFeature(player.pos) }; } else { stillHere = 0; lastStill = [...player.pos]; } }
@@ -3866,7 +3965,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     for (let i = 0; i < (r.valves || 0); i++) { const v = pumpValves.find((x) => x.id === valveOrder[i]); if (v) v.open = true; }
     valveStep = r.valves || 0;
   }
-  if (import.meta.env.DEV) window.__explore = { parts, camRig, takenCells, habits, attendant: attendantAI, issueDirective, learning, guestsHere, get fomen() { return fomen; }, startFomen: (k) => startFomen(k), burstDamage, burstWindup, rows, thread, threadParts, ripGrid, ripPart, get ripCell() { return ripCell; }, routeTo, get W() { return W; }, get H() { return H; }, isWall, cellOf, center, wetMarks: wet, wetParts, waterField: field, ringParts, caustics, waterLevel, stir, jolt, effects, get blown() { return blown; }, flashes, frameEnv: () => lastEnv, marcos, get marcoApart() { return marcoApart; }, mirror: () => mirrorSurface && detachMirror && { height: mirrorSurface.height, parts: mirrorSurface.partIndices.length, key: mirrorKey }, models: () => parts.filter((p) => p.model).map((p) => ({ model: p.model, name: p.name, at: [p.matrix[12], p.matrix[13], p.matrix[14]] })), flashes, budget, wave: (n, f) => wave(n, f), lineOfSight, get remembered() { return remembered; }, get chain() { return lastChain; }, get eyeExposure() { return eyeExposure; }, renderer, get driftSigns() { return driftSigns; }, get wedges() { return lastWedges; }, survey, get surveyCoverage() { return surveyCoverage(survey, surveyOpen); }, surveyOpen, omen: (k) => startFomen(k), circuit, setEmergency, setBlackout, get blackout() { return blackout; }, signParts, get resetT() { return resetT; }, get emergency() { return emergency; }, blocked, isWall, finds, found, get lampPlaced() { return lampPlaced; }, lights: () => gatherLights(add(player.pos, [0, 1.6, 0])), get hesitation() { return hesitation; }, get lastOmen() { return lastFomen; }, get marcoAct() { return marcoAct; }, set marcoAct(v) { marcoAct = v; }, marcos, columns, wavePool, get basin() { return basin; }, isWater, floorTop, get operating() { return operating; }, set operating(v) { operating = v; }, panelFront, holdT, shoot, spawnBloom, occupant, lockers, noise, violate, get omenState() { return fomen; }, door, blooms, lamps, director, followers, get dockKind() { return dockKind; }, get valves() { return { order: valveOrder, step: valveStep, list: pumpValves }; }, june: juneEvent, thread, get clock() { return clock; }, stagnant, player, center, undertow, lifeguard, cellPos, panelPos, raftPos, code, find, floaters, restorePower };
+  if (import.meta.env.DEV) window.__explore = { parts, camRig, takenCells, habits, signSeen, watcher, perchWatcher, watcherFig, startDriftSteps, get driftSteps() { return driftSteps; }, attendant: attendantAI, issueDirective, learning, guestsHere, get fomen() { return fomen; }, startFomen: (k) => startFomen(k), burstDamage, burstWindup, rows, thread, threadParts, ripGrid, ripPart, get ripCell() { return ripCell; }, routeTo, get W() { return W; }, get H() { return H; }, isWall, cellOf, center, wetMarks: wet, wetParts, waterField: field, ringParts, caustics, waterLevel, stir, jolt, effects, get blown() { return blown; }, flashes, frameEnv: () => lastEnv, marcos, get marcoApart() { return marcoApart; }, mirror: () => mirrorSurface && detachMirror && { height: mirrorSurface.height, parts: mirrorSurface.partIndices.length, key: mirrorKey }, models: () => parts.filter((p) => p.model).map((p) => ({ model: p.model, name: p.name, at: [p.matrix[12], p.matrix[13], p.matrix[14]] })), flashes, budget, wave: (n, f) => wave(n, f), lineOfSight, get remembered() { return remembered; }, get chain() { return lastChain; }, get eyeExposure() { return eyeExposure; }, renderer, get driftSigns() { return driftSigns; }, get wedges() { return lastWedges; }, survey, get surveyCoverage() { return surveyCoverage(survey, surveyOpen); }, surveyOpen, omen: (k) => startFomen(k), circuit, setEmergency, setBlackout, get blackout() { return blackout; }, signParts, get resetT() { return resetT; }, get emergency() { return emergency; }, blocked, isWall, finds, found, get lampPlaced() { return lampPlaced; }, lights: () => gatherLights(add(player.pos, [0, 1.6, 0])), get hesitation() { return hesitation; }, get lastOmen() { return lastFomen; }, get marcoAct() { return marcoAct; }, set marcoAct(v) { marcoAct = v; }, marcos, columns, wavePool, get basin() { return basin; }, isWater, floorTop, get operating() { return operating; }, set operating(v) { operating = v; }, panelFront, holdT, shoot, spawnBloom, occupant, lockers, noise, violate, get omenState() { return fomen; }, door, blooms, lamps, director, followers, get dockKind() { return dockKind; }, get valves() { return { order: valveOrder, step: valveStep, list: pumpValves }; }, june: juneEvent, thread, get clock() { return clock; }, stagnant, player, center, undertow, lifeguard, cellPos, panelPos, raftPos, code, find, floaters, restorePower };
 
   /** ?show=: put the dock into a fixed, readable state for screenshots and visual review. */
   function showcase(name) {

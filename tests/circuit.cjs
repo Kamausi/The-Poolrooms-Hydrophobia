@@ -60,11 +60,32 @@ const { open, newCampaign, check, finish } = require('./lib.cjs');
   check('with the power out a Bloom that has not committed loses you while your lamp is off, and comes when you light it', r.blind && r.stayed < 0.5 && r.seen && r.d1 < r.d0 - 1, JSON.stringify(r));
   r = await page.evaluate(() => { const u = window.__underflow, E = window.__explore; E.blooms.forEach((b) => { b.active = false; });
     const elig = E.signParts.filter((s) => s.alt), shown = (p) => p.matrix[13] > -100;
+    const visible = (s) => shown(s.part) ? s.part : s.alt;
+    const turn = () => { E.player.yaw += Math.PI; u.step(12); };
     u.setState({ health: 1e6, drift: 0 }); u.step(2); const before = { on: E.driftSigns, alt: elig.filter((s) => shown(s.alt)).length, own: elig.filter((s) => shown(s.part)).length };
-    u.setState({ health: 1e6, drift: 80 }); u.step(2); const high = { on: E.driftSigns, alt: elig.filter((s) => shown(s.alt)).length, own: elig.filter((s) => shown(s.part)).length, kept: E.signParts.filter((s) => !s.alt && shown(s.part)).length };
+    // Face a sign, so at least one is in view when Drift rises.
+    const placed = elig.filter((s) => shown(s.part));
+    let tries = 0;
+    for (const t of placed) {
+      const tp = [t.part.matrix[12], t.part.matrix[13], t.part.matrix[14]];
+      const spots = E.find('.').map(([x, z]) => E.center(x, z)).filter((c) => { const d = Math.hypot(c[0] - tp[0], c[2] - tp[2]); return d > 2 && d < 9; });
+      for (const c of spots.slice(0, 8)) {
+        E.player.pos = [c[0], E.player.pos[1], c[2]];
+        E.player.yaw = Math.atan2(-(tp[0] - c[0]), -(tp[2] - c[2]));
+        u.step(1); tries++;
+        if (E.signSeen(t.part.matrix)) break;
+      }
+      if (E.signSeen(t.part.matrix)) break;
+    }
+    const watched = placed.filter((s) => E.signSeen(s.part.matrix));
+    u.setState({ health: 1e6, drift: 80 }); u.step(12);
+    const watchedKept = watched.filter((s) => shown(s.part)).length;
+    turn(); turn();
+    const high = { on: E.driftSigns, watched: watched.length, watchedKept, alt: elig.filter((s) => shown(s.alt)).length, own: elig.filter((s) => shown(s.part)).length, kept: E.signParts.filter((s) => !s.alt && shown(s.part)).length };
     u.setState({ health: 1e6, drift: 60 }); u.step(2); const held = E.driftSigns;
-    u.setState({ health: 1e6, drift: 20 }); u.step(2); const after = { on: E.driftSigns, alt: elig.filter((s) => shown(s.alt)).length, own: elig.filter((s) => shown(s.part)).length };
-    return { n: elig.length, total: E.signParts.length, before, high, held, after }; });
-  check('at high Drift the signs that may change are swapped for ones about you; puzzle signs stay, and it lifts when Drift falls', r.n > 0 && !r.before.on && r.before.alt === 0 && r.high.on && r.high.alt === r.before.own && r.high.own === 0 && r.high.kept > 0 && r.held && !r.after.on && r.after.alt === 0 && r.after.own === r.before.own, JSON.stringify(r));
+    u.setState({ health: 1e6, drift: 20 }); u.step(12); turn(); turn();
+    const after = { on: E.driftSigns, alt: elig.filter((s) => shown(s.alt)).length, own: elig.filter((s) => shown(s.part)).length };
+    return { n: elig.length, total: E.signParts.length, before, high, held, after, visibleNow: elig.filter((s) => E.signSeen(visible(s).matrix)).length }; });
+  check('at high Drift the signs that may change are swapped for ones about you, never while you are looking at them; puzzle signs stay, and it lifts when Drift falls', r.n > 0 && !r.before.on && r.before.alt === 0 && r.high.on && r.high.watched > 0 && r.high.watchedKept === r.high.watched && r.high.alt === r.before.own && r.high.own === 0 && r.high.kept > 0 && r.held && !r.after.on && r.after.alt === 0 && r.after.own === r.before.own, JSON.stringify(r));
   await finish(browser, errors);
 })();

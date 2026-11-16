@@ -6,10 +6,14 @@
 const f1 = (v) => (typeof v === 'number' ? v.toFixed(1) : '-');
 const at = (p) => (p ? `${f1(p[0])},${f1(p[2])}` : '-');
 
-/** @param {{ blooms?: any[], lifeguard?: any, followers?: any[], habits?: any, attendant?: any, learned?: any, phase?: string, me?: number[] }} w */
+/** @param {{ blooms?: any[], lifeguard?: any, followers?: any[], habits?: any, attendant?: any, learned?: any, observer?: any, phase?: string, me?: number[] }} w */
 export function describeAI(w) {
   const lines = [`DIRECTOR ${w.phase || '-'}`];
   if (w.habits) lines.push(`PLAYER   scan ${f1(w.habits.scanning)} rush ${f1(w.habits.rushing)} hurt ${f1(w.habits.hurt)} linger ${f1(w.habits.lingering)}`);
+  if (w.observer && w.observer.mode !== 'waiting') {
+    const o = w.observer;
+    lines.push(`OBSERVER ${o.mode}${o.at && w.me ? ` ${f1(Math.hypot(o.at[0] - w.me[0], o.at[2] - w.me[2]))} m` : ''} · moves ${o.moves} · ${o.seen ? `seen, out of sight ${f1(o.lostT)}s` : `unnoticed ${f1(o.hereT)}s`}`);
+  }
   if (w.attendant) {
     const a = w.attendant, d = a.d;
     lines.push(`ATTENDANT trust ${a.trust} · ${d ? `${d.kind}${d.lie ? ' (FALSE: says ' + d.count + ' guests)' : ''} ${f1(a.t)}s` : `next in ${Math.max(0, a.cool).toFixed(0)}s`}${w.learned ? ` · burst dodged ${w.learned.stepAways}x${w.learned.spent ? ', exception used' : ''}` : ''}`);
