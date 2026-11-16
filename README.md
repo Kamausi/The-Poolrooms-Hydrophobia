@@ -31,18 +31,22 @@ The game needs a browser with WebGL2. On a machine without a GPU it switches to 
 | Disruption burst | F | LB |
 | Boost / run | Shift | RB |
 | Look back (raft) | Hold X | R3 |
-| Brake (flumes, tubes) | S | — |
+| Brake (flumes, tubes) · backstroke while paddling | S | Left stick back |
 | Paddle (blaster down) · prod on foot | Hold V | L3 (toggle) |
 | Find a leak, patch it, pump it up | Hold G | D-pad down |
 | Blaster profile (Pulse, Repeater, Scatter, Disruptor, Hook) | 1–5, Tab, wheel | D-pad right |
 | Focus / magnify (Disruptor: acquire a volley) | Hold right click | Left trigger |
 | Shove | Z | Tap B |
 | Ping / radio check | B or middle click | D-pad left |
-| Recharge · dressing · Ride Control | R · H · T | D-pad up · Select · — |
+| Recharge · dressing | R · H | D-pad up · Select (tap) |
+| Ride Control · hand over the helm | T · Y | Select + X · Select + Y |
+| Maintenance override (at a locked gate) | O | Select + A |
 | Holding pools | Shoot an arrow · Space depart · E moor | |
 | Pause and settings | Esc | Start |
+| On foot: work lamp off/white/UV · set it down/pick it up · survey map | L · K · M | D-pad down · Select + B · R3 |
+| Menus and dialogs | Arrows, Enter, Esc | D-pad or left stick, A to choose, B to go back, left/right for sliders |
 
-Every key can be rebound in Settings; paddle and brace can be toggles; steering sensitivity and camera motion are adjustable.
+Every key can be rebound in Settings, and so can the controller's main buttons; paddle and brace can be toggles; steering sensitivity and camera motion are adjustable. A controller needs no mouse at all: on foot you can look, fire and scan without clicking into the window. `tests/gamepad.cjs` plays a whole session on an emulated controller; no physical controller has been tried.
 
 Touch: left half of the screen moves, right half aims or looks, with buttons for fire, scan, burst, use and boost. Aim assist snaps to targets near your finger.
 

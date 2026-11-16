@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { padTables } from '../../src/padmap.js';
+import { padTables, CHORDS, SELECT, chordLabel } from '../../src/padmap.js';
 
 const M = { hop: 0, use: 2, burst: 4, boost: 5, dressing: 8, paddle: 10, lookback: 11, recharge: 12, patch: 13, ping: 14, cycle: 15 };
 
@@ -16,5 +16,16 @@ describe('controller tables by context', () => {
     const a = padTables('ride', M), b = padTables('explore', M);
     for (const k of [0, 2, 4, 9, 12, 8, 15]) expect(a.edge[k]).toBe(b.edge[k]);
     expect(padTables('explore', { ...M, lookback: 3 }).edge[3]).toBe('m');
+  });
+  it('with dressing on Select, it fires on release and Select doubles as the chord button', () => {
+    expect(padTables('ride', M).dressingOnRelease).toBe(true);
+    expect(padTables('ride', M).edge[SELECT]).toBeUndefined();
+    const moved = padTables('ride', { ...M, dressing: 14 });
+    expect(moved.dressingOnRelease).toBe(false); expect(moved.edge[14]).toBe('h');
+  });
+  it('the chords cover the actions that have no button of their own', () => {
+    const keys = Object.values(CHORDS).map(([k]) => k).sort();
+    expect(keys).toEqual(['k', 'o', 't', 'y']);
+    expect(chordLabel('helm')).toBe('Select + Y'); expect(chordLabel('hop')).toBeNull();
   });
 });

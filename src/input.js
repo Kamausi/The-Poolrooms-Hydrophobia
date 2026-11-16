@@ -1,7 +1,7 @@
 // Keyboard, mouse, pointer lock and touch, collected into one state object read once per frame.
 // Rebinding: the game reads each action's default key; settings.bindings maps the physical key onto it.
 import { lockPointer } from './platform.js';
-import { padTables } from './padmap.js';
+import { padTables, CHORDS, SELECT, chordLabel } from './padmap.js';
 import { settings, ACTIONS } from './settings.js';
 
 let remap = new Map(); // physical → default key
@@ -201,7 +201,9 @@ function setupTouch() {
 // Controller (Gamepad API). Left stick steers or moves; right stick aims (raft) or looks (on foot).
 // Defaults: RT fire · LT lock/focus · A hop · B brace (tap: shove) · X use · Y scan · LB burst · RB boost
 // R3 look back · L3 paddle (toggle) · D-pad up recharge · D-pad down patch · D-pad left ping · D-pad right next
-// profile · Select dressing · Start pause. The actions in PAD_ACTIONS can be rebound (settings.padBindings).
+// profile · Select dressing (on release) · Start pause. Hold Select for the chords (padmap.js CHORDS): Select+A maintenance
+// override, Select+B set the lamp down / pick it up, Select+X Ride Control, Select+Y hand over the helm. Pull the left
+// stick back to brake (or backstroke while paddling). The actions in PAD_ACTIONS can be rebound (settings.padBindings).
 // Menus, the pause screen and Safe Rooms are fully navigable: D-pad or left stick to move, A to choose,
 // B to go back, left/right to change sliders and options.
 export const PAD_ACTIONS = [
@@ -212,7 +214,7 @@ export const PAD_ACTIONS = [
 export const PAD_NAMES = ['A', 'B', 'X', 'Y', 'LB', 'RB', 'LT', 'RT', 'Select', 'Start', 'L3', 'R3', 'D-pad up', 'D-pad down', 'D-pad left', 'D-pad right'];
 const padMap = () => Object.fromEntries(PAD_ACTIONS.map(([id, , def]) => [id, settings.padBindings?.[id] ?? def]));
 const prev = [];
-let bDown = 0;
+let bDown = 0, chordUsed = false;
 const navPrev = { up: false, down: false, left: false, right: false, a: false, b: false };
 
 function visibleOverlay() {
@@ -241,7 +243,11 @@ function navigate(overlay, pad, b) {
     else focus(i + dir);
   }
   if (edge('a') && el && items.includes(el)) el.click();
-  if (edge('b')) input.pressed.add('escape');
+  if (edge('b')) {
+    // In a dialog, B is its own way out when it has one (ui.js marks it); otherwise it is Escape.
+    const back = overlay.id === 'modal' && overlay.querySelector('#modal-actions [data-back]');
+    if (back) back.click(); else input.pressed.add('escape');
+  }
   if (b(9) && !prev[9]) input.pressed.add('escape');
   Object.assign(navPrev, now);
 }
@@ -279,22 +285,27 @@ export function pollGamepad(dt) {
     input.look[0] += rx * dt * 700;
     input.look[1] += ry * dt * 500;
   }
+  // Select held: the face buttons are chords (padmap.js CHORDS), not their usual actions.
+  const sel = b(SELECT);
+  const face = (i) => (sel && CHORDS[i] ? false : b(i));
+  if (sel) for (const [i, [k]] of Object.entries(CHORDS)) if (b(+i) && !prev[i]) { input.pressed.add(k); chordUsed = true; }
   input.firing = b(7) || (pad.buttons[7]?.value || 0) > 0.4;
   input.lockHeld = b(6) || (pad.buttons[6]?.value || 0) > 0.4;
-  if (!settings.braceToggle) input.braceHeld = b(1);
+  if (!settings.braceToggle) input.braceHeld = face(1);
   // A tap of B is a shove; holding it is a brace.
-  if (b(1)) bDown += dt;
+  if (face(1)) bDown += dt;
   else if (bDown > 0) { if (bDown < 0.2) input.pressed.add('z'); if (settings.braceToggle && bDown < 0.2) input.braceHeld = !input.braceHeld; bDown = 0; }
-  input.scanHeld = b(3);
+  input.scanHeld = face(3);
   const T = padTables(input.context === 'explore' ? 'explore' : 'ride', M);
-  input.patchHeld = T.patchHeld && b(M.patch);
-  if (b(M.paddle) && !prev[M.paddle]) input.paddleHeld = !input.paddleHeld;
+  if (!sel && prev[SELECT]) { if (T.dressingOnRelease && !chordUsed) input.pressed.add('h'); chordUsed = false; }
+  input.patchHeld = T.patchHeld && face(M.patch);
+  if (face(M.paddle) && !prev[M.paddle]) input.paddleHeld = !input.paddleHeld;
   if (input.firing && input.paddleHeld && input.context === 'ride') input.paddleHeld = false;
   // Ping is held, not pressed: a tap pings, a hold opens the callout strip. The tables differ on foot (padmap.js).
   const EDGE = T.edge, HOLD = T.hold;
   if (input.context === 'explore') input.keys.delete('x');
-  for (const [i, k] of Object.entries(EDGE)) if (b(+i) && !prev[i]) input.pressed.add(k);
-  for (const [i, k] of Object.entries(HOLD)) b(+i) ? input.keys.add(k) : prev[i] && input.keys.delete(k);
+  for (const [i, k] of Object.entries(EDGE)) if (face(+i) && !prev[i]) input.pressed.add(k);
+  for (const [i, k] of Object.entries(HOLD)) face(+i) ? input.keys.add(k) : prev[i] && input.keys.delete(k);
   pad.buttons.forEach((x, i) => (prev[i] = x.pressed));
 }
 
@@ -303,6 +314,13 @@ export function bindingLabel(id) {
   if (input.pad) {
     const pa = PAD_ACTIONS.find(([a]) => a === id);
     if (pa) return PAD_NAMES[settings.padBindings?.[id] ?? pa[2]];
+    const chord = chordLabel(id);
+    if (chord) return chord;
+    // On foot two raft buttons do other jobs (padmap.js): patch cycles the lamp, look-back opens the map.
+    const alias = { lamp: 'patch', map: 'lookback' }[id];
+    if (alias) { const a = PAD_ACTIONS.find(([x]) => x === alias); return PAD_NAMES[settings.padBindings?.[alias] ?? a[2]]; }
+    const fixed = { scan: 'Y', brace: 'hold B', shove: 'tap B', paddle: 'L3', forward: 'left stick', back: 'left stick back', left: 'left stick', right: 'left stick' }[id];
+    if (fixed) return fixed;
   }
   const def = ACTIONS.find(([a]) => a === id)?.[2];
   const k = settings.bindings?.[id] || def || id;

@@ -31,6 +31,8 @@ export function showModal(title, body, actions, label = 'FIELD MANUAL') {
   for (const [text, fn, primary] of actions) {
     const b = el('button', primary ? 'primary' : '', text);
     b.onclick = fn;
+    // A plain way out (B on a controller, Escape on a keyboard presses it). A committing action is never one.
+    if (/^(BACK|CLOSE|DONE|CANCEL|RESUME)\b/i.test(text)) b.dataset.back = '1';
     bar.append(b);
   }
   $('modal').hidden = false;

@@ -14,7 +14,7 @@ import { createRide } from './ride.js';
 import { createExplore } from './explore.js';
 import { createSafeRoom } from './saferoom.js';
 import { createMenuScene } from './menuscene.js';
-import { initInput, input, endFrame, releaseLock, requestLock, wasPressed, pollGamepad } from './input.js';
+import { initInput, input, endFrame, releaseLock, requestLock, wasPressed, pollGamepad, bindingLabel } from './input.js';
 import { initHud, hud } from './hud.js';
 import { sound } from './audio/audio.js';
 import { quality, setTier, applyQualitySetting } from './render/quality.js';
@@ -1044,6 +1044,7 @@ function frame(now) {
   if (mode !== 'ride' && mode !== 'explore') hud.wedges([]);
   if (mode !== 'explore') hud.survey(null);
   input.context = mode === 'explore' ? 'explore' : 'ride';
+  if (!$('modal').hidden && wasPressed('escape')) $('modal-actions').querySelector('[data-back]')?.click(); // a dialog's own way out
   if ($('modal').hidden && (wasPressed('escape') || wasPressed('p')) && now - pausedAt > 250) setPaused(!paused);
   if (mode === 'menu' && $('modal').hidden && !$('start-menu').hidden && wasPressed('escape')) showMenuList('main');
   if (scene && !paused && !manual && (mode === 'ride' || mode === 'explore' || mode === 'safe' || mode === 'menu')) {
@@ -1141,7 +1142,7 @@ window.__underflow = {
   get scene() { return scene; },
   startExplore, enterSafeRoom, startRide, newCampaign, startEndless, beginSector, events, startChallenge, startCustom, parseRoute, expeditionRecord,
   setState(patch) { Object.assign(state, patch); },
-  platform: platformStatus, sound, profile: () => profiler.report(), get stepsLast() { return stepsLast; }, toMenu, saveCheckpoint, requestLock, loadSave, get saveNotice() { return saveNotice; }, SAVE_KEY, RESUME_KEY, storage: () => import('./storage.js'),
+  platform: platformStatus, sound, input, bindingLabel, profile: () => profiler.report(), get stepsLast() { return stepsLast; }, toMenu, saveCheckpoint, requestLock, loadSave, get saveNotice() { return saveNotice; }, SAVE_KEY, RESUME_KEY, storage: () => import('./storage.js'),
   settings, quality, setTier,
   /** Tests: drive the render scale directly, and read what it is. */
   setResScale(k) { applyResScale(k); return resScale; },

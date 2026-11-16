@@ -44,7 +44,7 @@ import { signMaterial, quad } from './labels.js';
 import { createBlaster, PROFILES, PROFILE_ORDER } from './blaster.js';
 import { createCrewFigure, hideCrewFigure, poseStanding, poseProne, VISITOR_LOOK } from './crewfigure.js';
 import { createCallouts } from './callouts.js';
-import { input, wasPressed, isDown, requestLock } from './input.js';
+import { input, wasPressed, isDown, requestLock, bindingLabel } from './input.js';
 import { hud } from './hud.js';
 import { sound } from './audio/audio.js';
 import { quality } from './render/quality.js';
@@ -2508,7 +2508,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     voices(dt);
 
     let scanText = '';
-    if (input.scanning && (input.locked || input.touch)) {
+    if (input.scanning && (input.locked || input.touch || input.pad)) {
       blaster.showScan(true, blaster.muzzle(eye, target, dir), add(eye, scale(dir, Math.min(30, rayWorld(eye, dir)))));
       scanText = scanTick(dt, eye, dir);
       state.visible = true;
@@ -2520,11 +2520,11 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     hud.scan(scanText);
 
     if (wasPressed('r')) blaster.recharge();
-    if (!input.locked && !input.touch && (input.firing || input.scanning)) requestLock();
+    if (!input.locked && !input.touch && !input.pad && (input.firing || input.scanning)) requestLock();
     for (const id of PROFILE_ORDER) if (wasPressed(PROFILES[id].key)) { state.profile = id; hud.toast(`${PROFILES[id].label} · ${PROFILES[id].job}`); }
     if (wasPressed('tab') || wasPressed('cycle-')) { state.profile = PROFILE_ORDER[(PROFILE_ORDER.indexOf(state.profile || 'pulse') + (wasPressed('tab') ? 1 : 4)) % 5]; hud.toast(PROFILES[state.profile].label); }
     if (state.downed) state.profile = 'pulse';
-    if (blaster.trigger(dt, input.firing && (input.locked || input.touch) && healing <= 0, false)) {
+    if (blaster.trigger(dt, input.firing && (input.locked || input.touch || input.pad) && healing <= 0, false)) {
       const P0 = PROFILES[state.profile] || PROFILES.pulse;
       const base = state.damage;
       state.damage = base * P0.damage * (state.downed ? 0.6 : 1);
@@ -2552,7 +2552,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     if (wasPressed('f')) burst(eye);
     blaster.place(eye, target, dir, swayY * 0.4);
 
-    if (!input.locked && !input.touch) ask(0, 'CLICK to look around');
+    if (!input.locked && !input.touch && !input.pad) ask(0, 'CLICK to look around');
     prompts.sort((a, b) => b[0] - a[0]);
     hud.prompt(prompts[0]?.[1] || '');
     // Reticle: brackets while something can be used; an arc while the machine is held.
@@ -2953,7 +2953,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
   /** The work lamp, each frame: cycle (L), set down or pick up (K), drain, recharge at the raft. */
   function updateLamp(dt, eye, ask) {
     const lamp = state.lamp;
-    if (!lampTold) { lampTold = true; hud.toast('WORK LAMP · L: off / white / UV · K: set it down or pick it up'); }
+    if (!lampTold) { lampTold = true; hud.toast(`WORK LAMP · ${bindingLabel('lamp')}: off / white / UV · ${bindingLabel('lampPlace')}: set it down or pick it up`); }
     if (wasPressed('l')) { lamp.mode = (lamp.mode + 1) % 3; sound.switchOn(); hud.toast(lamp.charge <= 0 ? 'WORK LAMP · NO CHARGE · the raft recharges it' : ['WORK LAMP OFF', 'WORK LAMP · WHITE', 'WORK LAMP · UV'][lamp.mode]); }
     if (wasPressed('k')) {
       if (lampPlaced && Math.hypot(lampPlaced[0] - player.pos[0], lampPlaced[2] - player.pos[2]) < 2.2) { lampPlaced = null; hud.toast('LAMP PICKED UP'); }
