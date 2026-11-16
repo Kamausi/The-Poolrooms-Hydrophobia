@@ -723,6 +723,10 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
   const movedSign = M('wetFloorSign', 'Wet floor sign (somewhere you passed)');
   const hideMoved = () => { if (movedSign) (movedSign.group || [movedSign]).forEach(hide); };
   hideMoved();
+  // High Drift: the parts of a doorway that is not there (placed on a wall face when it shows).
+  const falseGap = P('False doorway', slab, { color: [0.012, 0.014, 0.016], metallic: 0, roughness: 1, emission: 0.02 });
+  const falseLintel = P('False doorway frame', slab, { color: linear('#3c3a36'), metallic: 0.3, roughness: 0.7 });
+  hide(falseGap); hide(falseLintel);
   const vestMat = { color: linear('#b46a3c'), metallic: 0, roughness: 0.65 };
   const cupMat = { color: [0.88, 0.88, 0.84], metallic: 0, roughness: 0.4 };
   // The same small details, in the same places relative to a wall: they will be here, and again later.
@@ -1439,6 +1443,55 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     else if (kind === 'name') { sound.gurgle(); setTimeout(() => { hud.say('VOICE · THE DRAIN', `${state.name}?`, 'voice'); hud.caption('[your own voice, calling your name, from the drain]'); }, 1200); hud.hush(12); }
   }
   function endFomen() { if (fomen?.kind === 'silence') sound.release(); fomen = null; fomenCool = 40 + random() * 35; }
+  // ---------- High Drift: a false route (the audit's third stage) ----------
+  // Once per dock, from Drift 70, while you are not looking: a doorway in a wall, dark beyond, the way on that is not on
+  // the survey. It is still a wall. Walk up to it and your hand is flat on tile, and the doorway is gone. Only the
+  // picture lies: collision, routing and the survey map are untouched.
+  const falseDoor = (() => {
+    const cands = [];
+    for (let z = 0; z < H; z++) for (let x = 0; x < W; x++) {
+      if (at(x, z) !== '#' || !wallParts.has(`${x},${z}`) || (eCell && x === eCell[0] && z === eCell[1])) continue;
+      for (const [dx, dz] of DIRS) if (at(x + dx, z + dz) === '.' && Math.abs(x + dx - dx0) + Math.abs(z + dz - dz0) > 2) cands.push([x, z, dx, dz]);
+    }
+    return { cands, gap: falseGap, lintel: falseLintel, cell: null, face: null, shown: false, done: false };
+  })();
+  function showFalseDoor(force = false) {
+    const F = falseDoor;
+    if (F.shown || F.done || !F.cands.length) return false;
+    const faceOf = ([x, z, dx, dz]) => { const c = center(x, z); return [c[0] + dx * (CELL / 2 + 0.012), 1.05, c[2] + dz * (CELL / 2 + 0.012)]; };
+    const ok = F.cands.filter((k) => { const f = faceOf(k), d = Math.hypot(f[0] - player.pos[0], f[2] - player.pos[2]); return d > 5 && d < 22 && (force || !inViewNow(f)); });
+    if (!ok.length) return false;
+    const k = ok[Math.floor(random() * ok.length)];
+    const f = faceOf(k), yaw = Math.atan2(k[2], k[3]);
+    writeYaw(F.gap.matrix, f, yaw, 1.15, 2.1, 0.02);
+    writeYaw(F.lintel.matrix, [f[0] + k[2] * 0.005, 2.14, f[2] + k[3] * 0.005], yaw, 1.35, 0.12, 0.03);
+    Object.assign(F, { cell: [k[0], k[1]], face: f, shown: true });
+    return true;
+  }
+  function closeFalseDoor(told) {
+    const F = falseDoor;
+    if (!F.shown) return;
+    hide(F.gap); hide(F.lintel);
+    F.shown = false;
+    if (told) {
+      F.done = true;
+      hud.caption('[tile. Your hand is flat on tile. There was never a doorway here]');
+      director.omen(0.2, 6);
+      jolt(0.3);
+      events.ledger?.('changes', `${sector.name}: at high Drift a doorway showed where there was only wall`);
+    }
+  }
+  function updateFalseDoor() {
+    const F = falseDoor;
+    if (F.done || sector.index === 0) return;
+    const high = driftStage(state.drift) === 'high';
+    if (!F.shown) { if (high) showFalseDoor(); return; }
+    // You reach the wall where the doorway seemed to be.
+    if (Math.hypot(player.pos[0] - F.face[0], player.pos[2] - F.face[2]) < 1.1) return closeFalseDoor(true);
+    // Drift has come down: the wall is plain again, but only once you are not looking.
+    if (state.drift < 55 && !inViewNow(F.face)) closeFalseDoor(false);
+  }
+
   // ---------- Moderate Drift (ai/driftfx.js): a voice from the wrong side; an object on a spot you already passed ----------
   const trail = []; let trailT = 0;
   const moved = { at: null, moves: 0, noticed: false, cool: 15 + random() * 15, sightings: 0 };
@@ -2505,6 +2558,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     updateObserver(dt, calmNow);
     updateDriftSteps(dt, calmNow);
     updateModerateDrift(dt, calmNow);
+    updateFalseDoor();
     voices(dt);
 
     let scanText = '';
@@ -4017,7 +4071,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     for (let i = 0; i < (r.valves || 0); i++) { const v = pumpValves.find((x) => x.id === valveOrder[i]); if (v) v.open = true; }
     valveStep = r.valves || 0;
   }
-  if (import.meta.env.DEV) window.__explore = { parts, camRig, takenCells, habits, get time() { return time; }, signSeen, moved, placeMoved, wrongVoice, movedSign, trail, watcher, perchWatcher, watcherFig, startDriftSteps, get driftSteps() { return driftSteps; }, attendant: attendantAI, issueDirective, learning, guestsHere, get fomen() { return fomen; }, startFomen: (k) => startFomen(k), burstDamage, burstWindup, rows, thread, threadParts, ripGrid, ripPart, get ripCell() { return ripCell; }, routeTo, get W() { return W; }, get H() { return H; }, isWall, cellOf, center, wetMarks: wet, wetParts, waterField: field, ringParts, caustics, waterLevel, stir, jolt, effects, get blown() { return blown; }, flashes, frameEnv: () => lastEnv, marcos, get marcoApart() { return marcoApart; }, mirror: () => mirrorSurface && detachMirror && { height: mirrorSurface.height, parts: mirrorSurface.partIndices.length, key: mirrorKey }, models: () => parts.filter((p) => p.model).map((p) => ({ model: p.model, name: p.name, at: [p.matrix[12], p.matrix[13], p.matrix[14]] })), flashes, budget, wave: (n, f) => wave(n, f), lineOfSight, get remembered() { return remembered; }, get chain() { return lastChain; }, get eyeExposure() { return eyeExposure; }, renderer, get driftSigns() { return driftSigns; }, get wedges() { return lastWedges; }, survey, get surveyCoverage() { return surveyCoverage(survey, surveyOpen); }, surveyOpen, omen: (k) => startFomen(k), circuit, setEmergency, setBlackout, get blackout() { return blackout; }, signParts, get resetT() { return resetT; }, get emergency() { return emergency; }, blocked, isWall, finds, found, get lampPlaced() { return lampPlaced; }, lights: () => gatherLights(add(player.pos, [0, 1.6, 0])), get hesitation() { return hesitation; }, get lastOmen() { return lastFomen; }, get marcoAct() { return marcoAct; }, set marcoAct(v) { marcoAct = v; }, marcos, columns, wavePool, get basin() { return basin; }, isWater, floorTop, get operating() { return operating; }, set operating(v) { operating = v; }, panelFront, holdT, shoot, spawnBloom, occupant, lockers, noise, violate, get omenState() { return fomen; }, door, blooms, lamps, director, followers, get dockKind() { return dockKind; }, get valves() { return { order: valveOrder, step: valveStep, list: pumpValves }; }, june: juneEvent, thread, get clock() { return clock; }, stagnant, player, center, undertow, lifeguard, cellPos, panelPos, raftPos, code, find, floaters, restorePower };
+  if (import.meta.env.DEV) window.__explore = { parts, camRig, takenCells, habits, falseDoor, showFalseDoor, wallParts, get time() { return time; }, signSeen, moved, placeMoved, wrongVoice, movedSign, trail, watcher, perchWatcher, watcherFig, startDriftSteps, get driftSteps() { return driftSteps; }, attendant: attendantAI, issueDirective, learning, guestsHere, get fomen() { return fomen; }, startFomen: (k) => startFomen(k), burstDamage, burstWindup, rows, thread, threadParts, ripGrid, ripPart, get ripCell() { return ripCell; }, routeTo, get W() { return W; }, get H() { return H; }, isWall, cellOf, center, wetMarks: wet, wetParts, waterField: field, ringParts, caustics, waterLevel, stir, jolt, effects, get blown() { return blown; }, flashes, frameEnv: () => lastEnv, marcos, get marcoApart() { return marcoApart; }, mirror: () => mirrorSurface && detachMirror && { height: mirrorSurface.height, parts: mirrorSurface.partIndices.length, key: mirrorKey }, models: () => parts.filter((p) => p.model).map((p) => ({ model: p.model, name: p.name, at: [p.matrix[12], p.matrix[13], p.matrix[14]] })), flashes, budget, wave: (n, f) => wave(n, f), lineOfSight, get remembered() { return remembered; }, get chain() { return lastChain; }, get eyeExposure() { return eyeExposure; }, renderer, get driftSigns() { return driftSigns; }, get wedges() { return lastWedges; }, survey, get surveyCoverage() { return surveyCoverage(survey, surveyOpen); }, surveyOpen, omen: (k) => startFomen(k), circuit, setEmergency, setBlackout, get blackout() { return blackout; }, signParts, get resetT() { return resetT; }, get emergency() { return emergency; }, blocked, isWall, finds, found, get lampPlaced() { return lampPlaced; }, lights: () => gatherLights(add(player.pos, [0, 1.6, 0])), get hesitation() { return hesitation; }, get lastOmen() { return lastFomen; }, get marcoAct() { return marcoAct; }, set marcoAct(v) { marcoAct = v; }, marcos, columns, wavePool, get basin() { return basin; }, isWater, floorTop, get operating() { return operating; }, set operating(v) { operating = v; }, panelFront, holdT, shoot, spawnBloom, occupant, lockers, noise, violate, get omenState() { return fomen; }, door, blooms, lamps, director, followers, get dockKind() { return dockKind; }, get valves() { return { order: valveOrder, step: valveStep, list: pumpValves }; }, june: juneEvent, thread, get clock() { return clock; }, stagnant, player, center, undertow, lifeguard, cellPos, panelPos, raftPos, code, find, floaters, restorePower };
 
   /** ?show=: put the dock into a fixed, readable state for screenshots and visual review. */
   function showcase(name) {

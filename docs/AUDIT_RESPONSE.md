@@ -47,7 +47,7 @@ The audit's director table lists six player signals. Each row below is one signa
 | Stays in a supposedly safe area → unsettling evidence, no attack | **Built** (on foot). Lingering weights the slow omens: a door handle turning, a crack of light under a door, silence. | `src/ai/habits.js` | `habits.test.js` |
 | Weighted selection, cooldowns, protected recovery | **Built** | `src/ai/habits.js`, `src/explore.js` | `habits.test.js` |
 | Any of the above on the raft | **Not built.** The raft keeps its own director (dread, holds, attack slots). | | |
-| Drift as unreliable information, in three stages | **Partly built.** The crew notices Drift in three stages, the Floater becomes lucid, and the Attendant speaks to you by name. From the low stage: **footsteps behind you that stop the moment you turn to look** (from Drift 30, not in the first attraction; nothing is there and nothing comes), at the moderate stage (from Drift 50) **a crewmate's voice from the opposite side to where they stand**, with the caption naming both, and **a wet floor sign standing on a spot you walked past a minute ago**, placed and put away only while you are looking elsewhere; and at high Drift **signs that change only while you are not looking at them** (puzzle signs never change). **Not built:** reflections that lag, corridors that change, false routes, a reflection that acts on its own. | `src/driftsign.js`, `src/ai/driftfx.js`, `src/explore.js` | `dread.cjs`, `circuit.cjs`, `horror.cjs` |
+| Drift as unreliable information, in three stages | **Partly built.** The crew notices Drift in three stages, the Floater becomes lucid, and the Attendant speaks to you by name. From the low stage: **footsteps behind you that stop the moment you turn to look** (from Drift 30, not in the first attraction; nothing is there and nothing comes), at the moderate stage (from Drift 50) **a crewmate's voice from the opposite side to where they stand**, with the caption naming both, and **a wet floor sign standing on a spot you walked past a minute ago**, placed and put away only while you are looking elsewhere; and at high Drift **signs that change only while you are not looking at them** (puzzle signs never change) and **a false route**: once per dock, while you look elsewhere, a dark doorway appears in a wall; it is still a wall, and walking up to it you find tile, and the doorway is gone (collision, routing and the survey map are never changed). **Not built:** reflections that lag, corridors that change, a reflection that acts on its own. | `src/driftsign.js`, `src/ai/driftfx.js`, `src/explore.js` | `dread.cjs`, `circuit.cjs`, `horror.cjs` |
 
 ## Section 5: enemy AI and encounters
 
@@ -116,7 +116,7 @@ The audit's gate, as it wrote it. **0 of 12 verified**: every item needs unfamil
 
 - The Attendant opening and locking doors; the Attendant on the raft.
 - The two newest director signals, and the habit weighting, on the raft.
-- The rest of the audit's Drift effects: lagging reflections, changing corridors, false routes, an independent reflection.
+- The rest of the audit's Drift effects: lagging reflections, changing corridors, an independent reflection.
 - Tiers of controls, and a controller-first usability pass.
 - The loop restructured around water flow, with a consequence stage at every dock.
 - A lighting style for each kind of space; the architectural credibility pass; water that breaks the facility's rules.

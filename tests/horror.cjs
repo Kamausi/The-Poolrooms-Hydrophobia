@@ -181,5 +181,21 @@ const { open, newCampaign, check, finish, BASE } = require('./lib.cjs');
     return { placed, seen, stillThere, putAway, v, voiceCaption: document.getElementById('caption').textContent }; });
   check('at moderate Drift a sign stands on a spot you already passed, put there while you looked away, and is put away only while you are not looking', md.noModel || md.noSpot || (md.placed.at && md.placed.shown && !md.placed.noticed && md.seen.noticed && /walked/.test(md.seen.caption) && md.stillThere && md.putAway), JSON.stringify(md));
   check('a crewmate\'s voice comes from the opposite side to where they are, and the caption says both', md.noModel || md.noSpot || (md.v && md.v.fake !== md.v.real && md.voiceCaption.includes(md.v.fake) && md.voiceCaption.includes(md.v.real)), JSON.stringify(md));
+
+  // High Drift: a doorway that is not there. The wall stays a wall; walk into it and it is gone.
+  const fd = await page.evaluate(() => { const u = window.__underflow, E = window.__explore, F = E.falseDoor;
+    E.blooms.forEach((b) => { b.active = false; });
+    u.setState({ health: 1000, drift: 85 }); u.step(1);
+    if (!F.cands.length) return { none: true };
+    const opened = E.showFalseDoor(true) || F.shown; // at Drift 85 the game may already have shown it
+    const [x, z] = F.cell, shown = F.gap.matrix[13] > -100, solid = E.isWall(x, z);
+    // Walk up to it.
+    const toward = [F.face[0] - E.player.pos[0], F.face[2] - E.player.pos[2]];
+    E.player.yaw = Math.atan2(-toward[0], -toward[1]);
+    const start = [...E.player.pos];
+    for (let k = 1; k <= 30 && F.shown; k++) { E.player.pos = [start[0] + toward[0] * k / 30 * 0.97, start[1], start[2] + toward[1] * k / 30 * 0.97]; u.step(1); }
+    const hidden = shown, back = F.gap.matrix[13] < -100;
+    return { opened, hidden, solid, back, done: F.done, caption: document.getElementById('caption').textContent, stillWall: E.isWall(x, z) }; });
+  check('at high Drift a doorway shows in a wall, but it is still a wall; walk into it and the doorway is gone', !fd.none && (fd.opened && fd.hidden && fd.solid && fd.back && fd.done && fd.stillWall && /never a doorway/.test(fd.caption)), JSON.stringify(fd));
   await finish(browser, errors);
 })();
