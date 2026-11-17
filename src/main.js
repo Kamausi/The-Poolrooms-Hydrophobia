@@ -1157,6 +1157,19 @@ window.__underflow = {
     }
     quality.skipRender = false;
   },
+  /**
+   * Like step, but renders nothing. Frames rendered by step are never presented, and software GL holds on to them
+   * (about 1 MB each in headless Chromium), so long simulation-only tests use this instead.
+   */
+  sim(n, dt = 1 / 30) {
+    manual = true;
+    for (let i = 0; i < n && scene && !paused && ['ride', 'explore', 'safe', 'menu'].includes(mode); i++) {
+      quality.skipRender = true;
+      scene.update(dt);
+      endFrame();
+    }
+    quality.skipRender = false;
+  },
   press(key) { input.pressed.add(key); },
   hold(key, on) { on ? input.keys.add(key) : input.keys.delete(key); },
 };

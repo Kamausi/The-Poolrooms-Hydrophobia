@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { placeName, chooseDirective, judge, nextTrust, wrongCount, createLearning, TRUST_BEFORE_LIE, LEARNED_AFTER } from '../../src/ai/attendant.js';
+import { GATE_SECONDS, placeName, chooseDirective, judge, nextTrust, wrongCount, createLearning, TRUST_BEFORE_LIE, LEARNED_AFTER } from '../../src/ai/attendant.js';
 import { rng } from '../../src/math.js';
 
 const place = { name: 'the north gallery', pos: [10, 0, 2] };
@@ -35,6 +35,16 @@ describe('attendant', () => {
     expect(judge(p, { t: 50, distance: 20 })).toBe('ignored');
     expect(nextTrust(2, 'complied')).toBe(3);
     expect(nextTrust(4, 'ignored')).toBe(0);
+  });
+  it('near the raft it closes the boarding gate; waiting it out is doing as told, trying to board is not', () => {
+    const g = chooseDirective({ random: () => 0.5, guests: 2, nearExit: true, place });
+    expect(g.kind).toBe('gate');
+    expect(g.text).toMatch(/^Two guests, the boarding gate is closed/);
+    expect(judge(g, { t: 5 })).toBeNull();
+    expect(judge(g, { t: GATE_SECONDS })).toBe('complied');
+    expect(judge(g, { t: 3, tried: true })).toBe('ignored');
+    const lie = chooseDirective({ random: () => 0.5, guests: 2, nearExit: true, lie: true });
+    expect(lie.lie && lie.count !== 2).toBe(true);
   });
   it('names places by compass as the survey map draws them (north is up)', () => {
     expect(placeName(0, -10)).toBe('the north gallery');

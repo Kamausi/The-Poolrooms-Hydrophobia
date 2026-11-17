@@ -2,6 +2,9 @@
 // public address ("remain where you are while the gallery is serviced", "proceed to the north gallery") and the
 // facility then acts on them: it runs the lights, sends you places, keeps you still.
 //
+// Near the raft it can close the boarding gate: an honest closure really holds it shut for twenty seconds (it opens
+// at once if you are hurt), a false one is not closed at all, and the boarding prompt always says which.
+//
 // Most instructions are honest, and following one is safe. The audit's director signal "the player repeatedly trusts
 // facility instructions" is answered here: once you have followed two in a row, the next one may be false, and
 // following a false one has a consequence (the lights in your room go, or something is waiting where it sent you).
@@ -15,6 +18,8 @@
 // row, and ignoring an instruction, honest or not, costs nothing. Pure and unit-tested.
 
 export const DIRECTIVE_KINDS = ['wait', 'proceed'];
+/** Near the raft the Attendant can also close the boarding gate (an honest closure really holds it shut). */
+export const GATE_SECONDS = 20;
 
 /** How many times in a row the player must have done as told before an instruction can be false. */
 export const TRUST_BEFORE_LIE = 2;
@@ -42,8 +47,8 @@ export function placeName(dx, dz) {
  * one was a lie; `place` is { name, pos } for a proceed instruction (null when there is nowhere suitable).
  * Returns { kind, lie, count, text, pos?, seconds }.
  */
-export function chooseDirective({ trust = 0, lastFalse = false, sectorIndex = 0, guests = 1, place = null, area = 'the gallery', random = Math.random, kind: wantKind = null, lie: wantLie = null }) {
-  const kinds = place ? DIRECTIVE_KINDS : ['wait'];
+export function chooseDirective({ trust = 0, lastFalse = false, sectorIndex = 0, guests = 1, place = null, area = 'the gallery', random = Math.random, kind: wantKind = null, lie: wantLie = null, nearExit = false }) {
+  const kinds = nearExit ? ['gate'] : place ? DIRECTIVE_KINDS : ['wait'];
   const pickKind = kinds[Math.floor(random() * kinds.length)];
   const kind = wantKind && kinds.includes(wantKind) ? wantKind : pickKind; // `kind` and `lie` force a choice (tests, ?debug)
   const canLie = sectorIndex > 0 && !lastFalse && trust >= TRUST_BEFORE_LIE;
@@ -53,6 +58,10 @@ export function chooseDirective({ trust = 0, lastFalse = false, sectorIndex = 0,
   const lie = wantLie ?? (canLie && roll < Math.min(0.85, 0.45 + 0.15 * (trust - TRUST_BEFORE_LIE)));
   const count = lie ? wrongCount(guests, random) : guests;
   const who = `${countWord(count)[0].toUpperCase()}${countWord(count).slice(1)} ${count === 1 ? 'guest' : 'guests'}`;
+  if (kind === 'gate') {
+    return { kind, lie, count, seconds: GATE_SECONDS,
+      text: `${who}, the boarding gate is closed for the maintenance cycle. It will reopen in twenty seconds.` };
+  }
   if (kind === 'wait') {
     return { kind, lie, count, seconds: 10, window: 16,
       text: `${who}, please remain where you are while ${area} is serviced. Thank you for your patience.` };
@@ -65,7 +74,9 @@ export function chooseDirective({ trust = 0, lastFalse = false, sectorIndex = 0,
  * What the player has done with an instruction this frame. `held` is how long they have stayed within reach of
  * where a wait was given; `distance` how far they are from a proceed target. Returns 'complied', 'ignored' or null.
  */
-export function judge(d, { held = 0, t = 0, moved = false, distance = Infinity }) {
+export function judge(d, { held = 0, t = 0, moved = false, distance = Infinity, tried = false }) {
+  // The gate: waiting it out is doing as told; trying to board anyway is not.
+  if (d.kind === 'gate') return tried ? 'ignored' : t >= d.seconds ? 'complied' : null;
   if (d.kind === 'wait') {
     if (held >= d.seconds) return 'complied';
     if (moved || t > d.window) return 'ignored';

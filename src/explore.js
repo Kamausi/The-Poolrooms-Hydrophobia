@@ -1618,6 +1618,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
   // Instructions over the public address that the facility then acts on. Most are honest. Once you have done as told
   // twice running, one may be false, and a false one always gets the number of guests wrong. Following a false one
   // costs you (the lights here go, or something is waiting where it sent you); ignoring any instruction costs nothing.
+  let lastPrompts = []; // every prompt asked for last frame (tests: the one shown is only the most urgent)
   const attendantAI = { trust: 0, lastFalse: false, d: null, t: 0, held: 0, at: null, cool: 35 + random() * 15, issued: 0, lies: 0, caught: 0 };
   const learning = createLearning();
   let learnedSeen = false;
@@ -1626,7 +1627,12 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     const near = floorCells.filter(([x, z]) => { const c = center(x, z); const dd = Math.hypot(c[0] - player.pos[0], c[2] - player.pos[2]); return dd > 10 && dd < 24; });
     const cell = near.length ? near[Math.floor(random() * near.length)] : null;
     const place = cell ? (() => { const c = center(...cell); return { pos: [c[0], floorTop(...cell), c[2]], name: placeName(c[0] - player.pos[0], c[2] - player.pos[2]) }; })() : null;
-    const d = chooseDirective({ trust: attendantAI.trust, lastFalse: attendantAI.lastFalse, sectorIndex: sector.index, guests: guestsHere(), place, area: 'this hall', random, kind: force.kind ?? null, lie: force.lie ?? null });
+    const nearExit = force.kind ? force.kind === 'gate' : powered() && Math.hypot(raftPos[0] - player.pos[0], raftPos[2] - player.pos[2]) < 10;
+    const d = chooseDirective({ trust: attendantAI.trust, lastFalse: attendantAI.lastFalse, sectorIndex: sector.index, guests: guestsHere(), place, area: 'this hall', random, kind: force.kind ?? null, lie: force.lie ?? null, nearExit });
+    attendantAI.tried = false;
+    // An honest closure really holds the gate; a false one leaves it open (the boarding prompt says so).
+    attendantAI.gateT = d.kind === 'gate' && !d.lie ? d.seconds : 0;
+    attendantAI.gateHealth = state.health;
     attendantAI.d = d; attendantAI.t = 0; attendantAI.held = 0; attendantAI.at = [...player.pos]; attendantAI.issued++;
     if (d.lie) attendantAI.lies++;
     sound.chime?.();
@@ -1635,6 +1641,13 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
   }
   function updateAttendant(dt, calm) {
     const A = attendantAI, d = A.d;
+    // The gate counts down whatever happens to the instruction, so it can never stay shut.
+    if (A.gateT > 0) {
+      A.gateT = Math.max(0, A.gateT - dt);
+      // Never a trap: hurt while it holds the gate, and it opens.
+      if (state.health < A.gateHealth - 0.5) { A.gateT = 0; hud.toast('SAFETY OVERRIDE · BOARDING GATE OPEN'); }
+      A.gateHealth = state.health;
+    }
     if (!d) {
       if (!calm || fomen || state.downed) return;
       if ((A.cool -= dt) > 0) return;
@@ -1644,11 +1657,14 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     A.t += dt;
     const near = Math.hypot(player.pos[0] - A.at[0], player.pos[2] - A.at[2]) < 2.5;
     if (d.kind === 'wait' && near) A.held += dt;
-    const outcome = judgeDirective(d, { held: A.held, t: A.t, moved: d.kind === 'wait' && !near, distance: d.pos ? Math.hypot(player.pos[0] - d.pos[0], player.pos[2] - d.pos[2]) : Infinity });
+    const outcome = judgeDirective(d, { tried: A.tried, held: A.held, t: A.t, moved: d.kind === 'wait' && !near, distance: d.pos ? Math.hypot(player.pos[0] - d.pos[0], player.pos[2] - d.pos[2]) : Infinity });
     if (!outcome) return;
     if (outcome === 'complied' && d.lie) {
       // It was wrong about how many of you there are, and you did as it said.
-      if (d.kind === 'wait') {
+      if (d.kind === 'gate') {
+        // You waited at a gate that was never closed.
+        hud.caption('[the gate was open the whole time. Its lamp was green]');
+      } else if (d.kind === 'wait') {
         if (!fomen && lamps.some((l) => !l.broken && distance(l.pos, player.pos) < 22)) startFomen('lights');
         else { hud.caption('[the lights in this hall go out, then come back on]'); director.omen(0.3, 10); }
       } else if (spawnBloom(add(d.pos, [1.5, 1.2, 0]))) {
@@ -1660,7 +1676,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
       }
       events.facility?.('attendant-lie-followed');
     } else if (outcome === 'complied') {
-      hud.say('THE ATTENDANT', 'Thank you.', 'attendant');
+      hud.say('THE ATTENDANT', d.kind === 'gate' ? 'Thank you. The boarding gate is open.' : 'Thank you.', 'attendant');
     } else if (d.lie) {
       A.caught++;
       hud.say('THE ATTENDANT', 'Thank you for your patience.', 'attendant'); // it carries on as if you had
@@ -2280,19 +2296,25 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
           hud.toast('DRAINED BY HAND · IT TAKES EFFECT NEXT TIME YOU LAND HERE');
         }
       }
-      ask(2, powered() ? 'E · Board the raft (service gate open)' : 'E · Leave early (circuit dark: bypass exit, you keep what you earned, grade capped at B)');
-      if (wasPressed('e') && surge && !surge.done) {
+      // The Attendant may be holding the boarding gate (ai/attendant.js). The prompt always says what the gate is doing.
+      const gateHeld = attendantAI.gateT > 0;
+      if (gateHeld) {
+        ask(3, `BOARDING GATE CLOSED · MAINTENANCE CYCLE · ${Math.ceil(attendantAI.gateT)} s`);
+        if (wasPressed('e')) { attendantAI.tried = true; sound.wrong(); }
+      } else ask(2, powered() ? 'E · Board the raft (service gate open)' : 'E · Leave early (circuit dark: bypass exit, you keep what you earned, grade capped at B)');
+      if (!gateHeld && wasPressed('e') && attendantAI.d?.kind === 'gate') attendantAI.tried = true; // it said closed; you tried it
+      if (!gateHeld && wasPressed('e') && surge && !surge.done) {
         // Leaving before the surge passes: the line goes, and the way out floods behind you.
         (state.routeMod ||= {})[key] = 'flooded';
         hud.caption('[behind you the line lets go. The way out is flooding.]');
       }
-      if (wasPressed('e') && juneEvent.state === 'sitting') {
+      if (!gateHeld && wasPressed('e') && juneEvent.state === 'sitting') {
         // Leaving her there. The count closes over her.
         juneEvent.state = 'left';
         (state.forgotten ||= []).push('june');
         hud.say('THE ATTENDANT', 'Thank you, all three guests, for staying together.', 'attendant');
       }
-      if (wasPressed('e')) {
+      if (!gateHeld && wasPressed('e')) {
         if (rules.currents && !pumpOn) {
           sound.wrong();
           hud.toast('THE PUMP IS OFF · NO WATER IN THE CHANNEL · RESTART IT');
@@ -2608,6 +2630,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
 
     if (!input.locked && !input.touch && !input.pad) ask(0, 'CLICK to look around');
     prompts.sort((a, b) => b[0] - a[0]);
+    lastPrompts = prompts;
     hud.prompt(prompts[0]?.[1] || '');
     // Reticle: brackets while something can be used; an arc while the machine is held.
     hud.reticle({ interact: prompts.some((p) => p[0] > 0), progress: operating && isDown('e') ? Math.min(1, operating / K.hold) : 0 });
@@ -4071,7 +4094,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     for (let i = 0; i < (r.valves || 0); i++) { const v = pumpValves.find((x) => x.id === valveOrder[i]); if (v) v.open = true; }
     valveStep = r.valves || 0;
   }
-  if (import.meta.env.DEV) window.__explore = { parts, camRig, takenCells, habits, falseDoor, showFalseDoor, wallParts, get time() { return time; }, signSeen, moved, placeMoved, wrongVoice, movedSign, trail, watcher, perchWatcher, watcherFig, startDriftSteps, get driftSteps() { return driftSteps; }, attendant: attendantAI, issueDirective, learning, guestsHere, get fomen() { return fomen; }, startFomen: (k) => startFomen(k), burstDamage, burstWindup, rows, thread, threadParts, ripGrid, ripPart, get ripCell() { return ripCell; }, routeTo, get W() { return W; }, get H() { return H; }, isWall, cellOf, center, wetMarks: wet, wetParts, waterField: field, ringParts, caustics, waterLevel, stir, jolt, effects, get blown() { return blown; }, flashes, frameEnv: () => lastEnv, marcos, get marcoApart() { return marcoApart; }, mirror: () => mirrorSurface && detachMirror && { height: mirrorSurface.height, parts: mirrorSurface.partIndices.length, key: mirrorKey }, models: () => parts.filter((p) => p.model).map((p) => ({ model: p.model, name: p.name, at: [p.matrix[12], p.matrix[13], p.matrix[14]] })), flashes, budget, wave: (n, f) => wave(n, f), lineOfSight, get remembered() { return remembered; }, get chain() { return lastChain; }, get eyeExposure() { return eyeExposure; }, renderer, get driftSigns() { return driftSigns; }, get wedges() { return lastWedges; }, survey, get surveyCoverage() { return surveyCoverage(survey, surveyOpen); }, surveyOpen, omen: (k) => startFomen(k), circuit, setEmergency, setBlackout, get blackout() { return blackout; }, signParts, get resetT() { return resetT; }, get emergency() { return emergency; }, blocked, isWall, finds, found, get lampPlaced() { return lampPlaced; }, lights: () => gatherLights(add(player.pos, [0, 1.6, 0])), get hesitation() { return hesitation; }, get lastOmen() { return lastFomen; }, get marcoAct() { return marcoAct; }, set marcoAct(v) { marcoAct = v; }, marcos, columns, wavePool, get basin() { return basin; }, isWater, floorTop, get operating() { return operating; }, set operating(v) { operating = v; }, panelFront, holdT, shoot, spawnBloom, occupant, lockers, noise, violate, get omenState() { return fomen; }, door, blooms, lamps, director, followers, get dockKind() { return dockKind; }, get valves() { return { order: valveOrder, step: valveStep, list: pumpValves }; }, june: juneEvent, thread, get clock() { return clock; }, stagnant, player, center, undertow, lifeguard, cellPos, panelPos, raftPos, code, find, floaters, restorePower };
+  if (import.meta.env.DEV) window.__explore = { get prompts() { return lastPrompts.map((p) => p[1]); }, parts, camRig, takenCells, habits, falseDoor, showFalseDoor, wallParts, get time() { return time; }, signSeen, moved, placeMoved, wrongVoice, movedSign, trail, watcher, perchWatcher, watcherFig, startDriftSteps, get driftSteps() { return driftSteps; }, attendant: attendantAI, issueDirective, learning, guestsHere, get fomen() { return fomen; }, startFomen: (k) => startFomen(k), burstDamage, burstWindup, rows, thread, threadParts, ripGrid, ripPart, get ripCell() { return ripCell; }, routeTo, get W() { return W; }, get H() { return H; }, isWall, cellOf, center, wetMarks: wet, wetParts, waterField: field, ringParts, caustics, waterLevel, stir, jolt, effects, get blown() { return blown; }, flashes, frameEnv: () => lastEnv, marcos, get marcoApart() { return marcoApart; }, mirror: () => mirrorSurface && detachMirror && { height: mirrorSurface.height, parts: mirrorSurface.partIndices.length, key: mirrorKey }, models: () => parts.filter((p) => p.model).map((p) => ({ model: p.model, name: p.name, at: [p.matrix[12], p.matrix[13], p.matrix[14]] })), flashes, budget, wave: (n, f) => wave(n, f), lineOfSight, get remembered() { return remembered; }, get chain() { return lastChain; }, get eyeExposure() { return eyeExposure; }, renderer, get driftSigns() { return driftSigns; }, get wedges() { return lastWedges; }, survey, get surveyCoverage() { return surveyCoverage(survey, surveyOpen); }, surveyOpen, omen: (k) => startFomen(k), circuit, setEmergency, setBlackout, get blackout() { return blackout; }, signParts, get resetT() { return resetT; }, get emergency() { return emergency; }, blocked, isWall, finds, found, get lampPlaced() { return lampPlaced; }, lights: () => gatherLights(add(player.pos, [0, 1.6, 0])), get hesitation() { return hesitation; }, get lastOmen() { return lastFomen; }, get marcoAct() { return marcoAct; }, set marcoAct(v) { marcoAct = v; }, marcos, columns, wavePool, get basin() { return basin; }, isWater, floorTop, get operating() { return operating; }, set operating(v) { operating = v; }, panelFront, holdT, shoot, spawnBloom, occupant, lockers, noise, violate, get omenState() { return fomen; }, door, blooms, lamps, director, followers, get dockKind() { return dockKind; }, get valves() { return { order: valveOrder, step: valveStep, list: pumpValves }; }, june: juneEvent, thread, get clock() { return clock; }, stagnant, player, center, undertow, lifeguard, cellPos, panelPos, raftPos, code, find, floaters, restorePower };
 
   /** ?show=: put the dock into a fixed, readable state for screenshots and visual review. */
   function showcase(name) {

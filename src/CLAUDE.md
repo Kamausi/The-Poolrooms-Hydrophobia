@@ -21,4 +21,4 @@ Areas: `render/`, `feel/`, `ai/`, `audio/`, `debug/`; everything else (the scene
 
 ## DEV hooks
 
-Only in the dev build: `window.__underflow` (step, setState, beginSector, startRide, startExplore, enterSafeRoom, events, press, hold), `window.__ride` (bot, hitTarget, track, s, coop, wave), `window.__explore` (player, cellPos, panelPos, restorePower, find, center, followers). `step(n)` renders only the last frame.
+Only in the dev build: `window.__underflow` (step, setState, beginSector, startRide, startExplore, enterSafeRoom, events, press, hold), `window.__ride` (bot, hitTarget, track, s, coop, wave), `window.__explore` (player, cellPos, panelPos, restorePower, find, center, followers). `step(n)` renders only the last frame; `sim(n)` renders none (use it for long simulation-only tests: rendered frames that are never presented pile up in headless software GL).

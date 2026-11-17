@@ -22,7 +22,7 @@ The audit read the single-file release (`dist/HYDROPHOBIA.html`). That file is o
 
 | Recommendation | Status | Where | Test |
 |---|---|---|---|
-| The facility, as the Attendant, as an active antagonist | **Partly built.** On foot, the Attendant now gives instructions over the public address ("remain where you are", "proceed to the north gallery"), and the facility acts on them. Following an honest instruction is safe. Following a false one costs you: the lights in your hall go out, or something is waiting where it sent you. Ignoring any instruction costs nothing. **Not built:** the Attendant opening and locking doors, and running procedures beyond these two kinds of instruction; anything on the raft; any change to the story documents. | `src/ai/attendant.js`, `src/explore.js` | `attendant.test.js`, `horror.cjs` |
+| The facility, as the Attendant, as an active antagonist | **Partly built.** On foot, the Attendant now gives instructions over the public address ("remain where you are", "proceed to the north gallery"), and the facility acts on them. Following an honest instruction is safe. Following a false one costs you: the lights in your hall go out, or something is waiting where it sent you. Ignoring any instruction costs nothing. Near the raft it also **holds the boarding gate**: an honest closure really blocks boarding for twenty seconds (and opens at once if you are hurt), a false one miscounts the guests and is not closed at all, and the boarding prompt always says what the gate is doing. **Not built:** the Attendant locking other doors or running other procedures; anything on the raft. | `src/ai/attendant.js`, `src/explore.js` | `attendant.test.js`, `horror.cjs`, `gate.cjs` |
 | Narrative redesign (Crew Seven, the facility expecting you) | Not built. The story is as `docs/STORY_AND_LORE.md` describes it. | | |
 
 ## Section 3: core loop and controls
@@ -114,7 +114,7 @@ The audit's gate, as it wrote it. **0 of 12 verified**: every item needs unfamil
 
 ## Not built, all in one place
 
-- The Attendant opening and locking doors; the Attendant on the raft.
+- The Attendant locking doors other than the boarding gate; the Attendant on the raft.
 - The two newest director signals, and the habit weighting, on the raft.
 - The rest of the audit's Drift effects: lagging reflections, changing corridors, an independent reflection.
 - Tiers of controls, and a controller-first usability pass.

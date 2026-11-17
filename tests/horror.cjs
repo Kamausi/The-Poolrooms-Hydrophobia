@@ -11,23 +11,23 @@ const { open, newCampaign, check, finish, BASE } = require('./lib.cjs');
   await page.evaluate(() => { document.querySelector('#modal-body .choice')?.click(); document.querySelector('#modal-actions button')?.click(); });
   await page.waitForTimeout(300);
   const r = await page.evaluate(async () => { const u = window.__underflow, sound = u.sound; // the game's own instance (an import here can get a separate copy after a dev-server reload)
-    u.beginSector(2); u.startRide(); u.startExplore(); u.setState({ health: 1e6 }); u.step(2);
+    u.beginSector(2); u.startRide(); u.startExplore(); u.setState({ health: 1e6 }); u.sim(2);
     const E = window.__explore;
     // Scanning for a while is noticed.
     const scan0 = E.habits.h.scanning;
-    for (let k = 0; k < 90; k++) { u.hold('q', true); u.step(1); }
+    for (let k = 0; k < 90; k++) { u.hold('q', true); u.sim(1); }
     u.hold('q', false);
     const scanned = E.habits.h.scanning;
     // Silence: the machinery stops, nothing spawns, it ends by itself.
     const active0 = E.blooms.filter((b) => b.active).length, viol0 = E.lifeguard?.violations || 0, hold0 = E.director.holding;
-    for (let k = 0; k < 120 && E.director.phase !== 'relax'; k++) u.step(30); // omens only start when it is calm
+    for (let k = 0; k < 120 && E.director.phase !== 'relax'; k++) u.sim(30); // omens only start when it is calm
     E.blooms.forEach((b) => { if (b.active && !b.dormant) b.active = false; });
     const activeQuiet = E.blooms.filter((b) => b.active).length;
-    E.startFomen('silence'); u.step(3);
+    E.startFomen('silence'); u.sim(3);
     const silent = sound.silent, during = E.fomen?.kind;
-    for (let k = 0; k < 19; k++) u.step(30);
+    for (let k = 0; k < 19; k++) u.sim(30);
     const spawnedDuring = E.blooms.filter((b) => b.active).length - activeQuiet, stillSilent = sound.silent, viol = (E.lifeguard?.violations || 0) - viol0, rule = E.lifeguard?.rule;
-    for (let k = 0; k < 11; k++) u.step(30);
+    for (let k = 0; k < 11; k++) u.sim(30);
     const after = { fomen: E.fomen?.kind || null, spawnedDuring, viol, rule, stillSilent, silentAfter: sound.silent };
     // Occlusion: a whistle from behind a wall is filtered; one in plain sight is not.
     const st0 = sound.spatialStats.occludedMade;
@@ -35,7 +35,7 @@ const { open, newCampaign, check, finish, BASE } = require('./lib.cjs');
     const occluded = sound.spatialStats.occludedMade - st0;
     sound.occluded(0, () => sound.whistle(0.4));
     const clear = sound.spatialStats.occludedMade - st0 - occluded;
-    u.step(10);
+    u.sim(10);
     const view = document.getElementById('ai-debug')?.textContent || '';
     return { scan0: +scan0.toFixed(2), scanned: +scanned.toFixed(2), silent, during, after, occluded, clear, view: view.split('\n').slice(0, 3) }; });
   check('scanning on foot is noticed by the omens', r.scanned > r.scan0 + 0.3, JSON.stringify({ scan0: r.scan0, scanned: r.scanned }));
@@ -48,7 +48,7 @@ const { open, newCampaign, check, finish, BASE } = require('./lib.cjs');
   const a = await page.evaluate(() => { const u = window.__underflow, E = window.__explore;
     u.setState({ health: 1e6 });
     const words = ['no', 'one', 'two', 'three', 'four', 'five', 'six'];
-    const stayFor = (s) => { const p = [...E.player.pos]; for (let k = 0; k < s; k++) { E.player.pos = [...p]; u.step(30); } };
+    const stayFor = (s) => { const p = [...E.player.pos]; for (let k = 0; k < s; k++) { E.player.pos = [...p]; u.sim(30); } };
     const out = {};
     // Honest wait, followed.
     let d = E.issueDirective({ kind: 'wait', lie: false });
@@ -57,26 +57,26 @@ const { open, newCampaign, check, finish, BASE } = require('./lib.cjs');
     stayFor(12);
     out.honest = { outcome: E.attendant.outcome, trust: E.attendant.trust, omen: E.lastOmen !== omen0 && E.lastOmen === 'lights' };
     // False wait, followed: the lights go.
-    for (let k = 0; k < 40 && E.fomen; k++) u.step(30);
+    for (let k = 0; k < 40 && E.fomen; k++) u.sim(30);
     d = E.issueDirective({ kind: 'wait', lie: true });
     out.lieCount = d.count !== E.guestsHere();
     stayFor(12);
     out.lie = { outcome: E.attendant.outcome, omen: E.fomen?.kind || null, trust: E.attendant.trust };
     // False wait, ignored: nothing happens to you.
-    for (let k = 0; k < 40 && E.fomen; k++) u.step(30);
+    for (let k = 0; k < 40 && E.fomen; k++) u.sim(30);
     d = E.issueDirective({ kind: 'wait', lie: true });
     const caught0 = E.attendant.caught;
     E.player.pos = [E.player.pos[0] + 0.1, E.player.pos[1], E.player.pos[2]];
     const p = [...E.player.pos];
     const free = E.find('.').map(([x, z]) => E.center(x, z)).find((c) => Math.hypot(c[0] - p[0], c[2] - p[2]) > 4 && Math.hypot(c[0] - p[0], c[2] - p[2]) < 8);
-    E.player.pos = [free[0], p[1], free[2]]; u.step(2);
+    E.player.pos = [free[0], p[1], free[2]]; u.sim(2);
     out.ignored = { outcome: E.attendant.outcome, caught: E.attendant.caught - caught0, omen: E.fomen?.kind || null };
     // False proceed, followed: something waits there.
-    for (let k = 0; k < 40 && E.fomen; k++) u.step(30);
+    for (let k = 0; k < 40 && E.fomen; k++) u.sim(30);
     E.blooms.forEach((b) => { if (!b.dormant) b.active = false; }); // a free Bloom for it to send
     d = E.issueDirective({ kind: 'proceed', lie: true });
     const b0 = E.blooms.filter((b) => b.active).length;
-    E.player.pos = [d.pos[0], E.player.pos[1], d.pos[2]]; u.step(2);
+    E.player.pos = [d.pos[0], E.player.pos[1], d.pos[2]]; u.sim(2);
     out.proceed = { kind: d.kind, outcome: E.attendant.outcome, spawned: E.blooms.filter((b) => b.active).length - b0, named: /the (north|south|east|west) gallery/.test(d.text) };
     return out; });
   check('an honest instruction has the right guest count, and following it is safe', a.honestText && a.honest.outcome === 'complied' && a.honest.trust === 1 && !a.honest.omen, JSON.stringify(a.honest));
@@ -92,20 +92,21 @@ const { open, newCampaign, check, finish, BASE } = require('./lib.cjs');
       const free = E.find('.').map(([x, z]) => E.center(x, z)).filter((c) => !E.isWall(...E.cellOf(c[0] + 8, c[2])) && !E.isWall(...E.cellOf(c[0] + 4, c[2])));
       const c = free[Math.floor(free.length / 2)];
       E.player.pos = [c[0], E.player.pos[1], c[2]]; E.player.yaw = 0;
-      u.setState({ health: 1000 }); u.step(1);
+      u.setState({ health: 1000 }); u.sim(1);
       const b = E.spawnBloom([c[0] - 0.9, 1.3, c[2]], false); b.lunge = 0;
       let creep = false, swelled = false, health0 = 0;
       // Walk away at walking pace from the moment it starts to swell; judge by how that one wind-up ends.
       for (let k = 0; k < 90; k++) {
         if (b.windup) { if (!swelled) health0 = window.__underflow.state.health; swelled = true; E.player.pos = [E.player.pos[0] + 4.2 / 30, E.player.pos[1], E.player.pos[2]]; }
         else if (swelled) break;
-        u.step(1); creep ||= !!b.creep;
+        u.sim(1); creep ||= !!b.creep;
       }
       return { creep, swelled, burst: !b.active, hurt: +(health0 - window.__underflow.state.health).toFixed(1) };
     };
     return { plain: trial(false), learned: trial(true), burst: E.burstDamage }; });
   check('a Bloom swelling to burst holds still, so walking away from it is safe', l.plain.swelled && !l.plain.creep && !l.plain.burst && l.plain.hurt < l.burst, JSON.stringify(l.plain));
   check('once that is learned, one Bloom keeps coming while it swells, and walking away no longer works', l.learned.creep && l.learned.burst && l.learned.hurt >= l.burst, JSON.stringify(l.learned));
+
 
   await finish(browser, errors);
 })();

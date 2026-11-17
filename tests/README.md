@@ -30,6 +30,7 @@ Headless Chromium (software GL, `?quality=low`) driving the game through its DEV
 | `platform.cjs` | Browser services; save files; the save envelope and backup restore with the menu notice; time per subsystem and 1–3 steps per frame; the AgX tone curve | ~1 min |
 | `mapgen.cjs` | Endless docks generated in a worker and checked as solvable | <1 min |
 | `horror.cjs` | Scanning is noticed by the omens; the silence omen stops the machinery (and the wave machine), brings nothing and ends; sounds behind a wall are muffled; `?debug=ai` shows the director, habits, Attendant and entities; the Attendant's honest and false instructions and what following or ignoring each does; the Bloom that keeps coming once the burst tell has been learned | ~2 min |
+| `gate.cjs` | The Attendant holds the boarding gate: an honest closure blocks boarding and the prompt says so, being hurt opens it, a false one miscounts the guests and is not closed (you can board) | <1 min |
 | `drift.cjs` | The Observer (takes a place out of view, moves when lost or approached, leaves, never hurts); footsteps that stop when you look; the sign on a spot you passed and the voice from the wrong side; the false doorway at high Drift | ~2 min |
 | `gamepad.cjs` | A whole session on an emulated controller and nothing else: settings (D-pad to a slider, left/right to change it, B out), a new expedition from the menu, the raft (trigger, steering, hop, aim, stick back to brake), the Select chords (Ride Control, the helm, the maintenance override label) and dressing on Select alone, pause with Start and B, on foot with no pointer lock (walk, turn, fire, scan, lamp, Select+B to set it down, R3 map), a Safe Room left with A, and rebinding | ~4 min |
 | `single.cjs` | `dist/HYDROPHOBIA.html` opens from disk, starts and carries its recorded sound (run `npm run build:single` first) | <1 min |
@@ -41,6 +42,8 @@ npm run typecheck           # type check (tsconfig.json lists the files)
 node tests/run.mjs balance  # one test by name
 UNDERFLOW_URL=http://localhost:5173 node tests/smoke.cjs   # against a server you already run
 ```
+
+Long simulation-only tests advance the game with `__underflow.sim(n)`, which renders nothing: frames rendered by `step(n)` are never presented, and headless software GL keeps about 1 MB for each, enough to crash a long run. Ordinary real-time play does not grow (measured flat over 80 s).
 
 Each test prints `ok` / `FAIL` lines and exits non-zero on a failure or any page error. Shared helpers are in `lib.cjs`.
 
