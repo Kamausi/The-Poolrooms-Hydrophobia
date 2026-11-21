@@ -36,6 +36,7 @@ import { buildChain, shaftSource } from './render/postchain.js';
 import { installUserPasses } from '67js/addons/user-pass';
 import { magnet, friction, wedges as threatWedges } from './feel/aim.js';
 import { settings } from './settings.js';
+import { tipAllowed } from './controltiers.js';
 import { AMBIENT } from './sectors.js';
 import { Track, EXIT_OFFSET, section } from './track.js';
 import { createDirector, AFTERMATH, BANTER } from './ai/director.js';
@@ -765,8 +766,10 @@ export function createRide(canvas, state, sector, events, opts = {}) {
 
   /** First-time tips: each one shown once ever, at the moment it is useful. Off in Settings. */
   const taught = (() => { try { return new Set(JSON.parse(localStorage.getItem('underflow-tips') || '[]')); } catch { return new Set(); } })();
+  let shotsFired = 0;
   function teach(key, text) {
     if (!settings.tips || taught.has(key)) return;
+    if (!tipAllowed(key, { shots: shotsFired, time })) return; // an advanced tip waits for the primary actions (controltiers.js)
     taught.add(key);
     try { localStorage.setItem('underflow-tips', JSON.stringify([...taught])); } catch {}
     hud.toast(text);
@@ -785,6 +788,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
   /** Fire the selected profile. Pulse and Repeater shoot a ray; Scatter a short cone; Disruptor a heavy shot; Hook a line. */
   function fireProfile(eye, look, aimDir) {
     const P = PROFILES[state.profile] || PROFILES.pulse;
+    shotsFired++;
     shotProfile = state.profile;
     const muzzle = blaster.muzzle(eye, look, aimDir);
     if (state.profile === 'hook') return throwHook(eye, aimDir);
@@ -4064,7 +4068,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
     bloomAhead() { return spawnBloom(s + 10, offset * 0.6, 1.2); },
     get locks() { return locks.length; },
   };
-  if (import.meta.env.DEV) window.__ride = { get jumpY() { return jumpY; }, parts, camRig, effects, undertowWake: wake, waterField: field, ringParts, wakeParts, streakParts, stir, flashes, gatherLights: () => gatherLights(fx.eye), budget, blaster, get wedges() { return lastWedges; }, get chain() { return lastChain; }, get eyeExposure() { return eyeExposure; }, renderer, get scenery() { return lastScenery; }, room, shots, set padAssist(v) { padAssistTest = v; }, get aimFriction() { return input.aimFriction; }, parts, blooms, tokens, drop, spawnDrop, get assess() { return assess; }, set assessAt(v) { assessAt = v; }, set tokenCool(v) { tokenCool = v; }, get offset() { return offset; }, set offset(v) { offset = v; }, omen: (k) => startOmen(k), get omenState() { return omen; }, get director() { return director; }, get eye() { return fx.eye; }, track, hull, puncture: (c, cause = 'scrape') => hull.puncture(c, cause), overboard: () => goOverboard('test'), free: () => restrained && !restrained.freed && freeRestrained(), shove: () => shove(fx.eye, fx.fwd), ping: () => ping(fx.eye, fx.fwd), fireAt: (dir) => { fireProfile(fx.eye, fx.look, dir || fx.fwd); return state.profile; }, hitTarget: (key) => { const t = targets().find((x) => x.key === key); if (t) { shotProfile = state.profile; t.fn(); } return !!t; }, get wave() { return wave; }, set bot(v) { devBot = v; }, spawnEnc: (kind, extra = {}) => spawn({ e: { kind, ...extra }, s: s + 10, sec: track.sectionAt(s).sec }), get coop() { return { climber, crewGrab, ballast, restrained, protect, focusing, fov, profile: state.profile, special: state.special }; }, reset: () => { overboard = null; capsize = null; trailGrab = null; hull.state.capsized = false; }, capsize: () => startCapsize(), get swimming() { return overboard; }, get capsized() { return capsize; }, get grab() { return trailGrab; }, valve, linked, lifeguard, locker, wake, passengerStep, burst: () => burst(fx.eye, fx.fwd), get s() { return s; }, set s(v) { s = v; }, get waveRide() { return waveRide; }, ropes, debrisPool, get sea() { return sea; }, get hullFx() { return hullFx; }, get raftUp() { return raftUpTest; } };
+  if (import.meta.env.DEV) window.__ride = { get jumpY() { return jumpY; }, get shotsFired() { return shotsFired; }, get taught() { return [...taught]; }, parts, camRig, effects, undertowWake: wake, waterField: field, ringParts, wakeParts, streakParts, stir, flashes, gatherLights: () => gatherLights(fx.eye), budget, blaster, get wedges() { return lastWedges; }, get chain() { return lastChain; }, get eyeExposure() { return eyeExposure; }, renderer, get scenery() { return lastScenery; }, room, shots, set padAssist(v) { padAssistTest = v; }, get aimFriction() { return input.aimFriction; }, parts, blooms, tokens, drop, spawnDrop, get assess() { return assess; }, set assessAt(v) { assessAt = v; }, set tokenCool(v) { tokenCool = v; }, get offset() { return offset; }, set offset(v) { offset = v; }, omen: (k) => startOmen(k), get omenState() { return omen; }, get director() { return director; }, get eye() { return fx.eye; }, track, hull, puncture: (c, cause = 'scrape') => hull.puncture(c, cause), overboard: () => goOverboard('test'), free: () => restrained && !restrained.freed && freeRestrained(), shove: () => shove(fx.eye, fx.fwd), ping: () => ping(fx.eye, fx.fwd), fireAt: (dir) => { fireProfile(fx.eye, fx.look, dir || fx.fwd); return state.profile; }, hitTarget: (key) => { const t = targets().find((x) => x.key === key); if (t) { shotProfile = state.profile; t.fn(); } return !!t; }, get wave() { return wave; }, set bot(v) { devBot = v; }, spawnEnc: (kind, extra = {}) => spawn({ e: { kind, ...extra }, s: s + 10, sec: track.sectionAt(s).sec }), get coop() { return { climber, crewGrab, ballast, restrained, protect, focusing, fov, profile: state.profile, special: state.special }; }, reset: () => { overboard = null; capsize = null; trailGrab = null; hull.state.capsized = false; }, capsize: () => startCapsize(), get swimming() { return overboard; }, get capsized() { return capsize; }, get grab() { return trailGrab; }, valve, linked, lifeguard, locker, wake, passengerStep, burst: () => burst(fx.eye, fx.fwd), get s() { return s; }, set s(v) { s = v; }, get waveRide() { return waveRide; }, ropes, debrisPool, get sea() { return sea; }, get hullFx() { return hullFx; }, get raftUp() { return raftUpTest; } };
 
   /** ?show=: put the ride into a fixed, readable state for screenshots and visual review. */
   function showcase(name) {

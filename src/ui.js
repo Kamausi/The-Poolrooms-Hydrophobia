@@ -3,7 +3,8 @@ import { settings, saveSettings, SETTING_LABELS, ACTIONS } from './settings.js';
 import { exportSave, importSave } from './storage.js';
 import { claimLost, LOST_FOUND_COST } from './collectibles.js';
 import { sound } from './audio/audio.js';
-import { input, applyBindings, PAD_ACTIONS, PAD_NAMES } from './input.js';
+import { input, applyBindings, PAD_ACTIONS, PAD_NAMES, bindingLabel } from './input.js';
+import { byTier, referenceRows } from './controltiers.js';
 import { COMFORTS, SECTORS } from './sectors.js';
 import { ROUTES } from './plans.js';
 import { CREW, crewById, fadingCrew } from './crew.js';
@@ -785,7 +786,10 @@ export function settingsView(onChange) {
   const keys = el('div', 'bindings');
   keys.append(el('p', 'mono', 'KEYS · click, then press a key'));
   const name = (k) => (k === ' ' ? 'SPACE' : k.toUpperCase());
-  for (const [id, label, def] of ACTIONS) {
+  // Grouped by tier (controltiers.js): what every moment needs first, what rewards mastery last.
+  for (const g of byTier(ACTIONS)) {
+    keys.append(el('p', 'mono small bind-tier', g.label));
+    for (const [id, label, def] of g.rows) {
     const b = el('button', 'bind');
     const show = () => (b.textContent = `${label} · ${name(settings.bindings[id] || def)}`);
     show();
@@ -800,6 +804,7 @@ export function settingsView(onChange) {
       };
     };
     keys.append(b);
+    }
   }
   const reset = el('button', 'bind');
   reset.textContent = 'Reset all keys';
@@ -809,7 +814,9 @@ export function settingsView(onChange) {
   // Controller buttons: choose an action, press a button.
   const pads = el('div', 'bindings');
   pads.append(el('p', 'mono', 'CONTROLLER · choose, then press a button'));
-  for (const [id, label, def] of PAD_ACTIONS) {
+  for (const g of byTier(PAD_ACTIONS)) {
+    pads.append(el('p', 'mono small bind-tier', g.label));
+    for (const [id, label, def] of g.rows) {
     const b = el('button', 'bind');
     const show = () => (b.textContent = `${label} · ${PAD_NAMES[settings.padBindings?.[id] ?? def] || '?'}`);
     show();
@@ -818,6 +825,7 @@ export function settingsView(onChange) {
       input.padCapture = (i) => { (settings.padBindings ||= {})[id] = i; saveSettings(); show(); };
     };
     pads.append(b);
+    }
   }
   const padReset = el('button', 'bind');
   padReset.textContent = 'Reset controller buttons';
@@ -825,4 +833,17 @@ export function settingsView(onChange) {
   pads.append(padReset);
   controls.append(pads);
   return wrap;
+}
+
+/**
+ * The controls reference, in tiers: primary, when asked, advanced. Labels follow the bindings and the device in use
+ * (a controller shows its buttons and chords). The template in index.html adds the notes for pools and pausing.
+ */
+export function controlsReference() {
+  const dl = el('dl', 'controls controls-tiers');
+  for (const g of byTier(referenceRows(ACTIONS, { pad: !!input.pad, label: bindingLabel }))) {
+    dl.append(el('dt', null, g.label));
+    dl.append(el('dd', null, g.rows.map(([, label, key]) => `${key} ${label.toLowerCase()}`).join(' · ')));
+  }
+  return dl;
 }

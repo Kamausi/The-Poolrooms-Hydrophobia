@@ -101,5 +101,56 @@ const { open, check, finish, BASE } = require('./lib.cjs');
     const hidden = shown, back = F.gap.matrix[13] < -100;
     return { opened, hidden, solid, back, done: F.done, caption: document.getElementById('caption').textContent, stillWall: E.isWall(x, z) }; });
   check('at high Drift a doorway shows in a wall, but it is still a wall; walk into it and the doorway is gone', !fd.none && (fd.opened && fd.hidden && fd.solid && fd.back && fd.done && fd.stillWall && /never a doorway/.test(fd.caption)), JSON.stringify(fd));
+
+  // The reflection (ai/reflection.js): at the edge of still water you see yourself, upside down; from moderate Drift
+  // it follows late; at high Drift it stops following and looks up at where you are, and is gone when you look away.
+  const rf = await page.evaluate(() => { const u = window.__underflow, E = window.__explore, R = E.refl;
+    E.blooms.forEach((b) => { b.active = false; });
+    E.floaters.forEach((f) => { f.state = 'gone'; });
+    if (E.fomen) E.fomen.t = 1e6;
+    u.setState({ health: 1000, drift: 10 }); u.sim(1);
+    const dry = E.find('.').map(([x, z]) => E.center(x, z)).filter((c) => !E.isWater(c[0], c[2]));
+    let spot = null;
+    for (const c of dry) { E.player.pos = [c[0], 0, c[2]]; spot = E.reflectionSpot(); if (spot) break; }
+    if (!spot) return { none: true };
+    const F = E.selfFig, y = (p) => p.matrix[13], xz = (p) => [p.matrix[12], p.matrix[14]];
+    const toward = [spot.feet[0] - E.player.pos[0], spot.feet[2] - E.player.pos[2]];
+    E.player.yaw = Math.atan2(-toward[0], -toward[1]);
+    u.sim(3);
+    const out = { mode0: R.mode, shown: R.shown, under: y(F.head) < spot.feet[1] && y(F.head) < y(F.footL), level: spot.feet[1] };
+    // Moderate: a sudden step sideways is followed late.
+    u.setState({ drift: 55 }); u.sim(60);
+    const b0 = xz(F.body), side = [-toward[1], toward[0]], len = Math.hypot(...side);
+    const p0 = [...E.player.pos];
+    E.player.pos = [p0[0] + side[0] / len * 0.8, 0, p0[2] + side[1] / len * 0.8];
+    if (!E.reflectionSpot()) E.player.pos = [p0[0] - side[0] / len * 0.8, 0, p0[2] - side[1] / len * 0.8];
+    u.sim(3);
+    const b1 = xz(F.body);
+    u.sim(60);
+    const b2 = xz(F.body);
+    out.mode1 = R.mode; out.lagStill = Math.hypot(b1[0] - b0[0], b1[1] - b0[1]) < 0.2; out.caughtUp = Math.hypot(b2[0] - b0[0], b2[1] - b0[1]) > 0.5;
+    // High: look at it until it stops following.
+    E.player.pos = p0; u.setState({ drift: 85 }); u.sim(60);
+    let pitch = null;
+    for (const pt of [-0.6, -0.9, 0.6, 0.9, -0.3]) { E.player.pitch = pt; u.sim(2); for (let k = 0; k < 4 && !R.own; k++) u.sim(30); if (R.own) { pitch = pt; break; } }
+    out.own = !!R.own; out.pitch = pitch;
+    if (R.own) {
+      const ownAt = xz(F.body);
+      // Step back from the edge, still looking at it.
+      const back = [-toward[0], -toward[1]], bl = Math.hypot(...back);
+      E.player.pos = [p0[0] + back[0] / bl * 1.8, 0, p0[2] + back[1] / bl * 1.8];
+      const t = [ownAt[0] - E.player.pos[0], ownAt[1] - E.player.pos[2]]; E.player.yaw = Math.atan2(-t[0], -t[1]);
+      for (let k = 0; k < 6 && !R.told; k++) { E.player.pitch = pitch; u.sim(10); }
+      const still = xz(F.body);
+      out.stayed = Math.hypot(still[0] - ownAt[0], still[1] - ownAt[1]) < 0.3;
+      out.told = R.told; out.caption = document.getElementById('caption').textContent;
+      E.player.yaw += Math.PI; E.player.pitch = 0; u.sim(5);
+      out.gone = !R.own && R.spent && F.head.matrix[13] < -100;
+    }
+    out.hurt = 1000 - u.state.health;
+    return out; });
+  check('at the edge of still water your reflection is there, upside down under the surface, and follows you', rf.none || (rf.mode0 === 'follow' && rf.shown && rf.under), JSON.stringify(rf));
+  check('from moderate Drift it follows late: a quick step and it stays a moment before it catches up', rf.none || (rf.mode1 === 'lag' && rf.lagStill && rf.caughtUp), JSON.stringify(rf));
+  check('at high Drift it stops following, stays where it was and looks up at you; look away and it is gone; nothing hurts you', !rf.none && rf.own && rf.stayed && rf.told && /has not moved/.test(rf.caption) && rf.gone && rf.hurt < 1, JSON.stringify(rf));
   await finish(browser, errors);
 })();

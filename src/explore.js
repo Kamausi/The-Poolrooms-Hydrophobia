@@ -42,7 +42,7 @@ import { writeYaw, writeBasis, writeSegment, hide, add, sub, scale, normalize, c
 import { tileTexture, tileNormal, causticTexture } from './render/textures.js';
 import { signMaterial, quad } from './labels.js';
 import { createBlaster, PROFILES, PROFILE_ORDER } from './blaster.js';
-import { createCrewFigure, hideCrewFigure, poseStanding, poseProne, VISITOR_LOOK } from './crewfigure.js';
+import { createCrewFigure, hideCrewFigure, poseStanding, poseProne, VISITOR_LOOK, CREW_LOOK } from './crewfigure.js';
 import { createCallouts } from './callouts.js';
 import { input, wasPressed, isDown, requestLock, bindingLabel } from './input.js';
 import { hud } from './hud.js';
@@ -56,6 +56,7 @@ import { compressorRefill } from './hull.js';
 import { facility as facilityMem, saveFacility, recordSurvey, surveyMem } from './memory.js';
 import { createObserver, stepObserver, placeObserver, choosePerch } from './ai/observer.js';
 import { driftStage, sideWord, OPPOSITE, pickPassed } from './ai/driftfx.js';
+import { reflectionMode, delayedPose, trimHistory, turnUnder, tiltFor, LAG_SECONDS, SEE_RANGE, LEFT_BEHIND } from './ai/reflection.js';
 import { chooseDirective, judge as judgeDirective, nextTrust, placeName, createLearning } from './ai/attendant.js';
 import { plan as planFinds, collect as collectFind, headcountLine } from './collectibles.js';
 import { planColumns, pushOutOfColumns, columnBlocks, planArches } from './poolrooms.js';
@@ -719,6 +720,9 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
   // The Observer (ai/observer.js): tall, still, dressed like staff. It has its own figure so it never steals an omen's.
   const watcherFig = createCrewFigure(P, 'visitor', ' watching from the far end', { ...VISITOR_LOOK, jacket: '#3c4643', vest: '#3c4643', tall: 1.08, broad: 0.9 });
   hideCrewFigure(watcherFig);
+  // Your reflection in still water (ai/reflection.js), in your own crew colours. Hidden until you stand at the edge.
+  const selfFig = createCrewFigure(P, CREW_LOOK[state.character] ? state.character : 'mars', ' reflected in the water');
+  hideCrewFigure(selfFig);
   // Moderate Drift (ai/driftfx.js): a wet floor sign that is somewhere you have already walked. Hidden until then.
   const movedSign = M('wetFloorSign', 'Wet floor sign (somewhere you passed)');
   const hideMoved = () => { if (movedSign) (movedSign.group || [movedSign]).forEach(hide); };
@@ -1520,6 +1524,75 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     moved.moves++;
     return moved.at;
   }
+  // ---------- The reflection (ai/reflection.js) ----------
+  // At the edge of still water you see yourself in it. From moderate Drift it follows you late; at high Drift, once
+  // per dock, it stops following and looks up at where you are now, and is gone when you look away.
+  const refl = { history: [], mode: 'follow', own: null, spent: false, shown: false, seenT: 0, told: false, sightings: 0 };
+  /** The point in the nearest still water where you would see yourself: just past the edge, toward you. */
+  function reflectionSpot() {
+    const [cx, cz] = cellOf(player.pos[0], player.pos[2]);
+    if (isWater(cx, cz)) return null; // standing in it: the ripples you make hide it
+    let best = null;
+    for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) {
+      const x = cx + dx, z = cz + dz;
+      if (!isWater(x, z) || (at(x, z) === 'w' && waveOn)) continue;
+      const c = center(x, z), h = CELL / 2;
+      // The nearest point of that cell's square, then a little further in.
+      const n = [clamp(player.pos[0], c[0] - h, c[0] + h), 0, clamp(player.pos[2], c[2] - h, c[2] + h)];
+      const d = Math.hypot(n[0] - player.pos[0], n[2] - player.pos[2]);
+      if (d > SEE_RANGE - 0.5 || (best && d >= best.d)) continue;
+      const dir = d > 0.01 ? [(n[0] - player.pos[0]) / d, 0, (n[2] - player.pos[2]) / d] : [c[0] - player.pos[0], 0, c[2] - player.pos[2]];
+      const len = Math.hypot(dir[0], dir[2]) || 1;
+      const img = [n[0] + (dir[0] / len) * 0.5, 0, n[2] + (dir[2] / len) * 0.5];
+      const level = waterLevel(x, z), depth = level - floorTop(x, z);
+      best = { d, feet: [img[0], level, img[2]], tilt: tiltFor(depth), cell: [x, z] };
+    }
+    return best;
+  }
+  function poseReflection(feet, yaw, tilt, walk, pace) {
+    poseStanding(selfFig, { feet, yaw, walk, pace });
+    const axis = [Math.sin(yaw), 0, Math.cos(yaw)];
+    for (const part of selfFig.all) if (part.matrix[13] > -100) turnUnder(part.matrix, feet, axis, tilt);
+  }
+  function hideReflection() { if (refl.shown) { hideCrewFigure(selfFig); refl.shown = false; } }
+  function updateReflection(dt, calm) {
+    const spot = reflectionSpot();
+    const yawNow = player.yaw + Math.PI; // the figure's facing (crewfigure.js) for the way you face
+    refl.history.push({ t: time, yaw: yawNow, pos: [...player.pos] });
+    trimHistory(refl.history, time, 2);
+    if (refl.own) {
+      const O = refl.own, there = add(O.feet, [0, -0.3, 0]);
+      const away = Math.hypot(player.pos[0] - O.from[0], player.pos[2] - O.from[2]);
+      if (!refl.told && away > LEFT_BEHIND && inViewNow(there)) {
+        refl.told = true; refl.sightings++;
+        hud.caption('[in the water your reflection has not moved. It is looking up at where you are now]');
+        director.omen(0.12, 5);
+      }
+      if (refl.told && !inViewNow(there)) { refl.own = null; refl.spent = true; hideReflection(); return; }
+      // It turns, slowly, to keep looking at you.
+      const want = Math.atan2(player.pos[0] - O.feet[0], player.pos[2] - O.feet[2]);
+      O.yaw += Math.atan2(Math.sin(want - O.yaw), Math.cos(want - O.yaw)) * Math.min(1, dt * 1.5);
+      poseReflection(O.feet, O.yaw, O.tilt, 0, 0);
+      refl.shown = true;
+      return;
+    }
+    if (!spot) { hideReflection(); refl.seenT = 0; return; }
+    refl.mode = reflectionMode(state.drift, { sectorIndex: sector.index, spent: refl.spent });
+    const pose = refl.mode === 'follow' ? refl.history[refl.history.length - 1] : delayedPose(refl.history, time, LAG_SECONDS);
+    // The image moves with you: offset from where you stood then, by as much as you have moved since.
+    const shift = [pose.pos[0] - player.pos[0], 0, pose.pos[2] - player.pos[2]];
+    const feet = [spot.feet[0] + shift[0], spot.feet[1], spot.feet[2] + shift[2]];
+    const i = refl.history.indexOf(pose), prev = refl.history[Math.max(0, i - 1)];
+    const v = prev && pose.t > prev.t ? Math.hypot(pose.pos[0] - prev.pos[0], pose.pos[2] - prev.pos[2]) / (pose.t - prev.t) : 0;
+    poseReflection(feet, pose.yaw, spot.tilt, pose.t * 7, Math.min(1, v / 4));
+    refl.shown = true;
+    if (inViewNow(add(feet, [0, -0.3, 0]))) refl.seenT += dt; else refl.seenT = 0;
+    if (refl.mode === 'own' && calm && !fomen && refl.seenT > 1.5) {
+      refl.own = { feet, yaw: pose.yaw, tilt: spot.tilt, from: [...player.pos] };
+      refl.told = false;
+    }
+  }
+
   function updateModerateDrift(dt, calm) {
     if ((trailT -= dt) <= 0) { trailT = 1; trail.push({ t: time, pos: [...player.pos] }); if (trail.length > 60) trail.shift(); }
     const stage = driftStage(state.drift);
@@ -2580,6 +2653,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     updateObserver(dt, calmNow);
     updateDriftSteps(dt, calmNow);
     updateModerateDrift(dt, calmNow);
+    updateReflection(dt, calmNow);
     updateFalseDoor();
     voices(dt);
 
@@ -4094,7 +4168,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     for (let i = 0; i < (r.valves || 0); i++) { const v = pumpValves.find((x) => x.id === valveOrder[i]); if (v) v.open = true; }
     valveStep = r.valves || 0;
   }
-  if (import.meta.env.DEV) window.__explore = { get prompts() { return lastPrompts.map((p) => p[1]); }, parts, camRig, takenCells, habits, falseDoor, showFalseDoor, wallParts, get time() { return time; }, signSeen, moved, placeMoved, wrongVoice, movedSign, trail, watcher, perchWatcher, watcherFig, startDriftSteps, get driftSteps() { return driftSteps; }, attendant: attendantAI, issueDirective, learning, guestsHere, get fomen() { return fomen; }, startFomen: (k) => startFomen(k), burstDamage, burstWindup, rows, thread, threadParts, ripGrid, ripPart, get ripCell() { return ripCell; }, routeTo, get W() { return W; }, get H() { return H; }, isWall, cellOf, center, wetMarks: wet, wetParts, waterField: field, ringParts, caustics, waterLevel, stir, jolt, effects, get blown() { return blown; }, flashes, frameEnv: () => lastEnv, marcos, get marcoApart() { return marcoApart; }, mirror: () => mirrorSurface && detachMirror && { height: mirrorSurface.height, parts: mirrorSurface.partIndices.length, key: mirrorKey }, models: () => parts.filter((p) => p.model).map((p) => ({ model: p.model, name: p.name, at: [p.matrix[12], p.matrix[13], p.matrix[14]] })), flashes, budget, wave: (n, f) => wave(n, f), lineOfSight, get remembered() { return remembered; }, get chain() { return lastChain; }, get eyeExposure() { return eyeExposure; }, renderer, get driftSigns() { return driftSigns; }, get wedges() { return lastWedges; }, survey, get surveyCoverage() { return surveyCoverage(survey, surveyOpen); }, surveyOpen, omen: (k) => startFomen(k), circuit, setEmergency, setBlackout, get blackout() { return blackout; }, signParts, get resetT() { return resetT; }, get emergency() { return emergency; }, blocked, isWall, finds, found, get lampPlaced() { return lampPlaced; }, lights: () => gatherLights(add(player.pos, [0, 1.6, 0])), get hesitation() { return hesitation; }, get lastOmen() { return lastFomen; }, get marcoAct() { return marcoAct; }, set marcoAct(v) { marcoAct = v; }, marcos, columns, wavePool, get basin() { return basin; }, isWater, floorTop, get operating() { return operating; }, set operating(v) { operating = v; }, panelFront, holdT, shoot, spawnBloom, occupant, lockers, noise, violate, get omenState() { return fomen; }, door, blooms, lamps, director, followers, get dockKind() { return dockKind; }, get valves() { return { order: valveOrder, step: valveStep, list: pumpValves }; }, june: juneEvent, thread, get clock() { return clock; }, stagnant, player, center, undertow, lifeguard, cellPos, panelPos, raftPos, code, find, floaters, restorePower };
+  if (import.meta.env.DEV) window.__explore = { get prompts() { return lastPrompts.map((p) => p[1]); }, refl, selfFig, reflectionSpot, parts, camRig, takenCells, habits, falseDoor, showFalseDoor, wallParts, get time() { return time; }, signSeen, moved, placeMoved, wrongVoice, movedSign, trail, watcher, perchWatcher, watcherFig, startDriftSteps, get driftSteps() { return driftSteps; }, attendant: attendantAI, issueDirective, learning, guestsHere, get fomen() { return fomen; }, startFomen: (k) => startFomen(k), burstDamage, burstWindup, rows, thread, threadParts, ripGrid, ripPart, get ripCell() { return ripCell; }, routeTo, get W() { return W; }, get H() { return H; }, isWall, cellOf, center, wetMarks: wet, wetParts, waterField: field, ringParts, caustics, waterLevel, stir, jolt, effects, get blown() { return blown; }, flashes, frameEnv: () => lastEnv, marcos, get marcoApart() { return marcoApart; }, mirror: () => mirrorSurface && detachMirror && { height: mirrorSurface.height, parts: mirrorSurface.partIndices.length, key: mirrorKey }, models: () => parts.filter((p) => p.model).map((p) => ({ model: p.model, name: p.name, at: [p.matrix[12], p.matrix[13], p.matrix[14]] })), flashes, budget, wave: (n, f) => wave(n, f), lineOfSight, get remembered() { return remembered; }, get chain() { return lastChain; }, get eyeExposure() { return eyeExposure; }, renderer, get driftSigns() { return driftSigns; }, get wedges() { return lastWedges; }, survey, get surveyCoverage() { return surveyCoverage(survey, surveyOpen); }, surveyOpen, omen: (k) => startFomen(k), circuit, setEmergency, setBlackout, get blackout() { return blackout; }, signParts, get resetT() { return resetT; }, get emergency() { return emergency; }, blocked, isWall, finds, found, get lampPlaced() { return lampPlaced; }, lights: () => gatherLights(add(player.pos, [0, 1.6, 0])), get hesitation() { return hesitation; }, get lastOmen() { return lastFomen; }, get marcoAct() { return marcoAct; }, set marcoAct(v) { marcoAct = v; }, marcos, columns, wavePool, get basin() { return basin; }, isWater, floorTop, get operating() { return operating; }, set operating(v) { operating = v; }, panelFront, holdT, shoot, spawnBloom, occupant, lockers, noise, violate, get omenState() { return fomen; }, door, blooms, lamps, director, followers, get dockKind() { return dockKind; }, get valves() { return { order: valveOrder, step: valveStep, list: pumpValves }; }, june: juneEvent, thread, get clock() { return clock; }, stagnant, player, center, undertow, lifeguard, cellPos, panelPos, raftPos, code, find, floaters, restorePower };
 
   /** ?show=: put the dock into a fixed, readable state for screenshots and visual review. */
   function showcase(name) {

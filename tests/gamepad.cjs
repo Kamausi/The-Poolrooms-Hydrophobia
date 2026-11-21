@@ -49,6 +49,13 @@ const { check, finish, BASE } = require('./lib.cjs');
   const RIGHT = 15;
   const openedSettings = await choose('#settings-btn');
   await wait(600);
+  // The controls in tiers (controltiers.js): the reference and the binding lists, with the controller's own labels.
+  const tiers = await ev(() => ({
+    ref: [...document.querySelectorAll('#modal .controls-tiers dt')].map((d) => d.textContent),
+    primary: document.querySelector('#modal .controls-tiers dd')?.textContent || '',
+    heads: [...document.querySelectorAll('#modal .bind-tier')].map((p) => p.textContent),
+  }));
+  check('settings: the controls are listed in tiers (primary, when asked, advanced), with the controller\'s labels', JSON.stringify(tiers.ref) === JSON.stringify(['PRIMARY', 'WHEN ASKED', 'ADVANCED']) && /RT fire/.test(tiers.primary) && /right stick aim/.test(tiers.primary) && tiers.heads.filter((h) => h === 'PRIMARY').length === 2, JSON.stringify(tiers));
   let slider = null;
   for (let k = 0; k < 40 && !slider; k++) {
     slider = await ev(() => { const el = document.activeElement; return el && el.type === 'range' ? { v: el.value, label: el.closest('label')?.textContent?.slice(0, 40) || el.id || 'slider' } : null; });
@@ -77,6 +84,8 @@ const { check, finish, BASE } = require('./lib.cjs');
   const charge0 = await ev(() => window.__underflow.state.charge);
   await set(RT, true); await wait(1200); await set(RT, false); await wait(200);
   const charge1 = await ev(() => window.__underflow.state.charge);
+  const fired = await ev(() => ({ shots: window.__ride.shotsFired, taught: window.__ride.taught }));
+  check('shots are counted for the tip tiers, and the advanced tip has not been shown yet', fired.shots > 0 && !fired.taught.includes('profiles'), JSON.stringify(fired));
   const off0 = await ev(() => window.__ride.offset);
   await axis(0, 1); await wait(3000); await axis(0, 0);
   const off1 = await ev(() => window.__ride.offset);

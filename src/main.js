@@ -36,7 +36,7 @@ import { settings } from './settings.js';
 import { createAutoRes } from './render/autores.js';
 import { rumble } from './feel/haptics.js';
 import { modelsReady, modelState } from './render/props.js';
-import { showModal, hideModal, applyDisplaySettings, ledgerView, showSafeRoom, showDocument, showKeypad, settingsView, logbookView, journalView } from './ui.js';
+import { showModal, hideModal, applyDisplaySettings, ledgerView, showSafeRoom, showDocument, showKeypad, settingsView, controlsReference, logbookView, journalView } from './ui.js';
 const el2 = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text) e.textContent = text; return e; };
 import { CREW, crewById, loadLoops, saveLoop } from './crew.js';
 
@@ -901,7 +901,7 @@ $('records-btn').onclick = () => {
 };
 $('settings-btn').onclick = () => {
   const body = document.createElement('div');
-  body.append(settingsView(), $('controls-ref').content.cloneNode(true));
+  body.append(settingsView(), controlsReference(), $('controls-ref').content.cloneNode(true));
   menuPanel('Settings', body);
 };
 $('credits-btn').onclick = () => {
@@ -934,7 +934,7 @@ function setPaused(on) {
     // Pause: the journal first, settings on their own tab. Pausing actually stops the danger in single player.
     const views = el2('div', 'tabs');
     const pane = el2('div', 'tab-pane');
-    const show = (which) => { views.querySelectorAll('.tab').forEach((t) => t.classList.toggle('on', t.dataset.v === which)); pane.replaceChildren(which === 'journal' ? journalView(state) : settingsView()); if (which === 'settings') pane.append(copy); };
+    const show = (which) => { views.querySelectorAll('.tab').forEach((t) => t.classList.toggle('on', t.dataset.v === which)); pane.replaceChildren(which === 'journal' ? journalView(state) : settingsView()); if (which === 'settings') pane.append(controlsReference(), copy); };
     for (const [v, label] of [['journal', 'JOURNAL'], ['settings', 'SETTINGS']]) { const t = el2('button', 'tab', label); t.dataset.v = v; t.onclick = () => show(v); views.append(t); }
     box.replaceChildren(views, pane);
     show('journal');
