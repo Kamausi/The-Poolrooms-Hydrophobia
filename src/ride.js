@@ -38,6 +38,8 @@ import { magnet, friction, wedges as threatWedges } from './feel/aim.js';
 import { settings } from './settings.js';
 import { tipAllowed } from './controltiers.js';
 import { raftLight, raftZone } from './render/lightstyle.js';
+import { chooseRoute, judgeRoute, nextTrust } from './ai/attendant.js';
+import { noteClaim } from './fieldnotes.js';
 import { AMBIENT } from './sectors.js';
 import { Track, EXIT_OFFSET, section } from './track.js';
 import { createDirector, AFTERMATH, BANTER } from './ai/director.js';
@@ -572,6 +574,32 @@ export function createRide(canvas, state, sector, events, opts = {}) {
   let volleyLines = [];
   let photoPending = null;
   let attendantCall = 0;
+  // The Attendant before a junction (ai/attendant.js chooseRoute): it names a channel; a false instruction miscounts.
+  const raftPA = { trust: 0, lastFalse: false, d: null, outcome: null, issued: 0 };
+  const guestsAboard = () => 1 + crewAvailable().filter((c) => state.crewState[c] !== 'grabbed').length;
+  function directRoute(junction, force = {}) {
+    const d = chooseRoute({ trust: raftPA.trust, lastFalse: raftPA.lastFalse, sectorIndex: sector.index, guests: guestsAboard(), exits: junction.sec.exits, random, lie: force.lie ?? null });
+    raftPA.d = { ...d, id: junction.sec.id, s1: junction.s1, exits: junction.sec.exits, defaultExit: junction.sec.defaultExit ?? 0 };
+    raftPA.issued++;
+    sound.chime?.();
+    hud.say('THE ATTENDANT', d.text, 'attendant', true);
+    noteClaim(state.claims ||= [], { sector: sector.name, said: d.count, actual: guestsAboard(), what: 'route', t: time });
+    return raftPA.d;
+  }
+  function settleRoute() {
+    const d = raftPA.d;
+    const chosen = track.choices[d.id] ?? d.defaultExit;
+    const outcome = judgeRoute(d, chosen);
+    if (outcome === 'complied' && d.lie) {
+      // It sent you down the harder channel, and you went. That is the consequence.
+      hud.caption(`[the ${d.exits[d.exit].label.toLowerCase()} channel. Nothing in the other one was being cleaned]`);
+      events.ledger?.('changes', `${sector.name}: the Attendant named a channel and miscounted the raft`);
+    } else if (outcome === 'complied') setTimeout(() => hud.say('THE ATTENDANT', 'Thank you for keeping to the designated channel.', 'attendant'), 1500);
+    raftPA.trust = d.lie ? 0 : nextTrust(raftPA.trust, outcome);
+    raftPA.lastFalse = d.lie;
+    raftPA.outcome = outcome;
+    raftPA.d = null;
+  }
   const director = createDirector(random, { relax: [26, 42], level: sector.index });
   let lastHealth = state.health;
   const setpiece = { active: false, t: 0, step: 0 };
@@ -2250,6 +2278,12 @@ export function createRide(canvas, state, sector, events, opts = {}) {
 
     // The Caller gives route advice in a crewmate's voice. It is not to be trusted.
     const nj = track.nextRoom(s, 'pool');
+    // Before that, the Attendant may name a channel (ai/attendant.js). Settled when the raft leaves the junction.
+    if (nj && nj.sec.junction && nj.s0 - s < 170 && nj.s0 - s > 115 && !nj.sec.directed && sector.index > 0 && !state.endless && !raftPA.d) {
+      nj.sec.directed = true;
+      if (random() < 0.6) directRoute(nj);
+    }
+    if (raftPA.d && s > raftPA.d.s1) settleRoute();
     if (nj && nj.sec.junction && nj.s0 - s < 110 && nj.s0 - s > 60 && !nj.sec.called && sector.index > 0) {
       nj.sec.called = true;
       if (random() < 0.5) {
@@ -4070,7 +4104,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
     bloomAhead() { return spawnBloom(s + 10, offset * 0.6, 1.2); },
     get locks() { return locks.length; },
   };
-  if (import.meta.env.DEV) window.__ride = { get jumpY() { return jumpY; }, lampLights: () => { return segments.filter((g) => g.lampPos).map((g) => ({ zone: raftZone(track.sectionAt(g.s).sec), ...raftLight(track.sectionAt(g.s).sec, lampColor, { intensity: 9.5, range: 10.5 }) })); }, get shotsFired() { return shotsFired; }, get taught() { return [...taught]; }, parts, camRig, effects, undertowWake: wake, waterField: field, ringParts, wakeParts, streakParts, stir, flashes, gatherLights: () => gatherLights(fx.eye), budget, blaster, get wedges() { return lastWedges; }, get chain() { return lastChain; }, get eyeExposure() { return eyeExposure; }, renderer, get scenery() { return lastScenery; }, room, shots, set padAssist(v) { padAssistTest = v; }, get aimFriction() { return input.aimFriction; }, parts, blooms, tokens, drop, spawnDrop, get assess() { return assess; }, set assessAt(v) { assessAt = v; }, set tokenCool(v) { tokenCool = v; }, get offset() { return offset; }, set offset(v) { offset = v; }, omen: (k) => startOmen(k), get omenState() { return omen; }, get director() { return director; }, get eye() { return fx.eye; }, track, hull, puncture: (c, cause = 'scrape') => hull.puncture(c, cause), overboard: () => goOverboard('test'), free: () => restrained && !restrained.freed && freeRestrained(), shove: () => shove(fx.eye, fx.fwd), ping: () => ping(fx.eye, fx.fwd), fireAt: (dir) => { fireProfile(fx.eye, fx.look, dir || fx.fwd); return state.profile; }, hitTarget: (key) => { const t = targets().find((x) => x.key === key); if (t) { shotProfile = state.profile; t.fn(); } return !!t; }, get wave() { return wave; }, set bot(v) { devBot = v; }, spawnEnc: (kind, extra = {}) => spawn({ e: { kind, ...extra }, s: s + 10, sec: track.sectionAt(s).sec }), get coop() { return { climber, crewGrab, ballast, restrained, protect, focusing, fov, profile: state.profile, special: state.special }; }, reset: () => { overboard = null; capsize = null; trailGrab = null; hull.state.capsized = false; }, capsize: () => startCapsize(), get swimming() { return overboard; }, get capsized() { return capsize; }, get grab() { return trailGrab; }, valve, linked, lifeguard, locker, wake, passengerStep, burst: () => burst(fx.eye, fx.fwd), get s() { return s; }, set s(v) { s = v; }, get waveRide() { return waveRide; }, ropes, debrisPool, get sea() { return sea; }, get hullFx() { return hullFx; }, get raftUp() { return raftUpTest; } };
+  if (import.meta.env.DEV) window.__ride = { get jumpY() { return jumpY; }, raftPA, directRoute, settleRoute, lampLights: () => { return segments.filter((g) => g.lampPos).map((g) => ({ zone: raftZone(track.sectionAt(g.s).sec), ...raftLight(track.sectionAt(g.s).sec, lampColor, { intensity: 9.5, range: 10.5 }) })); }, get shotsFired() { return shotsFired; }, get taught() { return [...taught]; }, parts, camRig, effects, undertowWake: wake, waterField: field, ringParts, wakeParts, streakParts, stir, flashes, gatherLights: () => gatherLights(fx.eye), budget, blaster, get wedges() { return lastWedges; }, get chain() { return lastChain; }, get eyeExposure() { return eyeExposure; }, renderer, get scenery() { return lastScenery; }, room, shots, set padAssist(v) { padAssistTest = v; }, get aimFriction() { return input.aimFriction; }, parts, blooms, tokens, drop, spawnDrop, get assess() { return assess; }, set assessAt(v) { assessAt = v; }, set tokenCool(v) { tokenCool = v; }, get offset() { return offset; }, set offset(v) { offset = v; }, omen: (k) => startOmen(k), get omenState() { return omen; }, get director() { return director; }, get eye() { return fx.eye; }, track, hull, puncture: (c, cause = 'scrape') => hull.puncture(c, cause), overboard: () => goOverboard('test'), free: () => restrained && !restrained.freed && freeRestrained(), shove: () => shove(fx.eye, fx.fwd), ping: () => ping(fx.eye, fx.fwd), fireAt: (dir) => { fireProfile(fx.eye, fx.look, dir || fx.fwd); return state.profile; }, hitTarget: (key) => { const t = targets().find((x) => x.key === key); if (t) { shotProfile = state.profile; t.fn(); } return !!t; }, get wave() { return wave; }, set bot(v) { devBot = v; }, spawnEnc: (kind, extra = {}) => spawn({ e: { kind, ...extra }, s: s + 10, sec: track.sectionAt(s).sec }), get coop() { return { climber, crewGrab, ballast, restrained, protect, focusing, fov, profile: state.profile, special: state.special }; }, reset: () => { overboard = null; capsize = null; trailGrab = null; hull.state.capsized = false; }, capsize: () => startCapsize(), get swimming() { return overboard; }, get capsized() { return capsize; }, get grab() { return trailGrab; }, valve, linked, lifeguard, locker, wake, passengerStep, burst: () => burst(fx.eye, fx.fwd), get s() { return s; }, set s(v) { s = v; }, get waveRide() { return waveRide; }, ropes, debrisPool, get sea() { return sea; }, get hullFx() { return hullFx; }, get raftUp() { return raftUpTest; } };
 
   /** ?show=: put the ride into a fixed, readable state for screenshots and visual review. */
   function showcase(name) {

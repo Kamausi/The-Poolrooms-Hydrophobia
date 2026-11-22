@@ -95,6 +95,33 @@ export function judge(d, { held = 0, t = 0, moved = false, distance = Infinity, 
   return null;
 }
 
+// ---------- On the raft: a channel at a junction ----------
+// Before a junction the Attendant tells the raft which channel to keep to. An honest instruction names the safest
+// channel offered (the public attraction before maintenance, maintenance before the overflow: plans.js builds them at
+// 0.6, 1 and 1.2 times the threat); a false one names the riskiest, and, like every false instruction, miscounts the
+// guests. Following a false one is its own consequence: you are in the harder channel. Ignoring either costs nothing.
+
+/** How risky each route is (plans.js ROUTES). */
+export const ROUTE_RISK = { public: 0, maintenance: 1, overflow: 2 };
+
+/** The instruction before a junction. `exits` are [{ route, label }]. Returns { kind: 'route', lie, count, exit, text }. */
+export function chooseRoute({ trust = 0, lastFalse = false, sectorIndex = 0, guests = 1, exits, random = Math.random, lie: wantLie = null }) {
+  const canLie = sectorIndex > 0 && !lastFalse && trust >= TRUST_BEFORE_LIE;
+  const roll = random();
+  const lie = wantLie ?? (canLie && roll < Math.min(0.85, 0.45 + 0.15 * (trust - TRUST_BEFORE_LIE)));
+  const order = exits.map((_, i) => i).sort((a, b) => (ROUTE_RISK[exits[a].route] ?? 1) - (ROUTE_RISK[exits[b].route] ?? 1));
+  const exit = lie ? order[order.length - 1] : order[0];
+  const other = exits.find((_, i) => i !== exit);
+  const count = lie ? wrongCount(guests, random) : guests;
+  const who = `${countWord(count)[0].toUpperCase()}${countWord(count).slice(1)} ${count === 1 ? 'guest' : 'guests'}`;
+  const name = (e) => e.label.toLowerCase();
+  return { kind: 'route', lie, count, exit,
+    text: `${who}, please keep to the ${name(exits[exit])} channel.${other ? ` The ${name(other)} channel is closed for cleaning.` : ''}` };
+}
+
+/** Whether the raft did as told: which exit it took. */
+export const judgeRoute = (d, chosen) => (chosen === d.exit ? 'complied' : 'ignored');
+
 /** Trust after an outcome: following builds it, not following (or catching a lie) resets it. */
 export function nextTrust(trust, outcome) { return outcome === 'complied' ? trust + 1 : 0; }
 

@@ -20,7 +20,7 @@ export function noteClaim(notes, { sector, said, actual, what, t = 0 }) {
   return n;
 }
 
-const WHAT = { wait: 'asked you to wait', proceed: 'sent you somewhere', gate: 'closed the boarding gate', lock: 'locked a door' };
+const WHAT = { wait: 'asked you to wait', proceed: 'sent you somewhere', gate: 'closed the boarding gate', lock: 'locked a door', route: 'named a channel' };
 
 /** One line of the notes as the journal shows it: what was said, and how many of you there were. */
 export function claimLine(n) {

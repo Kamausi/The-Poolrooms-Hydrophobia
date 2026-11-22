@@ -85,5 +85,32 @@ const { open, check, finish, BASE } = require('./lib.cjs');
   check('an honest gate closure blocks boarding while the prompt says so, then opens by itself', g.honest.kind === 'gate' && g.honest.closedPrompt && g.honest.stillHere && g.honest.reopened, JSON.stringify(g.honest));
   check('hurt while the gate is held, it opens at once', g.override.held && g.override.open, JSON.stringify(g.override));
   check('a false gate closure miscounts the guests and is not closed at all: the prompt says open and you can board', g.lie.lie && g.lie.wrongCount && g.lie.gateT === 0 && g.lie.openPrompt && g.lie.boarded, JSON.stringify(g.lie));
+
+  // On the raft (ai/attendant.js chooseRoute): before a junction it names a channel. Honest names the safest offered;
+  // false names the riskiest and miscounts the raft. Each is judged by the exit the raft takes.
+  const rp = await page.evaluate(() => { const u = window.__underflow;
+    for (const i of [1, 2, 3, 4, 5, 6, 7]) {
+      u.beginSector(i); u.startRide(); u.setState({ health: 1e6 }); u.sim(1);
+      const R = window.__ride, T = R.track;
+      let J = null;
+      for (let s = 0, k = 0; s < T.length && k < 40 && !J; k++) { const r = T.nextRoom(s, 'pool'); if (!r) break; if (r.sec.junction) J = r; s = r.s1 + 1; }
+      if (!J) continue;
+      const risk = { public: 0, maintenance: 1, overflow: 2 }, routes = J.sec.exits.map((e) => e.route);
+      const n0 = (u.state.claims || []).length;
+      const h = R.directRoute(J, { lie: false });
+      const out = { sector: i, routes, honest: { exit: h.exit, safest: risk[routes[h.exit]] <= Math.min(...routes.map((r) => risk[r])), count: h.count, noted: (u.state.claims || []).length === n0 + 1 } };
+      // Ignore it: take the other exit.
+      T.choices[J.sec.id] = 1 - h.exit; R.s = J.s1 + 2; u.sim(2);
+      out.honest.outcome = R.raftPA.outcome; out.honest.trust = R.raftPA.trust;
+      const f = R.directRoute(J, { lie: true });
+      out.lie = { exit: f.exit, riskiest: risk[routes[f.exit]] >= Math.max(...routes.map((r) => risk[r])), count: f.count, guests: u.state.claims.at(-1).actual };
+      // Follow it.
+      T.choices[J.sec.id] = f.exit; R.s = J.s1 + 3; u.sim(2);
+      out.lie.outcome = R.raftPA.outcome; out.lie.caption = document.getElementById('caption').textContent;
+      return out;
+    }
+    return { none: true }; });
+  check('on the raft the Attendant names a channel before a junction: honest is the safest offered, it is noted, and ignoring it costs nothing', !rp.none && rp.honest.safest && rp.honest.noted && rp.honest.outcome === 'ignored' && rp.honest.trust === 0, JSON.stringify(rp));
+  check('a false channel names the riskiest, miscounts the raft, and following it is noticed', !rp.none && rp.lie.riskiest && rp.lie.count !== rp.lie.guests && rp.lie.outcome === 'complied' && /Nothing in the other one/.test(rp.lie.caption), JSON.stringify(rp));
   await finish(browser, errors);
 })();

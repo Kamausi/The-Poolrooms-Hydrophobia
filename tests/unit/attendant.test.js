@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { GATE_SECONDS, placeName, chooseDirective, judge, nextTrust, wrongCount, createLearning, TRUST_BEFORE_LIE, LEARNED_AFTER } from '../../src/ai/attendant.js';
+import { chooseRoute, judgeRoute, GATE_SECONDS, placeName, chooseDirective, judge, nextTrust, wrongCount, createLearning, TRUST_BEFORE_LIE, LEARNED_AFTER } from '../../src/ai/attendant.js';
 import { rng } from '../../src/math.js';
 
 const place = { name: 'the north gallery', pos: [10, 0, 2] };
@@ -74,5 +74,22 @@ describe('attendant', () => {
     expect(l.takeException()).toBe(true);
     for (let i = 0; i < 10; i++) l.stepAway();
     expect(l.takeException()).toBe(false);
+  });
+  it('on the raft it names a channel: honest is the safest offered, false the riskiest with the wrong count', () => {
+    const exits = [{ route: 'overflow', label: 'OVERFLOW' }, { route: 'public', label: 'PUBLIC ATTRACTION' }];
+    const h = chooseRoute({ random: () => 0.5, guests: 3, exits, lie: false });
+    expect(h.exit).toBe(1);
+    expect(h.text).toBe('Three guests, please keep to the public attraction channel. The overflow channel is closed for cleaning.');
+    const f = chooseRoute({ random: () => 0.5, guests: 3, exits, lie: true });
+    expect(f.exit).toBe(0);
+    expect(f.count).not.toBe(3);
+    expect(judgeRoute(f, 0)).toBe('complied');
+    expect(judgeRoute(f, 1)).toBe('ignored');
+    expect(chooseRoute({ random: () => 0.5, guests: 3, exits: [{ route: 'maintenance', label: 'M' }, { route: 'overflow', label: 'O' }], lie: false }).exit).toBe(0);
+    // Same rules as on foot: never false in the first attraction, before trust, or twice running.
+    const r = rng(9);
+    for (let i = 0; i < 200; i++) expect(chooseRoute({ random: r, guests: 2, exits, sectorIndex: 0, trust: 5 }).lie).toBe(false);
+    for (let i = 0; i < 200; i++) expect(chooseRoute({ random: r, guests: 2, exits, sectorIndex: 3, trust: 5, lastFalse: true }).lie).toBe(false);
+    expect(Array.from({ length: 200 }, () => chooseRoute({ random: r, guests: 2, exits, sectorIndex: 3, trust: 3 })).some((d) => d.lie)).toBe(true);
   });
 });
