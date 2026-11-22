@@ -83,7 +83,7 @@ The audit's director table lists six player signals. Each row below is one signa
 |---|---|
 | Essential layer (health, aim, urgent, threat feedback) | Already there: health shows only when hurt, damage arcs, hit markers, one urgent line. |
 | Contextual layer (raft, tools, objectives, crew) | Partly there: three HUD modes, crew roster, raft gauge. |
-| Investigative layer (records, counts, routes, reached through inspection) | **Not built** as a layer. The survey map, journal and Headcount exist, but they are not organised as one. |
+| Investigative layer (records, counts, routes, reached through inspection) | **Partly built.** The pause journal holds the crew's observations, the facility's records, the route map and now **COUNTS** (`src/fieldnotes.js`): every time the Attendant addresses you by number, what it said beside how many of you there were, newest first and with nothing marked, so the Attendant's tell can be checked as evidence. The Headcount and the survey map exist alongside. **Not built:** entries reached through inspection (the scan beam adds nothing to the journal), and one view that ties records, counts and routes together. | `src/fieldnotes.js`, `src/ui.js` | `fieldnotes.test.js`, `gate.cjs` |
 | The facility's readouts may lie, the player's own status may not | Already the rule (facility and equipment lies, Drift signs). The Attendant's false instructions follow it: the count of guests is wrong, and your own HUD never is. |
 | Controller-first usability pass | Not done. That needs people. Controller tables are unit-tested (`padmap.test.js`). |
 
@@ -121,7 +121,7 @@ The audit's gate, as it wrote it. **0 of 12 verified**: every item needs unfamil
 - The loop restructured around water flow, with a consequence stage at every dock.
 - A lighting style for each kind of space; the architectural credibility pass; water that breaks the facility's rules.
 - Sound through vents.
-- An investigative HUD layer.
+- The rest of the investigative layer: entries reached through inspection, and one view over records, counts and routes.
 - The 12–18 minute reference chapter sequence.
 - Narrative changes (Crew Seven, the facility anticipating you).
 - GPU budgets on reference hardware; every item of the vertical-slice gate.

@@ -44,6 +44,14 @@ const { open, check, finish, BASE } = require('./lib.cjs');
   check('an honest lock on a door you opened really shuts it, the prompt says so, and it opens by itself', !lk.none && lk.near && lk.honest.kind === 'lock' && /code door is locked/.test(lk.honest.text) && lk.honest.locked && lk.honest.blocked && lk.honest.shown && /DOOR LOCKED/.test(lk.honest.prompt || '') && !lk.honest.after.locked && !lk.honest.after.blocked && !lk.honest.after.shown && lk.honest.after.outcome === 'complied', JSON.stringify(lk));
   check('hurt while it holds the door, the door opens at once', !lk.none && lk.override.held && lk.override.open, JSON.stringify(lk.override));
   check('a false lock miscounts the guests and leaves the door open; walking through it is noticed', !lk.none && lk.lie.lie && lk.lie.wrongCount && !lk.lie.locked && !lk.lie.blocked && !lk.lie.shown && lk.lie.outcome === 'ignored' && /never locked/.test(lk.lie.caption), JSON.stringify(lk.lie));
+  // The field notes (fieldnotes.js): each of those instructions is in the pause journal's COUNTS page, what it said
+  // beside how many of you there were, with nothing marked.
+  const claims = await page.evaluate(() => (window.__underflow.state.claims || []).map((c) => [c.said, c.actual, c.what]));
+  await page.keyboard.press('Escape'); await page.waitForTimeout(600);
+  const page1 = await page.evaluate(() => { const t = [...document.querySelectorAll('.tab')].find((b) => b.textContent === 'COUNTS'); t?.click();
+    return { tab: !!t, lines: [...document.querySelectorAll('.counts .claim')].map((p) => p.textContent) }; });
+  await page.keyboard.press('Escape'); await page.waitForTimeout(400);
+  check('the journal\'s COUNTS page lists what the facility said beside how many of you there were, newest first, unmarked', claims.length >= 3 && page1.tab && page1.lines.length === claims.length && /locked a door · there were/.test(page1.lines[0]) && claims.some(([s, a]) => s !== a) && !page1.lines.some((l) => /false|lie|wrong/i.test(l)), JSON.stringify({ claims, page1 }));
   await page.evaluate(() => { const u = window.__underflow; u.beginSector(2); u.startRide(); u.startExplore(); u.setState({ health: 1e6 }); u.sim(2); });
   // The Attendant holds the boarding gate: an honest closure really blocks boarding (and opens if you are hurt); a false
   // one is not closed, and the boarding prompt says so. Last, because boarding ends the dock.

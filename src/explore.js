@@ -57,6 +57,7 @@ import { facility as facilityMem, saveFacility, recordSurvey, surveyMem } from '
 import { createObserver, stepObserver, placeObserver, choosePerch } from './ai/observer.js';
 import { driftStage, sideWord, OPPOSITE, pickPassed } from './ai/driftfx.js';
 import { zoneAt, createZoneTracker } from './audio/zones.js';
+import { noteClaim } from './fieldnotes.js';
 import { reflectionMode, delayedPose, trimHistory, turnUnder, tiltFor, LAG_SECONDS, SEE_RANGE, LEFT_BEHIND } from './ai/reflection.js';
 import { chooseDirective, judge as judgeDirective, nextTrust, placeName, createLearning } from './ai/attendant.js';
 import { plan as planFinds, collect as collectFind, headcountLine } from './collectibles.js';
@@ -1741,6 +1742,8 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     if (d.lie) attendantAI.lies++;
     sound.chime?.();
     hud.say('THE ATTENDANT', d.text, 'attendant', true);
+    // The field notes (fieldnotes.js): what it said, beside how many of you there were. Read in the pause journal.
+    noteClaim(state.claims ||= [], { sector: sector.name, said: d.count, actual: guestsHere(), what: d.kind, t: time });
     return d;
   }
   function updateAttendant(dt, calm) {

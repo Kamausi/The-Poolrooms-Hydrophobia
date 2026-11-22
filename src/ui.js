@@ -5,6 +5,7 @@ import { claimLost, LOST_FOUND_COST } from './collectibles.js';
 import { sound } from './audio/audio.js';
 import { input, applyBindings, PAD_ACTIONS, PAD_NAMES, bindingLabel } from './input.js';
 import { byTier, referenceRows } from './controltiers.js';
+import { claimLine } from './fieldnotes.js';
 import { COMFORTS, SECTORS } from './sectors.js';
 import { ROUTES } from './plans.js';
 import { CREW, crewById, fadingCrew } from './crew.js';
@@ -628,7 +629,17 @@ export function journalView(state) {
     });
     return box;
   };
-  const TABS = [['CREW OBSERVATIONS', ledgerView], ['FACILITY RECORDS', facilityRecords], ['ROUTE MAP', routeMap]];
+  // Counts (fieldnotes.js): every time the facility addressed you by number, and how many of you there were.
+  // Nothing is marked: both numbers are there, and what they mean is for the player to work out.
+  const counts = () => {
+    const box = el('div', 'logbook counts');
+    box.append(el('p', 'mono', 'COUNTS · WHAT THE FACILITY SAID, AND HOW MANY OF YOU THERE WERE'));
+    const notes = state.claims || [];
+    if (!notes.length) box.append(el('p', 'mono small', 'The Attendant has not addressed you by number yet.'));
+    for (const n of notes.slice().reverse()) box.append(el('p', 'mono small claim', claimLine(n)));
+    return box;
+  };
+  const TABS = [['CREW OBSERVATIONS', ledgerView], ['FACILITY RECORDS', facilityRecords], ['ROUTE MAP', routeMap], ['COUNTS', counts]];
   TABS.forEach(([label, make], i) => {
     const t = el('button', 'tab', label);
     t.onclick = () => { tabs.querySelectorAll('.tab').forEach((x) => x.classList.remove('on')); t.classList.add('on'); pane.replaceChildren(make()); };
