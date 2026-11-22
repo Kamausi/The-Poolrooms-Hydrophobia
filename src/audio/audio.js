@@ -131,9 +131,18 @@ let silentHeld = false, silenceRestore = [];
 let hrtfMade = 0;
 // Occlusion for the next sounds (sound.occluded): 0 heard directly, 1 through a wall (duller and quieter).
 let occl = 0, occludedMade = 0;
+// A sound carried through the ducts (sound.vented, audio/vents.js): from the vent's direction, thin and metallic.
+let vent = null, ventedMade = 0;
 function out(pan) {
   let dest = bus;
-  if (occl > 0) {
+  if (vent) {
+    pan = vent.pan;
+    const f = ctx.createBiquadFilter();
+    f.type = 'bandpass'; f.frequency.value = 1500; f.Q.value = 1.4;
+    const g = ctx.createGain(); g.gain.value = vent.gain;
+    f.connect(g).connect(bus);
+    dest = f; ventedMade++;
+  } else if (occl > 0) {
     const f = ctx.createBiquadFilter();
     f.type = 'lowpass'; f.frequency.value = 6000 * (1 - occl) + 650 * occl;
     const g = ctx.createGain(); g.gain.value = 1 - 0.45 * occl;
@@ -525,7 +534,13 @@ export const sound = {
     try { fn(); } finally { occl = was; }
   },
   /** Tests: how many HRTF panners and occlusion filters have been made, and the pitch in force. */
-  get spatialStats() { return { hrtfMade, pitch, occludedMade }; },
+  get spatialStats() { return { hrtfMade, pitch, occludedMade, ventedMade }; },
+  /** Play `fn`'s sounds as carried through the ducts: from `pan` (the vent you hear it from), at `gain`. */
+  vented(pan, gain, fn) {
+    const was = vent;
+    vent = { pan, gain };
+    try { fn(); } finally { vent = was; }
+  },
   /**
    * Authored silence: the machinery and the water you have been hearing fade out over a second and stay out until
    * `release()`, so it follows game time (a pause holds it). `seconds` is only a safety limit on audio time in case

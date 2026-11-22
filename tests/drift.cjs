@@ -217,5 +217,31 @@ const { open, check, finish, BASE } = require('./lib.cjs');
     return { quiet, talking, under }; });
   check('a line on screen pulls the music and ambience back for it', mx.quiet.music === 1 && mx.talking.speaking && mx.talking.music < 0.5 && mx.talking.beds < 1, JSON.stringify(mx));
   check('held under the water everything goes dull and the music nearly goes; back up, it comes back', !!mx.under && mx.under.submerged && mx.under.muffled && mx.under.mix.music < 0.5 && !mx.under.after.submerged && !mx.under.after.muffled, JSON.stringify(mx.under));
+  // Sound through vents (audio/vents.js): a sound behind a wall near one vent comes out of the vent near you.
+  // In the Filtration Works: corridors and rooms, so there are walls between vents.
+  await page.evaluate(() => { const u = window.__underflow; u.beginSector(5); u.startRide(); u.startExplore(); u.setState({ health: 1e6 }); u.sim(2); });
+  const vt = await page.evaluate(() => { const u = window.__underflow, E = window.__explore;
+    E.blooms.forEach((b) => { b.active = false; });
+    u.setState({ drift: 0 }); u.sound.unlock?.();
+    const vs = E.vents, stats = () => u.sound.spatialStats;
+    let found = null;
+    for (const a of vs) {
+      E.player.pos = [a[0], 0, a[2]]; u.step(1);
+      const eye = [a[0], 1.6, a[2]];
+      for (const b of vs) {
+        const src = [b[0], 1, b[2]], d = Math.hypot(b[0] - a[0], b[2] - a[2]);
+        if (b === a || d < 6 || d > 20 || E.lineOfSight(eye, src)) continue;
+        const n0 = E.ventHeard.n, m0 = stats().ventedMade;
+        E.heard(src, () => u.sound.footstep(0.5, false));
+        if (E.ventHeard.n === n0 + 1) { found = { d: +d.toFixed(1), made: stats().ventedMade - m0, gain: +E.ventHeard.last.gain.toFixed(2), at: E.ventHeard.last.at === a || Math.hypot(E.ventHeard.last.at[0] - a[0], E.ventHeard.last.at[2] - a[2]) < 0.01 }; break; }
+      }
+      if (found) break;
+    }
+    // A sound in plain sight is not sent through the ducts; one far from every vent is only muffled.
+    const o0 = stats().occludedMade, n1 = E.ventHeard.n;
+    if (found) { E.heard([E.player.pos[0] + 0.5, 1, E.player.pos[2]], () => u.sound.footstep(0, false)); }
+    return { vents: vs.length, found, direct: E.ventHeard.n === n1, caption: document.getElementById('caption').textContent }; });
+  check('a sound behind a wall near one vent comes out of the vent near you, thin and quieter, and is not sent round when it is in plain sight', vt.vents > 3 && !!vt.found && vt.found.made >= 1 && vt.found.at && vt.found.gain > 0.1 && vt.found.gain <= 0.8 && vt.direct, JSON.stringify(vt));
+
   await finish(browser, errors);
 })();
