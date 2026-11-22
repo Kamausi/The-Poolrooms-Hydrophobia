@@ -49,9 +49,9 @@ const { open, check, finish, BASE } = require('./lib.cjs');
   const claims = await page.evaluate(() => (window.__underflow.state.claims || []).map((c) => [c.said, c.actual, c.what]));
   await page.keyboard.press('Escape'); await page.waitForTimeout(600);
   const page1 = await page.evaluate(() => { const t = [...document.querySelectorAll('.tab')].find((b) => b.textContent === 'FIELD NOTES'); t?.click();
-    return { tab: !!t, lines: [...document.querySelectorAll('.counts .claim')].map((p) => p.textContent) }; });
+    return { tab: !!t, head: document.querySelector('.counts .case h3')?.textContent || '', lines: [...(document.querySelector('.counts .case')?.querySelectorAll('.claim') || [])].map((p) => p.textContent) }; });
   await page.keyboard.press('Escape'); await page.waitForTimeout(400);
-  check('the journal\'s FIELD NOTES list what the facility said beside how many of you there were, newest first, unmarked', claims.length >= 3 && page1.tab && page1.lines.length === claims.length && /locked a door · there were/.test(page1.lines[0]) && claims.some(([s, a]) => s !== a) && !page1.lines.some((l) => /false|lie|wrong/i.test(l)), JSON.stringify({ claims, page1 }));
+  check('the journal\'s FIELD NOTES, by attraction (route first), list what the facility said beside how many of you there were, newest first, unmarked', claims.length >= 3 && page1.tab && /THE BLACKLIGHT PAVILION · YOU ARE HERE/.test(page1.head) && page1.lines.length === claims.length && /locked a door · there were/.test(page1.lines[0]) && claims.some(([s, a]) => s !== a) && !page1.lines.some((l) => /false|lie|wrong/i.test(l)), JSON.stringify({ claims, page1 }));
   await page.evaluate(() => { const u = window.__underflow; u.beginSector(2); u.startRide(); u.startExplore(); u.setState({ health: 1e6 }); u.sim(2); });
   // The Attendant holds the boarding gate: an honest closure really blocks boarding (and opens if you are hurt); a false
   // one is not closed, and the boarding prompt says so. Last, because boarding ends the dock.

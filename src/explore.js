@@ -57,6 +57,8 @@ import { facility as facilityMem, saveFacility, recordSurvey, surveyMem } from '
 import { createObserver, stepObserver, placeObserver, choosePerch } from './ai/observer.js';
 import { driftStage, sideWord, OPPOSITE, pickPassed } from './ai/driftfx.js';
 import { zoneAt, createZoneTracker } from './audio/zones.js';
+import { ventRoute, ventCells } from './audio/vents.js';
+import { chooseClosure } from './ai/corridor.js';
 import { lightFor, isFailing } from './render/lightstyle.js';
 import { noteClaim, noteReading } from './fieldnotes.js';
 import { reflectionMode, delayedPose, trimHistory, turnUnder, tiltFor, LAG_SECONDS, SEE_RANGE, LEFT_BEHIND } from './ai/reflection.js';
@@ -154,6 +156,9 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
   /** A door the Attendant really has locked (ai/attendant.js): [x, z] while it holds, otherwise null. */
   let lockCell = null;
   const lockedHere = (x, z) => !!lockCell && lockCell[0] === x && lockCell[1] === z;
+  /** A corridor tiled over at high Drift (ai/corridor.js): [x, z] while it stands, otherwise null. */
+  let closedCell = null;
+  const closedHere = (x, z) => !!closedCell && closedCell[0] === x && closedCell[1] === z;
   let sensorRevealed = false;
   // The Closed Wave Pool: once the crew chooses, the basin is drained (dry floor) or kept circulating (a current).
   let basin = 'full', basinLevel = -0.05;
@@ -179,7 +184,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
   const blocked = (x, z) => {
     const c = at(x, z);
     if (c === '#') return isWall(x, z);
-    return c === 'x' || c === 'o' || (c === 'B' && !highWater) || (c === 'K' && !keypadOpen) || (c === 'G' && !gateOpen) || lockedHere(x, z);
+    return c === 'x' || c === 'o' || (c === 'B' && !highWater) || (c === 'K' && !keypadOpen) || (c === 'G' && !gateOpen) || lockedHere(x, z) || closedHere(x, z);
   };
   const inWaterAt = (px, pz) => isWater(...cellOf(px, pz));
 
@@ -228,6 +233,10 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
   const waterParts = [];
   const tidal = [];
   const lamps = [];
+  // Ceiling vents (audio/vents.js): a dark grille over about one dry floor cell in eight. The ducts behind them carry sound.
+  const vents = ventCells(find('.'), { ok: (x, z) => !rules.openSky && !isWall(x, z), seed: (x, z) => hash(x + 17, z + 31) })
+    .map(([x, z]) => { const c = center(x, z); const g = P(`Vent ${x},${z}`, slab, { color: [0.1, 0.11, 0.11], metallic: 0.6, roughness: 0.5, emission: 0.02 });
+      writeYaw(g.matrix, [c[0] + 1.1, wallH - 0.015, c[2] - 1.1], 0, 0.7, 0.03, 0.5); return [c[0] + 1.1, wallH - 0.1, c[2] - 1.1]; });
   for (let z = 0; z < H; z++) {
     for (let x = 0; x < W; x++) {
       const c = center(x, z);
@@ -739,6 +748,9 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
   const falseGap = P('False doorway', slab, { color: [0.012, 0.014, 0.016], metallic: 0, roughness: 1, emission: 0.02 });
   const falseLintel = P('False doorway frame', slab, { color: linear('#3c3a36'), metallic: 0.3, roughness: 0.7 });
   hide(falseGap); hide(falseLintel);
+  // The tile that closes a corridor at high Drift (ai/corridor.js). Made now, hidden until then.
+  const closedWall = P('Drift corridor wall', slab, tileMat);
+  hide(closedWall);
   const vestMat = { color: linear('#b46a3c'), metallic: 0, roughness: 0.65 };
   const cupMat = { color: [0.88, 0.88, 0.84], metallic: 0, roughness: 0.4 };
   // The same small details, in the same places relative to a wall: they will be here, and again later.
@@ -1430,7 +1442,17 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
   let viewEye = [0, 1.6, 0], viewDir = [0, 0, -1];
   const panTo = (p) => soundDir(viewEye, viewDir, p).pan;
   /** Play a sound from `p` as heard from here: through a wall it comes out duller and quieter (audio occlusion). */
-  const heard = (p, fn) => sound.occluded(viewEye && !lineOfSight(viewEye, p) ? 1 : 0, fn);
+  // Behind a wall it would be muffled, but the facility is ducted (audio/vents.js): if the sound is near one vent and you
+  // are near another, it comes out of yours, thin and metallic, from above.
+  const ventHeard = { n: 0, last: null, told: false };
+  const heard = (p, fn) => {
+    if (!viewEye || lineOfSight(viewEye, p)) return sound.occluded(0, fn);
+    const r = ventRoute(p, viewEye, vents, { sees: (a, b) => lineOfSight(a, b) });
+    if (!r) return sound.occluded(1, fn);
+    ventHeard.n++; ventHeard.last = { ...r, src: p };
+    if (!ventHeard.told && sector.index > 0) { ventHeard.told = true; hud.caption('[that came out of the vent above you. It is in the next room]'); }
+    return sound.vented(panTo(r.at), r.gain, fn);
+  };
   function startFomen(kind) {
     lastFomen = kind;
     fused.add(kind);
@@ -1502,6 +1524,49 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     if (Math.hypot(player.pos[0] - F.face[0], player.pos[2] - F.face[2]) < 1.1) return closeFalseDoor(true);
     // Drift has come down: the wall is plain again, but only once you are not looking.
     if (state.drift < 55 && !inViewNow(F.face)) closeFalseDoor(false);
+  }
+
+  // ---------- High Drift: a corridor you came down is tiled over (ai/corridor.js) ----------
+  // Once per dock, never in the first attraction: a corridor cell you walked through at least twenty seconds ago, out
+  // of sight and empty, is closed with old tile, but only if everything else can still be reached. It is a real wall
+  // while it stands. It opens again (unseen) when Drift falls or after ninety seconds.
+  const corridor = { done: false, told: false, t: 0, walked: new Map(), isCorridor: new Map() };
+  const corridorCell = (x, z) => {
+    const k = `${x},${z}`;
+    if (!corridor.isCorridor.has(k)) corridor.isCorridor.set(k, !isWater(x, z) && zoneAt(x, z, { open: (a, b) => at(a, b) !== '#', water: isWater }) === 'tile');
+    return corridor.isCorridor.get(k);
+  };
+  const nearCell = (p, c) => { const [px, pz] = cellOf(p[0], p[2]); return Math.abs(px - c[0]) <= 1 && Math.abs(pz - c[1]) <= 1; };
+  function closeCorridor() {
+    const [px, pz] = cellOf(player.pos[0], player.pos[2]);
+    const cands = [...corridor.walked.keys()].map((k) => k.split(',').map(Number));
+    const c = chooseClosure(cands, { open: (x, z) => !isWall(x, z) && !blocked(x, z), W, H, start: [px, pz], now: time, lastAt: (c) => corridor.walked.get(c.join()),
+      busy: (c) => nearCell(player.pos, c) || followers.some((f) => f.pos && nearCell(f.pos, c)) || blooms.some((b) => b.active && nearCell(b.pos, c)) || (!!lifeguard?.pos && nearCell(lifeguard.pos, c)),
+      seen: (c) => { const p = center(...c); return inViewNow([p[0], 1.5, p[2]]); } });
+    if (!c) return null;
+    closedCell = c;
+    const p = center(...c);
+    writeYaw(closedWall.matrix, [p[0], wallH / 2 - 0.5, p[2]], 0, CELL, wallH + 1, CELL);
+    corridor.t = 0;
+    return c;
+  }
+  function openCorridor() { closedCell = null; hide(closedWall); corridor.done = true; }
+  function updateCorridor(dt, calm) {
+    const [px, pz] = cellOf(player.pos[0], player.pos[2]);
+    if (corridorCell(px, pz)) corridor.walked.set(`${px},${pz}`, time);
+    if (corridor.done || sector.index === 0) return;
+    if (!closedCell) { if (driftStage(state.drift) === 'high' && calm && !fomen) closeCorridor(); return; }
+    corridor.t += dt;
+    // Its near face, toward you: the cell's centre is inside the new wall, where no line of sight reaches.
+    const p = center(...closedCell), toMe = normalize([player.pos[0] - p[0], 0, player.pos[2] - p[2]]);
+    const face = [p[0] + toMe[0] * (CELL / 2 + 0.15), 1.5, p[2] + toMe[2] * (CELL / 2 + 0.15)];
+    if (!corridor.told && inViewNow(face) && distance(face, player.pos) < 16) {
+      corridor.told = true;
+      hud.caption('[the corridor you came down is tiled over. The grout is old, and dry]');
+      director.omen(0.15, 8);
+      events.ledger?.('changes', `${sector.name}: at high Drift a corridor you had walked was a wall`);
+    }
+    if ((state.drift < 55 || corridor.t > 90) && !inViewNow(face)) openCorridor();
   }
 
   // ---------- Moderate Drift (ai/driftfx.js): a voice from the wrong side; an object on a spot you already passed ----------
@@ -1961,7 +2026,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
   }
   // Ways round walls for things that float or walk (ai/path.js). One flow field toward the player serves every Bloom
   // closing in, rebuilt only when the player changes cell or the emergency doorway opens or shuts.
-  const openCell = (x, z) => !isWall(x, z);
+  const openCell = (x, z) => !isWall(x, z) && !closedHere(x, z);
   let toPlayer = null, toPlayerKey = '';
   /**
    * A direction from `pos` toward `target` that goes round walls: straight at it when it can be seen, else toward the
@@ -1973,11 +2038,11 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     const pc = cellOf(player.pos[0], player.pos[2]);
     let next = null;
     if (goal[0] === pc[0] && goal[1] === pc[1]) {
-      const key = `${pc[0]},${pc[1]},${!!emergency}`;
+      const key = `${pc[0]},${pc[1]},${!!emergency},${closedCell}`;
       if (key !== toPlayerKey) { toPlayer = flowField(openCell, W, H, pc); toPlayerKey = key; }
       next = flowStep(toPlayer, openCell, from[0], from[1]);
     } else {
-      const key = `${from[0]},${from[1]}>${goal[0]},${goal[1]},${!!emergency}`;
+      const key = `${from[0]},${from[1]}>${goal[0]},${goal[1]},${!!emergency},${closedCell}`;
       if (memo.key !== key) { memo.key = key; memo.path = findPath(openCell, W, H, from, goal); }
       next = nextCorner(memo.path, from, (a, b) => straight(openCell, a, b));
     }
@@ -2719,6 +2784,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     updateReflection(dt, calmNow);
     updateAcoustics(dt, eye);
     updateFalseDoor();
+    updateCorridor(dt, calmNow);
     voices(dt);
 
     let scanText = '';
@@ -4232,7 +4298,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     for (let i = 0; i < (r.valves || 0); i++) { const v = pumpValves.find((x) => x.id === valveOrder[i]); if (v) v.open = true; }
     valveStep = r.valves || 0;
   }
-  if (import.meta.env.DEV) window.__explore = { get prompts() { return lastPrompts.map((p) => p[1]); }, scanTick: (dt, eye, dir) => scanTick(dt, eye, dir), get acousticZone() { return acousticZone; }, zoneHere: (x, z) => zoneAt(x, z, { open: acousticOpen, water: isWater, openSky: !!rules.openSky }), get submerged() { return submerged; }, get lockCell() { return lockCell; }, openDoorNear, keypads, gates, openKeypad: () => { keypadOpen = true; }, get keypadOpen() { return keypadOpen; }, blockedAt: (x, z) => blocked(x, z), refl, selfFig, reflectionSpot, parts, camRig, takenCells, habits, falseDoor, showFalseDoor, wallParts, get time() { return time; }, signSeen, moved, placeMoved, wrongVoice, movedSign, trail, watcher, perchWatcher, watcherFig, startDriftSteps, get driftSteps() { return driftSteps; }, attendant: attendantAI, issueDirective, learning, guestsHere, get fomen() { return fomen; }, startFomen: (k) => startFomen(k), burstDamage, burstWindup, rows, thread, threadParts, ripGrid, ripPart, get ripCell() { return ripCell; }, routeTo, get W() { return W; }, get H() { return H; }, isWall, cellOf, center, wetMarks: wet, wetParts, waterField: field, ringParts, caustics, waterLevel, stir, jolt, effects, get blown() { return blown; }, flashes, frameEnv: () => lastEnv, marcos, get marcoApart() { return marcoApart; }, mirror: () => mirrorSurface && detachMirror && { height: mirrorSurface.height, parts: mirrorSurface.partIndices.length, key: mirrorKey }, models: () => parts.filter((p) => p.model).map((p) => ({ model: p.model, name: p.name, at: [p.matrix[12], p.matrix[13], p.matrix[14]] })), flashes, budget, wave: (n, f) => wave(n, f), lineOfSight, get remembered() { return remembered; }, get chain() { return lastChain; }, get eyeExposure() { return eyeExposure; }, renderer, get driftSigns() { return driftSigns; }, get wedges() { return lastWedges; }, survey, get surveyCoverage() { return surveyCoverage(survey, surveyOpen); }, surveyOpen, omen: (k) => startFomen(k), circuit, setEmergency, setBlackout, get blackout() { return blackout; }, signParts, get resetT() { return resetT; }, get emergency() { return emergency; }, blocked, isWall, finds, found, get lampPlaced() { return lampPlaced; }, lights: () => gatherLights(add(player.pos, [0, 1.6, 0])), get hesitation() { return hesitation; }, get lastOmen() { return lastFomen; }, get marcoAct() { return marcoAct; }, set marcoAct(v) { marcoAct = v; }, marcos, columns, wavePool, get basin() { return basin; }, isWater, floorTop, get operating() { return operating; }, set operating(v) { operating = v; }, panelFront, holdT, shoot, spawnBloom, occupant, lockers, noise, violate, get omenState() { return fomen; }, door, blooms, lamps, director, followers, get dockKind() { return dockKind; }, get valves() { return { order: valveOrder, step: valveStep, list: pumpValves }; }, june: juneEvent, thread, get clock() { return clock; }, stagnant, player, center, undertow, lifeguard, cellPos, panelPos, raftPos, code, find, floaters, restorePower };
+  if (import.meta.env.DEV) window.__explore = { get prompts() { return lastPrompts.map((p) => p[1]); }, corridor, closeCorridor, openCorridor, corridorCell, get closedCell() { return closedCell; }, closedWall, openCell, vents, ventHeard, heard, scanTick: (dt, eye, dir) => scanTick(dt, eye, dir), get acousticZone() { return acousticZone; }, zoneHere: (x, z) => zoneAt(x, z, { open: acousticOpen, water: isWater, openSky: !!rules.openSky }), get submerged() { return submerged; }, get lockCell() { return lockCell; }, openDoorNear, keypads, gates, openKeypad: () => { keypadOpen = true; }, get keypadOpen() { return keypadOpen; }, blockedAt: (x, z) => blocked(x, z), refl, selfFig, reflectionSpot, parts, camRig, takenCells, habits, falseDoor, showFalseDoor, wallParts, get time() { return time; }, signSeen, moved, placeMoved, wrongVoice, movedSign, trail, watcher, perchWatcher, watcherFig, startDriftSteps, get driftSteps() { return driftSteps; }, attendant: attendantAI, issueDirective, learning, guestsHere, get fomen() { return fomen; }, startFomen: (k) => startFomen(k), burstDamage, burstWindup, rows, thread, threadParts, ripGrid, ripPart, get ripCell() { return ripCell; }, routeTo, get W() { return W; }, get H() { return H; }, isWall, cellOf, center, wetMarks: wet, wetParts, waterField: field, ringParts, caustics, waterLevel, stir, jolt, effects, get blown() { return blown; }, flashes, frameEnv: () => lastEnv, marcos, get marcoApart() { return marcoApart; }, mirror: () => mirrorSurface && detachMirror && { height: mirrorSurface.height, parts: mirrorSurface.partIndices.length, key: mirrorKey }, models: () => parts.filter((p) => p.model).map((p) => ({ model: p.model, name: p.name, at: [p.matrix[12], p.matrix[13], p.matrix[14]] })), flashes, budget, wave: (n, f) => wave(n, f), lineOfSight, get remembered() { return remembered; }, get chain() { return lastChain; }, get eyeExposure() { return eyeExposure; }, renderer, get driftSigns() { return driftSigns; }, get wedges() { return lastWedges; }, survey, get surveyCoverage() { return surveyCoverage(survey, surveyOpen); }, surveyOpen, omen: (k) => startFomen(k), circuit, setEmergency, setBlackout, get blackout() { return blackout; }, signParts, get resetT() { return resetT; }, get emergency() { return emergency; }, blocked, isWall, finds, found, get lampPlaced() { return lampPlaced; }, lights: () => gatherLights(add(player.pos, [0, 1.6, 0])), get hesitation() { return hesitation; }, get lastOmen() { return lastFomen; }, get marcoAct() { return marcoAct; }, set marcoAct(v) { marcoAct = v; }, marcos, columns, wavePool, get basin() { return basin; }, isWater, floorTop, get operating() { return operating; }, set operating(v) { operating = v; }, panelFront, holdT, shoot, spawnBloom, occupant, lockers, noise, violate, get omenState() { return fomen; }, door, blooms, lamps, director, followers, get dockKind() { return dockKind; }, get valves() { return { order: valveOrder, step: valveStep, list: pumpValves }; }, june: juneEvent, thread, get clock() { return clock; }, stagnant, player, center, undertow, lifeguard, cellPos, panelPos, raftPos, code, find, floaters, restorePower };
 
   /** ?show=: put the dock into a fixed, readable state for screenshots and visual review. */
   function showcase(name) {
