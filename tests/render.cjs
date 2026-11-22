@@ -112,5 +112,14 @@ const BASE = process.env.UNDERFLOW_URL || 'http://localhost:5173';
   await page.waitForFunction(() => !!window.__bench, null, { timeout: 120000 });
   r = await page.evaluate(() => ({ b: window.__bench, text: document.getElementById('bench')?.textContent || '' }));
   check('?bench rides for a fixed time and reports the GPU, the tier and frame-time numbers', r.b.tier === 'high' && r.b.frames >= 2 && r.b.median > 0 && r.b.p99 >= r.b.median && /GPU/.test(r.text) && /99th/.test(r.text) && /errors       none/.test(r.text), JSON.stringify(r.b));
+  // A lighting style for each kind of raft section (render/lightstyle.js): across a few attractions the lamps take the
+  // style of the section they hang in, and a plain channel's lamp is as before. (Tubes are unlit, so the corridor style
+  // has no raft lamp in these attractions; the colours are the unit test's.)
+  const ls = await page.evaluate(() => { const u = window.__underflow, out = {};
+    for (const i of [0, 2, 4, 5, 6]) { u.beginSector(i); u.startRide(); u.setState({ health: 1e6 }); u.sim(1);
+      for (const l of window.__ride.lampLights()) (out[l.zone] ||= { n: 0, range: +l.range.toFixed(2), intensity: +l.intensity.toFixed(2), blueRed: +(l.color[2] / l.color[0]).toFixed(2) }).n++; }
+    return out; });
+  const kinds = Object.keys(ls);
+  check('on the raft lamps take their section\'s style: pools and halls reach further and brighter, calm water is softer, a plain channel is as before', kinds.length >= 3 && ls.channel && ls.channel.range === 10.5 && ls.channel.intensity === 9.5 && ls.hall && ls.hall.range > ls.channel.range && ls.hall.intensity > ls.channel.intensity && ls.calm && ls.calm.intensity < ls.channel.intensity, JSON.stringify(ls));
   await finish(browser, errors);
 })();

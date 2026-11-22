@@ -55,3 +55,34 @@ export function noteReading(readings, { sector, key, label, text, t = 0 }) {
 
 /** One reading as the journal shows it. A second, different reading of the same thing says so. */
 export const readingLine = (r) => `${r.sector} · ${r.label}${r.again ? ' (read again)' : ''} · ${r.text}`;
+
+// ---------- One view: everything by attraction ----------
+// The audit asks for records, counts and routes "organised as one". The journal's other tabs keep each kind apart
+// (so contradictions can be compared); the field notes put them side by side for each attraction you have reached:
+// where it is on the route, what the crew saw there (the ledger), what the beam read, what the facility counted, and
+// which documents came from there.
+
+const LEDGER_KINDS = ['places', 'machinery', 'behaviours', 'visitors', 'changes'];
+
+/**
+ * The case for each attraction reached, newest first. `sectors` are the attraction names in route order;
+ * `sectorIndex` where you are; `ledger` the crew ledger ({ kind: ['NAME: text'] }); `readings`, `claims` the notes;
+ * `documents` the logbook ([{ title, text }]). Returns [{ name, route, seen, read, counted, documents }].
+ */
+export function casebook({ sectors, sectorIndex, ledger = {}, readings = [], claims = [], documents = [] }) {
+  const out = [];
+  for (let i = Math.min(sectorIndex, sectors.length - 1); i >= 0; i--) {
+    const name = sectors[i];
+    const prefix = `${name}: `;
+    const seen = LEDGER_KINDS.flatMap((k) => (ledger[k] || []).filter((l) => l.startsWith(prefix)).map((l) => l.slice(prefix.length)));
+    out.push({
+      name,
+      route: i === sectorIndex ? 'YOU ARE HERE' : 'SURVEYED',
+      seen,
+      read: readings.filter((r) => r.sector === name).reverse(),
+      counted: claims.filter((c) => c.sector === name).reverse(),
+      documents: documents.filter((d) => d.title.toUpperCase().includes(name.toUpperCase())).map((d) => d.title),
+    });
+  }
+  return out;
+}

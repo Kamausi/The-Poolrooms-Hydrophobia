@@ -5,7 +5,7 @@ import { claimLost, LOST_FOUND_COST } from './collectibles.js';
 import { sound } from './audio/audio.js';
 import { input, applyBindings, PAD_ACTIONS, PAD_NAMES, bindingLabel } from './input.js';
 import { byTier, referenceRows } from './controltiers.js';
-import { claimLine, readingLine } from './fieldnotes.js';
+import { claimLine, readingLine, casebook } from './fieldnotes.js';
 import { COMFORTS, SECTORS } from './sectors.js';
 import { ROUTES } from './plans.js';
 import { CREW, crewById, fadingCrew } from './crew.js';
@@ -629,18 +629,25 @@ export function journalView(state) {
     });
     return box;
   };
-  // Field notes (fieldnotes.js): what the beam read, and every time the facility addressed you by number beside how
-  // many of you there were. Nothing is marked: what it means is for the player to work out.
+  // Field notes (fieldnotes.js): one view by attraction, newest first: where it is on the route, what the crew saw
+  // there, what the beam read, every time the facility counted you, and the documents from there. Nothing is marked:
+  // what it means is for the player to work out.
   const counts = () => {
     const box = el('div', 'logbook counts');
-    box.append(el('p', 'mono', 'READINGS · WHAT THE BEAM SHOWED'));
-    const reads = state.readings || [];
-    if (!reads.length) box.append(el('p', 'mono small', 'Nothing read yet. Hold the inspection beam on something until it reads.'));
-    for (const r of reads.slice().reverse()) box.append(el('p', 'mono small reading', readingLine(r)));
-    box.append(el('p', 'mono', 'COUNTS · WHAT THE FACILITY SAID, AND HOW MANY OF YOU THERE WERE'));
-    const notes = state.claims || [];
-    if (!notes.length) box.append(el('p', 'mono small', 'The Attendant has not addressed you by number yet.'));
-    for (const n of notes.slice().reverse()) box.append(el('p', 'mono small claim', claimLine(n)));
+    box.append(el('p', 'mono', 'FIELD NOTES · BY ATTRACTION'));
+    const cases = casebook({ sectors: SECTORS.map((s) => s.name), sectorIndex: state.endless ? -1 : state.sectorIndex, ledger: facility.ledger, readings: state.readings || [], claims: state.claims || [], documents: state.logbook || [] });
+    if (!cases.length) box.append(el('p', 'mono small', 'Nothing yet.'));
+    for (const c of cases) {
+      const a = el('article', 'case');
+      a.append(el('h3', null, `${c.name} · ${c.route}`));
+      const part = (title, lines, cls) => { if (!lines.length) return; a.append(el('p', 'mono small', title)); for (const t of lines) a.append(el('p', `mono small ${cls}`, t)); };
+      part('SEEN BY THE CREW', c.seen, 'seen');
+      part('READ IN THE BEAM', c.read.map((r) => readingLine(r).slice(c.name.length + 3)), 'reading');
+      part('COUNTED BY THE FACILITY', c.counted.map((n) => claimLine(n).slice(c.name.length + 3)), 'claim');
+      part('DOCUMENTS', c.documents, 'doc');
+      if (!c.seen.length && !c.read.length && !c.counted.length && !c.documents.length) a.append(el('p', 'mono small', 'Nothing noted here. Hold the inspection beam on things until they read.'));
+      box.append(a);
+    }
     return box;
   };
   const TABS = [['CREW OBSERVATIONS', ledgerView], ['FACILITY RECORDS', facilityRecords], ['ROUTE MAP', routeMap], ['FIELD NOTES', counts]];
