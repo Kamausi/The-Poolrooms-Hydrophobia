@@ -8,10 +8,33 @@ Assets (sound, textures, fonts) are tracked in `assets/registry.json` and credit
 |---|---|---|---|
 | 67js | npm package `67js` | see `node_modules/67js/LICENSE` | dependency, not copied into `src/` |
 | Playwright, Vitest, TypeScript, Vite | npm | their own licences | development only |
+| @gltf-transform/core, /extensions, /functions 4.5.1; meshoptimizer 1.3.0 | npm | MIT | development only: `scripts/compress-models.mjs` compresses the models; nothing from them ships in the game (67js decodes the result) |
+| fast-check 4.10.2 | npm | MIT | development only: `tests/unit/properties.test.js` |
 
 No other code in `src/` or `tests/` is copied from another project. Three.js is not used.
 
 ## References used without copying code
+
+### Published methods
+
+| Hydrophobia module | Method | What we wrote |
+|---|---|---|
+| `src/feel/float.js` | Gerstner (trochoidal) waves with deep-water dispersion ω² = g·k; Archimedes buoyancy solved as force and moment balance on four supports | Our own wave set per section, raft cross and stiffness model |
+| `src/feel/rope.js` | Verlet integration with distance constraints (position-based, as in Jakobsen's "Advanced Character Physics", 2001) | Our own rope, buoyancy term and tuning |
+| `src/ai/steering.js` | Reynolds' steering behaviours (arrive, separation), 1999 | Our own weights and limits |
+| `src/audio/acoustics.js` | Sabine's reverberation formula with air absorption; critical distance | Our own room models and published typical absorption coefficients |
+| `src/scatter.js` | Poisson-disc sampling by dart throwing | Our own discrete version over map cells with a furthest-cell fallback |
+| `src/platform.js` | Browser APIs: Pointer Lock `unadjustedMovement`, Screen Wake Lock, `navigator.storage.persist()` | Our own handling, each optional |
+| `src/ai/path.js` | A* (Hart, Nilsson and Raphael, 1968) with an octile heuristic; Dijkstra flow fields | Our own grid rules (no corner cutting) and caching |
+| `src/ai/utility.js` | Utility scoring with response curves and the compensation factor (Dave Mark, "Infinite Axis Utility System") | Our own considerations for crew targeting |
+| `src/render/wavegrid.js` | The 2D wave equation by explicit finite differences, with Courant-limited substeps | Our own grid, mask and mesh writing |
+| `src/feel/body.js` | Damped-spring buoyancy on a Gerstner surface, semi-implicit Euler | Our own constants |
+| `src/render/noise.js` | Simplex noise as described by Stefan Gustavson ("Simplex noise demystified", 2005) | Written from the description, seeded by our PRNG |
+| `src/mapgen.js` | Wave function collapse, simple tiled model (Maxim Gumin, 2016) | Our own adjacency learning from the authored maps, fixed features and solvability check |
+| `src/audio/doppler.js` | The Doppler formula for moving source and listener | Our own clamping |
+| `src/render/gputimer.js`, `src/storage.js` | `EXT_disjoint_timer_query_webgl2`; IndexedDB; CompressionStream | Our own handling, each optional |
+
+### Saltline
 
 **Saltline**, a single-file browser shooter, was described to us in prose (a breakdown of its systems, its post-processing chain and its tuning values). No Saltline source has been opened, pasted or copied into this repository. The following were written for Hydrophobia from those descriptions and from general, published techniques:
 

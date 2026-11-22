@@ -6,6 +6,7 @@
 // lists the raft and pulls it toward that wall; a soft bow or stern can't climb a launch lip; under a quarter
 // pressure the water starts coming over. state.raft stays the average, for everything that reads one number.
 
+import { buoyancy } from './feel/float.js';
 export const CHAMBERS = ['left', 'right', 'bow', 'stern'];
 /** A field patch and a hand pump give basic control; only a compressor fills a chamber. */
 export const FIELD_MAX = 70;
@@ -106,10 +107,14 @@ export function createHull(state, { hud, sound, random }) {
     const sideDiff = (c.left - c.right) / 100; // negative: left is softer
     const ends = Math.min(c.bow, c.stern) / 100;
     const lowest = Math.min(c.left, c.right, c.bow, c.stern);
+    // How the raft sits from Archimedes on the four chambers (feel/float.js): sink, list and pitch. The list is drawn
+    // at 1.8x the physical angle so a soft side reads from the seat.
+    const sits = buoyancy(c);
     return {
       pull: sideDiff * 2.6, // lateral acceleration toward the soft side
-      list: sideDiff * 0.14, // camera roll and raft tilt toward the soft side
-      sag: (1 - state.raft / 100) * 0.12,
+      list: sits.roll * 1.8, // camera roll and raft tilt toward the soft side (+ right side down)
+      pitch: sits.pitch * 1.8, // the raft's nose goes down on a soft bow (+ bow down)
+      sag: Math.min(0.2, sits.sink * 1.4),
       hopScale: 0.55 + 0.45 * ends, // a soft bow or stern can't climb
       speedScale: 0.82 + 0.18 * (state.raft / 100),
       awash: lowest < 25,

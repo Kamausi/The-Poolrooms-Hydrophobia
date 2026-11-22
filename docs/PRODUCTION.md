@@ -105,6 +105,8 @@ Filtration Works stays the hardest. A bot is not a person: this replaces guessin
 
 What changed: the bot's log on the Lagoon showed the Undertow surfacing under the raft nine times in 90 m for 12 health each, because a crew that keeps firing holds noise at its ceiling. Noise now draws it at 0.03 m/s per point (was 0.05), it backs off to 34 m and waits five seconds after surfacing, and after three strikes in one pursuit it sinks away until the next wake encounter. This applies wherever the Undertow chases the raft, not only in the Lagoon. As before, a bot is not a person: this has not been played by a human.
 
+**Re-measured on 16 November 2026, after Blooms began routing round walls and the on-foot burst gained its wind-up (`npm run test:balance`): the bot still reaches 8 of 8 docks.** No balance numbers were changed. Lowest health and raft at the dock, by attraction 0–7: 46/92%, 46/74%, 49/100%, 50/96%, 40/91%, 33/72%, 42/92%, 34/84%. That is within a few points of the 15 November run everywhere. The bot only rides, so this says nothing about the on-foot changes; the burst tell on foot is covered by `systems.cjs`.
+
 ## Resume, interruption-tested
 
 Verified by automated test:

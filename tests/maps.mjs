@@ -26,5 +26,14 @@ for (const s of SECTORS) {
   for (const ch of 'DPS') if (!find(ch).length) { console.log(s.id,'missing',ch); bad++; }
   console.log(s.id.padEnd(22), `${W}x${H}`, 'P', find('P').length, 'u', find('u').length, 'docs', find('l').length, closed.size, opened.size);
 }
+// Endless mode's generated docks (src/mapgen.js): every one handed out must pass the same rules, and most seeds must
+// give a real variation rather than the authored fallback.
+const { generateDock, learn, solvable } = await import('../src/mapgen.js');
+const corpus = SECTORS.map((s) => s.map), rules = learn(corpus);
+for (const s of SECTORS) {
+  let varied = 0;
+  for (let seed = 1; seed <= 12; seed++) { const r = generateDock(s.map, corpus, seed, { rules }); if (!solvable(r.map)) { console.log(s.id, 'generated map unsolvable at seed', seed); bad++; } if (!r.fallback) varied++; }
+  if (varied < 9) { console.log(s.id, 'only', varied, 'of 12 seeds varied'); bad++; }
+}
 console.log(bad ? `PROBLEMS: ${bad}` : 'ALL MAPS SOLVABLE');
 process.exit(bad ? 1 : 0);

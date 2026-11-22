@@ -1,5 +1,6 @@
 // Sound: recorded where a recording exists (samples.js, the Oculus Audio Pack), synthesised everywhere else and
 // as the fallback while recordings load. Beds (water, machinery, the vent, underwater, the drone) follow the space.
+import { ROOMS, reverbFor } from './acoustics.js';
 import { loadSamples, playSample, createBed, hasSample } from './samples.js';
 import { settings } from '../settings.js';
 import { createVoicePool, priorityOf } from './voicepool.js';
@@ -26,7 +27,9 @@ let verb = null, verbGain = null, space = null;
 let bedBus = null, musicVol = null;
 const beds = {};
 const bedLevel = {}; // what each bed should be at; applied once its recording has loaded
-const SPACES = { tile: [1.3, 0.28, 3.2], hall: [3.4, 0.38, 2.2], tube: [0.5, 0.2, 6], room: [0.9, 0.22, 3.6], dry: [0.25, 0.05, 6], reservoir: [4.5, 0.42, 1.8] };
+// Each space's reverb comes from a room of that kind (audio/acoustics.js): Sabine's RT60 from its size and surfaces,
+// the wet level from the critical distance. [impulse seconds, wet, envelope exponent].
+const SPACES = Object.fromEntries(Object.entries(ROOMS).map(([k, room]) => { const r = reverbFor(room); return [k, [r.seconds, r.wet, r.decay]]; }));
 function impulse(seconds, decay) {
   const len = Math.ceil(ctx.sampleRate * seconds);
   const buf = ctx.createBuffer(2, len, ctx.sampleRate);
@@ -71,11 +74,15 @@ function ensure() {
 }
 
 /** Player volumes per category: effects (one-shots and speech cues), music, ambience (the beds). */
-function applyVolumes() {
+// The dynamic mix (audio/zones.js mixFor): gains on top of the volume settings for the music and the beds.
+let mix = { music: 1, beds: 1 };
+let muffled = false;
+function applyVolumes(smooth = false) {
   if (!ctx) return;
   bus.gain.value = settings.volEffects ?? 1;
-  if (musicVol) musicVol.gain.value = settings.volMusic ?? 1;
-  if (bedBus) bedBus.gain.value = settings.volAmbience ?? 1;
+  const set = (g, v) => (smooth ? g.setTargetAtTime(v, ctx.currentTime, 0.25) : (g.cancelScheduledValues(ctx.currentTime), g.value = v));
+  if (musicVol) set(musicVol.gain, (settings.volMusic ?? 1) * mix.music);
+  if (bedBus) set(bedBus.gain, (settings.volAmbience ?? 1) * mix.beds);
 }
 function applyBeds() {
   if (!ctx) return;
@@ -95,7 +102,7 @@ function rec(name, { pan = 0, ...o } = {}) {
   if (!enabled || !ensure()) return false;
   if (!hasSample(name)) return false;
   if (!admit(1.2, null)) return true; // refused for room: treat as played, so nothing synthesises in its place
-  const src = playSample(ctx, out(pan), name, o);
+  const src = playSample(ctx, out(pan), name, { ...o, rate: (o.rate ?? 1) * pitch });
   const v = voices.live[voices.live.length - 1];
   if (src && v && v.handle === null) { v.handle = src; v.ends = ctx.currentTime + (src.buffer?.duration || 1) / (src.playbackRate?.value || 1); }
   return !!src;
@@ -117,11 +124,39 @@ function noiseBuffer(seconds) {
   return buffer;
 }
 
+// Pitch for the next sounds: the Doppler ratio while a moving source is heard (sound.doppler). 1 otherwise.
+let pitch = 1;
+let silentHeld = false, silenceRestore = [];
+// Panners made for binaural playback, counted for tests.
+let hrtfMade = 0;
+// Occlusion for the next sounds (sound.occluded): 0 heard directly, 1 through a wall (duller and quieter).
+let occl = 0, occludedMade = 0;
 function out(pan) {
-  if (!pan) return bus;
+  let dest = bus;
+  if (occl > 0) {
+    const f = ctx.createBiquadFilter();
+    f.type = 'lowpass'; f.frequency.value = 6000 * (1 - occl) + 650 * occl;
+    const g = ctx.createGain(); g.gain.value = 1 - 0.45 * occl;
+    f.connect(g).connect(bus);
+    dest = f; occludedMade++;
+  }
+  if (!pan) return dest;
+  const k = Math.max(-1, Math.min(1, pan));
+  if (settings.binaural && ctx.createPanner) {
+    // Headphones: the browser's HRTF panner places the sound on a circle round the head at the angle the pan implies,
+    // so it carries the timing and filtering cues of a real direction, not just a level difference.
+    const p = ctx.createPanner();
+    p.panningModel = 'HRTF';
+    p.distanceModel = 'linear'; p.refDistance = 1; p.maxDistance = 10000; p.rolloffFactor = 0; // level is set by the caller
+    const a = Math.asin(k / 0.9 > 1 ? 1 : k / 0.9 < -1 ? -1 : k / 0.9);
+    if (p.positionX) { p.positionX.value = Math.sin(a); p.positionY.value = 0; p.positionZ.value = -Math.cos(a); } else p.setPosition(Math.sin(a), 0, -Math.cos(a));
+    p.connect(dest);
+    hrtfMade++;
+    return p;
+  }
   const p = ctx.createStereoPanner();
-  p.pan.value = Math.max(-1, Math.min(1, pan));
-  p.connect(bus);
+  p.pan.value = k;
+  p.connect(dest);
   return p;
 }
 
@@ -132,8 +167,8 @@ function tone({ type = 'sine', from = 440, to = from, time = 0.15, gain = 0.2, d
   if (!admit(time + delay + 0.02, osc)) return;
   const g = ctx.createGain();
   osc.type = type;
-  osc.frequency.setValueAtTime(from, t);
-  osc.frequency.exponentialRampToValueAtTime(Math.max(1, to), t + time);
+  osc.frequency.setValueAtTime(from * pitch, t);
+  osc.frequency.exponentialRampToValueAtTime(Math.max(1, to * pitch), t + time);
   g.gain.setValueAtTime(gain, t);
   g.gain.exponentialRampToValueAtTime(0.0001, t + time);
   osc.connect(g).connect(out(pan));
@@ -149,7 +184,7 @@ function noise({ time = 0.3, gain = 0.3, freq = 800, q = 0.8, type = 'bandpass',
   src.buffer = noiseBuffer(time);
   const filter = ctx.createBiquadFilter();
   filter.type = type;
-  filter.frequency.value = freq;
+  filter.frequency.value = freq * pitch;
   filter.Q.value = q;
   const g = ctx.createGain();
   g.gain.setValueAtTime(gain, t);
@@ -243,6 +278,7 @@ export const sound = {
   },
   /** Pressure tubes and underwater moments: everything goes dull. */
   setMuffle(on) {
+    muffled = !!on;
     if (muffle) muffle.frequency.value = on ? 650 : 20000;
     bed('underwater', on ? 0.4 : 0);
   },
@@ -472,7 +508,66 @@ export const sound = {
   whispers(pan = 0) { rec('whispers', { gain: 0.16, pan }); },
   chains(pan = 0) { rec('chains', { gain: 0.3, pan }); },
   gear() { rec('gear', { gain: 0.25 }); },
+  /**
+   * Play whatever `fn` plays at a Doppler pitch `ratio` (audio/doppler.js): a source moving toward you sounds higher.
+   * Returns the ratio used.
+   */
+  doppler(ratio, fn) {
+    const was = pitch;
+    pitch = Math.max(0.8, Math.min(1.25, ratio || 1));
+    try { fn(); } finally { pitch = was; }
+    return ratio;
+  },
+  /** Play whatever `fn` plays as heard through `amount` (0..1) of wall: duller and quieter. */
+  occluded(amount, fn) {
+    const was = occl;
+    occl = Math.max(0, Math.min(1, amount || 0));
+    try { fn(); } finally { occl = was; }
+  },
+  /** Tests: how many HRTF panners and occlusion filters have been made, and the pitch in force. */
+  get spatialStats() { return { hrtfMade, pitch, occludedMade }; },
+  /**
+   * Authored silence: the machinery and the water you have been hearing fade out over a second and stay out until
+   * `release()`, so it follows game time (a pause holds it). `seconds` is only a safety limit on audio time in case
+   * nothing releases it. Nothing else happens; that is the point.
+   */
+  silence(seconds = 60) {
+    silentHeld = true;
+    if (!ctx || !bedBus) return false;
+    const t = ctx.currentTime;
+    silenceRestore = [];
+    for (const g of [bedBus.gain, hum?.g.gain]) {
+      if (!g) continue;
+      const v = g.value;
+      silenceRestore.push([g, v]);
+      g.cancelScheduledValues(t); g.setValueAtTime(v, t);
+      g.linearRampToValueAtTime(0.0001, t + 1.2); g.setValueAtTime(0.0001, t + seconds); g.linearRampToValueAtTime(v, t + seconds + 3);
+    }
+    return true;
+  },
+  /** The silence ends: the machinery comes back over three seconds. */
+  release() {
+    if (!silentHeld) return;
+    silentHeld = false;
+    if (!ctx) return;
+    const t = ctx.currentTime;
+    for (const [g, v] of silenceRestore) { g.cancelScheduledValues(t); g.setValueAtTime(Math.max(0.0001, g.value), t); g.linearRampToValueAtTime(v, t + 3); }
+    silenceRestore = [];
+  },
+  /** Tests: whether an authored silence is in force. */
+  get silent() { return silentHeld; },
   /** Set the room's acoustics: 'tile', 'hall', 'reservoir', 'tube', 'room' or 'dry'. */
+  /** The reverb settings now in use (for tests). */
+  get spaceSettings() { return space ? { kind: space, ...Object.fromEntries(['seconds', 'wet', 'decay'].map((k, i) => [k, SPACES[space][i]])) } : null; },
+  /** The dynamic mix: { music, beds } gains (audio/zones.js mixFor). Changes glide over a quarter second. */
+  setMix(m) {
+    if (Math.abs(m.music - mix.music) < 0.01 && Math.abs(m.beds - mix.beds) < 0.01) return;
+    mix = { music: m.music, beds: m.beds };
+    applyVolumes(true);
+  },
+  get mix() { return mix; },
+  get muffled() { return muffled; },
+  get space() { return space; },
   setSpace(kind) {
     if (!ensure() || kind === space || !SPACES[kind]) return;
     space = kind;
@@ -501,7 +596,7 @@ export const sound = {
 };
 // Every sound method runs with its own name current, so the voice pool knows what it is weighing.
 for (const [k, fn] of Object.entries(sound)) {
-  if (typeof fn !== 'function' || ['unlock', 'setEnabled', 'setVolumes', 'setHum', 'setMuffle', 'music', 'setSpace', 'duck', 'startHum', 'pumpRoom'].includes(k)) continue;
+  if (typeof fn !== 'function' || ['unlock', 'setEnabled', 'setVolumes', 'setHum', 'setMuffle', 'music', 'setSpace', 'setMix', 'duck', 'startHum', 'pumpRoom'].includes(k)) continue;
   sound[k] = function (...a) { const prev = current; current = k; try { return fn.apply(this, a); } finally { current = prev; } };
 }
 /** For tests: how many one-shots are playing and how many the pool allows. */

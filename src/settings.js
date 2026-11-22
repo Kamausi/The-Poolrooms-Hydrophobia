@@ -37,6 +37,8 @@ const DEFAULTS = {
   threatWedges: true, // rim markers for threats that are close and out of view
   rumble: 1, // controller vibration strength (0 = off)
   hudPersistent: false, // keep the objective, roster and controls at full size instead of letting them settle
+  agx: false, // the display curve: off is ACES (contrasty, the look the game was graded for); on is AgX (softer highlights)
+  binaural: false, // headphones: position sounds with the browser's HRTF (head-related) panner instead of plain stereo
 };
 
 export const settings = { ...DEFAULTS };
@@ -51,6 +53,8 @@ export function saveSettings() {
 }
 
 export const SETTING_LABELS = {
+  agx: 'Softer highlights (AgX tone curve, next scene)',
+  binaural: 'Headphones: binaural sound (HRTF)',
   grain: 'Film grain',
   distortion: 'Drift distortion and camera roll',
   sway: 'Raft and head sway',
@@ -80,5 +84,5 @@ export const ACTIONS = [
   ['hop', 'Hop / jump', ' '], ['brace', 'Brace', 'c'], ['use', 'Use / rescue / line', 'e'], ['shove', 'Shove', 'z'],
   ['ping', 'Ping / radio check', 'b'], ['cycle', 'Next blaster profile', 'tab'], ['scan', 'Inspection beam', 'q'], ['burst', 'Disruption burst', 'f'],
   ['boost', 'Boost / paddle burst / run', 'shift'], ['recharge', 'Recharge', 'r'], ['paddle', 'Paddle / prod', 'v'], ['patch', 'Patch and pump', 'g'],
-  ['lookback', 'Look back', 'x'], ['dressing', 'Field dressing', 'h'], ['autopilot', 'Ride Control', 't'], ['helm', 'Hand over / take the helm', 'y'], ['lamp', 'Work lamp: off / white / UV', 'l'], ['lampPlace', 'Work lamp: set down / pick up', 'k'], ['map', 'Survey map (on foot)', 'm'],
+  ['lookback', 'Look back', 'x'], ['dressing', 'Field dressing', 'h'], ['autopilot', 'Ride Control', 't'], ['helm', 'Hand over / take the helm', 'y'], ['lamp', 'Work lamp: off / white / UV', 'l'], ['lampPlace', 'Work lamp: set down / pick up', 'k'], ['map', 'Survey map (on foot)', 'm'], ['override', 'Maintenance override (at a locked gate)', 'o'],
 ];

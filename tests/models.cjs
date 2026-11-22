@@ -61,6 +61,17 @@ const { open, newCampaign, check, finish } = require('./lib.cjs');
     const before = shown(); R.hitTarget('ropeanchor0'); R.hitTarget('ropeanchor0'); u.step(2);
     return { parts: mine.length, discs: discs.length, geos, before, after: shown() }; });
   check('the Lane Rope is disc floats on a cable between wall anchors (one shared disc shape), and splitting an anchor drops it', rope.discs === 30 && rope.geos === 1 && rope.before === rope.parts && rope.after === 0, JSON.stringify(rope));
+  const line = await page.evaluate(() => { const u = window.__underflow; u.beginSector(0); u.startRide(); u.setState({ health: 1e6 }); u.step(3); const R = window.__ride;
+    R.spawnEnc('rope'); u.step(12);
+    const r = R.ropes.find((q) => q.active); if (!r || !r.sim) return { none: true };
+    const discY = (j) => R.parts.find((p) => p.name === `Lane rope ${R.ropes.indexOf(r)} disc ${j}.2`).matrix[13];
+    const s0 = R.s, hold = (n) => { for (let i = 0; i < n; i++) { u.step(1); R.s = s0; } }; // keep the raft short of the rope
+    const rest = discY(1), restLow = r.sim.lowest();
+    R.hitTarget(r.floats[2]);
+    let dip = 0; for (let i = 0; i < 12; i++) { hold(1); dip = Math.min(dip, discY(1) - rest); }
+    hold(150);
+    return { rest: +rest.toFixed(3), dip: +dip.toFixed(3), sag: +(r.sim.lowest() - restLow).toFixed(3), settled: +Math.abs(discY(1) - rest).toFixed(3), gone: !r.floats[2].alive, alive: r.floats.map((f) => f.alive) }; });
+  check('the Lane Rope is a Verlet line on the water: a shot float dips its neighbours, the gap sags, and the rest settles', !line.none && line.gone && line.dip < -0.01 && line.sag < -0.03 && line.settled < 0.12, JSON.stringify(line));
   // Instancing: parts that share one geometry (and texture maps) draw as one batch. Shapes come from src/render/shapes.js,
   // models share their geometry across placements, so a scene of well over a thousand parts draws in a few dozen batches.
   const inst = await page.evaluate(() => { const u = window.__underflow; u.beginSector(1); u.startRide(); u.step(2); const R = window.__ride.renderer;

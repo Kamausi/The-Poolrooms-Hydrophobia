@@ -1,8 +1,11 @@
 // Overlays: the shared modal, the Safe Room, the logbook, documents, the keypad, settings.
 import { settings, saveSettings, SETTING_LABELS, ACTIONS } from './settings.js';
+import { exportSave, importSave } from './storage.js';
 import { claimLost, LOST_FOUND_COST } from './collectibles.js';
 import { sound } from './audio/audio.js';
-import { input, applyBindings, PAD_ACTIONS, PAD_NAMES } from './input.js';
+import { input, applyBindings, PAD_ACTIONS, PAD_NAMES, bindingLabel } from './input.js';
+import { byTier, referenceRows } from './controltiers.js';
+import { claimLine, readingLine } from './fieldnotes.js';
 import { COMFORTS, SECTORS } from './sectors.js';
 import { ROUTES } from './plans.js';
 import { CREW, crewById, fadingCrew } from './crew.js';
@@ -30,6 +33,8 @@ export function showModal(title, body, actions, label = 'FIELD MANUAL') {
   for (const [text, fn, primary] of actions) {
     const b = el('button', primary ? 'primary' : '', text);
     b.onclick = fn;
+    // A plain way out (B on a controller, Escape on a keyboard presses it). A committing action is never one.
+    if (/^(BACK|CLOSE|DONE|CANCEL|RESUME)\b/i.test(text)) b.dataset.back = '1';
     bar.append(b);
   }
   $('modal').hidden = false;
@@ -624,7 +629,21 @@ export function journalView(state) {
     });
     return box;
   };
-  const TABS = [['CREW OBSERVATIONS', ledgerView], ['FACILITY RECORDS', facilityRecords], ['ROUTE MAP', routeMap]];
+  // Field notes (fieldnotes.js): what the beam read, and every time the facility addressed you by number beside how
+  // many of you there were. Nothing is marked: what it means is for the player to work out.
+  const counts = () => {
+    const box = el('div', 'logbook counts');
+    box.append(el('p', 'mono', 'READINGS · WHAT THE BEAM SHOWED'));
+    const reads = state.readings || [];
+    if (!reads.length) box.append(el('p', 'mono small', 'Nothing read yet. Hold the inspection beam on something until it reads.'));
+    for (const r of reads.slice().reverse()) box.append(el('p', 'mono small reading', readingLine(r)));
+    box.append(el('p', 'mono', 'COUNTS · WHAT THE FACILITY SAID, AND HOW MANY OF YOU THERE WERE'));
+    const notes = state.claims || [];
+    if (!notes.length) box.append(el('p', 'mono small', 'The Attendant has not addressed you by number yet.'));
+    for (const n of notes.slice().reverse()) box.append(el('p', 'mono small claim', claimLine(n)));
+    return box;
+  };
+  const TABS = [['CREW OBSERVATIONS', ledgerView], ['FACILITY RECORDS', facilityRecords], ['ROUTE MAP', routeMap], ['FIELD NOTES', counts]];
   TABS.forEach(([label, make], i) => {
     const t = el('button', 'tab', label);
     t.onclick = () => { tabs.querySelectorAll('.tab').forEach((x) => x.classList.remove('on')); t.classList.add('on'); pane.replaceChildren(make()); };
@@ -738,10 +757,27 @@ export function settingsView(onChange) {
   range(audio, 'Effects volume', 'volEffects', 0, 1, 0.05, () => sound.setVolumes());
   range(audio, 'Music volume', 'volMusic', 0, 1, 0.05, () => sound.setVolumes());
   range(audio, 'Ambience volume (water, machinery)', 'volAmbience', 0, 1, 0.05, () => sound.setVolumes());
+  check(audio, 'binaural');
+
+  // Save files (storage.js): the campaign, settings and the facility's memory as one compressed file, and back.
+  const saves = iface; // in the Interface group: the settings keep their six categories
+  saves.append(el('h4', 'sheet-sub', 'Save files'));
+  const note = el('p', 'note', 'Keep a copy of your campaign, or move it to another browser.');
+  const exp = el('button', 'choice', 'EXPORT SAVE FILE');
+  exp.onclick = async () => { const r = await exportSave(); note.textContent = `Saved a ${Math.max(1, Math.round(r.bytes / 1024))} KB file${r.compressed ? ' (compressed)' : ''}.`; };
+  const pick = el('input'); pick.type = 'file'; pick.accept = '.gz,.json'; pick.hidden = true;
+  const imp = el('button', 'choice', 'IMPORT SAVE FILE');
+  imp.onclick = () => pick.click();
+  pick.onchange = async () => {
+    const f = pick.files?.[0]; if (!f) return;
+    try { const keys = await importSave(new Uint8Array(await f.arrayBuffer())); note.textContent = `Restored ${keys.length} records. Reloading…`; setTimeout(() => location.reload(), 900); }
+    catch (e) { note.textContent = e.message; }
+  };
+  saves.append(note, exp, imp, pick);
 
   const cam = group('CAMERA AND EFFECTS');
   range(cam, 'Camera motion (shake, roll, impacts)', 'camera', 0, 1);
-  for (const k of ['sway', 'distortion', 'grain', 'flashReduce']) check(cam, k);
+  for (const k of ['sway', 'distortion', 'grain', 'flashReduce', 'agx']) check(cam, k);
 
   const assist = group('GAMEPLAY ASSISTANCE');
   range(assist, 'Incoming damage (assist)', 'damageAssist', 0.3, 1);
@@ -765,7 +801,10 @@ export function settingsView(onChange) {
   const keys = el('div', 'bindings');
   keys.append(el('p', 'mono', 'KEYS · click, then press a key'));
   const name = (k) => (k === ' ' ? 'SPACE' : k.toUpperCase());
-  for (const [id, label, def] of ACTIONS) {
+  // Grouped by tier (controltiers.js): what every moment needs first, what rewards mastery last.
+  for (const g of byTier(ACTIONS)) {
+    keys.append(el('p', 'mono small bind-tier', g.label));
+    for (const [id, label, def] of g.rows) {
     const b = el('button', 'bind');
     const show = () => (b.textContent = `${label} · ${name(settings.bindings[id] || def)}`);
     show();
@@ -780,6 +819,7 @@ export function settingsView(onChange) {
       };
     };
     keys.append(b);
+    }
   }
   const reset = el('button', 'bind');
   reset.textContent = 'Reset all keys';
@@ -789,7 +829,9 @@ export function settingsView(onChange) {
   // Controller buttons: choose an action, press a button.
   const pads = el('div', 'bindings');
   pads.append(el('p', 'mono', 'CONTROLLER · choose, then press a button'));
-  for (const [id, label, def] of PAD_ACTIONS) {
+  for (const g of byTier(PAD_ACTIONS)) {
+    pads.append(el('p', 'mono small bind-tier', g.label));
+    for (const [id, label, def] of g.rows) {
     const b = el('button', 'bind');
     const show = () => (b.textContent = `${label} · ${PAD_NAMES[settings.padBindings?.[id] ?? def] || '?'}`);
     show();
@@ -798,6 +840,7 @@ export function settingsView(onChange) {
       input.padCapture = (i) => { (settings.padBindings ||= {})[id] = i; saveSettings(); show(); };
     };
     pads.append(b);
+    }
   }
   const padReset = el('button', 'bind');
   padReset.textContent = 'Reset controller buttons';
@@ -805,4 +848,17 @@ export function settingsView(onChange) {
   pads.append(padReset);
   controls.append(pads);
   return wrap;
+}
+
+/**
+ * The controls reference, in tiers: primary, when asked, advanced. Labels follow the bindings and the device in use
+ * (a controller shows its buttons and chords). The template in index.html adds the notes for pools and pausing.
+ */
+export function controlsReference() {
+  const dl = el('dl', 'controls controls-tiers');
+  for (const g of byTier(referenceRows(ACTIONS, { pad: !!input.pad, label: bindingLabel }))) {
+    dl.append(el('dt', null, g.label));
+    dl.append(el('dd', null, g.rows.map(([, label, key]) => `${key} ${label.toLowerCase()}`).join(' · ')));
+  }
+  return dl;
 }

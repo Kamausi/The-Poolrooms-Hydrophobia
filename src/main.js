@@ -2,6 +2,7 @@
 // Campaign: eight attractions. Each is a ride (raft) → holding pool → optional dock (on foot) → service gate →
 // arrival bay → Safe Room. Skipping the dock takes the bypass: no checkpoint, straight into the next sector.
 // Endless: seeded, escalating sectors with a score and per-seed records.
+import { keepAwake, persistStorage, platformStatus } from './platform.js';
 import '67js/addons/world-material-shader';
 import '67js/addons/liquid-shader';
 import { VERSION } from '67js';
@@ -13,20 +14,30 @@ import { createRide } from './ride.js';
 import { createExplore } from './explore.js';
 import { createSafeRoom } from './saferoom.js';
 import { createMenuScene } from './menuscene.js';
-import { initInput, input, endFrame, releaseLock, wasPressed, pollGamepad } from './input.js';
+import { initInput, input, endFrame, releaseLock, requestLock, wasPressed, pollGamepad, bindingLabel } from './input.js';
 import { initHud, hud } from './hud.js';
 import { sound } from './audio/audio.js';
+import { mixFor } from './audio/zones.js';
 import { quality, setTier, applyQualitySetting } from './render/quality.js';
 import { createAutoTier, thinning } from './render/tiers.js';
 import { summarize, report as benchReport } from './debug/bench.js';
 import { rng } from './math.js';
+import { generateDock } from './mapgen.js';
+import { loadPhotos } from './storage.js';
+import { writeSave, readSave, problemWith } from './savefile.js';
+import { planSteps } from './feel/timestep.js';
+import { profiler, timed } from './debug/profile.js';
+let stepsLast = 0;
+/* global __BUILD__ */
+const BUILD = typeof __BUILD__ === 'string' ? __BUILD__ : 'dev';
+import MapWorker from './mapgen.worker.js?worker&inline';
 import { playlog, createFrameStats } from './debug/playlog.js';
 import { facility, recordSector, recordDeath, note, nameVisitor, commitVisitors, authorExpedition, saveFacility } from './memory.js';
 import { settings } from './settings.js';
 import { createAutoRes } from './render/autores.js';
 import { rumble } from './feel/haptics.js';
 import { modelsReady, modelState } from './render/props.js';
-import { showModal, hideModal, applyDisplaySettings, ledgerView, showSafeRoom, showDocument, showKeypad, settingsView, logbookView, journalView } from './ui.js';
+import { showModal, hideModal, applyDisplaySettings, ledgerView, showSafeRoom, showDocument, showKeypad, settingsView, controlsReference, logbookView, journalView } from './ui.js';
 const el2 = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text) e.textContent = text; return e; };
 import { CREW, crewById, loadLoops, saveLoop } from './crew.js';
 
@@ -44,7 +55,7 @@ const freshState = (extra = {}) => ({
   passenger: { stage: 0, t: 0 }, ride: null, sectorKey: 's0', endless: false, seed: 0, sitting: false,
   stats: { freed: 0, revives: 0, repairs: 0, pressureRepairs: 0, survivors: 0, routes: [], shared: 0, shoves: 0 },
   gear: [], profile: 'pulse', special: 60, crewState: {}, downed: null, downUsed: false, protectT: 0, challenge: null, custom: null, highWater: false,
-  dressings: 1, fit: 'standard', autopilot: false, tags: [], photos: [], strandedSaved: {}, character: 'mars', rescued: 0, recognized: 0, forgotten: [], overrides: 0, sectorScore: 0, pressure: 1, sitT: 0, resolve: 0, memory: null,
+  dressings: 1, fit: 'standard', autopilot: false, tags: [], photos: [], strandedSaved: {}, character: 'mars', claims: [], readings: [], rescued: 0, recognized: 0, forgotten: [], overrides: 0, sectorScore: 0, pressure: 1, sitT: 0, resolve: 0, memory: null,
   ...extra,
 });
 
@@ -56,6 +67,28 @@ let pausedAt = 0;
 let manual = false; // automated tests step the scene themselves
 let last = performance.now();
 let lastPosition = null;
+
+// ---------- Generated docks (endless) ----------
+const CORPUS = [...SECTORS.map((s) => s.map), REFERENCE_CHAPTER.map];
+let mapWorker = null, workerBroken = false;
+const pendingDocks = new Set();
+/** Ask for a generated dock for endless depth `index`; the result lands in state.genMaps[index]. */
+function requestDock(index, base, seed) {
+  const key = `${index}:${seed}`;
+  if (pendingDocks.has(key)) return;
+  pendingDocks.add(key);
+  const store = (r) => { pendingDocks.delete(key); if (state.seed * 31 + index === seed) (state.genMaps ||= {})[index] = { seed, map: r.map, fallback: !!r.fallback, tries: r.tries || 0, worker: r.worker }; };
+  if (!workerBroken && typeof Worker !== 'undefined') {
+    try {
+      mapWorker ||= new MapWorker();
+      const onMsg = (e) => { if (e.data.id !== key) return; mapWorker.removeEventListener('message', onMsg); store({ ...e.data, worker: true }); };
+      mapWorker.addEventListener('message', onMsg);
+      mapWorker.postMessage({ id: key, base, corpus: CORPUS, seed });
+      return;
+    } catch { workerBroken = true; }
+  }
+  store(generateDock(base, CORPUS, seed)); // no worker here: a few milliseconds on the main thread
+}
 
 // ---------- Sectors ----------
 function sectorAt(index) {
@@ -74,7 +107,13 @@ function sectorAt(index) {
   const r = rng(state.seed * 131 + index * 7919);
   const base = SECTORS[Math.floor(r() * SECTORS.length)];
   const { tokens, threat } = buildEndlessPlan(r, index);
-  return { ...base, index, endless: true, ride: tokens, threat, name: base.name, depth: base.depth + index * 6, crew: [] };
+  // Its dock is a generated variation of the attraction's map (mapgen.js), built in a worker while you ride; until it
+  // is ready, or if no solvable variation was found, the authored map.
+  const genSeed = state.seed * 31 + index;
+  const gen = state.genMaps?.[index];
+  if (!gen || gen.seed !== genSeed) requestDock(index, base.map, genSeed);
+  const map = gen && gen.seed === genSeed && !gen.fallback ? gen.map : base.map;
+  return { ...base, index, endless: true, ride: tokens, threat, name: base.name, depth: base.depth + index * 6, crew: [], map, generated: map !== base.map };
 }
 function planFor(sector) {
   const random = rng(5000 + sector.index * 97 + state.attempt * 13 + state.seed * 3);
@@ -89,17 +128,29 @@ function snapshot() {
 }
 function saveCheckpoint() {
   if (state.endless) return;
-  try { localStorage.setItem(SAVE_KEY, JSON.stringify(snapshot())); } catch {}
+  writeSave(localStorage, SAVE_KEY, snapshot(), SAVE_OPTS);
+  persistStorage();
 }
 function loadJSON(key) {
   try { return JSON.parse(localStorage.getItem(key) || 'null'); } catch { return null; }
+}
+// Saves go through savefile.js: a versioned envelope with a checksum, a shape check, and a backup of the last good
+// one. A damaged save falls back a checkpoint and says so; one that cannot be used is not loaded into a broken run.
+const SAVE_OPTS = { build: BUILD, sectors: SECTORS.length };
+const RESUME_OPTS = { ...SAVE_OPTS, check: (r) => (r && r.state ? problemWith(r.state, SAVE_OPTS) : 'it holds no game') };
+let saveNotice = '';
+function loadSave(key) {
+  const r = readSave(localStorage, key, key === RESUME_KEY ? RESUME_OPTS : SAVE_OPTS);
+  if (r.problem && r.from === 'backup') saveNotice = `The last save was damaged (${r.problem}). Restored the one before it.`;
+  else if (r.problem && !r.state) saveNotice = `A save could not be used: ${r.problem}.`;
+  return r.state;
 }
 function saveResume() {
   // Capture the position now (not the last periodic snapshot) when the scene can say where it is.
   const fresh = scene?.snapshot?.();
   if (fresh) lastPosition = fresh;
   if (!lastPosition || (mode !== 'ride' && mode !== 'explore')) return;
-  try { localStorage.setItem(RESUME_KEY, JSON.stringify({ state: snapshot(), position: lastPosition })); } catch {}
+  writeSave(localStorage, RESUME_KEY, { state: snapshot(), position: lastPosition }, RESUME_OPTS);
 }
 function clearResume() {
   try { localStorage.removeItem(RESUME_KEY); } catch {}
@@ -473,7 +524,7 @@ function enterSafeRoom() {
     if (state.endless) return;
     const s = snapshot();
     s.sectorIndex = nextIndex;
-    try { localStorage.setItem(SAVE_KEY, JSON.stringify(s)); } catch {}
+    writeSave(localStorage, SAVE_KEY, s, SAVE_OPTS);
   };
   saveNow();
   // Playing well earns access (an override, full route data) and carries you deeper: the next sector is harder.
@@ -592,7 +643,7 @@ Best on this seed: depth ${rec.depth}, score ${rec.score}.`, [
 Somewhere above, a raft comes back up the slide. Empty.`, [
     ['RETRY FROM THE LAST SAFE ROOM ↗', () => {
       hideModal();
-      const save = loadJSON(SAVE_KEY);
+      const save = loadSave(SAVE_KEY);
       const attempt = state.attempt + 1;
       // A retry continues the same expedition: same accepted world, same expedition number. Uncommitted
       // rescues are lost with the run.
@@ -783,6 +834,7 @@ function resume(data) {
 }
 
 function toMenu() {
+  document.getElementById('ai-debug')?.remove();
   hideModal();
   scene?.dispose();
   scene = null;
@@ -800,7 +852,7 @@ function toMenu() {
 
 /** Where a saved expedition stands, from the actual save: never a hint of what is ahead. */
 function saveSummary() {
-  const res = loadJSON(RESUME_KEY), save = loadJSON(SAVE_KEY);
+  const res = loadSave(RESUME_KEY), save = loadSave(SAVE_KEY);
   const st = res?.state || save;
   if (!st) return '';
   const sec = st.custom?.chapter ? REFERENCE_CHAPTER : SECTORS[st.sectorIndex];
@@ -811,7 +863,8 @@ function saveSummary() {
 }
 
 function refreshMenu() {
-  $('continue').hidden = !loadJSON(RESUME_KEY) && !loadJSON(SAVE_KEY);
+  $('continue').hidden = !loadSave(RESUME_KEY) && !loadSave(SAVE_KEY);
+  if (saveNotice) { hud.toast(saveNotice.toUpperCase()); saveNotice = ''; }
   $('continue-sub').textContent = saveSummary();
   showMenuList('main');
   const seedParam = new URLSearchParams(location.search).get('seed');
@@ -849,7 +902,7 @@ $('records-btn').onclick = () => {
 };
 $('settings-btn').onclick = () => {
   const body = document.createElement('div');
-  body.append(settingsView(), $('controls-ref').content.cloneNode(true));
+  body.append(settingsView(), controlsReference(), $('controls-ref').content.cloneNode(true));
   menuPanel('Settings', body);
 };
 $('credits-btn').onclick = () => {
@@ -882,7 +935,7 @@ function setPaused(on) {
     // Pause: the journal first, settings on their own tab. Pausing actually stops the danger in single player.
     const views = el2('div', 'tabs');
     const pane = el2('div', 'tab-pane');
-    const show = (which) => { views.querySelectorAll('.tab').forEach((t) => t.classList.toggle('on', t.dataset.v === which)); pane.replaceChildren(which === 'journal' ? journalView(state) : settingsView()); if (which === 'settings') pane.append(copy); };
+    const show = (which) => { views.querySelectorAll('.tab').forEach((t) => t.classList.toggle('on', t.dataset.v === which)); pane.replaceChildren(which === 'journal' ? journalView(state) : settingsView()); if (which === 'settings') pane.append(controlsReference(), copy); };
     for (const [v, label] of [['journal', 'JOURNAL'], ['settings', 'SETTINGS']]) { const t = el2('button', 'tab', label); t.dataset.v = v; t.onclick = () => show(v); views.append(t); }
     box.replaceChildren(views, pane);
     show('journal');
@@ -932,9 +985,14 @@ function benchFrame(ms, now) {
   bench.start ||= now;
   state.health = 100; state.drift = 0; // measure rendering, not survival
   if (now - bench.start > 2000) bench.frames.push(ms); // the first two seconds compile shaders
+  const gpuMs = scene?.renderer?.gpuMilliseconds;
+  if (now - bench.start > 2000 && typeof gpuMs === 'number') (bench.gpuFrames ||= []).push(gpuMs);
   if (now - bench.start < bench.seconds * 1000) return;
   const info = { gpu: quality.gpu, tier: quality.tier, auto: !!quality.auto, width: canvas.width, height: canvas.height, dpr: Math.round((window.devicePixelRatio || 1) * 100) / 100, scale: resScale, errors: bench.errors };
   const stats = summarize(bench.frames);
+  const gpuStats = bench.gpuFrames?.length ? summarize(bench.gpuFrames) : null;
+  info.sections = profiler.report();
+  if (gpuStats) Object.assign(stats || {}, { gpuAverage: gpuStats.average, gpuP99: gpuStats.p99 });
   window.__bench = { ...info, ...stats };
   const text = benchReport(info, stats);
   bench = null;
@@ -959,6 +1017,7 @@ function frame(now) {
   const ms = now - last;
   const dt = Math.min(0.05, ms / 1000);
   last = now;
+  keepAwake((mode === 'ride' || mode === 'explore' || mode === 'safe') && !paused);
   if (bench && mode === 'ride') benchFrame(ms, now);
   if (mode === 'ride' || mode === 'explore') {
     frames.push(ms);
@@ -986,10 +1045,24 @@ function frame(now) {
   if (mode !== 'ride' && mode !== 'explore') hud.wedges([]);
   if (mode !== 'explore') hud.survey(null);
   input.context = mode === 'explore' ? 'explore' : 'ride';
+  if (!$('modal').hidden && wasPressed('escape')) $('modal-actions').querySelector('[data-back]')?.click(); // a dialog's own way out
   if ($('modal').hidden && (wasPressed('escape') || wasPressed('p')) && now - pausedAt > 250) setPaused(!paused);
   if (mode === 'menu' && $('modal').hidden && !$('start-menu').hidden && wasPressed('escape')) showMenuList('main');
-  if (scene && !paused && !manual && (mode === 'ride' || mode === 'explore' || mode === 'safe' || mode === 'menu')) scene.update(dt);
-  if (!paused && (mode === 'ride' || mode === 'explore')) sound.music(state.directorPhase || 'relax', state.drift);
+  if (scene && !paused && !manual && (mode === 'ride' || mode === 'explore' || mode === 'safe' || mode === 'menu')) {
+    // Bounded semi-fixed steps (feel/timestep.js): a long frame is split so no step is longer than 1/30 s, at most three
+    // of them; key presses and mouse movement count once, in the first step; only the last step renders.
+    const plan = planSteps(ms / 1000);
+    for (let i = 0; i < plan.steps; i++) {
+      quality.skipRender = i < plan.steps - 1;
+      timed('scene', () => scene.update(plan.dt));
+      if (i < plan.steps - 1) endFrame();
+    }
+    quality.skipRender = false;
+    stepsLast = plan.steps;
+  }
+  if (!paused && (mode === 'ride' || mode === 'explore')) timed('audio', () => sound.music(state.directorPhase || 'relax', state.drift));
+  updateMix();
+  profiler.frame();
   $('modal').classList.toggle('safe', mode === 'safe');
   endFrame();
   requestAnimationFrame(frame);
@@ -1012,9 +1085,9 @@ const begin = () => { sound.unlock(); sound.startHum(); $('menu').hidden = true;
 $('start').onclick = () => { begin(); newCampaign(); };
 $('continue').onclick = () => {
   begin();
-  const res = loadJSON(RESUME_KEY);
+  const res = loadSave(RESUME_KEY);
   if (res) return resume(res);
-  const save = loadJSON(SAVE_KEY);
+  const save = loadSave(SAVE_KEY);
   if (!save) return;
   state = { ...freshState(), ...save };
   hud.setPlayer(state.name);
@@ -1060,6 +1133,13 @@ requestAnimationFrame(frame);
 if (new URLSearchParams(location.search).has('show')) setTimeout(() => startShowcase(new URLSearchParams(location.search).get('show')), 600);
 else if (new URLSearchParams(location.search).has('bench')) setTimeout(() => startBench(Number(new URLSearchParams(location.search).get('bench')) || 20), 600);
 
+// Photos from earlier sessions (IndexedDB, storage.js) come back into the album at boot.
+loadPhotos().then((list) => { if (list.length && !(state.photos || []).length) state.photos = list.slice(-4).map(({ sector, label, url }) => ({ sector, label, url })); });
+
+/** The dynamic mix (audio/zones.js): speech reads over the music, a fight thins the ambience, under water both go. */
+function updateMix() {
+  sound.setMix(mixFor({ speaking: hud.speaking, phase: mode === 'ride' || mode === 'explore' ? state.directorPhase : 'relax', under: sound.muffled }));
+}
 // For automated checks.
 window.__underflow = {
   modelsReady, modelState,
@@ -1068,6 +1148,7 @@ window.__underflow = {
   get scene() { return scene; },
   startExplore, enterSafeRoom, startRide, newCampaign, startEndless, beginSector, events, startChallenge, startCustom, parseRoute, expeditionRecord,
   setState(patch) { Object.assign(state, patch); },
+  platform: platformStatus, sound, hud, input, bindingLabel, profile: () => profiler.report(), get stepsLast() { return stepsLast; }, toMenu, saveCheckpoint, requestLock, loadSave, get saveNotice() { return saveNotice; }, SAVE_KEY, RESUME_KEY, storage: () => import('./storage.js'),
   settings, quality, setTier,
   /** Tests: drive the render scale directly, and read what it is. */
   setResScale(k) { applyResScale(k); return resScale; },
@@ -1078,6 +1159,21 @@ window.__underflow = {
     for (let i = 0; i < n && scene && !paused && ['ride', 'explore', 'safe', 'menu'].includes(mode); i++) {
       quality.skipRender = i < n - 1;
       scene.update(dt);
+      updateMix();
+      endFrame();
+    }
+    quality.skipRender = false;
+  },
+  /**
+   * Like step, but renders nothing. Frames rendered by step are never presented, and software GL holds on to them
+   * (about 1 MB each in headless Chromium), so long simulation-only tests use this instead.
+   */
+  sim(n, dt = 1 / 30) {
+    manual = true;
+    for (let i = 0; i < n && scene && !paused && ['ride', 'explore', 'safe', 'menu'].includes(mode); i++) {
+      quality.skipRender = true;
+      scene.update(dt);
+      updateMix();
       endFrame();
     }
     quality.skipRender = false;

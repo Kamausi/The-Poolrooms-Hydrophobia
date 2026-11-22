@@ -80,6 +80,94 @@ const { open, newCampaign, check, finish } = require('./lib.cjs');
     return { together: drain(true), alone: drain(false) }; });
   check('Marco calls faster when you are apart from every crewmate', r.none || (r.together.apart === false && r.alone.apart === true && r.alone.used > r.together.used * 1.5), JSON.stringify(r));
   // One grab at a time (pressure.js 'grab'): a crewmate cannot be taken while a climber has the raft.
+  r = await page.evaluate(() => { const u = window.__underflow; let E = null;
+    for (let i = 1; i < 8; i++) { u.beginSector(i); u.startRide(); u.startExplore(); u.setState({ health: 1e6, regrouped: true }); u.step(2); E = window.__explore; if (E.followers.length >= 2) break; E = null; }
+    if (!E) return { none: true };
+    const me = [...E.player.pos];
+    // All of them dropped on one spot next to you: steering should part them and keep them out of your space.
+    E.followers.forEach((f) => { f.pos = [me[0] + 0.2, 0, me[2] + 0.2]; f.vel = [0, 0]; });
+    let maxSpeed = 0, maxJump = 0;
+    for (let k = 0; k < 120; k++) { E.player.pos = [...me]; const before = E.followers.map((f) => [...f.pos]); u.step(1);
+      E.followers.forEach((f, j) => { maxSpeed = Math.max(maxSpeed, Math.hypot(...(f.vel || [0, 0]))); maxJump = Math.max(maxJump, Math.hypot(f.pos[0] - before[j][0], f.pos[2] - before[j][2])); }); }
+    const P = E.followers.map((f) => f.pos), d = [];
+    for (let a = 0; a < P.length; a++) for (let b = a + 1; b < P.length; b++) d.push(Math.hypot(P[a][0] - P[b][0], P[a][2] - P[b][2]));
+    return { n: P.length, apart: +Math.min(...d).toFixed(2), fromMe: +Math.min(...P.map((p) => Math.hypot(p[0] - me[0], p[2] - me[2]))).toFixed(2), maxSpeed: +maxSpeed.toFixed(2), maxJump: +maxJump.toFixed(3) }; });
+  check('crewmates on foot steer: dropped on one spot they part, keep out of your space and never jump more than a stride in a frame', r.none || (r.apart > 0.5 && r.fromMe > 0.5 && r.maxSpeed <= 5.6 && r.maxJump < 0.2), JSON.stringify(r));
+  r = await page.evaluate(() => { const u = window.__underflow; const out = [];
+    for (let i = 0; i < 8; i++) { u.beginSector(i); u.startRide(); u.startExplore(); u.setState({ health: 1e6 }); u.step(1);
+      const t = window.__explore.takenCells; let m = Infinity;
+      for (let a = 0; a < t.length; a++) for (let b = a + 1; b < t.length; b++) m = Math.min(m, Math.hypot(t[a][0] - t[b][0], t[a][1] - t[b][1]));
+      out.push({ n: t.length, closest: t.length > 1 ? +m.toFixed(2) : null }); }
+    return out; });
+  check('on foot the placed things (pickups, clock, notice, lockers) are spread over the map, three cells apart where there is room', r.every((x) => x.closest === null || x.closest >= 3), JSON.stringify(r));
+  r = await page.evaluate(() => { const u = window.__underflow; const out = [];
+    for (let i = 0; i < 8 && out.length < 3; i++) { u.beginSector(i); u.startRide(); u.startExplore(); u.setState({ health: 1e6 }); u.step(1);
+      const E = window.__explore, cells = [];
+      for (let z = 0; z < E.H; z++) for (let x = 0; x < E.W; x++) if (!E.isWall(x, z)) cells.push([x, z]);
+      // A pair of open cells with a wall between them (no straight line), far enough apart to need a route.
+      const me = E.cellOf(E.player.pos[0], E.player.pos[2]);
+      let start = null;
+      for (const c of cells) { const p = E.center(c[0], c[1]); p[1] = 1.2; const t = [E.player.pos[0], 1.2, E.player.pos[2]]; if (Math.hypot(c[0] - me[0], c[1] - me[1]) > 3 && E.routeTo(p, t, {}) && !(function () { const d = [t[0] - p[0], t[2] - p[2]]; for (let k = 1; k < 40; k++) if (E.isWall(...E.cellOf(p[0] + d[0] * k / 40, p[2] + d[1] * k / 40))) return false; return true; })()) { start = p; break; } }
+      if (!start) continue;
+      const pos = [...start], target = [E.player.pos[0], 1.2, E.player.pos[2]], memo = {};
+      let wall = 0, steps = 0;
+      for (; steps < 900 && Math.hypot(pos[0] - target[0], pos[2] - target[2]) > 1.5; steps++) {
+        const d = E.routeTo(pos, target, memo), l = Math.hypot(d[0], d[2]) || 1;
+        pos[0] += d[0] / l * 0.2; pos[2] += d[2] / l * 0.2;
+        if (E.isWall(...E.cellOf(pos[0], pos[2]))) wall++;
+      }
+      out.push({ sector: i, reached: Math.hypot(pos[0] - target[0], pos[2] - target[2]) <= 1.5, steps, wall });
+    }
+    return out; });
+  check('on foot a Bloom (or anything routed) goes round the walls to you: it gets there and never enters a wall cell', r.length > 0 && r.every((x) => x.reached && x.wall === 0), JSON.stringify(r));
+  r = await page.evaluate(() => { const u = window.__underflow; let E = null, cell = null;
+    for (let i = 0; i < 8 && !cell; i++) { u.beginSector(i); u.startRide(); u.startExplore(); u.setState({ health: 1e6 }); u.step(1); E = window.__explore;
+      cell = ['~', 'w', 'x', 'd'].map((c) => E.find(c)).flat()[0] || null; }
+    if (!cell) return { none: true };
+    const c = E.center(cell[0], cell[1]); E.player.pos = [c[0], E.player.pos[1], c[2]]; u.step(2);
+    const shown = (p) => Math.abs(p.matrix[0]) + Math.abs(p.matrix[5]) + Math.abs(p.matrix[10]) > 0.01;
+    const before = { e: E.ripGrid.energy(), shown: shown(E.ripPart) };
+    E.stir([c[0] + 1, 0, c[2] + 0.5], 'shot'); E.stir([c[0] - 1.5, 0, c[2] - 1], 'splash');
+    u.step(6);
+    const ys = E.ripPart.geometry.positions.filter((_, k) => k % 3 === 1);
+    const moving = { e: E.ripGrid.energy(), shown: shown(E.ripPart), spread: Math.max(...ys) - Math.min(...ys), cell: E.ripCell };
+    for (let k = 0; k < 40; k++) u.step(30);
+    return { before, moving, after: { e: E.ripGrid.energy(), shown: shown(E.ripPart) } }; });
+  check('on foot the water carries wave-equation ripples: shots and splashes move the sheet around you, then it goes still and hides', r.none || (r.moving.e > 0 && r.moving.shown && r.moving.spread > 0.001 && r.after.e < r.moving.e * 0.01 && !r.after.shown), JSON.stringify(r));
+  r = await page.evaluate(() => { const u = window.__underflow; u.beginSector(0); u.startRide(); u.setState({ health: 1e6 }); u.step(3); const R = window.__ride;
+    R.spawnEnc('debris', { lane: 0 }); u.step(1);
+    const d = R.debrisPool.find((x) => x.active && x.body); if (!d) return { none: true };
+    const ys = [];
+    let hit = null;
+    for (let k = 0; k < 240 && d.active; k++) { R.offset = d.lane - (hit ? 0 : 0.2); u.step(1); ys.push(d.body.y); if (d.done && !hit) hit = { x: d.body.x, spin: d.body.spin, lane0: d.lane }; }
+    const lo = Math.min(...ys), hi = Math.max(...ys);
+    return { bob: +(hi - lo).toFixed(3), hit: !!hit, shoved: hit ? +(d.body.x - hit.x).toFixed(2) : 0, spun: hit ? +Math.abs(d.body.spin - hit.spin).toFixed(2) : 0 }; });
+  check('floating debris on the raft is a body on the water: it bobs, and the raft hitting it shoves it aside and spins it', r.none || (r.bob > 0.01 && r.hit && Math.abs(r.shoved) > 0.3 && r.spun > 0.3), JSON.stringify(r));
+  r = await page.evaluate(() => { const u = window.__underflow; let E = null, cell = null;
+    for (let i = 0; i < 8 && !cell; i++) { u.beginSector(i); u.startRide(); u.startExplore(); u.setState({ health: 1e6 }); u.step(1); E = window.__explore;
+      cell = ['~', 'w', 'x', 'd'].map((c) => E.find(c)).flat()[0] || null; }
+    if (!cell) return { none: true };
+    const c = E.center(cell[0], cell[1]); E.player.pos = [c[0] + 1.5, E.player.pos[1], c[2]]; u.step(2);
+    E.thread.length = 0; E.thread.push([c[0] - 1, 0, c[2]], [c[0], 0, c[2]]);
+    E.stir([c[0] - 0.6, 0, c[2]], 'splash');
+    const ys = []; for (let k = 0; k < 20; k++) { u.step(1); ys.push(E.thread[1][1]); }
+    const afloat = E.thread[1][1];
+    E.thread[1].cut = true; for (let k = 0; k < 10; k++) u.step(15);
+    return { swing: +(Math.max(...ys) - Math.min(...ys)).toFixed(4), afloat: +afloat.toFixed(3), sunk: +E.thread[1][1].toFixed(3) }; });
+  check('over water the Ariadne thread floats and rides the ripples; cut, it sinks to the pool floor', r.none || (r.swing > 0.0005 && r.afloat > -0.95 && r.sunk < r.afloat - 0.1), JSON.stringify(r));
+  r = await page.evaluate(() => { const u = window.__underflow; const out = {};
+    for (const [label, stay] of [['stay', true], ['step', false]]) {
+      u.beginSector(0); u.startRide(); u.startExplore(); u.setState({ health: 100 }); u.step(2);
+      const E = window.__explore; E.blooms.forEach((b) => { b.active = false; });
+      const me = [...E.player.pos]; E.spawnBloom([me[0] + 0.6, 1.2, me[2]]); const b = E.blooms.find((x) => x.active);
+      // Somewhere open about 2.5 m away to step to once it starts to swell.
+      const away = [[-2.5, 0], [0, 2.5], [0, -2.5], [2.5, 0]].map(([dx, dz]) => [me[0] + dx, me[1], me[2] + dz]).find((p) => !E.isWall(...E.cellOf(p[0], p[2])) && Math.hypot(p[0] - me[0] - 0.6, p[2] - me[2]) > 2.3);
+      let wound = false; const h0 = u.state.health;
+      for (let k = 0; k < 40; k++) { E.player.pos = stay || !wound ? [...me] : [...away]; if (!wound) b.pos = [me[0] + 0.6, 1.2, me[2]]; u.step(1); if (b.windup) wound = true; if (!b.active || (!stay && wound && !b.windup)) break; }
+      out[label] = { wound, lost: +(h0 - u.state.health).toFixed(1), burst: E.burstDamage, windup: E.burstWindup };
+    }
+    return out; });
+  check('on foot a Bloom swells before it bursts: stay and it costs the sector burst damage (8 in the first attraction), step away and it costs nothing', r.stay.wound && Math.abs(r.stay.lost - r.stay.burst) < 0.5 && r.stay.burst === 8 && r.step.wound && r.step.lost === 0 && r.stay.windup >= 0.5, JSON.stringify(r));
   r = await page.evaluate(() => { const u = window.__underflow; u.beginSector(2); u.startRide(); u.setState({ health: 1e6 }); u.step(3); const R = window.__ride;
     R.spawnEnc('climber'); u.step(1); let both = 0, climbed = !!R.coop.climber, slotHeld = R.budget.holds('climber');
     for (let k = 0; k < 120; k++) { if (k % 20 === 0) R.spawnEnc('crewGrab'); u.setState({ health: 1e6 }); u.step(1); if (R.coop.climber && R.coop.crewGrab) both++; }
@@ -106,7 +194,7 @@ const { open, newCampaign, check, finish } = require('./lib.cjs');
     const before = count(); const p = [...E.player.pos];
     // A Bloom that reaches you bursts against you (the game's own path, not a test call).
     const b = E.spawnBloom([p[0], 1.3, p[2]], false); let lit = 0, burst = false;
-    for (let k = 0; k < 4 && !burst; k++) { u.setState({ health: 1e6 }); E.player.pos = [...p]; u.step(1); burst = !b.active; lit = Math.max(lit, count()); }
+    for (let k = 0; k < 40 && !burst; k++) { u.setState({ health: 1e6 }); E.player.pos = [...p]; b.pos = [p[0], 1.3, p[2]]; u.step(1); burst = !b.active; lit = Math.max(lit, count()); } // it swells first (the wind-up), then bursts
     for (let k = 0; k < 12; k++) u.step(1); const after = count();
     return { before, burst, lit, after }; });
   check('a burst lights the room from the shared light pool, then it is gone', r.before === 0 && r.burst && r.lit === 1 && r.after === 0, JSON.stringify(r));
@@ -166,6 +254,17 @@ const { open, newCampaign, check, finish } = require('./lib.cjs');
     return { shown: sheets.length, paired: pairs.length, underWater: pairs.length > 0 && pairs.every((d) => d < -0.05), deepest: Math.min(...pairs), shallowest: Math.max(...pairs) }; });
   check('the raft channel floor carries caustic sheets under the water', r.shown >= 2 && r.underWater, JSON.stringify(r));
   // The Undertow's pursuit of the raft ends on its own: it circles after each strike and sinks away after the third.
+  r = await page.evaluate(() => { const u = window.__underflow; u.beginSector(0); u.startRide(); u.setState({ health: 1e6 }); u.step(3); const R = window.__ride;
+    const sit = (o) => { u.setState({ chambers: { left: 100, right: 100, bow: 100, stern: 100, ...o }, leaks: [] }); u.step(2); return { list: +R.hullFx.list.toFixed(4), pitch: +R.hullFx.pitch.toFixed(4), sag: +R.hullFx.sag.toFixed(4) }; };
+    const full = sit({}), left = sit({ left: 10 }), right = sit({ right: 10 }), bow = sit({ bow: 10 }), all = sit({ left: 40, right: 40, bow: 40, stern: 40 });
+    sit({});
+    const range = () => { let lo = 1, hi = -1; for (let i = 0; i < 40; i++) { u.step(2); lo = Math.min(lo, R.waveRide.heave); hi = Math.max(hi, R.waveRide.heave); } return +(hi - lo).toFixed(3); };
+    const calm = range();
+    const sec = R.track.sectionAt(R.s).sec, was = sec.wavepool; sec.wavepool = true;
+    const pool = range(); sec.wavepool = was;
+    return { full, left, right, bow, all, calm, pool };
+  });
+  check('the raft floats by Archimedes: a soft side lists it that way, a soft bow puts the nose down, soft all round sits it deeper; it heaves on a Gerstner surface and harder in a wave pool', r.full.list === 0 && r.full.pitch === 0 && r.full.sag === 0 && r.left.list < -0.05 && r.right.list > 0.05 && r.bow.pitch > 0.02 && r.all.sag > r.left.sag && r.calm > 0.02 && r.pool > r.calm * 1.8, JSON.stringify(r));
   r = await page.evaluate(() => { const u = window.__underflow; u.beginSector(0); u.startRide(); u.setState({ health: 1e6 }); u.step(5); const R = window.__ride, W = R.undertowWake;
     Object.assign(W, { active: true, phase: 'pursue', dist: 3, thumpTimer: 0, stun: 0, strikes: 0 });
     let strikes = 0, stunAfter = 0, distAfter = 0, frames = 0;

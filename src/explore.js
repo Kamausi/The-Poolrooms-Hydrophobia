@@ -1,10 +1,22 @@
 // On foot at a dock. You can go anywhere you can reach, but you must find your own way back to the raft.
 // The goal: carry the power cell to the service panel (which opens the gate to the Safe Room's arrival
 // bay), then return to the moored raft. Each attraction adds its own rules (see sectors.js).
+import { timed } from './debug/profile.js';
 import { bearing, hitKind } from './hudcues.js';
 import { waterOptics } from './render/waterlook.js';
 import { applyWaterReflection, attachWaterReflection } from '67js/addons/water-reflection';
 import { createLaneRope } from './render/lanerope.js';
+import { createRope, settle } from './feel/rope.js';
+import { steer } from './ai/steering.js';
+import { takeSpread } from './scatter.js';
+import { findPath, flowField, flowStep, nextCorner, straight } from './ai/path.js';
+import { choose, TARGETING } from './ai/utility.js';
+import { createWaveGrid, sheetGeometry } from './render/wavegrid.js';
+import { tubeFlicker } from './render/noise.js';
+import { dopplerRatio } from './audio/doppler.js';
+import { createHabits, weigh, pickWeighted } from './ai/habits.js';
+import { describeAI } from './debug/aiview.js';
+import { updatePartVertices } from '67js/addons/update-part-vertices';
 import { rumble } from './feel/haptics.js';
 import { wedges as threatWedges } from './feel/aim.js';
 import { driftSign, driftState } from './driftsign.js';
@@ -15,7 +27,7 @@ import { createPerceiver, sense } from './ai/perception.js';
 import { createPursuit, advance } from './ai/pursuit.js';
 import { createRig } from './feel/spring.js';
 import { createEffectPool } from './render/effectpool.js';
-import { createWaterField, ringShape, causticDrift, causticStrength, createWetMarks, footprint, WET_STRIDES, snellWindow } from './render/waterfx.js';
+import { createWaterField, ringShape, causticDrift, causticStrength, createWetMarks, footprint, WET_STRIDES, snellWindow, IMPULSE } from './render/waterfx.js';
 import { assignShadows, handLamp } from './render/shadows.js';
 import { surface as genSurface } from './render/surfaces.js';
 import { model, modelPart, placeModel } from './render/props.js';
@@ -30,9 +42,9 @@ import { writeYaw, writeBasis, writeSegment, hide, add, sub, scale, normalize, c
 import { tileTexture, tileNormal, causticTexture } from './render/textures.js';
 import { signMaterial, quad } from './labels.js';
 import { createBlaster, PROFILES, PROFILE_ORDER } from './blaster.js';
-import { createCrewFigure, hideCrewFigure, poseStanding, poseProne, VISITOR_LOOK } from './crewfigure.js';
+import { createCrewFigure, hideCrewFigure, poseStanding, poseProne, VISITOR_LOOK, CREW_LOOK } from './crewfigure.js';
 import { createCallouts } from './callouts.js';
-import { input, wasPressed, isDown, requestLock } from './input.js';
+import { input, wasPressed, isDown, requestLock, bindingLabel } from './input.js';
 import { hud } from './hud.js';
 import { sound } from './audio/audio.js';
 import { quality } from './render/quality.js';
@@ -42,6 +54,13 @@ import { documentFor } from './documents.js';
 import { createDirector, AFTERMATH } from './ai/director.js';
 import { compressorRefill } from './hull.js';
 import { facility as facilityMem, saveFacility, recordSurvey, surveyMem } from './memory.js';
+import { createObserver, stepObserver, placeObserver, choosePerch } from './ai/observer.js';
+import { driftStage, sideWord, OPPOSITE, pickPassed } from './ai/driftfx.js';
+import { zoneAt, createZoneTracker } from './audio/zones.js';
+import { lightFor, isFailing } from './render/lightstyle.js';
+import { noteClaim, noteReading } from './fieldnotes.js';
+import { reflectionMode, delayedPose, trimHistory, turnUnder, tiltFor, LAG_SECONDS, SEE_RANGE, LEFT_BEHIND } from './ai/reflection.js';
+import { chooseDirective, judge as judgeDirective, nextTrust, placeName, createLearning } from './ai/attendant.js';
 import { plan as planFinds, collect as collectFind, headcountLine } from './collectibles.js';
 import { planColumns, pushOutOfColumns, columnBlocks, planArches } from './poolrooms.js';
 import { showModal, hideModal } from './ui.js';
@@ -85,6 +104,8 @@ const WATERISH = new Set(['~', 'u', 'L', 'f', 'R', 'r', '>', '<', '^', 'v']);
 export function createExplore(canvas, state, sector, events, opts = {}) {
   const rules = sector.explore || {};
   const random = rng(2000 + sector.index * 17 + state.attempt * 3 + (state.seed || 0));
+  // Decoration (the cold shiver in the view) has its own seeded stream, apart from the one that builds the map.
+  const decor = rng(0x7a11 + sector.index * 131 + state.attempt * 17 + (state.seed || 0));
   const rows = sector.map;
   const H = rows.length, W = rows[0].length;
   const key = state.sectorKey;
@@ -130,6 +151,9 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
   let waveOn = false;
   let keypadOpen = false;
   let gateOpen = false;
+  /** A door the Attendant really has locked (ai/attendant.js): [x, z] while it holds, otherwise null. */
+  let lockCell = null;
+  const lockedHere = (x, z) => !!lockCell && lockCell[0] === x && lockCell[1] === z;
   let sensorRevealed = false;
   // The Closed Wave Pool: once the crew chooses, the basin is drained (dry floor) or kept circulating (a current).
   let basin = 'full', basinLevel = -0.05;
@@ -155,7 +179,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
   const blocked = (x, z) => {
     const c = at(x, z);
     if (c === '#') return isWall(x, z);
-    return c === 'x' || c === 'o' || (c === 'B' && !highWater) || (c === 'K' && !keypadOpen) || (c === 'G' && !gateOpen);
+    return c === 'x' || c === 'o' || (c === 'B' && !highWater) || (c === 'K' && !keypadOpen) || (c === 'G' && !gateOpen) || lockedHere(x, z);
   };
   const inWaterAt = (px, pz) => isWater(...cellOf(px, pz));
 
@@ -233,11 +257,13 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
       if (ch === 'w') tidal.push({ part: P(`Tide ${x},${z}`, slab, waterMat()), x, z });
       if (ch === 'd' && drained) writeYaw(P(`Marking ${x},${z}`, slab, glow([1, 0.8, 0.2], 0.3, { color: [0.9, 0.75, 0.15], roughness: 0.6 })).matrix, [c[0], POOL + 0.01, c[2]], 0, 0.35, 0.02, CELL * 0.8);
       if ((x + z) % 2 === 0 && !rules.openSky) {
-        const lamp = P(`Lamp ${x},${z}`, slab, glow(lampColor, 9));
+        // Each kind of space has its own light (render/lightstyle.js), read from the same zones as the reverb.
+        const style = lightFor(zoneAt(x, z, { open: (a, b) => at(a, b) !== '#', water: isWater }), lampColor);
+        const lamp = P(`Lamp ${x},${z}`, slab, glow(style.color, 9));
         // The fixture housing (CC0 mounted fluorescent lights) stays up whether the tube is lit, flickering or dead.
         const fixture = M('fluorescent', `Light fixture ${x},${z}`);
         if (fixture) placeModel(fixture, [c[0], wallH - model('fluorescent').size[1] - 0.01, c[2]], 0);
-        lamps.push({ part: lamp, pos: [c[0], wallH - 0.4, c[2]], x, z, dark: hash(x, z) < (rules.dark || 0), broken: 0, flicker: hash(z, x), on: false, level: 0, fixture: !!fixture });
+        lamps.push({ part: lamp, pos: [c[0], wallH - 0.4, c[2]], x, z, dark: hash(x, z) < (rules.dark || 0), broken: 0, flicker: hash(z, x), on: false, level: 0, fixture: !!fixture, style });
       }
     }
   }
@@ -499,7 +525,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     const other = driftSign(text, style, state.band);
     const alt = other ? P(`Drift sign ${signParts.length}`, plane, { ...signMaterial(other, style, 0.8, px, py), doubleSided: true }) : null;
     if (alt) hide(alt);
-    signParts.push({ part, style, alt, home: null });
+    signParts.push({ part, style, alt, home: null, text, other });
     return facing(part, pos, normal, w, h);
   };
   const wallSpot = (x, z) => {
@@ -508,7 +534,9 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     return { pos: [c[0] + wd[0] * (CELL / 2 - 0.08), 1.7, c[2] + wd[1] * (CELL / 2 - 0.08)], normal: [-wd[0], 0, -wd[1]] };
   };
   const floorCells = find('.').filter(([x, z]) => Math.abs(x - dx0) + Math.abs(z - dz0) > 3);
-  const takeCell = () => floorCells.splice(Math.floor(random() * floorCells.length), 1)[0];
+  // Spread, not clumped: each taken cell keeps 3 cells from the others while the map has room (scatter.js).
+  const takenCells = [];
+  const takeCell = () => takeSpread(floorCells, takenCells, random, 3);
 
   // ---------- The lighting circuit ----------
   // A relay on the wall switches the dock between its main lights and the emergency strips. Under emergency
@@ -558,27 +586,39 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     } else hud.caption('[the lights come back. The wall is a wall]');
     return true;
   }
-  // High Drift: the signs that are allowed to change are about you now. Swapped in place; nothing animates.
-  let driftSigns = false, driftSignsTold = false;
-  function setDriftSigns(v) {
-    driftSigns = v;
+  // High Drift: the signs that are allowed to change are about you now. Swapped in place, and only while you are not
+  // looking at them (the audit's low-Drift inconsistency): turn back and the sign you just read says something else.
+  // Nothing animates. Coming back down works the same way.
+  let driftSigns = false, driftSignsTold = false, driftSignT = 0;
+  function signSeen(m) {
+    const p = [m[12], m[13], m[14]];
+    if (angleTo(viewEye, viewDir, p) > 0.75) return false;
+    // A sign is on a wall: test the line to a point just in front of it, not into the tile.
+    const toEye = normalize(sub(viewEye, p));
+    return lineOfSight(viewEye, add(p, scale(toEye, 0.4)));
+  }
+  function tickDriftSigns() {
     let n = 0;
     for (const s of signParts) {
       if (!s.alt) continue;
-      if (v) {
-        if (s.part.matrix[13] < -100) continue; // not standing anywhere right now
+      if (driftSigns && !s.home) {
+        if (s.part.matrix[13] < -100 || signSeen(s.part.matrix)) continue; // not standing anywhere, or being looked at
         s.home = Float32Array.from(s.part.matrix);
         s.alt.matrix.set(s.home); hide(s.part); n += 1;
-      } else if (s.home) { s.part.matrix.set(s.home); hide(s.alt); s.home = null; }
+      } else if (!driftSigns && s.home) {
+        if (signSeen(s.alt.matrix)) continue;
+        s.part.matrix.set(s.home); hide(s.alt); s.home = null; n += 1;
+      }
     }
-    if (v && n && !driftSignsTold) {
+    if (driftSigns && n && !driftSignsTold) {
       driftSignsTold = true;
-      hud.caption('[the signs have your wristband number on them. All of them]');
+      hud.caption('[the sign you passed has your wristband number on it now. You did not see it change]');
       hud.say(followers[0]?.id.toUpperCase() || 'MARS', 'Don\'t read the signs. Read the map.', 'crew');
       events.ledger?.('changes', `${sector.name}: at high Drift the signs are addressed to you`);
     }
     return n;
   }
+  function setDriftSigns(v) { driftSigns = v; return tickDriftSigns(); }
   function setBlackout(v) {
     if (!circuit || v === blackout) return false;
     blackout = v;
@@ -685,6 +725,20 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     });
   }
   const omenFigure = createCrewFigure(P, 'visitor', ' standing at the far lamp', { ...VISITOR_LOOK, jacket: '#5d6461', vest: '#6d4a36' });
+  // The Observer (ai/observer.js): tall, still, dressed like staff. It has its own figure so it never steals an omen's.
+  const watcherFig = createCrewFigure(P, 'visitor', ' watching from the far end', { ...VISITOR_LOOK, jacket: '#3c4643', vest: '#3c4643', tall: 1.08, broad: 0.9 });
+  hideCrewFigure(watcherFig);
+  // Your reflection in still water (ai/reflection.js), in your own crew colours. Hidden until you stand at the edge.
+  const selfFig = createCrewFigure(P, CREW_LOOK[state.character] ? state.character : 'mars', ' reflected in the water');
+  hideCrewFigure(selfFig);
+  // Moderate Drift (ai/driftfx.js): a wet floor sign that is somewhere you have already walked. Hidden until then.
+  const movedSign = M('wetFloorSign', 'Wet floor sign (somewhere you passed)');
+  const hideMoved = () => { if (movedSign) (movedSign.group || [movedSign]).forEach(hide); };
+  hideMoved();
+  // High Drift: the parts of a doorway that is not there (placed on a wall face when it shows).
+  const falseGap = P('False doorway', slab, { color: [0.012, 0.014, 0.016], metallic: 0, roughness: 1, emission: 0.02 });
+  const falseLintel = P('False doorway frame', slab, { color: linear('#3c3a36'), metallic: 0.3, roughness: 0.7 });
+  hide(falseGap); hide(falseLintel);
   const vestMat = { color: linear('#b46a3c'), metallic: 0, roughness: 0.65 };
   const cupMat = { color: [0.88, 0.88, 0.84], metallic: 0, roughness: 0.4 };
   // The same small details, in the same places relative to a wall: they will be here, and again later.
@@ -1095,7 +1149,12 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     body: createLaneRope(P, `Foot rope ${i}`, 3, { emission: 0.6 }),
     floats: [0, 1, 2].map(() => ({ alive: true })),
     x, z, cut: false, holding: 0, cooldown: 0,
+    // The line itself: a Verlet rope resting on the water between the walls (feel/rope.js).
+    sim: settle(createRope({ length: CELL })),
   }));
+  for (const r of ropes) r.simRest = r.sim.heightAt(0.5);
+  /** Where float j sits along its rope, 0..1. */
+  const ropeU = (j) => ((j - 1) * 1.2 + CELL / 2) / CELL;
   let marcoApart = false;
   let blown = 0; // how far the inspection lamp has blown the picture out (0..1)
   // The camera's springs (spring.js), as on the raft: a hit dips and nods the view, then it comes back.
@@ -1155,9 +1214,43 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     const [cx, cz] = cellOf(pos[0], pos[2]);
     const h = WATERISH.has(at(cx, cz)) || at(cx, cz) === 'x' || at(cx, cz) === 'B' ? waterLevel(cx, cz) : pos[1];
     field.impulse([pos[0], h, pos[2]], kind, time);
+    const local = ripIn(pos);
+    if (local) ripGrid.disturb(local[0], local[1], 0.045 * (typeof kind === 'number' ? kind : IMPULSE[kind] ?? 0.6), 0.45);
     const st = field.strongest();
     if (st && st.time === time) { ripple = [...st.at]; rippleTime = time; }
   };
+  // Ripples by the wave equation (render/wavegrid.js) on a sheet over the water around you: they cross each other and
+  // bounce off the pool walls. The sheet re-centres when you wade into another cell; its vertices are rewritten each
+  // frame while anything is moving (67js updatePartVertices), and it is hidden when the water is still.
+  const RIP = 3 * CELL, RIP_N = 40;
+  const ripGrid = createWaveGrid({ n: RIP_N, size: RIP });
+  const ripGeo = sheetGeometry(RIP_N, RIP);
+  const ripPart = P('Ripple sheet', ripGeo, { color: [0.82, 0.93, 0.95], metallic: 0, roughness: 0.04, emission: 0.02, alphaMode: 'blend', opacity: 0.16 });
+  let ripCell = null, ripY = 0, ripOrigin = [0, 0, 0], ripShown = false;
+  const ripIn = (pos) => { const x = pos[0] - ripOrigin[0], z = pos[2] - ripOrigin[2]; return ripCell && x >= 0 && z >= 0 && x <= RIP && z <= RIP ? [x, z] : null; };
+  let ripLast = null;
+  function updateRipples(dt) {
+    const moving = !!ripLast && dt > 0 && Math.hypot(player.pos[0] - ripLast[0], player.pos[2] - ripLast[2]) / dt > 0.5;
+    ripLast = [player.pos[0], player.pos[2]];
+    const [pcx, pcz] = cellOf(player.pos[0], player.pos[2]);
+    if (isWater(pcx, pcz) && (!ripCell || ripCell[0] !== pcx || ripCell[1] !== pcz)) {
+      ripCell = [pcx, pcz]; ripY = waterLevel(pcx, pcz);
+      const c = center(pcx, pcz);
+      ripOrigin = [c[0] - RIP / 2, 0, c[2] - RIP / 2];
+      ripGrid.clear();
+      ripGrid.setMask((x, z) => { const [cx, cz] = cellOf(ripOrigin[0] + x, ripOrigin[2] + z); return isWater(cx, cz) && Math.abs(waterLevel(cx, cz) - ripY) < 0.05; });
+    }
+    if (!ripCell) { hide(ripPart); return; }
+    // Wading pushes a bow wave ahead of your legs.
+    const local = ripIn(player.pos);
+    if (local && moving && isWater(pcx, pcz)) ripGrid.disturb(local[0], local[1], 0.012 * dt * 60, 0.35);
+    ripGrid.step(dt);
+    if (ripGrid.energy() < 1e-7) { if (ripShown) { hide(ripPart); ripShown = false; } return; }
+    ripGrid.writeMesh(ripGeo.positions, ripGeo.normals, 2.2);
+    updatePartVertices(renderer, ripPart, ripGeo.positions, ripGeo.normals);
+    writeBasis(ripPart.matrix, [ripOrigin[0], ripY + 0.008, ripOrigin[2]], [1, 0, 0], [0, 1, 0], [0, 0, 1], 1, 1, 1);
+    ripShown = true;
+  }
   let wadeT = 0;
   // Wet marks on dry floor: a puddle where you climb out and footprints for a few strides after, shrinking as they dry.
   const wet = createWetMarks();
@@ -1207,6 +1300,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
       skyTop: display(sky ? sky.top : sector.fog), skyBottom: display(sky ? sky.bottom : sector.fog), lightDirection: [0.4, 1, 0.3],
     },
   });
+  { const draw = renderer.render.bind(renderer); renderer.render = (o) => timed('render', () => draw(o)); } // per-subsystem timing (debug/profile.js)
   let mirrorKey = mirrorSurface ? `${quality.reflection}/${quality.reflectionEvery}` : '';
   let detachMirror = mirrorSurface ? attachWaterReflection(renderer, mirrorSurface, { scale: quality.reflection, updateEvery: quality.reflectionEvery }) : null;
   // Automatic quality may redraw the mirror less often, at lower resolution, or drop it (tiers.js `thinning`).
@@ -1243,6 +1337,14 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
   let lastPanelHealth = state.health;
   let waterT = 0;
   let stillT = 0;
+  // What the player has been doing lately, for the omens (ai/habits.js).
+  const habits = createHabits();
+  // ?debug=ai: what every entity believes and intends, on screen (debug/aiview.js).
+  const aiView = typeof location !== 'undefined' && new URLSearchParams(location.search).get('debug') === 'ai'
+    ? (document.getElementById('ai-debug') || document.body.appendChild(Object.assign(document.createElement('pre'), { id: 'ai-debug', className: 'mono', style: 'position:fixed;left:8px;top:8px;z-index:98;margin:0;padding:8px 10px;max-width:60vw;font-size:11px;line-height:1.35;background:#080d10d9;color:#cfe8e4;pointer-events:none;white-space:pre-wrap' })))
+    : null;
+  let aiViewT = 0;
+  let habLast = null, habHealth = state.health;
   let vel = [0, 0, 0];
   let hesitation = 0;
   let sink = 0;
@@ -1279,7 +1381,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     // What it does with that (pursuit.js): it never reads where you really are once it has lost you; it goes to
     // where it last sensed you, searches there, then drifts back to the grate it came out of.
     if (b) b.pur = createPursuit({ home: [...pos], profile: 'bloom' });
-    if (b) Object.assign(b, { active: true, pos: [...pos], hp: 2 + (sector.index > 3 ? 1 : 0), phase: random() * 6, dying: 0, stagger: 0, flash: 0, retreat: false, ch: [1, 1], dormant, waking: 0, lunge: 0, woken: false, floorY: pos[1] });
+    if (b) Object.assign(b, { active: true, pos: [...pos], hp: 2 + (sector.index > 3 ? 1 : 0), phase: random() * 6, dying: 0, stagger: 0, flash: 0, windup: 0, retreat: false, ch: [1, 1], dormant, waking: 0, lunge: 0, woken: false, floorY: pos[1] });
     return b;
   };
   // Placed Blooms wait collapsed on the floor: a heap of wet vinyl, a dropped jacket. Close enough, it breathes in.
@@ -1327,6 +1429,8 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
   const doorDist = () => (door ? Math.hypot(door.hinge[0] - player.pos[0], door.hinge[2] - player.pos[2]) : 99);
   let viewEye = [0, 1.6, 0], viewDir = [0, 0, -1];
   const panTo = (p) => soundDir(viewEye, viewDir, p).pan;
+  /** Play a sound from `p` as heard from here: through a wall it comes out duller and quieter (audio occlusion). */
+  const heard = (p, fn) => sound.occluded(viewEye && !lineOfSight(viewEye, p) ? 1 : 0, fn);
   function startFomen(kind) {
     lastFomen = kind;
     fused.add(kind);
@@ -1345,11 +1449,366 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
       hud.caption('[the lights are going out — one at a time — toward you]');
     }
     else if (kind === 'extraStep') fomen.armed = true;
+    else if (kind === 'silence') { hud.hush(24); sound.silence(); director.omen(0.25, 24); } // no caption, no prompt, no attack: the pumps simply stop
     else if (kind === 'drain') { sound.gurgle(); setTimeout(() => { sound.breath(0); hud.caption('[the drain empties — and at the end of it, a breath drawn in]'); }, 1900); hud.hush(10); }
     else if (kind === 'echo') { hud.say(who, 'Radio check. Everyone okay?', 'crew'); setTimeout(() => { hud.say('VOICE · UNDER THE WATER', '…okay?', 'voice'); hud.caption('[the last word again — from under the water]'); }, 3200); hud.hush(12); }
     else if (kind === 'name') { sound.gurgle(); setTimeout(() => { hud.say('VOICE · THE DRAIN', `${state.name}?`, 'voice'); hud.caption('[your own voice, calling your name, from the drain]'); }, 1200); hud.hush(12); }
   }
-  function endFomen() { fomen = null; fomenCool = 40 + random() * 35; }
+  function endFomen() { if (fomen?.kind === 'silence') sound.release(); fomen = null; fomenCool = 40 + random() * 35; }
+  // ---------- High Drift: a false route (the audit's third stage) ----------
+  // Once per dock, from Drift 70, while you are not looking: a doorway in a wall, dark beyond, the way on that is not on
+  // the survey. It is still a wall. Walk up to it and your hand is flat on tile, and the doorway is gone. Only the
+  // picture lies: collision, routing and the survey map are untouched.
+  const falseDoor = (() => {
+    const cands = [];
+    for (let z = 0; z < H; z++) for (let x = 0; x < W; x++) {
+      if (at(x, z) !== '#' || !wallParts.has(`${x},${z}`) || (eCell && x === eCell[0] && z === eCell[1])) continue;
+      for (const [dx, dz] of DIRS) if (at(x + dx, z + dz) === '.' && Math.abs(x + dx - dx0) + Math.abs(z + dz - dz0) > 2) cands.push([x, z, dx, dz]);
+    }
+    return { cands, gap: falseGap, lintel: falseLintel, cell: null, face: null, shown: false, done: false };
+  })();
+  function showFalseDoor(force = false) {
+    const F = falseDoor;
+    if (F.shown || F.done || !F.cands.length) return false;
+    const faceOf = ([x, z, dx, dz]) => { const c = center(x, z); return [c[0] + dx * (CELL / 2 + 0.012), 1.05, c[2] + dz * (CELL / 2 + 0.012)]; };
+    const ok = F.cands.filter((k) => { const f = faceOf(k), d = Math.hypot(f[0] - player.pos[0], f[2] - player.pos[2]); return d > 5 && d < 22 && (force || !inViewNow(f)); });
+    if (!ok.length) return false;
+    const k = ok[Math.floor(random() * ok.length)];
+    const f = faceOf(k), yaw = Math.atan2(k[2], k[3]);
+    writeYaw(F.gap.matrix, f, yaw, 1.15, 2.1, 0.02);
+    writeYaw(F.lintel.matrix, [f[0] + k[2] * 0.005, 2.14, f[2] + k[3] * 0.005], yaw, 1.35, 0.12, 0.03);
+    Object.assign(F, { cell: [k[0], k[1]], face: f, shown: true });
+    return true;
+  }
+  function closeFalseDoor(told) {
+    const F = falseDoor;
+    if (!F.shown) return;
+    hide(F.gap); hide(F.lintel);
+    F.shown = false;
+    if (told) {
+      F.done = true;
+      hud.caption('[tile. Your hand is flat on tile. There was never a doorway here]');
+      director.omen(0.2, 6);
+      jolt(0.3);
+      events.ledger?.('changes', `${sector.name}: at high Drift a doorway showed where there was only wall`);
+    }
+  }
+  function updateFalseDoor() {
+    const F = falseDoor;
+    if (F.done || sector.index === 0) return;
+    const high = driftStage(state.drift) === 'high';
+    if (!F.shown) { if (high) showFalseDoor(); return; }
+    // You reach the wall where the doorway seemed to be.
+    if (Math.hypot(player.pos[0] - F.face[0], player.pos[2] - F.face[2]) < 1.1) return closeFalseDoor(true);
+    // Drift has come down: the wall is plain again, but only once you are not looking.
+    if (state.drift < 55 && !inViewNow(F.face)) closeFalseDoor(false);
+  }
+
+  // ---------- Moderate Drift (ai/driftfx.js): a voice from the wrong side; an object on a spot you already passed ----------
+  const trail = []; let trailT = 0;
+  const moved = { at: null, moves: 0, noticed: false, cool: 15 + random() * 15, sightings: 0 };
+  let voiceT = 45 + random() * 30, voices0 = 0;
+  const VOICE_LINES = ['Over here.', 'Keep moving. I\'m right behind you.', 'Did you hear that?', 'This way.'];
+  function wrongVoice() {
+    const f = followers.filter((x) => x.pos && !(state.forgotten || []).includes(x.id))[0];
+    if (!f) return null;
+    const fwd = forwardVec(), real = sideWord([fwd[0], fwd[2]], [f.pos[0] - player.pos[0], f.pos[2] - player.pos[2]]), fake = OPPOSITE[real];
+    // A point on the side it seems to come from, for the pan.
+    const dir = { ahead: fwd, 'behind you': scale(fwd, -1), 'to your right': [-fwd[2], 0, fwd[0]], 'to your left': [fwd[2], 0, -fwd[0]] }[fake];
+    const from = add(player.pos, scale(dir, 6));
+    sound.whispers(panTo(from));
+    const name = f.id[0].toUpperCase() + f.id.slice(1);
+    hud.say(f.id.toUpperCase(), VOICE_LINES[voices0++ % VOICE_LINES.length], 'crew');
+    hud.caption(`[${name}'s voice, from ${fake}. ${name} is ${real}]`);
+    return { real, fake, who: f.id };
+  }
+  function placeMoved() {
+    if (!movedSign) return null;
+    const pos = pickPassed(trail, { now: time, me: player.pos, random, inView: (p) => inViewNow(add(p, [0, 0.5, 0])) });
+    if (!pos) return null;
+    const [cx, cz] = cellOf(pos[0], pos[2]);
+    placeModel(movedSign, [pos[0], floorTop(cx, cz), pos[2]], Math.atan2(player.pos[0] - pos[0], player.pos[2] - pos[2]));
+    Object.assign(moved, { at: [pos[0], floorTop(cx, cz), pos[2]], noticed: false, cool: 25 + random() * 20 });
+    moved.moves++;
+    return moved.at;
+  }
+  // ---------- Acoustic zones and the muffle under water (audio/zones.js) ----------
+  // Where you stand decides the reverb: a corridor rings, a pool hall is long and wet, an annex is a room, the roof is
+  // dry. With your head under the water (wading in deep, held under) everything goes dull.
+  const zones = createZoneTracker();
+  const acousticOpen = (x, z) => at(x, z) !== '#';
+  let acousticZone = null, submerged = false;
+  function updateAcoustics(dt, eye) {
+    const [cx, cz] = cellOf(player.pos[0], player.pos[2]);
+    const z = zones.step(zoneAt(cx, cz, { open: acousticOpen, water: isWater, openSky: !!rules.openSky }), dt);
+    if (z !== acousticZone) { acousticZone = z; sound.setSpace(z); }
+    const under = eye[1] < waterLevel(cx, cz) || (undertow.alive && undertow.holding > 0) || floaters.some((f) => f.state === 'holding');
+    if (under !== submerged) { submerged = under; sound.setMuffle(under); }
+  }
+
+  // ---------- The reflection (ai/reflection.js) ----------
+  // At the edge of still water you see yourself in it. From moderate Drift it follows you late; at high Drift, once
+  // per dock, it stops following and looks up at where you are now, and is gone when you look away.
+  const refl = { history: [], mode: 'follow', own: null, spent: false, shown: false, seenT: 0, told: false, sightings: 0 };
+  /** The point in the nearest still water where you would see yourself: just past the edge, toward you. */
+  function reflectionSpot() {
+    const [cx, cz] = cellOf(player.pos[0], player.pos[2]);
+    if (isWater(cx, cz)) return null; // standing in it: the ripples you make hide it
+    let best = null;
+    for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) {
+      const x = cx + dx, z = cz + dz;
+      if (!isWater(x, z) || (at(x, z) === 'w' && waveOn)) continue;
+      const c = center(x, z), h = CELL / 2;
+      // The nearest point of that cell's square, then a little further in.
+      const n = [clamp(player.pos[0], c[0] - h, c[0] + h), 0, clamp(player.pos[2], c[2] - h, c[2] + h)];
+      const d = Math.hypot(n[0] - player.pos[0], n[2] - player.pos[2]);
+      if (d > SEE_RANGE - 0.5 || (best && d >= best.d)) continue;
+      const dir = d > 0.01 ? [(n[0] - player.pos[0]) / d, 0, (n[2] - player.pos[2]) / d] : [c[0] - player.pos[0], 0, c[2] - player.pos[2]];
+      const len = Math.hypot(dir[0], dir[2]) || 1;
+      const img = [n[0] + (dir[0] / len) * 0.5, 0, n[2] + (dir[2] / len) * 0.5];
+      const level = waterLevel(x, z), depth = level - floorTop(x, z);
+      best = { d, feet: [img[0], level, img[2]], tilt: tiltFor(depth), cell: [x, z] };
+    }
+    return best;
+  }
+  function poseReflection(feet, yaw, tilt, walk, pace) {
+    poseStanding(selfFig, { feet, yaw, walk, pace });
+    const axis = [Math.sin(yaw), 0, Math.cos(yaw)];
+    for (const part of selfFig.all) if (part.matrix[13] > -100) turnUnder(part.matrix, feet, axis, tilt);
+  }
+  function hideReflection() { if (refl.shown) { hideCrewFigure(selfFig); refl.shown = false; } }
+  function updateReflection(dt, calm) {
+    const spot = reflectionSpot();
+    const yawNow = player.yaw + Math.PI; // the figure's facing (crewfigure.js) for the way you face
+    refl.history.push({ t: time, yaw: yawNow, pos: [...player.pos] });
+    trimHistory(refl.history, time, 2);
+    if (refl.own) {
+      const O = refl.own, there = add(O.feet, [0, -0.3, 0]);
+      const away = Math.hypot(player.pos[0] - O.from[0], player.pos[2] - O.from[2]);
+      if (!refl.told && away > LEFT_BEHIND && inViewNow(there)) {
+        refl.told = true; refl.sightings++;
+        hud.caption('[in the water your reflection has not moved. It is looking up at where you are now]');
+        director.omen(0.12, 5);
+      }
+      if (refl.told && !inViewNow(there)) { refl.own = null; refl.spent = true; hideReflection(); return; }
+      // It turns, slowly, to keep looking at you.
+      const want = Math.atan2(player.pos[0] - O.feet[0], player.pos[2] - O.feet[2]);
+      O.yaw += Math.atan2(Math.sin(want - O.yaw), Math.cos(want - O.yaw)) * Math.min(1, dt * 1.5);
+      poseReflection(O.feet, O.yaw, O.tilt, 0, 0);
+      refl.shown = true;
+      return;
+    }
+    if (!spot) { hideReflection(); refl.seenT = 0; return; }
+    refl.mode = reflectionMode(state.drift, { sectorIndex: sector.index, spent: refl.spent });
+    const pose = refl.mode === 'follow' ? refl.history[refl.history.length - 1] : delayedPose(refl.history, time, LAG_SECONDS);
+    // The image moves with you: offset from where you stood then, by as much as you have moved since.
+    const shift = [pose.pos[0] - player.pos[0], 0, pose.pos[2] - player.pos[2]];
+    const feet = [spot.feet[0] + shift[0], spot.feet[1], spot.feet[2] + shift[2]];
+    const i = refl.history.indexOf(pose), prev = refl.history[Math.max(0, i - 1)];
+    const v = prev && pose.t > prev.t ? Math.hypot(pose.pos[0] - prev.pos[0], pose.pos[2] - prev.pos[2]) / (pose.t - prev.t) : 0;
+    poseReflection(feet, pose.yaw, spot.tilt, pose.t * 7, Math.min(1, v / 4));
+    refl.shown = true;
+    if (inViewNow(add(feet, [0, -0.3, 0]))) refl.seenT += dt; else refl.seenT = 0;
+    if (refl.mode === 'own' && calm && !fomen && refl.seenT > 1.5) {
+      refl.own = { feet, yaw: pose.yaw, tilt: spot.tilt, from: [...player.pos] };
+      refl.told = false;
+    }
+  }
+
+  function updateModerateDrift(dt, calm) {
+    if ((trailT -= dt) <= 0) { trailT = 1; trail.push({ t: time, pos: [...player.pos] }); if (trail.length > 60) trail.shift(); }
+    const stage = driftStage(state.drift);
+    const on = sector.index > 0 && (stage === 'moderate' || stage === 'high');
+    if (!on) {
+      // Below it, the sign is put away, but only where you are not looking.
+      if (moved.at && !inViewNow(add(moved.at, [0, 0.5, 0]))) { hideMoved(); moved.at = null; }
+      return;
+    }
+    if (moved.at && !moved.noticed && inViewNow(add(moved.at, [0, 0.5, 0])) && distance(moved.at, player.pos) < 14) {
+      moved.noticed = true; moved.sightings++;
+      hud.caption(moved.sightings === 1 ? '[a wet floor sign, standing where you walked a minute ago. It was not there]' : '[the sign again. Somewhere you have already been]');
+      director.omen(0.1, 4);
+    }
+    if ((moved.cool -= dt) <= 0 && (!moved.at || !inViewNow(add(moved.at, [0, 0.5, 0])))) { if (!placeMoved()) moved.cool = 4; }
+    if (calm && !fomen && followers.length && (voiceT -= dt) <= 0) { voiceT = 60 + random() * 40; wrongVoice(); }
+  }
+
+  // ---------- Low Drift: footsteps that stop when you look (the audit's first Drift stage) ----------
+  // From Drift 30, now and then: someone walking behind you, out of sight. Turn and look at where they are and they stop.
+  // Nothing is there. It brings nothing with it; it is information you cannot trust, not a threat.
+  let driftSteps = null, driftStepsT = 70 + random() * 30, driftStepsTold = false;
+  function startDriftSteps() {
+    const back = scale(forwardVec(), -1);
+    const cands = floorCells.map(([x, z]) => { const c = center(x, z); return [c[0], floorTop(x, z), c[2]]; })
+      .filter((p) => { const d = Math.hypot(p[0] - player.pos[0], p[2] - player.pos[2]); return d > 7 && d < 15 && ((p[0] - player.pos[0]) * back[0] + (p[2] - player.pos[2]) * back[2]) > d * 0.6; });
+    if (!cands.length) return null;
+    driftSteps = { at: cands[Math.floor(random() * cands.length)], t: 0, next: 0, n: 0, stopped: false };
+    return driftSteps;
+  }
+  function updateDriftSteps(dt, calm) {
+    if (!driftSteps) {
+      if (sector.index === 0 || state.drift < 30 || !calm || fomen) return;
+      if ((driftStepsT -= dt) > 0) return;
+      driftStepsT = 70 + random() * 40;
+      startDriftSteps();
+      return;
+    }
+    const D = driftSteps;
+    D.t += dt;
+    const where = add(D.at, [0, 1, 0]);
+    if (inViewNow(where) || angleTo(viewEye, viewDir, where) < 0.6) {
+      // Looked at: they stop, mid-stride.
+      D.stopped = true;
+      if (!driftStepsTold && D.n > 2) { driftStepsTold = true; hud.caption('[footsteps behind you. When you turn, they stop. Nobody there]'); }
+      driftSteps = null;
+      return;
+    }
+    if ((D.next -= dt) <= 0 && D.t < 8) { D.next = 0.55; D.n++; heard(D.at, () => sound.footstep(panTo(D.at), false)); }
+    if (D.t >= 8) driftSteps = null;
+  }
+
+  // ---------- The Observer (ai/observer.js) ----------
+  // From the third attraction on, once per dock: something that watches from where you cannot get to it, and is
+  // somewhere else when you look back. It never attacks and cannot be shot.
+  const watcher = createObserver();
+  let watcherT = 50 + random() * 30, watcherTold = 0;
+  const watcherHead = () => add(watcher.at, [0, 1.65, 0]);
+  const inViewNow = (p) => angleTo(viewEye, viewDir, p) < 0.75 && lineOfSight(viewEye, p);
+  function perchWatcher() {
+    const cands = floorCells.map(([x, z]) => { const c = center(x, z); return [c[0], floorTop(x, z), c[2]]; });
+    const at = choosePerch(cands, { me: player.pos, moves: watcher.moves, random, last: watcher.at,
+      inView: (p) => inViewNow(add(p, [0, 1.65, 0])), sees: (p) => lineOfSight(add(p, [0, 1.65, 0]), viewEye) });
+    if (!at) { watcher.mode = 'waiting'; watcherT = 3; hideCrewFigure(watcherFig); return false; }
+    placeObserver(watcher, at);
+    return true;
+  }
+  function updateObserver(dt, calm) {
+    if (sector.index < 2 || watcher.mode === 'gone') return;
+    if (watcher.mode === 'waiting') {
+      if (!calm || fomen || state.downed) return;
+      if ((watcherT -= dt) > 0) return;
+      perchWatcher();
+      return;
+    }
+    const head = watcherHead();
+    poseStanding(watcherFig, { feet: watcher.at, yaw: Math.atan2(player.pos[0] - watcher.at[0], player.pos[2] - watcher.at[2]), walk: 0, pace: 0 });
+    const looked = angleTo(viewEye, viewDir, head) < 0.35 && lineOfSight(viewEye, head);
+    const ev = stepObserver(watcher, { dt, looked, dist: Math.hypot(watcher.at[0] - player.pos[0], watcher.at[2] - player.pos[2]) });
+    if (ev === 'seen') {
+      watcherTold++;
+      hud.caption(watcherTold === 1 ? '[at the far end, someone in staff colours, standing still. Watching you]' : '[it is there again. Closer than before]');
+      director.omen(0.15, 6);
+      state.drift = Math.min(100, state.drift + 2);
+    } else if (ev === 'move') {
+      hideCrewFigure(watcherFig);
+      perchWatcher();
+    } else if (ev === 'leave') {
+      hideCrewFigure(watcherFig);
+      watcher.mode = 'gone';
+      if (watcherTold) hud.caption('[the far end is empty. Where it stood, the tiles are dry: the only dry tiles in the hall]');
+    }
+  }
+
+  // ---------- The Attendant acts (ai/attendant.js) ----------
+  // Instructions over the public address that the facility then acts on. Most are honest. Once you have done as told
+  // twice running, one may be false, and a false one always gets the number of guests wrong. Following a false one
+  // costs you (the lights here go, or something is waiting where it sent you); ignoring any instruction costs nothing.
+  let lastPrompts = []; // every prompt asked for last frame (tests: the one shown is only the most urgent)
+  const attendantAI = { trust: 0, lastFalse: false, d: null, t: 0, held: 0, at: null, cool: 35 + random() * 15, issued: 0, lies: 0, caught: 0 };
+  const learning = createLearning();
+  let learnedSeen = false;
+  const guestsHere = () => 1 + followers.filter((f) => !f.gone && !(state.forgotten || []).includes(f.id)).length;
+  /** A door you have opened (a code door, a sensor gate), near you but not where you stand. */
+  function openDoorNear() {
+    const [px, pz] = cellOf(player.pos[0], player.pos[2]);
+    const open = [...(keypadOpen ? keypads.map((k) => ({ x: k.x, z: k.z, name: 'code door' })) : []), ...(gateOpen ? gates.map((g) => ({ x: g.x, z: g.z, name: 'lagoon gate' })) : [])];
+    return open.find((o) => { const c = center(o.x, o.z), dd = Math.hypot(c[0] - player.pos[0], c[2] - player.pos[2]);
+      return dd < 14 && Math.abs(o.x - px) + Math.abs(o.z - pz) > 1; }) || null;
+  }
+  function issueDirective(force = {}) {
+    const near = floorCells.filter(([x, z]) => { const c = center(x, z); const dd = Math.hypot(c[0] - player.pos[0], c[2] - player.pos[2]); return dd > 10 && dd < 24; });
+    const cell = near.length ? near[Math.floor(random() * near.length)] : null;
+    const place = cell ? (() => { const c = center(...cell); return { pos: [c[0], floorTop(...cell), c[2]], name: placeName(c[0] - player.pos[0], c[2] - player.pos[2]) }; })() : null;
+    const nearExit = force.kind ? force.kind === 'gate' : powered() && Math.hypot(raftPos[0] - player.pos[0], raftPos[2] - player.pos[2]) < 10;
+    const doorCell = openDoorNear();
+    const door = doorCell && { name: doorCell.name };
+    const d = chooseDirective({ trust: attendantAI.trust, lastFalse: attendantAI.lastFalse, sectorIndex: sector.index, guests: guestsHere(), place, area: 'this hall', random, kind: force.kind ?? null, lie: force.lie ?? null, nearExit, door });
+    attendantAI.tried = false;
+    // An honest closure really holds the gate; a false one leaves it open (the boarding prompt says so).
+    attendantAI.gateT = d.kind === 'gate' && !d.lie ? d.seconds : 0;
+    attendantAI.gateHealth = state.health;
+    // A lock: an honest one really shuts the door; a false one leaves it open, and walking through it is noticed.
+    attendantAI.lockAt = d.kind === 'lock' ? [doorCell.x, doorCell.z] : null;
+    attendantAI.lockT = d.kind === 'lock' && !d.lie ? d.seconds : 0;
+    lockCell = attendantAI.lockT > 0 ? attendantAI.lockAt : null;
+    attendantAI.d = d; attendantAI.t = 0; attendantAI.held = 0; attendantAI.at = [...player.pos]; attendantAI.issued++;
+    if (d.lie) attendantAI.lies++;
+    sound.chime?.();
+    hud.say('THE ATTENDANT', d.text, 'attendant', true);
+    // The field notes (fieldnotes.js): what it said, beside how many of you there were. Read in the pause journal.
+    noteClaim(state.claims ||= [], { sector: sector.name, said: d.count, actual: guestsHere(), what: d.kind, t: time });
+    return d;
+  }
+  function updateAttendant(dt, calm) {
+    const A = attendantAI, d = A.d;
+    // The gate counts down whatever happens to the instruction, so it can never stay shut.
+    if (A.gateT > 0) {
+      A.gateT = Math.max(0, A.gateT - dt);
+      // Never a trap: hurt while it holds the gate, and it opens.
+      if (state.health < A.gateHealth - 0.5) { A.gateT = 0; hud.toast('SAFETY OVERRIDE · BOARDING GATE OPEN'); }
+      A.gateHealth = state.health;
+    }
+    if (A.lockT > 0) {
+      A.lockT = Math.max(0, A.lockT - dt);
+      if (state.health < A.lockHealth - 0.5) { A.lockT = 0; hud.toast('SAFETY OVERRIDE · DOOR OPEN'); }
+      if (A.lockT === 0) lockCell = null;
+    }
+    A.lockHealth = state.health;
+    // It said the door was locked: walking through it is trying it.
+    if (d?.kind === 'lock' && A.lockAt) { const [px, pz] = cellOf(player.pos[0], player.pos[2]); if (px === A.lockAt[0] && pz === A.lockAt[1]) A.tried = true; }
+    if (!d) {
+      if (!calm || fomen || state.downed) return;
+      if ((A.cool -= dt) > 0) return;
+      issueDirective();
+      return;
+    }
+    A.t += dt;
+    const near = Math.hypot(player.pos[0] - A.at[0], player.pos[2] - A.at[2]) < 2.5;
+    if (d.kind === 'wait' && near) A.held += dt;
+    const outcome = judgeDirective(d, { tried: A.tried, held: A.held, t: A.t, moved: d.kind === 'wait' && !near, distance: d.pos ? Math.hypot(player.pos[0] - d.pos[0], player.pos[2] - d.pos[2]) : Infinity });
+    if (!outcome) return;
+    if (outcome === 'complied' && d.lie) {
+      // It was wrong about how many of you there are, and you did as it said.
+      if (d.kind === 'gate') {
+        // You waited at a gate that was never closed.
+        hud.caption('[the gate was open the whole time. Its lamp was green]');
+      } else if (d.kind === 'lock') {
+        hud.caption(`[the ${d.door} stood open the whole time. Nothing was being serviced]`);
+      } else if (d.kind === 'wait') {
+        if (!fomen && lamps.some((l) => !l.broken && distance(l.pos, player.pos) < 22)) startFomen('lights');
+        else { hud.caption('[the lights in this hall go out, then come back on]'); director.omen(0.3, 10); }
+      } else if (spawnBloom(add(d.pos, [1.5, 1.2, 0]))) {
+        hud.caption('[nobody from the staff. Something was waiting where it sent you]');
+      } else {
+        // Every Bloom is already out: the lights here go instead.
+        if (!fomen && lamps.some((l) => !l.broken && distance(l.pos, player.pos) < 22)) startFomen('lights');
+        hud.caption('[nobody from the staff. The lights over the gallery go out, one by one]');
+      }
+      events.facility?.('attendant-lie-followed');
+    } else if (outcome === 'complied') {
+      hud.say('THE ATTENDANT', d.kind === 'gate' ? 'Thank you. The boarding gate is open.' : d.kind === 'lock' ? `Thank you. The ${d.door} is open.` : 'Thank you.', 'attendant');
+    } else if (d.lie) {
+      A.caught++;
+      if (d.kind === 'lock') hud.caption(`[you walk through the ${d.door}. It was never locked]`);
+      hud.say('THE ATTENDANT', 'Thank you for your patience.', 'attendant'); // it carries on as if you had
+    }
+    A.trust = d.lie ? 0 : nextTrust(A.trust, outcome);
+    A.lastFalse = d.lie;
+    A.outcome = outcome;
+    A.d = null;
+    A.cool = 50 + random() * 30;
+  }
+
   function updateFomens(dt, ask) {
     // Door bookkeeping that outlives any one omen.
     if (door) {
@@ -1363,17 +1822,21 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
       // Hesitation: standing still with the objective known, or doubling back, is noticed. It brings the next
       // unexplained thing sooner. It never brings enemies: confusion should be frightening, not punished.
       hesitation = stillT > 8 ? Math.min(1, hesitation + dt / 20) : Math.max(0, hesitation - dt / 30);
-      if ((fomenCool -= dt * (1 + hesitation * 1.5)) > 0) return;
-      const CAT = { handle: 'door', crack: 'door', keyhole: 'door', forced: 'door', lights: 'light', extraStep: 'presence', drain: 'sound', echo: 'voice', name: 'voice' };
-      let pool = ['handle', 'crack', 'keyhole', 'forced', 'lights', 'extraStep', 'drain', 'echo', 'name'].filter((k) => !fused.has(k) && k !== lastFomen
+      // After a hard fight the omens hold off (ai/habits.js): a protected recovery, not a pile-on.
+      if ((fomenCool -= dt * (1 + hesitation * 1.5) / habits.recovery()) > 0) return;
+      const CAT = { handle: 'door', crack: 'door', keyhole: 'door', forced: 'door', lights: 'light', extraStep: 'presence', drain: 'sound', echo: 'voice', name: 'voice', silence: 'sound' };
+      let pool = ['handle', 'crack', 'keyhole', 'forced', 'lights', 'extraStep', 'drain', 'echo', 'name', 'silence'].filter((k) => !fused.has(k) && k !== lastFomen
         && (door || !['handle', 'crack', 'keyhole', 'forced'].includes(k))
         && !(k === 'forced' && (sector.index === 0 || !fused.has('handle') && !fused.has('crack')))
         && !(k === 'name' && state.drift < 35)
-        && !(k === 'echo' && !followers.length));
+        && !(k === 'echo' && !followers.length)
+        && !(k === 'silence' && sector.index === 0));
       // Not the same kind of thing twice running: a door, then a sound, then a voice, not door, door, door.
       const varied = pool.filter((k) => CAT[k] !== CAT[lastFomen]);
       if (varied.length) pool = varied;
-      if (pool.length) startFomen(pool[Math.floor(random() * pool.length)]);
+      // What you have been doing decides what comes (ai/habits.js): scan a lot and things happen outside the beam,
+      // rush and the facility misdirects you, linger and the slow ones come.
+      if (pool.length) startFomen(pickWeighted(pool, weigh(pool, habits.h), random));
       else fomenCool = 60;
       return;
     }
@@ -1388,6 +1851,8 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
       if (!f.wider && (doorDist() > 6 || f.t > 30)) { f.wider = true; sound.chair(panTo(door.hinge)); hud.caption('[behind you — the door, opening wider]'); }
       if (f.wider) door.angle = Math.min(0.5, door.angle + dt * 0.4);
       if (f.wider && door.angle >= 0.5) endFomen();
+    } else if (f.kind === 'silence') {
+      if (f.t > 22) endFomen();
     } else if (f.kind === 'keyhole') {
       if (f.t > 10) endFomen();
     } else if (f.kind === 'forced') {
@@ -1494,6 +1959,32 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
       }
     }
   }
+  // Ways round walls for things that float or walk (ai/path.js). One flow field toward the player serves every Bloom
+  // closing in, rebuilt only when the player changes cell or the emergency doorway opens or shuts.
+  const openCell = (x, z) => !isWall(x, z);
+  let toPlayer = null, toPlayerKey = '';
+  /**
+   * A direction from `pos` toward `target` that goes round walls: straight at it when it can be seen, else toward the
+   * next cell on a route (the shared field for the player, A* for anything else, cached in `memo`).
+   */
+  function routeTo(pos, target, memo = {}) {
+    if (lineOfSight(pos, target)) return sub(target, pos);
+    const from = cellOf(pos[0], pos[2]), goal = cellOf(target[0], target[2]);
+    const pc = cellOf(player.pos[0], player.pos[2]);
+    let next = null;
+    if (goal[0] === pc[0] && goal[1] === pc[1]) {
+      const key = `${pc[0]},${pc[1]},${!!emergency}`;
+      if (key !== toPlayerKey) { toPlayer = flowField(openCell, W, H, pc); toPlayerKey = key; }
+      next = flowStep(toPlayer, openCell, from[0], from[1]);
+    } else {
+      const key = `${from[0]},${from[1]}>${goal[0]},${goal[1]},${!!emergency}`;
+      if (memo.key !== key) { memo.key = key; memo.path = findPath(openCell, W, H, from, goal); }
+      next = nextCorner(memo.path, from, (a, b) => straight(openCell, a, b));
+    }
+    if (!next) return sub(target, pos);
+    const c = center(next[0], next[1]);
+    return [c[0] - pos[0], target[1] - pos[1], c[2] - pos[2]];
+  }
   function lineOfSight(a, b) {
     const d = sub(b, a);
     const n = Math.ceil(Math.hypot(d[0], d[2]) / 0.5);
@@ -1571,6 +2062,8 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     });
     for (const r of ropes) if (!r.cut) r.floats.forEach((f, j) => f.alive && test(ropeFloatPos(r, j), 0.4, () => {
       f.alive = false;
+      r.sim.kick(ropeU(j), -3);
+      r.sim.floats(ropeU(j) - 0.12, ropeU(j) + 0.12, false);
       sound.burst();
       hud.hitmarker();
       if (r.floats.every((q) => !q.alive)) { r.cut = true; r.holding = 0; hud.toast('LANE ROPE CUT'); events.cleared(); }
@@ -1671,22 +2164,28 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     const cone = lens ? 0.16 : 0.1;
     const range = lens ? 40 : 22;
     const cands = [];
-    markings.forEach((m) => cands.push({ obj: m, pos: m.pos, need: 0.6, label: 'MARKING', done: () => 'DEPTH MARKING · READ' }));
-    floaters.forEach((f) => f.state !== 'gone' && cands.push({ obj: f, pos: f.pos, need: 1, label: 'FIGURE IN THE WATER', done: () => {
+    markings.forEach((m, i) => cands.push({ key: `marking ${i}`, obj: m, pos: m.pos, need: 0.6, label: 'MARKING', done: () => 'DEPTH MARKING · READ' }));
+    floaters.forEach((f, i) => f.state !== 'gone' && cands.push({ key: `figure ${i}`, obj: f, pos: f.pos, need: 1, label: 'FIGURE IN THE WATER', done: () => {
       const honest = hash(f.cell[0], f.cell[1] + 9) < 0.7; // readings are honest about 70% of the time
       return `PULSE: ${f.survivor === honest ? 'FAINT' : 'NONE'} · READING UNRELIABLE`;
     } }));
-    fake.forEach((f) => cands.push({ obj: f, pos: f.pos, need: 0.6, label: 'SHELTER', done: () => 'BEACON: AMBER · NO PRESSURE SEAL · NO VENT TONE' }));
-    if (lifeguard) cands.push({ obj: lifeguard, pos: add(lifeguard.base, [0, 4.5, 0]), need: 0.4, label: 'LIFEGUARD', done: () => `RULE: ${ruleText.replace('\n', ' ')}${lifeguard.rule !== 'run' ? ' · BREAKER ON THE TOWER LEG' : ''}` });
-    if (reflection) cands.push({ obj: 'reflection', pos: reflectionPos(), need: 1, label: 'REFLECTION', done: () => {
+    fake.forEach((f, i) => cands.push({ key: `shelter ${i}`, obj: f, pos: f.pos, need: 0.6, label: 'SHELTER', done: () => 'BEACON: AMBER · NO PRESSURE SEAL · NO VENT TONE' }));
+    if (lifeguard) cands.push({ key: 'lifeguard', obj: lifeguard, pos: add(lifeguard.base, [0, 4.5, 0]), need: 0.4, label: 'LIFEGUARD', done: () => `RULE: ${ruleText.replace('\n', ' ')}${lifeguard.rule !== 'run' ? ' · BREAKER ON THE TOWER LEG' : ''}` });
+    if (reflection) cands.push({ key: 'reflection', obj: 'reflection', pos: reflectionPos(), need: 1, label: 'REFLECTION', done: () => {
       if (lagoonLevel !== 1) return 'MISALIGNED · CHANGE THE LAGOON LEVEL';
       if (!sensorRevealed) { sensorRevealed = true; sound.gate(); hud.toast('THE SENSOR IS REAL · IT IS ON THE NORTH PARAPET'); }
       return 'ALIGNED · SENSOR ON THE NORTH PARAPET';
     } });
     for (const [k, gr] of grout) if (!gr.cleared) {
       const [x, z] = k.split(',').map(Number);
-      cands.push({ obj: gr, pos: add(center(x, z), [0, 0.1, 0]), need: 0.5, label: 'GROUT', done: () => 'SPREADS THROUGH WET, DARK TILE · LIGHT AND DRY FLOOR STOP IT' });
+      cands.push({ key: `grout ${k}`, obj: gr, pos: add(center(x, z), [0, 0.1, 0]), need: 0.5, label: 'GROUT', done: () => 'SPREADS THROUGH WET, DARK TILE · LIGHT AND DRY FLOOR STOP IT' });
     }
+    // Signs read in the beam say what they say now: at high Drift that is not what they said before (driftsign.js).
+    signParts.forEach((s, i) => {
+      const m = s.home ? s.alt.matrix : s.part.matrix;
+      if (m[13] < -100) return;
+      cands.push({ key: `sign ${i}`, obj: s, pos: [m[12], m[13], m[14]], need: 0.5, label: 'SIGN', done: () => `"${(s.home ? s.other : s.text).replace(/\n/g, ' ')}"` });
+    });
     let best = null, bestA = cone;
     for (const c of cands) {
       if (distance(eye, c.pos) > range) continue;
@@ -1696,12 +2195,17 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     if (!best) { scanTarget = null; return 'SCANNING…'; }
     if (!scanTarget || scanTarget.obj !== best.obj) scanTarget = { obj: best.obj, t: 0 };
     scanTarget.t += dt;
-    if (scanTarget.t >= best.need) return best.done();
+    if (scanTarget.t >= best.need) {
+      const text = best.done();
+      // The field notes (fieldnotes.js): a reading enters the journal only when the beam has read it.
+      if (!scanTarget.noted) { scanTarget.noted = true; noteReading(state.readings ||= [], { sector: sector.name, key: best.key, label: best.label, text, t: time }); }
+      return text;
+    }
     return `${best.label} · ${Math.round((scanTarget.t / best.need) * 100)}%`;
   }
   function ropeFloatPos(r, j) {
     const c = center(r.x, r.z);
-    return [c[0] + (j - 1) * 1.2, surface(r.x, r.z) + 0.2, c[2]];
+    return [c[0] + (j - 1) * 1.2, surface(r.x, r.z) + 0.2 + r.sim.heightAt(ropeU(j)) - r.simRest, c[2]];
   }
   function reflectionPos() {
     const c = center(...reflCell);
@@ -1718,6 +2222,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     effects.tick(dt);
     drawFx();
     drawRings();
+    updateRipples(dt);
     drawCaustics();
     drawWet();
     time += dt;
@@ -1807,7 +2312,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     if (state.sitting) player.pitch = damp(player.pitch, -0.25, 1, dt);
     camRig.step(dt);
     const camK = settings.camera ?? 1;
-    const eye = [player.pos[0] + (Math.random() - 0.5) * shiver, player.floor + EYE - sink - (state.downed ? 1.1 : 0) + swayY + (Math.random() - 0.5) * shiver + camRig.get('heave') * 0.12 * camK, player.pos[2]];
+    const eye = [player.pos[0] + (decor() - 0.5) * shiver, player.floor + EYE - sink - (state.downed ? 1.1 : 0) + swayY + (decor() - 0.5) * shiver + camRig.get('heave') * 0.12 * camK, player.pos[2]];
     // Field dressing: H. Takes a moment, and you cannot fire while you do it.
     if (wasPressed('h') && !healing && state.dressings > 0 && state.health < 100) { healing = 2.5; state.dressings -= 1; hud.toast('APPLYING A FIELD DRESSING'); }
     if (healing > 0) {
@@ -1828,6 +2333,12 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     // A short scouting trip is cheap; staying still in warm water is not.
     waterT = water ? waterT + dt : Math.max(0, waterT - dt * 2);
     stillT = moving ? 0 : stillT + dt;
+    {
+      const sp = habLast && dt > 0 ? Math.hypot(player.pos[0] - habLast[0], player.pos[2] - habLast[2]) / dt : 0;
+      habits.observe({ dt, scanning: !!input.scanning, speed: sp, hurt: Math.max(0, habHealth - state.health), still: stillT > 8 });
+      habLast = [player.pos[0], player.pos[2]]; habHealth = state.health;
+    }
+    if (aiView && (aiViewT -= dt) <= 0) { aiViewT = 0.25; aiView.textContent = describeAI({ blooms, lifeguard, followers, habits: habits.h, attendant: attendantAI, learned: learning.s, observer: watcher, phase: director.phase, me: player.pos }); }
     const fromRaft = Math.hypot(raftPos[0] - player.pos[0], raftPos[2] - player.pos[2]);
     const driftRate = (water ? 0.6 + Math.min(2.4, waterT * 0.12) : 0.08) + (stillT > 6 ? 0.8 : 0) + (fromRaft > 34 ? 0.35 : 0) + (litHere ? 0 : 0.5);
     // A dry pack: out of the water, Drift does not rise while it lasts.
@@ -1917,19 +2428,25 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
           hud.toast('DRAINED BY HAND · IT TAKES EFFECT NEXT TIME YOU LAND HERE');
         }
       }
-      ask(2, powered() ? 'E · Board the raft (service gate open)' : 'E · Leave early (circuit dark: bypass exit, you keep what you earned, grade capped at B)');
-      if (wasPressed('e') && surge && !surge.done) {
+      // The Attendant may be holding the boarding gate (ai/attendant.js). The prompt always says what the gate is doing.
+      const gateHeld = attendantAI.gateT > 0;
+      if (gateHeld) {
+        ask(3, `BOARDING GATE CLOSED · MAINTENANCE CYCLE · ${Math.ceil(attendantAI.gateT)} s`);
+        if (wasPressed('e')) { attendantAI.tried = true; sound.wrong(); }
+      } else ask(2, powered() ? 'E · Board the raft (service gate open)' : 'E · Leave early (circuit dark: bypass exit, you keep what you earned, grade capped at B)');
+      if (!gateHeld && wasPressed('e') && attendantAI.d?.kind === 'gate') attendantAI.tried = true; // it said closed; you tried it
+      if (!gateHeld && wasPressed('e') && surge && !surge.done) {
         // Leaving before the surge passes: the line goes, and the way out floods behind you.
         (state.routeMod ||= {})[key] = 'flooded';
         hud.caption('[behind you the line lets go. The way out is flooding.]');
       }
-      if (wasPressed('e') && juneEvent.state === 'sitting') {
+      if (!gateHeld && wasPressed('e') && juneEvent.state === 'sitting') {
         // Leaving her there. The count closes over her.
         juneEvent.state = 'left';
         (state.forgotten ||= []).push('june');
         hud.say('THE ATTENDANT', 'Thank you, all three guests, for staying together.', 'attendant');
       }
-      if (wasPressed('e')) {
+      if (!gateHeld && wasPressed('e')) {
         if (rules.currents && !pumpOn) {
           sound.wrong();
           hud.toast('THE PUMP IS OFF · NO WATER IN THE CHANNEL · RESTART IT');
@@ -2106,8 +2623,9 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     }
     for (const k of keypads) {
       const c = center(k.x, k.z);
-      if (keypadOpen) { hide(k.part); continue; }
+      if (keypadOpen && !lockedHere(k.x, k.z)) { hide(k.part); continue; }
       writeYaw(k.part.matrix, [c[0], 1.6, c[2]], 0, CELL, 3.2, CELL);
+      if (keypadOpen) { if (Math.hypot(c[0] - eye[0], c[2] - eye[2]) < 3.4) ask(2, `DOOR LOCKED · MAINTENANCE CYCLE · ${Math.ceil(attendantAI.lockT)} s`); continue; }
       if (Math.hypot(c[0] - eye[0], c[2] - eye[2]) < 3.4) {
         ask(2, 'E · Enter the code');
         if (wasPressed('e')) {
@@ -2122,7 +2640,10 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     }
     for (const g of gates) {
       const c = center(g.x, g.z);
-      if (!gateOpen) {
+      if (gateOpen && lockedHere(g.x, g.z)) {
+        writeYaw(g.part.matrix, [c[0], 1.6, c[2]], 0, CELL, 3.2, CELL);
+        if (Math.hypot(c[0] - eye[0], c[2] - eye[2]) < 3.4) ask(2, `GATE LOCKED · MAINTENANCE CYCLE · ${Math.ceil(attendantAI.lockT)} s`);
+      } else if (!gateOpen) {
         writeYaw(g.part.matrix, [c[0], 1.6, c[2]], 0, CELL, 3.2, CELL);
         if (Math.hypot(c[0] - eye[0], c[2] - eye[2]) < 3.4) ask(1, 'GATE · opened by a sensor you can only see reflected in the lagoon');
       } else hide(g.part);
@@ -2190,10 +2711,18 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
 
     runDirector(dt, eye);
     updateFomens(dt, ask);
+    const calmNow = director.phase === 'relax' && !(lifeguard && lifeguard.state !== 'watching') && !(undertow.alive && undertow.holding > 0);
+    updateAttendant(dt, calmNow);
+    updateObserver(dt, calmNow);
+    updateDriftSteps(dt, calmNow);
+    updateModerateDrift(dt, calmNow);
+    updateReflection(dt, calmNow);
+    updateAcoustics(dt, eye);
+    updateFalseDoor();
     voices(dt);
 
     let scanText = '';
-    if (input.scanning && (input.locked || input.touch)) {
+    if (input.scanning && (input.locked || input.touch || input.pad)) {
       blaster.showScan(true, blaster.muzzle(eye, target, dir), add(eye, scale(dir, Math.min(30, rayWorld(eye, dir)))));
       scanText = scanTick(dt, eye, dir);
       state.visible = true;
@@ -2205,11 +2734,11 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     hud.scan(scanText);
 
     if (wasPressed('r')) blaster.recharge();
-    if (!input.locked && !input.touch && (input.firing || input.scanning)) requestLock();
+    if (!input.locked && !input.touch && !input.pad && (input.firing || input.scanning)) requestLock();
     for (const id of PROFILE_ORDER) if (wasPressed(PROFILES[id].key)) { state.profile = id; hud.toast(`${PROFILES[id].label} · ${PROFILES[id].job}`); }
     if (wasPressed('tab') || wasPressed('cycle-')) { state.profile = PROFILE_ORDER[(PROFILE_ORDER.indexOf(state.profile || 'pulse') + (wasPressed('tab') ? 1 : 4)) % 5]; hud.toast(PROFILES[state.profile].label); }
     if (state.downed) state.profile = 'pulse';
-    if (blaster.trigger(dt, input.firing && (input.locked || input.touch) && healing <= 0, false)) {
+    if (blaster.trigger(dt, input.firing && (input.locked || input.touch || input.pad) && healing <= 0, false)) {
       const P0 = PROFILES[state.profile] || PROFILES.pulse;
       const base = state.damage;
       state.damage = base * P0.damage * (state.downed ? 0.6 : 1);
@@ -2237,8 +2766,9 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     if (wasPressed('f')) burst(eye);
     blaster.place(eye, target, dir, swayY * 0.4);
 
-    if (!input.locked && !input.touch) ask(0, 'CLICK to look around');
+    if (!input.locked && !input.touch && !input.pad) ask(0, 'CLICK to look around');
     prompts.sort((a, b) => b[0] - a[0]);
+    lastPrompts = prompts;
     hud.prompt(prompts[0]?.[1] || '');
     // Reticle: brackets while something can be used; an arc while the machine is held.
     hud.reticle({ interact: prompts.some((p) => p[0] > 0), progress: operating && isDown('e') ? Math.min(1, operating / K.hold) : 0 });
@@ -2362,8 +2892,16 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
       const to = [target[0] - f.pos[0], 0, target[2] - f.pos[2]];
       const dd = Math.hypot(to[0], to[2]);
       const spd = dd > 6 ? 5.5 : 3.6;
-      const moving = dd > 0.6;
-      if (moving) f.pos = add(f.pos, scale(normalize(to), Math.min(dd, spd * dt)));
+      // Steering (ai/steering.js): arrive at the trail point and ease into it, keep out of the others' space and
+      // yours (not when they are kneeling at your side), with limited acceleration so paths bend instead of snapping.
+      const near = followers.filter((o) => o !== f && o.pos).map((o) => o.pos);
+      if (!(state.downed && f.k === 0)) near.push(player.pos);
+      // Out of sight of the point (a wall between): go by a route (ai/path.js), not into the wall.
+      f.route ||= {};
+      const seesIt = lineOfSight(f.pos, target);
+      const aim = seesIt ? target : add(f.pos, routeTo(f.pos, target, f.route));
+      const { moving } = steer(f, aim, near, dt, { maxSpeed: spd, slow: seesIt ? 1.6 : 0.3 });
+      if (moving) { to[0] = f.vel[0]; to[2] = f.vel[1]; }
       pushOutOfColumns(f.pos, columns, 0.35);
       // Stride from actual movement, so feet don't skate: pace eases in and out.
       f.pace = damp(f.pace, moving ? Math.min(1, spd / 5) : 0, 6, dt);
@@ -2385,7 +2923,11 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
       let tgt = null;
       if (undertow.alive && undertow.holding > 0) tgt = { pos: undertow.pos, hit: () => { undertow.hp -= 1; } };
       else {
-        const b = blooms.filter((x) => x.active && !x.dying && !x.dormant && distance(x.pos, from) < 14 && lineOfSight(from, x.pos)).sort((a, c) => distance(a.pos, from) - distance(c.pos, from))[0];
+        // Utility scoring (ai/utility.js): near the shooter, near you, attacking you, nearly finished.
+        const seen = blooms.filter((x) => x.active && !x.dying && !x.dormant && distance(x.pos, from) < 14 && lineOfSight(from, x.pos));
+        const pick = choose(seen.map((x) => ({ b: x, dist: distance(x.pos, from), toPlayer: distance(x.pos, player.pos), committed: !!x.commit, hp: x.hp, grabbing: false })), TARGETING);
+        const b = pick?.option.b;
+        f.lastPick = pick ? { score: pick.score, of: seen.length } : null;
         if (b) tgt = { pos: b.pos, hit: () => { b.hp -= 1; b.stagger = 0.3; if (b.hp <= 0) { b.dying = 0.001; sound.burst(); events.cleared(); } } };
       }
       if (!tgt) continue;
@@ -2458,6 +3000,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     updateLamp(dt, eye, ask);
     updateSurvey();
     if (driftState(driftSigns, state.drift) !== driftSigns) setDriftSigns(!driftSigns);
+    else if ((driftSignT -= dt) <= 0) { driftSignT = 0.25; tickDriftSigns(); }
     if (attendant0417T > 0 && (attendant0417T -= dt) <= 0) hud.say('THE ATTENDANT', 'Thank you. The item removed from Locker 0417 has been returned.', 'attendant', true);
     // Where you stand still the longest: the Safe Room window remembers it.
     if (sector.chapter) { const sp = Math.hypot(player.pos[0] - (lastStill?.[0] ?? 0), player.pos[2] - (lastStill?.[2] ?? 0)); if (sp < 0.3) { stillHere += dt; if (stillHere > (state.hesitation?.t || 0)) state.hesitation = { t: stillHere, near: nearestFeature(player.pos) }; } else { stillHere = 0; lastStill = [...player.pos]; } }
@@ -2551,10 +3094,20 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
       thread.push([player.pos[0], player.floor + 0.03, player.pos[2]]);
       if (thread.length > threadParts.length) thread.shift();
     }
+    // Over water the thread floats: each point rides the surface and the ripples on it (render/wavegrid.js). Where it
+    // has been cut, the loose line soaks and sinks to the pool floor.
+    for (const t of thread) {
+      const [cx, cz] = cellOf(t[0], t[2]);
+      if (!isWater(cx, cz)) continue;
+      const local = ripIn(t);
+      const surf = waterLevel(cx, cz) + (local ? ripGrid.heightAt(local[0], local[1]) * 2.2 : 0) + 0.012;
+      t.sink = t.cut ? Math.min(1, (t.sink || 0) + dt * 0.25) : 0;
+      t[1] = surf + (POOL + 0.03 - surf) * t.sink;
+    }
     threadParts.forEach((part, i) => {
       const a = i === 0 ? [raftPos[0], 0.05, raftPos[2]] : thread[i - 1];
       const b = thread[i];
-      if (!a || !b || b.cut) return hide(part);
+      if (!a || !b || (b.cut && !(b.sink > 0))) return hide(part);
       // Stop short of your own feet, so the line guides from the floor ahead instead of running into the lens.
       if (Math.hypot(b[0] - player.pos[0], b[2] - player.pos[2]) < 1.4) return hide(part);
       const d = [b[0] - a[0], 0, b[2] - a[2]];
@@ -2615,7 +3168,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
   /** The work lamp, each frame: cycle (L), set down or pick up (K), drain, recharge at the raft. */
   function updateLamp(dt, eye, ask) {
     const lamp = state.lamp;
-    if (!lampTold) { lampTold = true; hud.toast('WORK LAMP · L: off / white / UV · K: set it down or pick it up'); }
+    if (!lampTold) { lampTold = true; hud.toast(`WORK LAMP · ${bindingLabel('lamp')}: off / white / UV · ${bindingLabel('lampPlace')}: set it down or pick it up`); }
     if (wasPressed('l')) { lamp.mode = (lamp.mode + 1) % 3; sound.switchOn(); hud.toast(lamp.charge <= 0 ? 'WORK LAMP · NO CHARGE · the raft recharges it' : ['WORK LAMP OFF', 'WORK LAMP · WHITE', 'WORK LAMP · UV'][lamp.mode]); }
     if (wasPressed('k')) {
       if (lampPlaced && Math.hypot(lampPlaced[0] - player.pos[0], lampPlaced[2] - player.pos[2]) < 2.2) { lampPlaced = null; hud.toast('LAMP PICKED UP'); }
@@ -2826,7 +3379,10 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     for (const r of ropes) {
       if (r.cut) { r.body.hideAll(); continue; }
       const c = center(r.x, r.z), y = surface(r.x, r.z) + 0.2;
-      r.body.place([c[0] - CELL / 2, y, c[2]], [c[0] + CELL / 2, y, c[2]], [0, 1, 2].map((j) => ropeFloatPos(r, j)), r.floats.map((f) => f.alive), (j) => Math.sin(time * 3 + j) * 0.05, [isWall(r.x - 1, r.z), isWall(r.x + 1, r.z)]);
+      r.sim.step(dt);
+      // Wading into the line pushes it down where you are.
+      if (r.holding > 0 && pcx === r.x && pcz === r.z) r.sim.kick(clamp((player.pos[0] - c[0] + CELL / 2) / CELL, 0, 1), -0.6);
+      r.body.place([c[0] - CELL / 2, y, c[2]], [c[0] + CELL / 2, y, c[2]], [0, 1, 2].map((j) => ropeFloatPos(r, j)), r.floats.map((f) => f.alive), (j) => Math.sin(time * 3 + j) * 0.03, [isWall(r.x - 1, r.z), isWall(r.x + 1, r.z)]);
       r.cooldown = Math.max(0, r.cooldown - dt);
       if (r.holding > 0) {
         r.holding -= dt;
@@ -2850,7 +3406,8 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
       return;
     }
     if (!rules.waves) { tidal.forEach((t) => hide(t.part)); return; }
-    waveT += dt;
+    // In an authored silence the wave machine stops with every other pump, and sends nothing in.
+    if (fomen?.kind !== 'silence') waveT += dt;
     const was = waveOn;
     waveOn = waveT % 14 > 9;
     if (waveOn && !was) {
@@ -2920,7 +3477,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
         const k = front[Math.floor(random() * front.length)];
         grout.set(k, { cleared: 0 });
         const [gx, gz] = k.split(',').map(Number);
-        sound.grind(soundDir(player.pos, forwardVec(), center(gx, gz)).pan);
+        heard(center(gx, gz), () => sound.grind(soundDir(player.pos, forwardVec(), center(gx, gz)).pan));
         hud.caption('[a deeper scrape — the grout lines have moved. That passage is different now]');
         // It cuts the thread where it crosses.
         const before = thread.length;
@@ -2955,7 +3512,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
         }
       }
       const on = !emergency && !blackout && !l.broken && !l.out && (!l.dark || powered());
-      const flick = l.flicker > 0.88 ? (Math.sin(time * 41 + l.flicker * 50) > 0.5 ? 0.12 : 1) : 1;
+      const flick = isFailing(l.flicker, l.style) ? tubeFlicker(time, l.flicker * 100, 0.6) : 1; // a failing tube (render/noise.js)
       if (on) {
         // With a fixture the lit tube sits inside its housing; without, the bare panel.
         if (l.fixture) writeYaw(l.part.matrix, [l.pos[0], wallH - 0.05, l.pos[2]], 0, 0.82, 0.02, 0.36);
@@ -2975,7 +3532,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
   }
   function gatherLights(eye) {
     const out = lamps.filter((l) => l.on).map((l) => ({ l, d: distance(l.pos, eye) })).sort((a, b) => a.d - b.d).slice(0, quality.lights)
-      .map(({ l }) => ({ position: l.pos, color: lampColor, intensity: 10 * l.level, radius: 0.4, range: 9.5 })); // bleached under the fixture, dark between
+      .map(({ l }) => ({ position: l.pos, color: l.style.color, intensity: l.style.intensity * l.level, radius: 0.4, range: l.style.range })); // bleached under the fixture, dark between
     if (lifeguard && lifeguard.lampOn) out.push({ position: add(lifeguard.base, [0, 4.6, 0]), color: lifeguard.rule === 'swim' ? [1, 0.25, 0.12] : [1, 0.9, 0.7], intensity: 9, radius: 0.3, range: 16 });
     if (lifeguard?.spot) out.push({ position: add(lifeguard.spot, [0, 1.6, 0]), color: [1, 0.93, 0.8], intensity: 14, radius: 0.5, range: 5 });
     if (rules.uv) out.push({ position: [eye[0], 3.5, eye[2]], color: [0.5, 0.25, 1], intensity: 3, radius: 1, range: 12 });
@@ -2988,6 +3545,8 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
 
   // Who may commit an attack (pressure.js): two melee slots, three in the deep sectors. The rest circle.
   const budget = createBudget({ extra: { melee: sector.index >= 5 ? 1 : 0 } });
+  /** A Bloom burst on foot: 8 health in the first attraction, rising by 2 a level to 14; the wind-up before it. */
+  const burstDamage = Math.min(14, 8 + 2 * sector.index), burstWindup = sector.index === 0 ? 0.8 : sector.index < 3 ? 0.65 : 0.5;
   function updateBlooms(dt, eye) {
     budget.tick(dt);
     for (const b of blooms) if (b.commit && (!b.active || b.dying || b.dormant)) { b.commit = false; budget.release(b); }
@@ -3064,14 +3623,23 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
       b.blind = blackout && !lure && !b.commit && !carrying && d > 3.8;
       if (!b.blind) b.lastSeen = [eye[0], eye[1] - 0.3, eye[2]];
       const unsure = !lure && !b.blind && !knows;
-      const to = lure ? sub(add(lampPlaced, [0, 0.9, 0]), b.pos) : b.blind ? sub(b.lastSeen || b.pos, b.pos) : unsure ? sub(b.pur.goal || b.pos, b.pos) : b.commit || !b.perc.lastKnown ? sub(add(eye, [0, -0.3, 0]), b.pos) : sub(b.perc.lastKnown, b.pos); // where it senses you (live while it does), or you, once committed and close
+      let to = lure ? sub(add(lampPlaced, [0, 0.9, 0]), b.pos) : b.blind ? sub(b.lastSeen || b.pos, b.pos) : unsure ? sub(b.pur.goal || b.pos, b.pos) : b.commit || !b.perc.lastKnown ? sub(add(eye, [0, -0.3, 0]), b.pos) : sub(b.perc.lastKnown, b.pos); // where it senses you (live while it does), or you, once committed and close
+      // Round the walls, not into them: when the point it is heading for is out of sight, follow a route there.
+      b.route ||= {};
+      if (Math.hypot(to[0], to[2]) > 1.2) to = routeTo(b.pos, add(b.pos, to), b.route);
       b.stagger = Math.max(0, (b.stagger || 0) - dt);
       b.flash = Math.max(0, (b.flash || 0) - dt);
       if (b.retreat) {
         // After the peak, survivors sink back into the grates.
         b.pos = add(b.pos, [0, -dt * 1.2, 0]);
         if (b.pos[1] < -0.5) b.active = false;
-      } else if (!b.stagger) {
+      } else if (b.windup && b.creep && !b.stagger) {
+        // The exception (ai/attendant.js, learned behaviour): this one keeps coming while it swells.
+        const step = scale(normalize([to[0], 0, to[2]]), 4 * dt);
+        const next = add(b.pos, step);
+        if (!isWall(...cellOf(next[0], next[2]))) b.pos = next;
+        pushOutOfColumns(b.pos, columns, 0.4);
+      } else if (!b.stagger && !b.windup) { // a Bloom swelling to burst holds where it is: that is the tell
         // Swarm movement: close in, but spread around you instead of queueing in one line.
         // Freshly filled, it launches: a short fast lunge before it settles into the swarm's pace.
         b.lunge = Math.max(0, b.lunge - dt);
@@ -3103,12 +3671,33 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
         const at = add(core, add(scale(sideV, sg * (0.22 + 0.2 * f) * pulse / 0.45), [0, (k ? -0.08 : 0.06) - (1 - f) * 0.25, 0]));
         writeYaw(lb.matrix, at, b.phase * 0.4, (0.1 + 0.16 * f) * pulse / 0.45, (0.05 + 0.19 * f) * pulse / 0.45, (0.08 + 0.13 * f) * pulse / 0.45);
       });
-      if (d < 1) {
-        b.active = false;
-        sound.burst();
-        events.damage(14, 'A Bloom burst against you.', false, bearing(player.yaw, player.pos, b.pos));
-        flashes.flash(b.pos, { color: [0.77, 0.35, 0.31], intensity: 6, range: 5, life: 0.18 });
-        jolt(1);
+      // Contact is telegraphed, as on the raft: a Bloom that reaches you swells and gasps before it bursts, so you can
+      // step back or stagger it with a shot. The wind-up is longest, and the burst weakest, in the first attractions.
+      if (d < 1.1 && !b.windup && !b.stagger) {
+        b.windup = 0.001; heard(b.pos, () => sound.breath(panTo(b.pos))); b.flash = 0.15;
+        // Learned the tell? One Bloom per dock breaks it, and says so: it breathes in twice.
+        b.creep = learning.takeException();
+        if (b.creep) {
+          setTimeout(() => heard(b.pos, () => sound.breath(panTo(b.pos))), 300);
+          if (!learnedSeen) { learnedSeen = true; hud.caption('[it breathes in twice — and this one is still coming while it swells. Shoot it or run]'); }
+        }
+      }
+      if (b.windup) {
+        b.windup += dt;
+        writeYaw(b.core.matrix, core, b.phase * 0.4, pulse * (1 + b.windup), pulse * (1 + b.windup) * 0.92, pulse * (1 + b.windup));
+        b.heart.material.emission = 4 + 10 * b.windup;
+        if (b.stagger || d > (b.creep ? 5 : 2.2)) { // shot or stepped away from: it deflates and comes again
+          if (!b.stagger && !b.creep) learning.stepAway();
+          b.windup = 0; b.creep = false;
+        }
+        else if (b.windup >= burstWindup) {
+          b.windup = 0; b.creep = false;
+          b.active = false;
+          sound.burst();
+          if (d < 1.8) events.damage(burstDamage, 'A Bloom burst against you.', false, bearing(player.yaw, player.pos, b.pos));
+          flashes.flash(b.pos, { color: [0.77, 0.35, 0.31], intensity: 6, range: 5, life: 0.18 });
+          jolt(d < 1.8 ? 1 : 0.4);
+        }
       }
     }
   }
@@ -3262,7 +3851,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     L.warn = breaking ? (L.warn || 0) + dt : Math.max(0, (L.warn || 0) - dt * 2);
     if (breaking && L.warn > 0 && !L.warned) {
       L.warned = true;
-      sound.chair(soundDir(player.pos, forwardVec(), L.base).pan * 0.5);
+      heard(L.base, () => sound.chair(soundDir(player.pos, forwardVec(), L.base).pan * 0.5));
       hud.caption('[the lamp on the tower brightens. The chair creaks. Its head is turning]');
     }
     if (breaking && L.warn > 1.6 && !L.handSaid) { L.handSaid = true; hud.caption('[its hand comes up to the whistle]'); }
@@ -3288,33 +3877,27 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
   // toward the water under its tower: kick free (SPACE), burst it, or a crewmate pulls you loose.
   /** The next point on a shortest walkable path from `from` toward `to`, by cells. */
   function stepToward(from, to) {
-    const [sx, sz] = cellOf(from[0], from[2]);
-    const [tx, tz] = cellOf(to[0], to[2]);
-    if (sx === tx && sz === tz) return to;
-    const prev = new Map([[`${tx},${tz}`, null]]);
-    const q = [[tx, tz]];
-    for (let i = 0; i < q.length; i++) {
-      const [x, z] = q[i];
-      if (x === sx && z === sz) break;
-      for (const [dx, dz] of DIRS) {
-        const nx = x + dx, nz = z + dz, k = `${nx},${nz}`;
-        if (nx < 0 || nz < 0 || nx >= W || nz >= H || prev.has(k)) continue;
-        if (blocked(nx, nz) && !(nx === sx && nz === sz)) continue;
-        prev.set(k, [x, z]);
-        q.push([nx, nz]);
-      }
-    }
-    const n = prev.get(`${sx},${sz}`);
-    if (!n) return to;
-    return n[0] === tx && n[1] === tz ? to : center(n[0], n[1]);
+    const s0 = cellOf(from[0], from[2]), t0 = cellOf(to[0], to[2]);
+    if (s0[0] === t0[0] && s0[1] === t0[1]) return to;
+    // A* on the cell grid (ai/path.js): 8-way, never squeezing past a wall corner; then the furthest cell along the
+    // path it can walk to in a straight line, so it crosses a room on the diagonal instead of in steps.
+    const open = (x, z) => !blocked(x, z) || (x === s0[0] && z === s0[1]);
+    const path = findPath(open, W, H, s0, t0);
+    if (!path) return to;
+    const c = nextCorner(path, s0, (a, b) => straight(open, a, b));
+    return c[0] === t0[0] && c[1] === t0[1] ? to : center(c[0], c[1]);
   }
+  /** The whistle's pitch as heard by you: higher when it is coming at you (audio/doppler.js). */
+  const lgDoppler = (L) => dopplerRatio(L.pos, L.moving ? L.vel || [0, 0, 0] : [0, 0, 0], player.pos, [0, 0, 0]);
   function walkLG(L, target, speed, dt) {
     L.pathT = (L.pathT || 0) - dt;
     if (L.pathT <= 0 || !L.next) { L.next = stepToward(L.pos, target); L.pathT = 0.3; }
     const to = [L.next[0] - L.pos[0], 0, L.next[2] - L.pos[2]];
     const dd = Math.hypot(to[0], to[2]);
     if (dd < 0.05) { L.pathT = 0; L.moving = false; return Math.hypot(target[0] - L.pos[0], target[2] - L.pos[2]); }
-    L.pos = add(L.pos, scale(normalize(to), Math.min(dd, speed * dt)));
+    const step = Math.min(dd, speed * dt);
+    L.pos = add(L.pos, scale(normalize(to), step));
+    L.vel = scale(normalize(to), dt > 0 ? step / dt : 0);
     L.heading = Math.atan2(to[0], to[2]);
     L.moving = true;
     return Math.hypot(target[0] - L.pos[0], target[2] - L.pos[2]);
@@ -3339,7 +3922,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     if (kind !== 'light' && lineOfSight(L.base, at)) return false;
     L.state = 'investigate'; L.pos = [...L.base]; L.target = [...at]; L.searchT = 0; L.next = null; L.heard = kind;
     hud.caption(k.caption);
-    sound.chair(soundDir(player.pos, forwardVec(), L.base).pan * 0.5);
+    heard(L.base, () => sound.chair(soundDir(player.pos, forwardVec(), L.base).pan * 0.5));
     return true;
   }
   function huntStep(dt) {
@@ -3358,7 +3941,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     if (L.state === 'rounds') {
       if (seesYou && dd < 9) {
         L.state = 'noticed'; L.noticeT = 0;
-        sound.chair(soundDir(player.pos, forwardVec(), L.pos).pan * 0.5);
+        heard(L.pos, () => sound.chair(soundDir(player.pos, forwardVec(), L.pos).pan * 0.5));
         hud.caption('[it stops. Its head comes round. Get out of its sight]');
         return;
       }
@@ -3380,7 +3963,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     } else if (L.state === 'noticed') {
       L.noticeT += dt;
       if (L.noticeT > 1.9) {
-        if (seesYou) { L.state = 'pursuit'; L.lostSight = 0; L.next = null; L.act = 0; L.violations = Math.max(1, L.violations); sound.whistle(soundDir(player.pos, forwardVec(), L.pos).pan); hud.say('MARS', 'It saw you. Move!', 'crew'); }
+        if (seesYou) { L.state = 'pursuit'; L.lostSight = 0; L.next = null; L.act = 0; L.violations = Math.max(1, L.violations); heard(L.pos, () => sound.doppler(lgDoppler(L), () => sound.whistle(soundDir(player.pos, forwardVec(), L.pos).pan))); hud.say('MARS', 'It saw you. Move!', 'crew'); }
         else { L.state = 'rounds'; hud.caption('[it looks at where you were. It writes something. It goes on]'); }
       }
     } else if (L.state === 'pursuit') {
@@ -3399,7 +3982,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     } else if (L.state === 'investigate' || L.state === 'search') {
       if (seesYou && L.blind <= 0) {
         L.state = 'pursuit'; L.lostSight = 0; L.next = null;
-        sound.whistle(soundDir(player.pos, forwardVec(), L.pos).pan);
+        heard(L.pos, () => sound.doppler(lgDoppler(L), () => sound.whistle(soundDir(player.pos, forwardVec(), L.pos).pan)));
         hud.caption('[a whistle — it has seen you]');
         return;
       }
@@ -3414,7 +3997,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
             L.doorUsed = true;
             L.pos = [door.hinge[0] + door.t[0] * 0.45 + door.n[0] * 0.7, 0, door.hinge[2] + door.t[2] * 0.45 + door.n[2] * 0.7];
             door.angle = 1.5; door.printsOn = true;
-            sound.door(); sound.chains(soundDir(player.pos, forwardVec(), L.pos).pan);
+            sound.door(); heard(L.pos, () => sound.chains(soundDir(player.pos, forwardVec(), L.pos).pan));
             hud.caption('[the service door slams open. It came round the other way]');
             events.ledger?.('changes', `${sector.name}: the Lifeguard came through the service door to cut us off`);
             L.state = 'search'; L.target = [...player.pos]; L.searchT = 0; L.next = null;
@@ -3649,7 +4232,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     for (let i = 0; i < (r.valves || 0); i++) { const v = pumpValves.find((x) => x.id === valveOrder[i]); if (v) v.open = true; }
     valveStep = r.valves || 0;
   }
-  if (import.meta.env.DEV) window.__explore = { parts, camRig, wetMarks: wet, wetParts, waterField: field, ringParts, caustics, waterLevel, stir, jolt, effects, get blown() { return blown; }, flashes, frameEnv: () => lastEnv, marcos, get marcoApart() { return marcoApart; }, mirror: () => mirrorSurface && detachMirror && { height: mirrorSurface.height, parts: mirrorSurface.partIndices.length, key: mirrorKey }, models: () => parts.filter((p) => p.model).map((p) => ({ model: p.model, name: p.name, at: [p.matrix[12], p.matrix[13], p.matrix[14]] })), flashes, budget, wave: (n, f) => wave(n, f), lineOfSight, get remembered() { return remembered; }, get chain() { return lastChain; }, get eyeExposure() { return eyeExposure; }, renderer, get driftSigns() { return driftSigns; }, get wedges() { return lastWedges; }, survey, get surveyCoverage() { return surveyCoverage(survey, surveyOpen); }, surveyOpen, omen: (k) => startFomen(k), circuit, setEmergency, setBlackout, get blackout() { return blackout; }, signParts, get resetT() { return resetT; }, get emergency() { return emergency; }, blocked, isWall, finds, found, get lampPlaced() { return lampPlaced; }, lights: () => gatherLights(add(player.pos, [0, 1.6, 0])), get hesitation() { return hesitation; }, get lastOmen() { return lastFomen; }, get marcoAct() { return marcoAct; }, set marcoAct(v) { marcoAct = v; }, marcos, columns, wavePool, get basin() { return basin; }, isWater, floorTop, get operating() { return operating; }, set operating(v) { operating = v; }, panelFront, holdT, shoot, spawnBloom, occupant, lockers, noise, violate, get omenState() { return fomen; }, door, blooms, lamps, director, followers, get dockKind() { return dockKind; }, get valves() { return { order: valveOrder, step: valveStep, list: pumpValves }; }, june: juneEvent, thread, get clock() { return clock; }, stagnant, player, center, undertow, lifeguard, cellPos, panelPos, raftPos, code, find, floaters, restorePower };
+  if (import.meta.env.DEV) window.__explore = { get prompts() { return lastPrompts.map((p) => p[1]); }, scanTick: (dt, eye, dir) => scanTick(dt, eye, dir), get acousticZone() { return acousticZone; }, zoneHere: (x, z) => zoneAt(x, z, { open: acousticOpen, water: isWater, openSky: !!rules.openSky }), get submerged() { return submerged; }, get lockCell() { return lockCell; }, openDoorNear, keypads, gates, openKeypad: () => { keypadOpen = true; }, get keypadOpen() { return keypadOpen; }, blockedAt: (x, z) => blocked(x, z), refl, selfFig, reflectionSpot, parts, camRig, takenCells, habits, falseDoor, showFalseDoor, wallParts, get time() { return time; }, signSeen, moved, placeMoved, wrongVoice, movedSign, trail, watcher, perchWatcher, watcherFig, startDriftSteps, get driftSteps() { return driftSteps; }, attendant: attendantAI, issueDirective, learning, guestsHere, get fomen() { return fomen; }, startFomen: (k) => startFomen(k), burstDamage, burstWindup, rows, thread, threadParts, ripGrid, ripPart, get ripCell() { return ripCell; }, routeTo, get W() { return W; }, get H() { return H; }, isWall, cellOf, center, wetMarks: wet, wetParts, waterField: field, ringParts, caustics, waterLevel, stir, jolt, effects, get blown() { return blown; }, flashes, frameEnv: () => lastEnv, marcos, get marcoApart() { return marcoApart; }, mirror: () => mirrorSurface && detachMirror && { height: mirrorSurface.height, parts: mirrorSurface.partIndices.length, key: mirrorKey }, models: () => parts.filter((p) => p.model).map((p) => ({ model: p.model, name: p.name, at: [p.matrix[12], p.matrix[13], p.matrix[14]] })), flashes, budget, wave: (n, f) => wave(n, f), lineOfSight, get remembered() { return remembered; }, get chain() { return lastChain; }, get eyeExposure() { return eyeExposure; }, renderer, get driftSigns() { return driftSigns; }, get wedges() { return lastWedges; }, survey, get surveyCoverage() { return surveyCoverage(survey, surveyOpen); }, surveyOpen, omen: (k) => startFomen(k), circuit, setEmergency, setBlackout, get blackout() { return blackout; }, signParts, get resetT() { return resetT; }, get emergency() { return emergency; }, blocked, isWall, finds, found, get lampPlaced() { return lampPlaced; }, lights: () => gatherLights(add(player.pos, [0, 1.6, 0])), get hesitation() { return hesitation; }, get lastOmen() { return lastFomen; }, get marcoAct() { return marcoAct; }, set marcoAct(v) { marcoAct = v; }, marcos, columns, wavePool, get basin() { return basin; }, isWater, floorTop, get operating() { return operating; }, set operating(v) { operating = v; }, panelFront, holdT, shoot, spawnBloom, occupant, lockers, noise, violate, get omenState() { return fomen; }, door, blooms, lamps, director, followers, get dockKind() { return dockKind; }, get valves() { return { order: valveOrder, step: valveStep, list: pumpValves }; }, june: juneEvent, thread, get clock() { return clock; }, stagnant, player, center, undertow, lifeguard, cellPos, panelPos, raftPos, code, find, floaters, restorePower };
 
   /** ?show=: put the dock into a fixed, readable state for screenshots and visual review. */
   function showcase(name) {
@@ -3669,7 +4252,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     resize: () => renderer.resize(),
     /** Render scale relative to the quality tier's own pixel ratio (automatic resolution). */
     setScale: (k) => { renderer.pixelRatio = quality.renderer.pixelRatio * k; renderer.resize(); },
-    dispose: () => renderer.dispose(),
+    dispose: () => { sound.release(); if (submerged) sound.setMuffle(false); renderer.dispose(); }, // leaving the dock mid-silence brings the machinery back
     /** Where the player is right now, for an immediate resume save. */
     snapshot: () => ({ mode: 'explore', pos: [...player.pos], yaw: player.yaw, hasCell, taken: takenState() }),
   };

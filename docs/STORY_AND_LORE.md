@@ -119,6 +119,8 @@ A voice over a crackling PA system. Polite, warm, a little too slow. You never s
 
 **Gameplay role:** the Attendant is the in-world face of the **AI Director**, the system (borrowed from Left 4 Dead) that controls pacing. When the Attendant announces a closure, the route changes. When it says *"Rush hour,"* a horde is coming. Players learn to read it.
 
+**On foot it gives instructions, and the facility acts on them (built, `src/ai/attendant.js`):** *"Three guests, please remain where you are while this hall is serviced."* *"Three guests, please proceed to the north gallery. A member of staff will meet you there."* Most are honest. Once the crew has done as told twice running, the next may not be, and a false one always counts the wrong number of guests: it is still processing people who are no longer there, or someone who never came in. Follow a false one and the lights in the hall go out, or something is waiting where it sent you. Ignore any of them and nothing happens; it thanks you for your patience either way. It never lies in the Welcome Pools.
+
 **Lore role:** an "upgrade" means being sent deeper. High scorers get pulled down faster. The game rewards you for playing well and quietly punishes you for it.
 
 **How much is explained:** never in plain dialogue, but there are enough clues to work it out. The Attendant is whoever took the Lifeguard's chair in a previous loop: an earlier Mars. The clues: it knows the crew's names, its pauses match Mars's speech, and a Safe Room message says *check the handwriting*. The secret ending confirms it. Players who find it get the answer; everyone else gets a mystery that holds together.

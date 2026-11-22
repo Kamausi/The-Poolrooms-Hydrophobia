@@ -20,5 +20,7 @@ const files = {};
 for (const list of Object.values(manifest)) for (const f of list) files[f] = `data:audio/mpeg;base64,${readFileSync(`public/audio/${f}.mp3`).toString('base64')}`;
 html = html.replace('<script type="module">', () => `<script>window.__UNDERFLOW_AUDIO = ${JSON.stringify({ manifest, files })};</script>\n<script type="module">`);
 if (html.includes('/assets/')) throw new Error('an asset reference was not inlined');
+// The single file carries no source maps (they stay with dist/ for debugging); drop the references to them.
+html = html.replace(/\/\/# sourceMappingURL=[^\s"'<]*/g, '');
 writeFileSync('dist/HYDROPHOBIA.html', html);
 console.log(`dist/HYDROPHOBIA.html · ${(html.length / 1024).toFixed(0)} KB`);

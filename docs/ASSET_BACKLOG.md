@@ -15,6 +15,8 @@ Status words used below:
 
 Nothing here has been checked by human play or on target GPUs. Generated models are made with Tripo 3D H3.1 at a game triangle count (about 4,000 to 20,000) with PBR maps, and their geometry is used as generated: earlier SAM 3D meshes and heavily simplified ones were replaced because they looked rough. "Model" means it loads and stands in place in a headless browser.
 
+**Model files are compressed** by `scripts/compress-models.mjs` (duplicate data merged, attributes quantised, buffers packed with meshoptimizer; textures untouched), which 67js decodes itself: the 48 models went from 12.9 MB to 7.3 MB with the same triangle counts and sizes within 0.1 mm. A unit test fails on a model added without it.
+
 ## Reachable sources
 
 From this environment: Poly Haven (models and textures, CC0), ambientCG (materials, CC0), Kenney (kenney.nl, CC0), GitHub, and Higgsfield (generation on the account's credits). Quaternius, OpenGameArt and Freesound are blocked by the network policy. Higgsfield's SAM 3D converter (1 credit) works for solid objects and fails on open frames (the lifeguard chair twice, a sun lounger once). Tripo (9 credits) handled the open-frame chair. Its output is about 1.4 million triangles, simplified with gltfpack to about 8,000.
