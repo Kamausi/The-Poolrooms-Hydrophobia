@@ -55,7 +55,7 @@ const freshState = (extra = {}) => ({
   passenger: { stage: 0, t: 0 }, ride: null, sectorKey: 's0', endless: false, seed: 0, sitting: false,
   stats: { freed: 0, revives: 0, repairs: 0, pressureRepairs: 0, survivors: 0, routes: [], shared: 0, shoves: 0 },
   gear: [], profile: 'pulse', special: 60, crewState: {}, downed: null, downUsed: false, protectT: 0, challenge: null, custom: null, highWater: false,
-  dressings: 1, fit: 'standard', autopilot: false, tags: [], photos: [], strandedSaved: {}, character: 'mars', claims: [], rescued: 0, recognized: 0, forgotten: [], overrides: 0, sectorScore: 0, pressure: 1, sitT: 0, resolve: 0, memory: null,
+  dressings: 1, fit: 'standard', autopilot: false, tags: [], photos: [], strandedSaved: {}, character: 'mars', claims: [], readings: [], rescued: 0, recognized: 0, forgotten: [], overrides: 0, sectorScore: 0, pressure: 1, sitT: 0, resolve: 0, memory: null,
   ...extra,
 });
 

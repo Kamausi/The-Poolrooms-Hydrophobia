@@ -55,6 +55,6 @@ const { open, newCampaign, check, finish } = require('./lib.cjs');
     const tabs = [...document.querySelectorAll('#pause-extra .journal .tab')].map((t) => t.textContent); return { tabs }; });
   const groups = await page.evaluate(() => { document.querySelector('#pause-extra .tab[data-v="settings"]').click(); return [...document.querySelectorAll('#pause-extra .settings-group .sheet-head')].map((h) => h.textContent); });
   check('settings come in six categories with a preview', groups.join('|') === 'CONTROLS|INTERFACE|AUDIO|CAMERA AND EFFECTS|GAMEPLAY ASSISTANCE|DISPLAY' && await page.evaluate(() => !!document.querySelector('.settings-preview')), groups.join('|'));
-  check('the pause journal has crew observations, facility records and a route map', r.tabs.join('|') === 'CREW OBSERVATIONS|FACILITY RECORDS|ROUTE MAP', r.tabs.join('|'));
+  check('the pause journal has crew observations, facility records, a route map and field notes', r.tabs.join('|') === 'CREW OBSERVATIONS|FACILITY RECORDS|ROUTE MAP|FIELD NOTES', r.tabs.join('|'));
   await finish(browser, errors);
 })();

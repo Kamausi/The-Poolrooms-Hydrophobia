@@ -34,3 +34,24 @@ export function claimSummary(notes) {
   const off = notes.filter((n) => n.said !== n.actual).length;
   return { total: notes.length, off };
 }
+
+// ---------- Readings: what the inspection beam showed ----------
+// A reading enters the notes only when you hold the beam on something until it reads (the audit's "reached through
+// inspection"). Reading the same thing again adds a line only if it says something different now, so a sign that
+// changed while you were not looking leaves both versions in the notes.
+
+/** How many readings the notes keep (the oldest go first). */
+export const KEEP_READINGS = 40;
+
+/** Note a reading. Returns the new note, or null when this thing read the same as last time. */
+export function noteReading(readings, { sector, key, label, text, t = 0 }) {
+  const last = [...readings].reverse().find((r) => r.sector === sector && r.key === key);
+  if (last && last.text === text) return null;
+  const r = { sector, key, label, text, t, again: !!last };
+  readings.push(r);
+  while (readings.length > KEEP_READINGS) readings.shift();
+  return r;
+}
+
+/** One reading as the journal shows it. A second, different reading of the same thing says so. */
+export const readingLine = (r) => `${r.sector} · ${r.label}${r.again ? ' (read again)' : ''} · ${r.text}`;

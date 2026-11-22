@@ -153,6 +153,40 @@ const { open, check, finish, BASE } = require('./lib.cjs');
   check('from moderate Drift it follows late: a quick step and it stays a moment before it catches up', rf.none || (rf.mode1 === 'lag' && rf.lagStill && rf.caughtUp), JSON.stringify(rf));
   check('at high Drift it stops following, stays where it was and looks up at you; look away and it is gone; nothing hurts you', !rf.none && rf.own && rf.stayed && rf.told && /has not moved/.test(rf.caption) && rf.gone && rf.hurt < 1, JSON.stringify(rf));
 
+  // Readings (fieldnotes.js): the inspection beam's readings enter the journal, and a sign read again after high Drift
+  // changed it leaves both versions there.
+  const rd = await page.evaluate(() => { const u = window.__underflow, E = window.__explore;
+    E.blooms.forEach((b) => { b.active = false; });
+    u.setState({ health: 1000, drift: 0 }); u.sim(2);
+    const i = E.signParts.findIndex((s) => s.alt && !s.home && s.part.matrix[13] > -100);
+    if (i < 0) return { none: true };
+    const sg = E.signParts[i];
+    const read = () => { const m = sg.home ? sg.alt.matrix : sg.part.matrix, p = [m[12], m[13], m[14]], eye = [p[0] + 2, p[1], p[2] + 2];
+      const d = [p[0] - eye[0], p[1] - eye[1], p[2] - eye[2]], l = Math.hypot(...d);
+      let out = ''; for (let k = 0; k < 8; k++) out = E.scanTick(0.1, eye, d.map((v) => v / l)); return out; };
+    const n0 = (u.state.readings || []).length;
+    const first = read(); read();
+    const afterTwo = u.state.readings.length - n0;
+    // High Drift, looking the other way: the sign changes; read it again.
+    u.setState({ drift: 85 });
+    for (let k = 0; k < 20 && !sg.home; k++) { E.player.yaw += 0.7; u.sim(10); u.setState({ drift: 85 }); }
+    const changed = !!sg.home;
+    const second = read();
+    const mine = u.state.readings.filter((r) => r.key === `sign ${i}`);
+    u.setState({ drift: 0 });
+    return { first, second, afterTwo, changed, lines: mine.map((r) => [r.text, r.again]) }; });
+  check('the beam\'s readings enter the field notes once; a sign read again after Drift changed it keeps both versions', !rd.none && rd.afterTwo === 1 && rd.changed && rd.lines.length === 2 && rd.lines[0][1] === false && rd.lines[1][1] === true && rd.lines[0][0] !== rd.lines[1][0], JSON.stringify(rd));
+
+  // Lighting per kind of space (render/lightstyle.js): each fixture's light follows the zone it hangs in.
+  const ls = await page.evaluate(() => { const u = window.__underflow, E = window.__explore;
+    u.setState({ drift: 0 }); E.setEmergency?.(false); u.sim(2);
+    const by = {};
+    for (const l of E.lamps) { const z = E.zoneHere(l.x, l.z); (by[z] ||= { n: 0, range: l.style.range, intensity: l.style.intensity, warmth: +(l.style.color[0] / l.style.color[2]).toFixed(2) }).n++; }
+    // The light a lit fixture gives in the frame carries its style.
+    const pairs = E.lights().map((g) => [g, E.lamps.find((l) => l.pos === g.position)]).filter(([, l]) => l);
+    return { by, given: pairs.length ? { n: pairs.length, match: pairs.every(([g, l]) => g.range === l.style.range && g.color === l.style.color) } : null }; });
+  check('each fixture\'s light follows the kind of space it hangs in: a hall\'s are brighter and reach further, a room\'s are dimmer and yellower', ls.by.hall && ls.by.room && ls.by.hall.range > ls.by.room.range && ls.by.hall.intensity > ls.by.room.intensity && ls.by.room.warmth > ls.by.hall.warmth && ls.given && ls.given.match, JSON.stringify(ls));
+
   // Acoustic zones (audio/zones.js): where you stand sets the reverb; held under, everything goes dull; a line on
   // screen pulls the music and ambience back.
   const az = await page.evaluate(() => { const u = window.__underflow, E = window.__explore;

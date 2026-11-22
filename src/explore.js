@@ -57,7 +57,8 @@ import { facility as facilityMem, saveFacility, recordSurvey, surveyMem } from '
 import { createObserver, stepObserver, placeObserver, choosePerch } from './ai/observer.js';
 import { driftStage, sideWord, OPPOSITE, pickPassed } from './ai/driftfx.js';
 import { zoneAt, createZoneTracker } from './audio/zones.js';
-import { noteClaim } from './fieldnotes.js';
+import { lightFor, isFailing } from './render/lightstyle.js';
+import { noteClaim, noteReading } from './fieldnotes.js';
 import { reflectionMode, delayedPose, trimHistory, turnUnder, tiltFor, LAG_SECONDS, SEE_RANGE, LEFT_BEHIND } from './ai/reflection.js';
 import { chooseDirective, judge as judgeDirective, nextTrust, placeName, createLearning } from './ai/attendant.js';
 import { plan as planFinds, collect as collectFind, headcountLine } from './collectibles.js';
@@ -256,11 +257,13 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
       if (ch === 'w') tidal.push({ part: P(`Tide ${x},${z}`, slab, waterMat()), x, z });
       if (ch === 'd' && drained) writeYaw(P(`Marking ${x},${z}`, slab, glow([1, 0.8, 0.2], 0.3, { color: [0.9, 0.75, 0.15], roughness: 0.6 })).matrix, [c[0], POOL + 0.01, c[2]], 0, 0.35, 0.02, CELL * 0.8);
       if ((x + z) % 2 === 0 && !rules.openSky) {
-        const lamp = P(`Lamp ${x},${z}`, slab, glow(lampColor, 9));
+        // Each kind of space has its own light (render/lightstyle.js), read from the same zones as the reverb.
+        const style = lightFor(zoneAt(x, z, { open: (a, b) => at(a, b) !== '#', water: isWater }), lampColor);
+        const lamp = P(`Lamp ${x},${z}`, slab, glow(style.color, 9));
         // The fixture housing (CC0 mounted fluorescent lights) stays up whether the tube is lit, flickering or dead.
         const fixture = M('fluorescent', `Light fixture ${x},${z}`);
         if (fixture) placeModel(fixture, [c[0], wallH - model('fluorescent').size[1] - 0.01, c[2]], 0);
-        lamps.push({ part: lamp, pos: [c[0], wallH - 0.4, c[2]], x, z, dark: hash(x, z) < (rules.dark || 0), broken: 0, flicker: hash(z, x), on: false, level: 0, fixture: !!fixture });
+        lamps.push({ part: lamp, pos: [c[0], wallH - 0.4, c[2]], x, z, dark: hash(x, z) < (rules.dark || 0), broken: 0, flicker: hash(z, x), on: false, level: 0, fixture: !!fixture, style });
       }
     }
   }
@@ -522,7 +525,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     const other = driftSign(text, style, state.band);
     const alt = other ? P(`Drift sign ${signParts.length}`, plane, { ...signMaterial(other, style, 0.8, px, py), doubleSided: true }) : null;
     if (alt) hide(alt);
-    signParts.push({ part, style, alt, home: null });
+    signParts.push({ part, style, alt, home: null, text, other });
     return facing(part, pos, normal, w, h);
   };
   const wallSpot = (x, z) => {
@@ -2161,22 +2164,28 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     const cone = lens ? 0.16 : 0.1;
     const range = lens ? 40 : 22;
     const cands = [];
-    markings.forEach((m) => cands.push({ obj: m, pos: m.pos, need: 0.6, label: 'MARKING', done: () => 'DEPTH MARKING · READ' }));
-    floaters.forEach((f) => f.state !== 'gone' && cands.push({ obj: f, pos: f.pos, need: 1, label: 'FIGURE IN THE WATER', done: () => {
+    markings.forEach((m, i) => cands.push({ key: `marking ${i}`, obj: m, pos: m.pos, need: 0.6, label: 'MARKING', done: () => 'DEPTH MARKING · READ' }));
+    floaters.forEach((f, i) => f.state !== 'gone' && cands.push({ key: `figure ${i}`, obj: f, pos: f.pos, need: 1, label: 'FIGURE IN THE WATER', done: () => {
       const honest = hash(f.cell[0], f.cell[1] + 9) < 0.7; // readings are honest about 70% of the time
       return `PULSE: ${f.survivor === honest ? 'FAINT' : 'NONE'} · READING UNRELIABLE`;
     } }));
-    fake.forEach((f) => cands.push({ obj: f, pos: f.pos, need: 0.6, label: 'SHELTER', done: () => 'BEACON: AMBER · NO PRESSURE SEAL · NO VENT TONE' }));
-    if (lifeguard) cands.push({ obj: lifeguard, pos: add(lifeguard.base, [0, 4.5, 0]), need: 0.4, label: 'LIFEGUARD', done: () => `RULE: ${ruleText.replace('\n', ' ')}${lifeguard.rule !== 'run' ? ' · BREAKER ON THE TOWER LEG' : ''}` });
-    if (reflection) cands.push({ obj: 'reflection', pos: reflectionPos(), need: 1, label: 'REFLECTION', done: () => {
+    fake.forEach((f, i) => cands.push({ key: `shelter ${i}`, obj: f, pos: f.pos, need: 0.6, label: 'SHELTER', done: () => 'BEACON: AMBER · NO PRESSURE SEAL · NO VENT TONE' }));
+    if (lifeguard) cands.push({ key: 'lifeguard', obj: lifeguard, pos: add(lifeguard.base, [0, 4.5, 0]), need: 0.4, label: 'LIFEGUARD', done: () => `RULE: ${ruleText.replace('\n', ' ')}${lifeguard.rule !== 'run' ? ' · BREAKER ON THE TOWER LEG' : ''}` });
+    if (reflection) cands.push({ key: 'reflection', obj: 'reflection', pos: reflectionPos(), need: 1, label: 'REFLECTION', done: () => {
       if (lagoonLevel !== 1) return 'MISALIGNED · CHANGE THE LAGOON LEVEL';
       if (!sensorRevealed) { sensorRevealed = true; sound.gate(); hud.toast('THE SENSOR IS REAL · IT IS ON THE NORTH PARAPET'); }
       return 'ALIGNED · SENSOR ON THE NORTH PARAPET';
     } });
     for (const [k, gr] of grout) if (!gr.cleared) {
       const [x, z] = k.split(',').map(Number);
-      cands.push({ obj: gr, pos: add(center(x, z), [0, 0.1, 0]), need: 0.5, label: 'GROUT', done: () => 'SPREADS THROUGH WET, DARK TILE · LIGHT AND DRY FLOOR STOP IT' });
+      cands.push({ key: `grout ${k}`, obj: gr, pos: add(center(x, z), [0, 0.1, 0]), need: 0.5, label: 'GROUT', done: () => 'SPREADS THROUGH WET, DARK TILE · LIGHT AND DRY FLOOR STOP IT' });
     }
+    // Signs read in the beam say what they say now: at high Drift that is not what they said before (driftsign.js).
+    signParts.forEach((s, i) => {
+      const m = s.home ? s.alt.matrix : s.part.matrix;
+      if (m[13] < -100) return;
+      cands.push({ key: `sign ${i}`, obj: s, pos: [m[12], m[13], m[14]], need: 0.5, label: 'SIGN', done: () => `"${(s.home ? s.other : s.text).replace(/\n/g, ' ')}"` });
+    });
     let best = null, bestA = cone;
     for (const c of cands) {
       if (distance(eye, c.pos) > range) continue;
@@ -2186,7 +2195,12 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     if (!best) { scanTarget = null; return 'SCANNING…'; }
     if (!scanTarget || scanTarget.obj !== best.obj) scanTarget = { obj: best.obj, t: 0 };
     scanTarget.t += dt;
-    if (scanTarget.t >= best.need) return best.done();
+    if (scanTarget.t >= best.need) {
+      const text = best.done();
+      // The field notes (fieldnotes.js): a reading enters the journal only when the beam has read it.
+      if (!scanTarget.noted) { scanTarget.noted = true; noteReading(state.readings ||= [], { sector: sector.name, key: best.key, label: best.label, text, t: time }); }
+      return text;
+    }
     return `${best.label} · ${Math.round((scanTarget.t / best.need) * 100)}%`;
   }
   function ropeFloatPos(r, j) {
@@ -3498,7 +3512,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
         }
       }
       const on = !emergency && !blackout && !l.broken && !l.out && (!l.dark || powered());
-      const flick = l.flicker > 0.88 ? tubeFlicker(time, l.flicker * 100, 0.6) : 1; // a failing tube (render/noise.js)
+      const flick = isFailing(l.flicker, l.style) ? tubeFlicker(time, l.flicker * 100, 0.6) : 1; // a failing tube (render/noise.js)
       if (on) {
         // With a fixture the lit tube sits inside its housing; without, the bare panel.
         if (l.fixture) writeYaw(l.part.matrix, [l.pos[0], wallH - 0.05, l.pos[2]], 0, 0.82, 0.02, 0.36);
@@ -3518,7 +3532,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
   }
   function gatherLights(eye) {
     const out = lamps.filter((l) => l.on).map((l) => ({ l, d: distance(l.pos, eye) })).sort((a, b) => a.d - b.d).slice(0, quality.lights)
-      .map(({ l }) => ({ position: l.pos, color: lampColor, intensity: 10 * l.level, radius: 0.4, range: 9.5 })); // bleached under the fixture, dark between
+      .map(({ l }) => ({ position: l.pos, color: l.style.color, intensity: l.style.intensity * l.level, radius: 0.4, range: l.style.range })); // bleached under the fixture, dark between
     if (lifeguard && lifeguard.lampOn) out.push({ position: add(lifeguard.base, [0, 4.6, 0]), color: lifeguard.rule === 'swim' ? [1, 0.25, 0.12] : [1, 0.9, 0.7], intensity: 9, radius: 0.3, range: 16 });
     if (lifeguard?.spot) out.push({ position: add(lifeguard.spot, [0, 1.6, 0]), color: [1, 0.93, 0.8], intensity: 14, radius: 0.5, range: 5 });
     if (rules.uv) out.push({ position: [eye[0], 3.5, eye[2]], color: [0.5, 0.25, 1], intensity: 3, radius: 1, range: 12 });
@@ -4218,7 +4232,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     for (let i = 0; i < (r.valves || 0); i++) { const v = pumpValves.find((x) => x.id === valveOrder[i]); if (v) v.open = true; }
     valveStep = r.valves || 0;
   }
-  if (import.meta.env.DEV) window.__explore = { get prompts() { return lastPrompts.map((p) => p[1]); }, get acousticZone() { return acousticZone; }, zoneHere: (x, z) => zoneAt(x, z, { open: acousticOpen, water: isWater, openSky: !!rules.openSky }), get submerged() { return submerged; }, get lockCell() { return lockCell; }, openDoorNear, keypads, gates, openKeypad: () => { keypadOpen = true; }, get keypadOpen() { return keypadOpen; }, blockedAt: (x, z) => blocked(x, z), refl, selfFig, reflectionSpot, parts, camRig, takenCells, habits, falseDoor, showFalseDoor, wallParts, get time() { return time; }, signSeen, moved, placeMoved, wrongVoice, movedSign, trail, watcher, perchWatcher, watcherFig, startDriftSteps, get driftSteps() { return driftSteps; }, attendant: attendantAI, issueDirective, learning, guestsHere, get fomen() { return fomen; }, startFomen: (k) => startFomen(k), burstDamage, burstWindup, rows, thread, threadParts, ripGrid, ripPart, get ripCell() { return ripCell; }, routeTo, get W() { return W; }, get H() { return H; }, isWall, cellOf, center, wetMarks: wet, wetParts, waterField: field, ringParts, caustics, waterLevel, stir, jolt, effects, get blown() { return blown; }, flashes, frameEnv: () => lastEnv, marcos, get marcoApart() { return marcoApart; }, mirror: () => mirrorSurface && detachMirror && { height: mirrorSurface.height, parts: mirrorSurface.partIndices.length, key: mirrorKey }, models: () => parts.filter((p) => p.model).map((p) => ({ model: p.model, name: p.name, at: [p.matrix[12], p.matrix[13], p.matrix[14]] })), flashes, budget, wave: (n, f) => wave(n, f), lineOfSight, get remembered() { return remembered; }, get chain() { return lastChain; }, get eyeExposure() { return eyeExposure; }, renderer, get driftSigns() { return driftSigns; }, get wedges() { return lastWedges; }, survey, get surveyCoverage() { return surveyCoverage(survey, surveyOpen); }, surveyOpen, omen: (k) => startFomen(k), circuit, setEmergency, setBlackout, get blackout() { return blackout; }, signParts, get resetT() { return resetT; }, get emergency() { return emergency; }, blocked, isWall, finds, found, get lampPlaced() { return lampPlaced; }, lights: () => gatherLights(add(player.pos, [0, 1.6, 0])), get hesitation() { return hesitation; }, get lastOmen() { return lastFomen; }, get marcoAct() { return marcoAct; }, set marcoAct(v) { marcoAct = v; }, marcos, columns, wavePool, get basin() { return basin; }, isWater, floorTop, get operating() { return operating; }, set operating(v) { operating = v; }, panelFront, holdT, shoot, spawnBloom, occupant, lockers, noise, violate, get omenState() { return fomen; }, door, blooms, lamps, director, followers, get dockKind() { return dockKind; }, get valves() { return { order: valveOrder, step: valveStep, list: pumpValves }; }, june: juneEvent, thread, get clock() { return clock; }, stagnant, player, center, undertow, lifeguard, cellPos, panelPos, raftPos, code, find, floaters, restorePower };
+  if (import.meta.env.DEV) window.__explore = { get prompts() { return lastPrompts.map((p) => p[1]); }, scanTick: (dt, eye, dir) => scanTick(dt, eye, dir), get acousticZone() { return acousticZone; }, zoneHere: (x, z) => zoneAt(x, z, { open: acousticOpen, water: isWater, openSky: !!rules.openSky }), get submerged() { return submerged; }, get lockCell() { return lockCell; }, openDoorNear, keypads, gates, openKeypad: () => { keypadOpen = true; }, get keypadOpen() { return keypadOpen; }, blockedAt: (x, z) => blocked(x, z), refl, selfFig, reflectionSpot, parts, camRig, takenCells, habits, falseDoor, showFalseDoor, wallParts, get time() { return time; }, signSeen, moved, placeMoved, wrongVoice, movedSign, trail, watcher, perchWatcher, watcherFig, startDriftSteps, get driftSteps() { return driftSteps; }, attendant: attendantAI, issueDirective, learning, guestsHere, get fomen() { return fomen; }, startFomen: (k) => startFomen(k), burstDamage, burstWindup, rows, thread, threadParts, ripGrid, ripPart, get ripCell() { return ripCell; }, routeTo, get W() { return W; }, get H() { return H; }, isWall, cellOf, center, wetMarks: wet, wetParts, waterField: field, ringParts, caustics, waterLevel, stir, jolt, effects, get blown() { return blown; }, flashes, frameEnv: () => lastEnv, marcos, get marcoApart() { return marcoApart; }, mirror: () => mirrorSurface && detachMirror && { height: mirrorSurface.height, parts: mirrorSurface.partIndices.length, key: mirrorKey }, models: () => parts.filter((p) => p.model).map((p) => ({ model: p.model, name: p.name, at: [p.matrix[12], p.matrix[13], p.matrix[14]] })), flashes, budget, wave: (n, f) => wave(n, f), lineOfSight, get remembered() { return remembered; }, get chain() { return lastChain; }, get eyeExposure() { return eyeExposure; }, renderer, get driftSigns() { return driftSigns; }, get wedges() { return lastWedges; }, survey, get surveyCoverage() { return surveyCoverage(survey, surveyOpen); }, surveyOpen, omen: (k) => startFomen(k), circuit, setEmergency, setBlackout, get blackout() { return blackout; }, signParts, get resetT() { return resetT; }, get emergency() { return emergency; }, blocked, isWall, finds, found, get lampPlaced() { return lampPlaced; }, lights: () => gatherLights(add(player.pos, [0, 1.6, 0])), get hesitation() { return hesitation; }, get lastOmen() { return lastFomen; }, get marcoAct() { return marcoAct; }, set marcoAct(v) { marcoAct = v; }, marcos, columns, wavePool, get basin() { return basin; }, isWater, floorTop, get operating() { return operating; }, set operating(v) { operating = v; }, panelFront, holdT, shoot, spawnBloom, occupant, lockers, noise, violate, get omenState() { return fomen; }, door, blooms, lamps, director, followers, get dockKind() { return dockKind; }, get valves() { return { order: valveOrder, step: valveStep, list: pumpValves }; }, june: juneEvent, thread, get clock() { return clock; }, stagnant, player, center, undertow, lifeguard, cellPos, panelPos, raftPos, code, find, floaters, restorePower };
 
   /** ?show=: put the dock into a fixed, readable state for screenshots and visual review. */
   function showcase(name) {
