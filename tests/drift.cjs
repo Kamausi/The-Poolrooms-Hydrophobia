@@ -243,5 +243,45 @@ const { open, check, finish, BASE } = require('./lib.cjs');
     return { vents: vs.length, found, direct: E.ventHeard.n === n1, caption: document.getElementById('caption').textContent }; });
   check('a sound behind a wall near one vent comes out of the vent near you, thin and quieter, and is not sent round when it is in plain sight', vt.vents > 3 && !!vt.found && vt.found.made >= 1 && vt.found.at && vt.found.gain > 0.1 && vt.found.gain <= 0.8 && vt.direct, JSON.stringify(vt));
 
+  // Corridors that change (ai/corridor.js), still in the Filtration Works: a corridor you walked a while ago is tiled
+  // over while you look elsewhere, but only if everything else can still be reached; it is a real wall; it opens again.
+  const cr = await page.evaluate(() => { const u = window.__underflow, E = window.__explore;
+    E.blooms.forEach((b) => { b.active = false; });
+    u.setState({ health: 1e6, drift: 20 });
+    const floor = E.find('.').filter(([x, z]) => !E.blocked(x, z));
+    const corr = floor.filter(([x, z]) => E.corridorCell(x, z));
+    if (corr.length < 3) return { none: corr.length };
+    // Walk down the corridor cells, then spend half a minute elsewhere, looking away.
+    for (const [x, z] of corr) { const c = E.center(x, z); E.player.pos = [c[0], 0, c[2]]; u.sim(1); }
+    const away = floor.filter(([x, z]) => !E.corridorCell(x, z)).sort((a, b) => Math.hypot(b[0] - corr[0][0], b[1] - corr[0][1]) - Math.hypot(a[0] - corr[0][0], a[1] - corr[0][1]))[0];
+    const ac = E.center(...away); E.player.pos = [ac[0], 0, ac[2]];
+    const autoBefore = E.closedCell;
+    for (let k = 0; k < 30; k++) { E.blooms.forEach((b) => { b.active = false; }); u.sim(30); }
+    const autoLow = E.closedCell; // Drift 20: nothing closes by itself
+    const walk = (x, z) => !E.isWall(x, z) && !E.blocked(x, z);
+    const count = () => { const [sx, sz] = E.cellOf(E.player.pos[0], E.player.pos[2]); const seen = new Set([sx + ',' + sz]), st = [[sx, sz]];
+      while (st.length) { const [x, z] = st.pop(); for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const n = [x + dx, z + dz]; if (n[0] < 0 || n[1] < 0 || n[0] >= E.W || n[1] >= E.H || !walk(...n) || seen.has(n.join())) continue; seen.add(n.join()); st.push(n); } }
+      return seen.size; };
+    const before = count();
+    E.player.yaw += Math.PI; u.step(1);
+    const c = E.closeCorridor();
+    if (!c) return { refused: true, walked: E.corridor.walked.size };
+    const out = { autoBefore, autoLow, cell: c, wall: E.blocked(...c) && !E.openCell(...c), shown: E.closedWall.matrix[13] > -100, before, after: count() };
+    // Go where it can be seen from, 4 to 12 m off, and look at it.
+    const p = E.center(...c);
+    const spot = floor.map(([x, z]) => E.center(x, z)).find((q) => { const d = Math.hypot(q[0] - p[0], q[2] - p[2]); if (d < 4 || d > 12) return false;
+      const n = [(q[0] - p[0]) / d, (q[2] - p[2]) / d]; return E.lineOfSight([q[0], 1.6, q[2]], [p[0] + n[0] * 2.15, 1.5, p[2] + n[1] * 2.15]); });
+    out.spot = !!spot;
+    if (spot) E.player.pos = [spot[0], 0, spot[2]];
+    E.player.yaw = Math.atan2(-(p[0] - E.player.pos[0]), -(p[2] - E.player.pos[2])); E.player.pitch = 0;
+    u.setState({ drift: 85 }); u.step(2); u.sim(2);
+    out.caption = document.getElementById('caption').textContent; out.told = E.corridor.told;
+    // Drift falls; look away: it opens again, once.
+    u.setState({ drift: 30 }); E.player.yaw += Math.PI; u.step(2); u.sim(3);
+    out.open = E.closedCell === null && !E.blocked(...c) && E.openCell(...c) && E.closedWall.matrix[13] < -100 && E.corridor.done;
+    return out; });
+  check('at high Drift a corridor you walked is tiled over while you look away; it is a real wall, and everything else can still be reached', !cr.none && !cr.refused && cr.autoLow === null && cr.wall && cr.shown && cr.after === cr.before - 1 && cr.told && /tiled over/.test(cr.caption), JSON.stringify(cr));
+  check('when Drift falls, and only while you look away, the corridor is open again', !cr.none && !cr.refused && cr.open, JSON.stringify(cr));
+
   await finish(browser, errors);
 })();
