@@ -46,6 +46,8 @@ export function initHud() {
 }
 
 export const hud = {
+  /** A line is on screen (the mix steps back for it: audio/zones.js). */
+  get speaking() { return speaking > 0; },
   show(on) {
     el.hud.hidden = !on;
   },

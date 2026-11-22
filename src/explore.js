@@ -56,6 +56,7 @@ import { compressorRefill } from './hull.js';
 import { facility as facilityMem, saveFacility, recordSurvey, surveyMem } from './memory.js';
 import { createObserver, stepObserver, placeObserver, choosePerch } from './ai/observer.js';
 import { driftStage, sideWord, OPPOSITE, pickPassed } from './ai/driftfx.js';
+import { zoneAt, createZoneTracker } from './audio/zones.js';
 import { reflectionMode, delayedPose, trimHistory, turnUnder, tiltFor, LAG_SECONDS, SEE_RANGE, LEFT_BEHIND } from './ai/reflection.js';
 import { chooseDirective, judge as judgeDirective, nextTrust, placeName, createLearning } from './ai/attendant.js';
 import { plan as planFinds, collect as collectFind, headcountLine } from './collectibles.js';
@@ -148,6 +149,9 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
   let waveOn = false;
   let keypadOpen = false;
   let gateOpen = false;
+  /** A door the Attendant really has locked (ai/attendant.js): [x, z] while it holds, otherwise null. */
+  let lockCell = null;
+  const lockedHere = (x, z) => !!lockCell && lockCell[0] === x && lockCell[1] === z;
   let sensorRevealed = false;
   // The Closed Wave Pool: once the crew chooses, the basin is drained (dry floor) or kept circulating (a current).
   let basin = 'full', basinLevel = -0.05;
@@ -173,7 +177,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
   const blocked = (x, z) => {
     const c = at(x, z);
     if (c === '#') return isWall(x, z);
-    return c === 'x' || c === 'o' || (c === 'B' && !highWater) || (c === 'K' && !keypadOpen) || (c === 'G' && !gateOpen);
+    return c === 'x' || c === 'o' || (c === 'B' && !highWater) || (c === 'K' && !keypadOpen) || (c === 'G' && !gateOpen) || lockedHere(x, z);
   };
   const inWaterAt = (px, pz) => isWater(...cellOf(px, pz));
 
@@ -1524,6 +1528,20 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     moved.moves++;
     return moved.at;
   }
+  // ---------- Acoustic zones and the muffle under water (audio/zones.js) ----------
+  // Where you stand decides the reverb: a corridor rings, a pool hall is long and wet, an annex is a room, the roof is
+  // dry. With your head under the water (wading in deep, held under) everything goes dull.
+  const zones = createZoneTracker();
+  const acousticOpen = (x, z) => at(x, z) !== '#';
+  let acousticZone = null, submerged = false;
+  function updateAcoustics(dt, eye) {
+    const [cx, cz] = cellOf(player.pos[0], player.pos[2]);
+    const z = zones.step(zoneAt(cx, cz, { open: acousticOpen, water: isWater, openSky: !!rules.openSky }), dt);
+    if (z !== acousticZone) { acousticZone = z; sound.setSpace(z); }
+    const under = eye[1] < waterLevel(cx, cz) || (undertow.alive && undertow.holding > 0) || floaters.some((f) => f.state === 'holding');
+    if (under !== submerged) { submerged = under; sound.setMuffle(under); }
+  }
+
   // ---------- The reflection (ai/reflection.js) ----------
   // At the edge of still water you see yourself in it. From moderate Drift it follows you late; at high Drift, once
   // per dock, it stops following and looks up at where you are now, and is gone when you look away.
@@ -1696,16 +1714,29 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
   const learning = createLearning();
   let learnedSeen = false;
   const guestsHere = () => 1 + followers.filter((f) => !f.gone && !(state.forgotten || []).includes(f.id)).length;
+  /** A door you have opened (a code door, a sensor gate), near you but not where you stand. */
+  function openDoorNear() {
+    const [px, pz] = cellOf(player.pos[0], player.pos[2]);
+    const open = [...(keypadOpen ? keypads.map((k) => ({ x: k.x, z: k.z, name: 'code door' })) : []), ...(gateOpen ? gates.map((g) => ({ x: g.x, z: g.z, name: 'lagoon gate' })) : [])];
+    return open.find((o) => { const c = center(o.x, o.z), dd = Math.hypot(c[0] - player.pos[0], c[2] - player.pos[2]);
+      return dd < 14 && Math.abs(o.x - px) + Math.abs(o.z - pz) > 1; }) || null;
+  }
   function issueDirective(force = {}) {
     const near = floorCells.filter(([x, z]) => { const c = center(x, z); const dd = Math.hypot(c[0] - player.pos[0], c[2] - player.pos[2]); return dd > 10 && dd < 24; });
     const cell = near.length ? near[Math.floor(random() * near.length)] : null;
     const place = cell ? (() => { const c = center(...cell); return { pos: [c[0], floorTop(...cell), c[2]], name: placeName(c[0] - player.pos[0], c[2] - player.pos[2]) }; })() : null;
     const nearExit = force.kind ? force.kind === 'gate' : powered() && Math.hypot(raftPos[0] - player.pos[0], raftPos[2] - player.pos[2]) < 10;
-    const d = chooseDirective({ trust: attendantAI.trust, lastFalse: attendantAI.lastFalse, sectorIndex: sector.index, guests: guestsHere(), place, area: 'this hall', random, kind: force.kind ?? null, lie: force.lie ?? null, nearExit });
+    const doorCell = openDoorNear();
+    const door = doorCell && { name: doorCell.name };
+    const d = chooseDirective({ trust: attendantAI.trust, lastFalse: attendantAI.lastFalse, sectorIndex: sector.index, guests: guestsHere(), place, area: 'this hall', random, kind: force.kind ?? null, lie: force.lie ?? null, nearExit, door });
     attendantAI.tried = false;
     // An honest closure really holds the gate; a false one leaves it open (the boarding prompt says so).
     attendantAI.gateT = d.kind === 'gate' && !d.lie ? d.seconds : 0;
     attendantAI.gateHealth = state.health;
+    // A lock: an honest one really shuts the door; a false one leaves it open, and walking through it is noticed.
+    attendantAI.lockAt = d.kind === 'lock' ? [doorCell.x, doorCell.z] : null;
+    attendantAI.lockT = d.kind === 'lock' && !d.lie ? d.seconds : 0;
+    lockCell = attendantAI.lockT > 0 ? attendantAI.lockAt : null;
     attendantAI.d = d; attendantAI.t = 0; attendantAI.held = 0; attendantAI.at = [...player.pos]; attendantAI.issued++;
     if (d.lie) attendantAI.lies++;
     sound.chime?.();
@@ -1721,6 +1752,14 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
       if (state.health < A.gateHealth - 0.5) { A.gateT = 0; hud.toast('SAFETY OVERRIDE · BOARDING GATE OPEN'); }
       A.gateHealth = state.health;
     }
+    if (A.lockT > 0) {
+      A.lockT = Math.max(0, A.lockT - dt);
+      if (state.health < A.lockHealth - 0.5) { A.lockT = 0; hud.toast('SAFETY OVERRIDE · DOOR OPEN'); }
+      if (A.lockT === 0) lockCell = null;
+    }
+    A.lockHealth = state.health;
+    // It said the door was locked: walking through it is trying it.
+    if (d?.kind === 'lock' && A.lockAt) { const [px, pz] = cellOf(player.pos[0], player.pos[2]); if (px === A.lockAt[0] && pz === A.lockAt[1]) A.tried = true; }
     if (!d) {
       if (!calm || fomen || state.downed) return;
       if ((A.cool -= dt) > 0) return;
@@ -1737,6 +1776,8 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
       if (d.kind === 'gate') {
         // You waited at a gate that was never closed.
         hud.caption('[the gate was open the whole time. Its lamp was green]');
+      } else if (d.kind === 'lock') {
+        hud.caption(`[the ${d.door} stood open the whole time. Nothing was being serviced]`);
       } else if (d.kind === 'wait') {
         if (!fomen && lamps.some((l) => !l.broken && distance(l.pos, player.pos) < 22)) startFomen('lights');
         else { hud.caption('[the lights in this hall go out, then come back on]'); director.omen(0.3, 10); }
@@ -1749,9 +1790,10 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
       }
       events.facility?.('attendant-lie-followed');
     } else if (outcome === 'complied') {
-      hud.say('THE ATTENDANT', d.kind === 'gate' ? 'Thank you. The boarding gate is open.' : 'Thank you.', 'attendant');
+      hud.say('THE ATTENDANT', d.kind === 'gate' ? 'Thank you. The boarding gate is open.' : d.kind === 'lock' ? `Thank you. The ${d.door} is open.` : 'Thank you.', 'attendant');
     } else if (d.lie) {
       A.caught++;
+      if (d.kind === 'lock') hud.caption(`[you walk through the ${d.door}. It was never locked]`);
       hud.say('THE ATTENDANT', 'Thank you for your patience.', 'attendant'); // it carries on as if you had
     }
     A.trust = d.lie ? 0 : nextTrust(A.trust, outcome);
@@ -2564,8 +2606,9 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     }
     for (const k of keypads) {
       const c = center(k.x, k.z);
-      if (keypadOpen) { hide(k.part); continue; }
+      if (keypadOpen && !lockedHere(k.x, k.z)) { hide(k.part); continue; }
       writeYaw(k.part.matrix, [c[0], 1.6, c[2]], 0, CELL, 3.2, CELL);
+      if (keypadOpen) { if (Math.hypot(c[0] - eye[0], c[2] - eye[2]) < 3.4) ask(2, `DOOR LOCKED · MAINTENANCE CYCLE · ${Math.ceil(attendantAI.lockT)} s`); continue; }
       if (Math.hypot(c[0] - eye[0], c[2] - eye[2]) < 3.4) {
         ask(2, 'E · Enter the code');
         if (wasPressed('e')) {
@@ -2580,7 +2623,10 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     }
     for (const g of gates) {
       const c = center(g.x, g.z);
-      if (!gateOpen) {
+      if (gateOpen && lockedHere(g.x, g.z)) {
+        writeYaw(g.part.matrix, [c[0], 1.6, c[2]], 0, CELL, 3.2, CELL);
+        if (Math.hypot(c[0] - eye[0], c[2] - eye[2]) < 3.4) ask(2, `GATE LOCKED · MAINTENANCE CYCLE · ${Math.ceil(attendantAI.lockT)} s`);
+      } else if (!gateOpen) {
         writeYaw(g.part.matrix, [c[0], 1.6, c[2]], 0, CELL, 3.2, CELL);
         if (Math.hypot(c[0] - eye[0], c[2] - eye[2]) < 3.4) ask(1, 'GATE · opened by a sensor you can only see reflected in the lagoon');
       } else hide(g.part);
@@ -2654,6 +2700,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     updateDriftSteps(dt, calmNow);
     updateModerateDrift(dt, calmNow);
     updateReflection(dt, calmNow);
+    updateAcoustics(dt, eye);
     updateFalseDoor();
     voices(dt);
 
@@ -4168,7 +4215,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     for (let i = 0; i < (r.valves || 0); i++) { const v = pumpValves.find((x) => x.id === valveOrder[i]); if (v) v.open = true; }
     valveStep = r.valves || 0;
   }
-  if (import.meta.env.DEV) window.__explore = { get prompts() { return lastPrompts.map((p) => p[1]); }, refl, selfFig, reflectionSpot, parts, camRig, takenCells, habits, falseDoor, showFalseDoor, wallParts, get time() { return time; }, signSeen, moved, placeMoved, wrongVoice, movedSign, trail, watcher, perchWatcher, watcherFig, startDriftSteps, get driftSteps() { return driftSteps; }, attendant: attendantAI, issueDirective, learning, guestsHere, get fomen() { return fomen; }, startFomen: (k) => startFomen(k), burstDamage, burstWindup, rows, thread, threadParts, ripGrid, ripPart, get ripCell() { return ripCell; }, routeTo, get W() { return W; }, get H() { return H; }, isWall, cellOf, center, wetMarks: wet, wetParts, waterField: field, ringParts, caustics, waterLevel, stir, jolt, effects, get blown() { return blown; }, flashes, frameEnv: () => lastEnv, marcos, get marcoApart() { return marcoApart; }, mirror: () => mirrorSurface && detachMirror && { height: mirrorSurface.height, parts: mirrorSurface.partIndices.length, key: mirrorKey }, models: () => parts.filter((p) => p.model).map((p) => ({ model: p.model, name: p.name, at: [p.matrix[12], p.matrix[13], p.matrix[14]] })), flashes, budget, wave: (n, f) => wave(n, f), lineOfSight, get remembered() { return remembered; }, get chain() { return lastChain; }, get eyeExposure() { return eyeExposure; }, renderer, get driftSigns() { return driftSigns; }, get wedges() { return lastWedges; }, survey, get surveyCoverage() { return surveyCoverage(survey, surveyOpen); }, surveyOpen, omen: (k) => startFomen(k), circuit, setEmergency, setBlackout, get blackout() { return blackout; }, signParts, get resetT() { return resetT; }, get emergency() { return emergency; }, blocked, isWall, finds, found, get lampPlaced() { return lampPlaced; }, lights: () => gatherLights(add(player.pos, [0, 1.6, 0])), get hesitation() { return hesitation; }, get lastOmen() { return lastFomen; }, get marcoAct() { return marcoAct; }, set marcoAct(v) { marcoAct = v; }, marcos, columns, wavePool, get basin() { return basin; }, isWater, floorTop, get operating() { return operating; }, set operating(v) { operating = v; }, panelFront, holdT, shoot, spawnBloom, occupant, lockers, noise, violate, get omenState() { return fomen; }, door, blooms, lamps, director, followers, get dockKind() { return dockKind; }, get valves() { return { order: valveOrder, step: valveStep, list: pumpValves }; }, june: juneEvent, thread, get clock() { return clock; }, stagnant, player, center, undertow, lifeguard, cellPos, panelPos, raftPos, code, find, floaters, restorePower };
+  if (import.meta.env.DEV) window.__explore = { get prompts() { return lastPrompts.map((p) => p[1]); }, get acousticZone() { return acousticZone; }, zoneHere: (x, z) => zoneAt(x, z, { open: acousticOpen, water: isWater, openSky: !!rules.openSky }), get submerged() { return submerged; }, get lockCell() { return lockCell; }, openDoorNear, keypads, gates, openKeypad: () => { keypadOpen = true; }, get keypadOpen() { return keypadOpen; }, blockedAt: (x, z) => blocked(x, z), refl, selfFig, reflectionSpot, parts, camRig, takenCells, habits, falseDoor, showFalseDoor, wallParts, get time() { return time; }, signSeen, moved, placeMoved, wrongVoice, movedSign, trail, watcher, perchWatcher, watcherFig, startDriftSteps, get driftSteps() { return driftSteps; }, attendant: attendantAI, issueDirective, learning, guestsHere, get fomen() { return fomen; }, startFomen: (k) => startFomen(k), burstDamage, burstWindup, rows, thread, threadParts, ripGrid, ripPart, get ripCell() { return ripCell; }, routeTo, get W() { return W; }, get H() { return H; }, isWall, cellOf, center, wetMarks: wet, wetParts, waterField: field, ringParts, caustics, waterLevel, stir, jolt, effects, get blown() { return blown; }, flashes, frameEnv: () => lastEnv, marcos, get marcoApart() { return marcoApart; }, mirror: () => mirrorSurface && detachMirror && { height: mirrorSurface.height, parts: mirrorSurface.partIndices.length, key: mirrorKey }, models: () => parts.filter((p) => p.model).map((p) => ({ model: p.model, name: p.name, at: [p.matrix[12], p.matrix[13], p.matrix[14]] })), flashes, budget, wave: (n, f) => wave(n, f), lineOfSight, get remembered() { return remembered; }, get chain() { return lastChain; }, get eyeExposure() { return eyeExposure; }, renderer, get driftSigns() { return driftSigns; }, get wedges() { return lastWedges; }, survey, get surveyCoverage() { return surveyCoverage(survey, surveyOpen); }, surveyOpen, omen: (k) => startFomen(k), circuit, setEmergency, setBlackout, get blackout() { return blackout; }, signParts, get resetT() { return resetT; }, get emergency() { return emergency; }, blocked, isWall, finds, found, get lampPlaced() { return lampPlaced; }, lights: () => gatherLights(add(player.pos, [0, 1.6, 0])), get hesitation() { return hesitation; }, get lastOmen() { return lastFomen; }, get marcoAct() { return marcoAct; }, set marcoAct(v) { marcoAct = v; }, marcos, columns, wavePool, get basin() { return basin; }, isWater, floorTop, get operating() { return operating; }, set operating(v) { operating = v; }, panelFront, holdT, shoot, spawnBloom, occupant, lockers, noise, violate, get omenState() { return fomen; }, door, blooms, lamps, director, followers, get dockKind() { return dockKind; }, get valves() { return { order: valveOrder, step: valveStep, list: pumpValves }; }, june: juneEvent, thread, get clock() { return clock; }, stagnant, player, center, undertow, lifeguard, cellPos, panelPos, raftPos, code, find, floaters, restorePower };
 
   /** ?show=: put the dock into a fixed, readable state for screenshots and visual review. */
   function showcase(name) {
@@ -4188,7 +4235,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     resize: () => renderer.resize(),
     /** Render scale relative to the quality tier's own pixel ratio (automatic resolution). */
     setScale: (k) => { renderer.pixelRatio = quality.renderer.pixelRatio * k; renderer.resize(); },
-    dispose: () => { sound.release(); renderer.dispose(); }, // leaving the dock mid-silence brings the machinery back
+    dispose: () => { sound.release(); if (submerged) sound.setMuffle(false); renderer.dispose(); }, // leaving the dock mid-silence brings the machinery back
     /** Where the player is right now, for an immediate resume save. */
     snapshot: () => ({ mode: 'explore', pos: [...player.pos], yaw: player.yaw, hasCell, taken: takenState() }),
   };

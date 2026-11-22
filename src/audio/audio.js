@@ -74,11 +74,15 @@ function ensure() {
 }
 
 /** Player volumes per category: effects (one-shots and speech cues), music, ambience (the beds). */
-function applyVolumes() {
+// The dynamic mix (audio/zones.js mixFor): gains on top of the volume settings for the music and the beds.
+let mix = { music: 1, beds: 1 };
+let muffled = false;
+function applyVolumes(smooth = false) {
   if (!ctx) return;
   bus.gain.value = settings.volEffects ?? 1;
-  if (musicVol) musicVol.gain.value = settings.volMusic ?? 1;
-  if (bedBus) bedBus.gain.value = settings.volAmbience ?? 1;
+  const set = (g, v) => (smooth ? g.setTargetAtTime(v, ctx.currentTime, 0.25) : (g.cancelScheduledValues(ctx.currentTime), g.value = v));
+  if (musicVol) set(musicVol.gain, (settings.volMusic ?? 1) * mix.music);
+  if (bedBus) set(bedBus.gain, (settings.volAmbience ?? 1) * mix.beds);
 }
 function applyBeds() {
   if (!ctx) return;
@@ -274,6 +278,7 @@ export const sound = {
   },
   /** Pressure tubes and underwater moments: everything goes dull. */
   setMuffle(on) {
+    muffled = !!on;
     if (muffle) muffle.frequency.value = on ? 650 : 20000;
     bed('underwater', on ? 0.4 : 0);
   },
@@ -554,6 +559,15 @@ export const sound = {
   /** Set the room's acoustics: 'tile', 'hall', 'reservoir', 'tube', 'room' or 'dry'. */
   /** The reverb settings now in use (for tests). */
   get spaceSettings() { return space ? { kind: space, ...Object.fromEntries(['seconds', 'wet', 'decay'].map((k, i) => [k, SPACES[space][i]])) } : null; },
+  /** The dynamic mix: { music, beds } gains (audio/zones.js mixFor). Changes glide over a quarter second. */
+  setMix(m) {
+    if (Math.abs(m.music - mix.music) < 0.01 && Math.abs(m.beds - mix.beds) < 0.01) return;
+    mix = { music: m.music, beds: m.beds };
+    applyVolumes(true);
+  },
+  get mix() { return mix; },
+  get muffled() { return muffled; },
+  get space() { return space; },
   setSpace(kind) {
     if (!ensure() || kind === space || !SPACES[kind]) return;
     space = kind;
@@ -582,7 +596,7 @@ export const sound = {
 };
 // Every sound method runs with its own name current, so the voice pool knows what it is weighing.
 for (const [k, fn] of Object.entries(sound)) {
-  if (typeof fn !== 'function' || ['unlock', 'setEnabled', 'setVolumes', 'setHum', 'setMuffle', 'music', 'setSpace', 'duck', 'startHum', 'pumpRoom'].includes(k)) continue;
+  if (typeof fn !== 'function' || ['unlock', 'setEnabled', 'setVolumes', 'setHum', 'setMuffle', 'music', 'setSpace', 'setMix', 'duck', 'startHum', 'pumpRoom'].includes(k)) continue;
   sound[k] = function (...a) { const prev = current; current = k; try { return fn.apply(this, a); } finally { current = prev; } };
 }
 /** For tests: how many one-shots are playing and how many the pool allows. */

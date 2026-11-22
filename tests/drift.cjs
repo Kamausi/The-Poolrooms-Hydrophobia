@@ -152,5 +152,36 @@ const { open, check, finish, BASE } = require('./lib.cjs');
   check('at the edge of still water your reflection is there, upside down under the surface, and follows you', rf.none || (rf.mode0 === 'follow' && rf.shown && rf.under), JSON.stringify(rf));
   check('from moderate Drift it follows late: a quick step and it stays a moment before it catches up', rf.none || (rf.mode1 === 'lag' && rf.lagStill && rf.caughtUp), JSON.stringify(rf));
   check('at high Drift it stops following, stays where it was and looks up at you; look away and it is gone; nothing hurts you', !rf.none && rf.own && rf.stayed && rf.told && /has not moved/.test(rf.caption) && rf.gone && rf.hurt < 1, JSON.stringify(rf));
+
+  // Acoustic zones (audio/zones.js): where you stand sets the reverb; held under, everything goes dull; a line on
+  // screen pulls the music and ambience back.
+  const az = await page.evaluate(() => { const u = window.__underflow, E = window.__explore;
+    E.blooms.forEach((b) => { b.active = false; });
+    u.setState({ health: 1000, drift: 0 }); u.sim(1);
+    const kinds = new Set(E.find('.').map(([x, z]) => E.zoneHere(x, z)));
+    const out = { kinds: [...kinds] };
+    // Stand somewhere of each kind; check the zone of the cell you end up in (currents and walls can move you).
+    for (const k of kinds) for (const [x, z] of E.find('.').filter(([x, z]) => E.zoneHere(x, z) === k).slice(0, 6)) {
+      const c = E.center(x, z); E.player.pos = [c[0], E.player.pos[1], c[2]]; u.sim(60);
+      const here = E.zoneHere(...E.cellOf(E.player.pos[0], E.player.pos[2]));
+      if (here === k) { out[k] = { zone: E.acousticZone, space: u.sound.space }; break; }
+    }
+    return out; });
+  check("where you stand sets the reverb: each kind of space in the dock gives its own zone, and the sound follows it", az.kinds.length >= 2 && az.kinds.every((k) => az[k] && az[k].zone === k && az[k].space === k), JSON.stringify(az));
+  const mx = await page.evaluate(async () => { const u = window.__underflow, E = window.__explore;
+    const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+    u.hud.clearSpeech(); // the lines queued by the checks above
+    u.sim(2);
+    const quiet = { ...u.sound.mix };
+    u.hud.say('DEZ', 'Hold on, I have you. Pull.', 'crew', true);
+    u.sim(3);
+    const talking = { ...u.sound.mix, speaking: u.hud.speaking };
+    // Held under by a Floater: the muffle and the under-water mix.
+    const f = E.floaters[0];
+    let under = null;
+    if (f) { f.state = 'holding'; f.holdT = 30; f.pos = [E.player.pos[0], f.pos[1], E.player.pos[2]]; u.sim(2); under = { submerged: E.submerged, muffled: u.sound.muffled, mix: { ...u.sound.mix } }; f.state = 'gone'; u.hud.clearSpeech(); u.sim(2); under.after = { submerged: E.submerged, muffled: u.sound.muffled, mix: { ...u.sound.mix } }; }
+    return { quiet, talking, under }; });
+  check('a line on screen pulls the music and ambience back for it', mx.quiet.music === 1 && mx.talking.speaking && mx.talking.music < 0.5 && mx.talking.beds < 1, JSON.stringify(mx));
+  check('held under the water everything goes dull and the music nearly goes; back up, it comes back', !!mx.under && mx.under.submerged && mx.under.muffled && mx.under.mix.music < 0.5 && !mx.under.after.submerged && !mx.under.after.muffled, JSON.stringify(mx.under));
   await finish(browser, errors);
 })();

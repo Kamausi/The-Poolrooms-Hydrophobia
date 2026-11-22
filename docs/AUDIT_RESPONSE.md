@@ -22,7 +22,7 @@ The audit read the single-file release (`dist/HYDROPHOBIA.html`). That file is o
 
 | Recommendation | Status | Where | Test |
 |---|---|---|---|
-| The facility, as the Attendant, as an active antagonist | **Partly built.** On foot, the Attendant now gives instructions over the public address ("remain where you are", "proceed to the north gallery"), and the facility acts on them. Following an honest instruction is safe. Following a false one costs you: the lights in your hall go out, or something is waiting where it sent you. Ignoring any instruction costs nothing. Near the raft it also **holds the boarding gate**: an honest closure really blocks boarding for twenty seconds (and opens at once if you are hurt), a false one miscounts the guests and is not closed at all, and the boarding prompt always says what the gate is doing. **Not built:** the Attendant locking other doors or running other procedures; anything on the raft. | `src/ai/attendant.js`, `src/explore.js` | `attendant.test.js`, `horror.cjs`, `gate.cjs` |
+| The facility, as the Attendant, as an active antagonist | **Partly built.** On foot, the Attendant now gives instructions over the public address ("remain where you are", "proceed to the north gallery"), and the facility acts on them. Following an honest instruction is safe. Following a false one costs you: the lights in your hall go out, or something is waiting where it sent you. Ignoring any instruction costs nothing. Near the raft it also **holds the boarding gate**: an honest closure really blocks boarding for twenty seconds (and opens at once if you are hurt), a false one miscounts the guests and is not closed at all, and the boarding prompt always says what the gate is doing. Near a door you have already opened (the code door, the lagoon gate) it can **lock that door** the same way: an honest lock really shuts it for twenty seconds (opening at once if you are hurt, and never while you stand in or next to the doorway), a false one miscounts the guests and leaves the door standing open, and walking through it is noticed. **Not built:** the Attendant running other procedures; anything on the raft. | `src/ai/attendant.js`, `src/explore.js` | `attendant.test.js`, `horror.cjs`, `gate.cjs` |
 | Narrative redesign (Crew Seven, the facility expecting you) | Not built. The story is as `docs/STORY_AND_LORE.md` describes it. | | |
 
 ## Section 3: core loop and controls
@@ -74,7 +74,7 @@ The audit's director table lists six player signals. Each row below is one signa
 | Silence as an authored event | **Built** (on foot, not in the first attraction). The pumps and the water stop for about 22 seconds and nothing happens. In the Wave Hall the wave machine stops too and sends nothing in. Pausing holds the silence; it lifts when the omen ends or you leave. | `src/audio/audio.js`, `src/explore.js` | `horror.cjs` |
 | Occlusion | **Built** for the threat sounds on foot: the Lifeguard's whistle, chair and chains, the grind, and the Bloom wind-up breath. It is a line-of-sight check on the dock grid, with a low-pass filter and a lower volume. Not acoustic simulation. | `src/audio/audio.js` | `horror.cjs` |
 | Reverb per space | Already there (Sabine's formula per kind of space). | `src/audio/acoustics.js` | `acoustics.test.js` |
-| Acoustic zones, filtering for submerged spaces, dynamic mixing | **Not built.** | | |
+| Acoustic zones, filtering for submerged spaces, dynamic mixing | **Built on foot.** `src/audio/zones.js` reads the zone from the map where you stand: a narrow run between walls is a tiled corridor, a wide floor or a pool hall is a hall, a smaller enclosed space is a room, the roof is dry; the reverb follows once the zone has held for 0.8 s (the rooms are acoustics.js's, by Sabine). With your head under the water (held by a Floater, the Undertow, a rope) everything goes through the low-pass and the music and ambience nearly go. A line on screen pulls the music to 45% and the ambience to 60%; a fight thins the ambience. On the raft each section already had its own space and muffle. The corridor zone is unit-tested only: the Wave Hall used by the browser check has rooms and a hall but no corridor. Not judged by ear. **Not built:** sound through vents. | `src/audio/zones.js`, `src/audio/audio.js`, `src/explore.js`, `src/main.js` | `zones.test.js`, `drift.cjs` |
 | Threats audible through walls and vents | Partly: occluded sounds still play. No vent paths. | | |
 
 ## Section 8: interface
@@ -114,13 +114,13 @@ The audit's gate, as it wrote it. **0 of 12 verified**: every item needs unfamil
 
 ## Not built, all in one place
 
-- The Attendant locking doors other than the boarding gate; the Attendant on the raft.
+- The Attendant running procedures other than waits, directions and locks; the Attendant on the raft.
 - The two newest director signals, and the habit weighting, on the raft.
 - The last of the audit's Drift effects: corridors that change.
 - A controller-first usability pass judged by a person on real controllers (the tests use an emulated pad).
 - The loop restructured around water flow, with a consequence stage at every dock.
 - A lighting style for each kind of space; the architectural credibility pass; water that breaks the facility's rules.
-- Acoustic zones, filtering for submerged spaces, dynamic mixing, sound through vents.
+- Sound through vents.
 - An investigative HUD layer.
 - The 12–18 minute reference chapter sequence.
 - Narrative changes (Crew Seven, the facility anticipating you).

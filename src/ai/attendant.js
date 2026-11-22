@@ -3,7 +3,9 @@
 // facility then acts on them: it runs the lights, sends you places, keeps you still.
 //
 // Near the raft it can close the boarding gate: an honest closure really holds it shut for twenty seconds (it opens
-// at once if you are hurt), a false one is not closed at all, and the boarding prompt always says which.
+// at once if you are hurt), a false one is not closed at all, and the boarding prompt always says which. Near a door
+// you have already opened (a code door, a sensor gate) it can lock that door the same way: an honest lock really shuts
+// it for twenty seconds, a false one leaves it standing open while it says otherwise.
 //
 // Most instructions are honest, and following one is safe. The audit's director signal "the player repeatedly trusts
 // facility instructions" is answered here: once you have followed two in a row, the next one may be false, and
@@ -47,8 +49,9 @@ export function placeName(dx, dz) {
  * one was a lie; `place` is { name, pos } for a proceed instruction (null when there is nowhere suitable).
  * Returns { kind, lie, count, text, pos?, seconds }.
  */
-export function chooseDirective({ trust = 0, lastFalse = false, sectorIndex = 0, guests = 1, place = null, area = 'the gallery', random = Math.random, kind: wantKind = null, lie: wantLie = null, nearExit = false }) {
-  const kinds = nearExit ? ['gate'] : place ? DIRECTIVE_KINDS : ['wait'];
+export function chooseDirective({ trust = 0, lastFalse = false, sectorIndex = 0, guests = 1, place = null, area = 'the gallery', random = Math.random, kind: wantKind = null, lie: wantLie = null, nearExit = false, door = null }) {
+  // `door` is { name } for a door you have opened that is near you; the Attendant may lock it.
+  const kinds = nearExit ? ['gate'] : [...(place ? DIRECTIVE_KINDS : ['wait']), ...(door ? ['lock'] : [])];
   const pickKind = kinds[Math.floor(random() * kinds.length)];
   const kind = wantKind && kinds.includes(wantKind) ? wantKind : pickKind; // `kind` and `lie` force a choice (tests, ?debug)
   const canLie = sectorIndex > 0 && !lastFalse && trust >= TRUST_BEFORE_LIE;
@@ -61,6 +64,10 @@ export function chooseDirective({ trust = 0, lastFalse = false, sectorIndex = 0,
   if (kind === 'gate') {
     return { kind, lie, count, seconds: GATE_SECONDS,
       text: `${who}, the boarding gate is closed for the maintenance cycle. It will reopen in twenty seconds.` };
+  }
+  if (kind === 'lock') {
+    return { kind, lie, count, seconds: GATE_SECONDS, door: door.name,
+      text: `${who}, the ${door.name} is locked for the maintenance cycle. It will reopen in twenty seconds.` };
   }
   if (kind === 'wait') {
     return { kind, lie, count, seconds: 10, window: 16,
@@ -76,7 +83,8 @@ export function chooseDirective({ trust = 0, lastFalse = false, sectorIndex = 0,
  */
 export function judge(d, { held = 0, t = 0, moved = false, distance = Infinity, tried = false }) {
   // The gate: waiting it out is doing as told; trying to board anyway is not.
-  if (d.kind === 'gate') return tried ? 'ignored' : t >= d.seconds ? 'complied' : null;
+  // A lock likewise: walking through the door it said was locked is not doing as told.
+  if (d.kind === 'gate' || d.kind === 'lock') return tried ? 'ignored' : t >= d.seconds ? 'complied' : null;
   if (d.kind === 'wait') {
     if (held >= d.seconds) return 'complied';
     if (moved || t > d.window) return 'ignored';

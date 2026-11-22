@@ -17,6 +17,7 @@ import { createMenuScene } from './menuscene.js';
 import { initInput, input, endFrame, releaseLock, requestLock, wasPressed, pollGamepad, bindingLabel } from './input.js';
 import { initHud, hud } from './hud.js';
 import { sound } from './audio/audio.js';
+import { mixFor } from './audio/zones.js';
 import { quality, setTier, applyQualitySetting } from './render/quality.js';
 import { createAutoTier, thinning } from './render/tiers.js';
 import { summarize, report as benchReport } from './debug/bench.js';
@@ -1060,6 +1061,7 @@ function frame(now) {
     stepsLast = plan.steps;
   }
   if (!paused && (mode === 'ride' || mode === 'explore')) timed('audio', () => sound.music(state.directorPhase || 'relax', state.drift));
+  updateMix();
   profiler.frame();
   $('modal').classList.toggle('safe', mode === 'safe');
   endFrame();
@@ -1134,6 +1136,10 @@ else if (new URLSearchParams(location.search).has('bench')) setTimeout(() => sta
 // Photos from earlier sessions (IndexedDB, storage.js) come back into the album at boot.
 loadPhotos().then((list) => { if (list.length && !(state.photos || []).length) state.photos = list.slice(-4).map(({ sector, label, url }) => ({ sector, label, url })); });
 
+/** The dynamic mix (audio/zones.js): speech reads over the music, a fight thins the ambience, under water both go. */
+function updateMix() {
+  sound.setMix(mixFor({ speaking: hud.speaking, phase: mode === 'ride' || mode === 'explore' ? state.directorPhase : 'relax', under: sound.muffled }));
+}
 // For automated checks.
 window.__underflow = {
   modelsReady, modelState,
@@ -1142,7 +1148,7 @@ window.__underflow = {
   get scene() { return scene; },
   startExplore, enterSafeRoom, startRide, newCampaign, startEndless, beginSector, events, startChallenge, startCustom, parseRoute, expeditionRecord,
   setState(patch) { Object.assign(state, patch); },
-  platform: platformStatus, sound, input, bindingLabel, profile: () => profiler.report(), get stepsLast() { return stepsLast; }, toMenu, saveCheckpoint, requestLock, loadSave, get saveNotice() { return saveNotice; }, SAVE_KEY, RESUME_KEY, storage: () => import('./storage.js'),
+  platform: platformStatus, sound, hud, input, bindingLabel, profile: () => profiler.report(), get stepsLast() { return stepsLast; }, toMenu, saveCheckpoint, requestLock, loadSave, get saveNotice() { return saveNotice; }, SAVE_KEY, RESUME_KEY, storage: () => import('./storage.js'),
   settings, quality, setTier,
   /** Tests: drive the render scale directly, and read what it is. */
   setResScale(k) { applyResScale(k); return resScale; },
@@ -1153,6 +1159,7 @@ window.__underflow = {
     for (let i = 0; i < n && scene && !paused && ['ride', 'explore', 'safe', 'menu'].includes(mode); i++) {
       quality.skipRender = i < n - 1;
       scene.update(dt);
+      updateMix();
       endFrame();
     }
     quality.skipRender = false;
@@ -1166,6 +1173,7 @@ window.__underflow = {
     for (let i = 0; i < n && scene && !paused && ['ride', 'explore', 'safe', 'menu'].includes(mode); i++) {
       quality.skipRender = true;
       scene.update(dt);
+      updateMix();
       endFrame();
     }
     quality.skipRender = false;

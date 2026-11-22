@@ -46,6 +46,20 @@ describe('attendant', () => {
     const lie = chooseDirective({ random: () => 0.5, guests: 2, nearExit: true, lie: true });
     expect(lie.lie && lie.count !== 2).toBe(true);
   });
+  it('near a door you have opened it can lock it; waiting is doing as told, walking through is not', () => {
+    const door = { name: 'code door' };
+    const ds = Array.from({ length: 60 }, (_, i) => chooseDirective({ random: () => (i % 10) / 10, guests: 2, place, door }));
+    expect(ds.some((d) => d.kind === 'lock')).toBe(true);
+    expect(chooseDirective({ random: () => 0.5, guests: 2, place }).kind).not.toBe('lock'); // no door, no lock
+    expect(chooseDirective({ random: () => 0.5, guests: 2, nearExit: true, door }).kind).toBe('gate'); // the raft first
+    const l = chooseDirective({ random: () => 0.5, guests: 2, kind: 'lock', door });
+    expect(l.text).toMatch(/^Two guests, the code door is locked/);
+    expect(judge(l, { t: 5 })).toBeNull();
+    expect(judge(l, { t: GATE_SECONDS })).toBe('complied');
+    expect(judge(l, { t: 2, tried: true })).toBe('ignored');
+    const lie = chooseDirective({ random: () => 0.5, guests: 2, kind: 'lock', door, lie: true });
+    expect(lie.lie && lie.count !== 2).toBe(true);
+  });
   it('names places by compass as the survey map draws them (north is up)', () => {
     expect(placeName(0, -10)).toBe('the north gallery');
     expect(placeName(10, 2)).toBe('the east gallery');
