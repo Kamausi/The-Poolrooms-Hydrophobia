@@ -39,6 +39,7 @@ import { settings } from './settings.js';
 import { tipAllowed } from './controltiers.js';
 import { raftLight, raftZone } from './render/lightstyle.js';
 import { chooseRoute, judgeRoute, nextTrust } from './ai/attendant.js';
+import { createHabits, weigh, pickWeighted, RAFT_ANSWERS, RAFT_SPEED } from './ai/habits.js';
 import { noteClaim } from './fieldnotes.js';
 import { AMBIENT } from './sectors.js';
 import { Track, EXIT_OFFSET, section } from './track.js';
@@ -302,6 +303,9 @@ export function createRide(canvas, state, sector, events, opts = {}) {
     dent: P('Dent in the tube', sphere(10, 6), { color: [0.07, 0.06, 0.03], metallic: 0, roughness: 0.9 }),
   };
   let omen = null, omenCool = 40, lastOmen = '', squeakT = 0;
+  // What you have been doing on the raft (ai/habits.js) decides which omen comes, and a hard fight holds them off.
+  const habits = createHabits();
+  let habHealth = state.health;
   // A stretch of lamps that has gone out: dark between edge and far. The edge walks toward the raft as the
   // lights die, then away from it as they come back.
   const lightsOut = (segS) => omen?.kind === 'lights' && segS >= omen.edge && segS <= omen.far;
@@ -1792,6 +1796,9 @@ export function createRide(canvas, state, sector, events, opts = {}) {
     budget.tick(dt);
     budget.sweep((b) => typeof b !== 'object' || b.active === undefined || (b.active && !b.dying)); // only Blooms are swept; grab and surge slots are given back by their owners
     time += dt;
+    // Habits (ai/habits.js), every frame on the water: looking back or scanning, rushing, holding still, being hurt.
+    habits.observe({ dt, scanning: !!input.scanning || isDown('x'), speed, fast: RAFT_SPEED, hurt: Math.max(0, habHealth - state.health), still: speed < 1.5 || isDown('s') || isDown('arrowdown') });
+    habHealth = state.health;
     frameDt = dt;
     hud.update(dt);
     state.mounted = true;
@@ -2612,10 +2619,10 @@ export function createRide(canvas, state, sector, events, opts = {}) {
     if (!omen) {
       hide(omenParts.platform); hide(omenParts.pale); hide(omenParts.shadow); hide(omenParts.dent);
       if (!calm || sec.paddle || sec.type === 'lift') return '';
-      omenCool -= dt;
+      omenCool -= dt / habits.recovery(); // after a hard fight the omens hold off: a protected recovery
       if (omenCool > 0) return '';
       const pool = ['lights', 'platform', 'footsteps', 'rub', 'beneath'].filter((k) => k !== lastOmen && !(k === 'beneath' && (sector.index === 0 || !crewAvailable().length)) && !(k === 'platform' && sec.half < 2.2));
-      startOmen(pool[Math.floor(random() * pool.length)]);
+      startOmen(pickWeighted(pool, weigh(pool, habits.h, RAFT_ANSWERS), random));
       return '';
     }
     omen.t += dt;
@@ -4104,7 +4111,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
     bloomAhead() { return spawnBloom(s + 10, offset * 0.6, 1.2); },
     get locks() { return locks.length; },
   };
-  if (import.meta.env.DEV) window.__ride = { get jumpY() { return jumpY; }, raftPA, directRoute, settleRoute, lampLights: () => { return segments.filter((g) => g.lampPos).map((g) => ({ zone: raftZone(track.sectionAt(g.s).sec), ...raftLight(track.sectionAt(g.s).sec, lampColor, { intensity: 9.5, range: 10.5 }) })); }, get shotsFired() { return shotsFired; }, get taught() { return [...taught]; }, parts, camRig, effects, undertowWake: wake, waterField: field, ringParts, wakeParts, streakParts, stir, flashes, gatherLights: () => gatherLights(fx.eye), budget, blaster, get wedges() { return lastWedges; }, get chain() { return lastChain; }, get eyeExposure() { return eyeExposure; }, renderer, get scenery() { return lastScenery; }, room, shots, set padAssist(v) { padAssistTest = v; }, get aimFriction() { return input.aimFriction; }, parts, blooms, tokens, drop, spawnDrop, get assess() { return assess; }, set assessAt(v) { assessAt = v; }, set tokenCool(v) { tokenCool = v; }, get offset() { return offset; }, set offset(v) { offset = v; }, omen: (k) => startOmen(k), get omenState() { return omen; }, get director() { return director; }, get eye() { return fx.eye; }, track, hull, puncture: (c, cause = 'scrape') => hull.puncture(c, cause), overboard: () => goOverboard('test'), free: () => restrained && !restrained.freed && freeRestrained(), shove: () => shove(fx.eye, fx.fwd), ping: () => ping(fx.eye, fx.fwd), fireAt: (dir) => { fireProfile(fx.eye, fx.look, dir || fx.fwd); return state.profile; }, hitTarget: (key) => { const t = targets().find((x) => x.key === key); if (t) { shotProfile = state.profile; t.fn(); } return !!t; }, get wave() { return wave; }, set bot(v) { devBot = v; }, spawnEnc: (kind, extra = {}) => spawn({ e: { kind, ...extra }, s: s + 10, sec: track.sectionAt(s).sec }), get coop() { return { climber, crewGrab, ballast, restrained, protect, focusing, fov, profile: state.profile, special: state.special }; }, reset: () => { overboard = null; capsize = null; trailGrab = null; hull.state.capsized = false; }, capsize: () => startCapsize(), get swimming() { return overboard; }, get capsized() { return capsize; }, get grab() { return trailGrab; }, valve, linked, lifeguard, locker, wake, passengerStep, burst: () => burst(fx.eye, fx.fwd), get s() { return s; }, set s(v) { s = v; }, get waveRide() { return waveRide; }, ropes, debrisPool, get sea() { return sea; }, get hullFx() { return hullFx; }, get raftUp() { return raftUpTest; } };
+  if (import.meta.env.DEV) window.__ride = { get jumpY() { return jumpY; }, habits, omenWeights: (pool) => weigh(pool, habits.h, RAFT_ANSWERS), set omenCool(v) { omenCool = v; }, get omenCool() { return omenCool; }, raftPA, directRoute, settleRoute, lampLights: () => { return segments.filter((g) => g.lampPos).map((g) => ({ zone: raftZone(track.sectionAt(g.s).sec), ...raftLight(track.sectionAt(g.s).sec, lampColor, { intensity: 9.5, range: 10.5 }) })); }, get shotsFired() { return shotsFired; }, get taught() { return [...taught]; }, parts, camRig, effects, undertowWake: wake, waterField: field, ringParts, wakeParts, streakParts, stir, flashes, gatherLights: () => gatherLights(fx.eye), budget, blaster, get wedges() { return lastWedges; }, get chain() { return lastChain; }, get eyeExposure() { return eyeExposure; }, renderer, get scenery() { return lastScenery; }, room, shots, set padAssist(v) { padAssistTest = v; }, get aimFriction() { return input.aimFriction; }, parts, blooms, tokens, drop, spawnDrop, get assess() { return assess; }, set assessAt(v) { assessAt = v; }, set tokenCool(v) { tokenCool = v; }, get offset() { return offset; }, set offset(v) { offset = v; }, omen: (k) => startOmen(k), get omenState() { return omen; }, get director() { return director; }, get eye() { return fx.eye; }, track, hull, puncture: (c, cause = 'scrape') => hull.puncture(c, cause), overboard: () => goOverboard('test'), free: () => restrained && !restrained.freed && freeRestrained(), shove: () => shove(fx.eye, fx.fwd), ping: () => ping(fx.eye, fx.fwd), fireAt: (dir) => { fireProfile(fx.eye, fx.look, dir || fx.fwd); return state.profile; }, hitTarget: (key) => { const t = targets().find((x) => x.key === key); if (t) { shotProfile = state.profile; t.fn(); } return !!t; }, get wave() { return wave; }, set bot(v) { devBot = v; }, spawnEnc: (kind, extra = {}) => spawn({ e: { kind, ...extra }, s: s + 10, sec: track.sectionAt(s).sec }), get coop() { return { climber, crewGrab, ballast, restrained, protect, focusing, fov, profile: state.profile, special: state.special }; }, reset: () => { overboard = null; capsize = null; trailGrab = null; hull.state.capsized = false; }, capsize: () => startCapsize(), get swimming() { return overboard; }, get capsized() { return capsize; }, get grab() { return trailGrab; }, valve, linked, lifeguard, locker, wake, passengerStep, burst: () => burst(fx.eye, fx.fwd), get s() { return s; }, set s(v) { s = v; }, get waveRide() { return waveRide; }, ropes, debrisPool, get sea() { return sea; }, get hullFx() { return hullFx; }, get raftUp() { return raftUpTest; } };
 
   /** ?show=: put the ride into a fixed, readable state for screenshots and visual review. */
   function showcase(name) {

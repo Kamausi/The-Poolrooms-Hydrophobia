@@ -11,7 +11,7 @@ Headless Chromium (software GL, `?quality=low`) driving the game through its DEV
 | `memory.cjs` | Rescues commit at Safe Rooms; the next expedition is authored from memory; false records; the ledger stays clean | ~1 min |
 | `resume.cjs` | Nothing handed out twice on foot; nothing behind the resume point fires on the raft | <1 min |
 | `hud.cjs` | A grabbed teammate gets a roster entry, banner and edge marker that clear when safe; prompts name the current binding; the reticle opens into brackets at something usable; held Ping opens six callouts; the Safe Room is a three-part sheet with transactions and a premature arrival line; settings come in six categories with a preview; the journal has three tabs | ~1 min |
-| `omens.cjs` | Omens on the raft: lights dying in banks, the platform, footsteps above, something beneath that can be shot | <1 min |
+| `omens.cjs` | Habits on the raft (looking back weights the omens behind you, holding still the slow ones, being hurt holds them off); Omens on the raft: lights dying in banks, the platform, footsteps above, something beneath that can be shot | <1 min |
 | `doors.cjs` | The service door held shut stops pushing and is open later; left alone, it gives; lights go out toward you and return | <1 min |
 | `hunt.cjs` | Dormant Blooms fill then lunge; a hit collapses a chamber; the locker occupant; the Lifeguard wakes lamp, head, hand, pursues, grabs, is escaped by you or a crewmate, searches, comes through the service door, gives up | ~1 min |
 | `dread.cjs` | Drift noticed in stages; Locker 0417 "returned"; the lucid survivor and the towel; the Wave Pool chair, display and crossing; the window aftermath | ~2 min |

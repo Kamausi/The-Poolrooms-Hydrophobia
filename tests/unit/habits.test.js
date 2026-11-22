@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { createHabits, weigh, pickWeighted, ANSWERS } from '../../src/ai/habits.js';
+import { createHabits, weigh, pickWeighted, ANSWERS, RAFT_ANSWERS, RAFT_SPEED } from '../../src/ai/habits.js';
 import { rng } from '../../src/math.js';
 
 const run = (frames, o) => { const h = createHabits(); for (let i = 0; i < frames; i++) h.observe({ dt: 1 / 30, ...o }); return h; };
@@ -32,5 +32,15 @@ describe('habits', () => {
     const w = weigh(KINDS, run(600, { scanning: true }).h);
     expect(Math.min(...w)).toBeGreaterThanOrEqual(1);
     for (const k of Object.keys(ANSWERS)) expect(['bloom', 'lifeguard', 'spawn'].includes(k)).toBe(false);
+  });
+  it('on the raft the same habits answer the raft\'s omens', () => {
+    const kinds = ['lights', 'platform', 'footsteps', 'rub', 'beneath'];
+    const top = (hb) => { const w = weigh(kinds, hb.h, RAFT_ANSWERS); return kinds[w.indexOf(Math.max(...w))]; };
+    const scan = run(300, { scanning: true, speed: 6, fast: RAFT_SPEED }), rush = run(300, { speed: 12, fast: RAFT_SPEED }), slow = run(300, { still: true, speed: 0.5, fast: RAFT_SPEED });
+    expect(['lights', 'footsteps']).toContain(top(scan));
+    expect(top(rush)).toBe('platform');
+    expect(['rub', 'beneath']).toContain(top(slow));
+    expect(run(300, { speed: 6, fast: RAFT_SPEED }).h.rushing).toBeLessThan(0.05); // ordinary raft speed is not rushing
+    for (const k of kinds) expect(RAFT_ANSWERS[k]).toBeDefined();
   });
 });
