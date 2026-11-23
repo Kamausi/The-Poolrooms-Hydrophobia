@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { chooseRoute, judgeRoute, GATE_SECONDS, placeName, chooseDirective, judge, nextTrust, wrongCount, createLearning, TRUST_BEFORE_LIE, LEARNED_AFTER } from '../../src/ai/attendant.js';
+import { chooseRoute, judgeRoute, GATE_SECONDS, placeName, chooseDirective, judge, nextTrust, wrongCount, createLearning, TRUST_BEFORE_LIE, LEARNED_AFTER, DOSE_GRACE } from '../../src/ai/attendant.js';
 import { rng } from '../../src/math.js';
 
 const place = { name: 'the north gallery', pos: [10, 0, 2] };
@@ -59,6 +59,19 @@ describe('attendant', () => {
     expect(judge(l, { t: 2, tried: true })).toBe('ignored');
     const lie = chooseDirective({ random: () => 0.5, guests: 2, kind: 'lock', door, lie: true });
     expect(lie.lie && lie.count !== 2).toBe(true);
+  });
+  it('near water it can run the dosing procedure; staying out is doing as told, being in the water after the grace is not', () => {
+    const ds = Array.from({ length: 60 }, (_, i) => chooseDirective({ random: () => (i % 10) / 10, guests: 3, place, water: true }));
+    expect(ds.some((d) => d.kind === 'dose')).toBe(true);
+    expect(Array.from({ length: 30 }, (_, i) => chooseDirective({ random: () => (i % 10) / 10, guests: 3, place })).some((d) => d.kind === 'dose')).toBe(false);
+    const d = chooseDirective({ random: () => 0.5, guests: 3, kind: 'dose', water: true });
+    expect(d.text).toMatch(/^Three guests, please leave the water/);
+    expect(d.grace).toBe(DOSE_GRACE);
+    expect(judge(d, { t: 5 })).toBeNull();
+    expect(judge(d, { t: GATE_SECONDS })).toBe('complied');
+    expect(judge(d, { t: 8, tried: true })).toBe('ignored');
+    const lie = chooseDirective({ random: () => 0.5, guests: 3, kind: 'dose', water: true, lie: true });
+    expect(lie.lie && lie.count !== 3).toBe(true);
   });
   it('names places by compass as the survey map draws them (north is up)', () => {
     expect(placeName(0, -10)).toBe('the north gallery');

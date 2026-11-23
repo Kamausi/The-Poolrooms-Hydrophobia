@@ -1798,7 +1798,8 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     const nearExit = force.kind ? force.kind === 'gate' : powered() && Math.hypot(raftPos[0] - player.pos[0], raftPos[2] - player.pos[2]) < 10;
     const doorCell = openDoorNear();
     const door = doorCell && { name: doorCell.name };
-    const d = chooseDirective({ trust: attendantAI.trust, lastFalse: attendantAI.lastFalse, sectorIndex: sector.index, guests: guestsHere(), place, area: 'this hall', random, kind: force.kind ?? null, lie: force.lie ?? null, nearExit, door });
+    const water = floorCells.length && [...Array(9)].some((_, i) => isWater(...cellOf(player.pos[0] + ((i % 3) - 1) * 6, player.pos[2] + (Math.floor(i / 3) - 1) * 6)));
+    const d = chooseDirective({ trust: attendantAI.trust, lastFalse: attendantAI.lastFalse, sectorIndex: sector.index, guests: guestsHere(), place, area: 'this hall', random, kind: force.kind ?? null, lie: force.lie ?? null, nearExit, door, water });
     attendantAI.tried = false;
     // An honest closure really holds the gate; a false one leaves it open (the boarding prompt says so).
     attendantAI.gateT = d.kind === 'gate' && !d.lie ? d.seconds : 0;
@@ -1807,6 +1808,9 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     attendantAI.lockAt = d.kind === 'lock' ? [doorCell.x, doorCell.z] : null;
     attendantAI.lockT = d.kind === 'lock' && !d.lie ? d.seconds : 0;
     lockCell = attendantAI.lockT > 0 ? attendantAI.lockAt : null;
+    // A dose: an honest one really clouds the water, and nothing in it can take hold while it lasts.
+    attendantAI.doseT = d.kind === 'dose' && !d.lie ? d.seconds : 0;
+    if (attendantAI.doseT) { if (undertow.holding > 0) undertow.holding = 0; floaters.forEach((f) => { if (f.state === 'holding') f.holdT = 0; }); setTimeout(() => hud.caption('[the water turns milky. Whatever was moving in it goes still]'), 1500); }
     attendantAI.d = d; attendantAI.t = 0; attendantAI.held = 0; attendantAI.at = [...player.pos]; attendantAI.issued++;
     if (d.lie) attendantAI.lies++;
     sound.chime?.();
@@ -1830,6 +1834,9 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
       if (A.lockT === 0) lockCell = null;
     }
     A.lockHealth = state.health;
+    if (A.doseT > 0) A.doseT = Math.max(0, A.doseT - dt);
+    // It said leave the water: being in it after the grace is not doing as told.
+    if (d?.kind === 'dose' && A.t > d.grace && inWaterAt(player.pos[0], player.pos[2])) A.tried = true;
     // It said the door was locked: walking through it is trying it.
     if (d?.kind === 'lock' && A.lockAt) { const [px, pz] = cellOf(player.pos[0], player.pos[2]); if (px === A.lockAt[0] && pz === A.lockAt[1]) A.tried = true; }
     if (!d) {
@@ -1850,6 +1857,12 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
         hud.caption('[the gate was open the whole time. Its lamp was green]');
       } else if (d.kind === 'lock') {
         hud.caption(`[the ${d.door} stood open the whole time. Nothing was being serviced]`);
+      } else if (d.kind === 'dose') {
+        // Nothing was dosed. It kept you on the dry tiles, and something was there with you.
+        const dry = floorCells.filter(([x, z]) => !isWater(x, z) && distance(center(x, z), player.pos) > 5 && distance(center(x, z), player.pos) < 11);
+        const c = dry.length ? center(...dry[Math.floor(random() * dry.length)]) : null;
+        if (c && spawnBloom([c[0], 1.2, c[2]])) hud.caption('[the water never clouded. Something was waiting on the dry tiles]');
+        else { if (!fomen && lamps.some((l) => !l.broken && distance(l.pos, player.pos) < 22)) startFomen('lights'); hud.caption('[the water never clouded. The lights over the dry floor go out]'); }
       } else if (d.kind === 'wait') {
         if (!fomen && lamps.some((l) => !l.broken && distance(l.pos, player.pos) < 22)) startFomen('lights');
         else { hud.caption('[the lights in this hall go out, then come back on]'); director.omen(0.3, 10); }
@@ -1862,10 +1875,11 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
       }
       events.facility?.('attendant-lie-followed');
     } else if (outcome === 'complied') {
-      hud.say('THE ATTENDANT', d.kind === 'gate' ? 'Thank you. The boarding gate is open.' : d.kind === 'lock' ? `Thank you. The ${d.door} is open.` : 'Thank you.', 'attendant');
+      hud.say('THE ATTENDANT', d.kind === 'gate' ? 'Thank you. The boarding gate is open.' : d.kind === 'dose' ? 'Thank you. The pools are open.' : d.kind === 'lock' ? `Thank you. The ${d.door} is open.` : 'Thank you.', 'attendant');
     } else if (d.lie) {
       A.caught++;
       if (d.kind === 'lock') hud.caption(`[you walk through the ${d.door}. It was never locked]`);
+      if (d.kind === 'dose') hud.caption('[you are in the water. It is as clear as it was. Nothing was dosed]');
       hud.say('THE ATTENDANT', 'Thank you for your patience.', 'attendant'); // it carries on as if you had
     }
     A.trust = d.lie ? 0 : nextTrust(A.trust, outcome);
@@ -3802,7 +3816,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
         const next = add(undertow.pos, scale(normalize([g[0], 0, g[2]]), Math.min(gl, (1.2 + sector.index * 0.15 + noise) * dt)));
         if (canEnter(...cellOf(next[0], next[2]))) undertow.pos = next;
       }
-      if (!fountain && water && d < 0.9 && undertow.cooldown <= 0 && budget.request(undertow, 'grab')) {
+      if (!fountain && water && d < 0.9 && undertow.cooldown <= 0 && !(attendantAI.doseT > 0) && budget.request(undertow, 'grab')) {
         undertow.holding = 3.5;
         sound.gurgle();
         hud.say('JUNE', 'It has you! Shoot the water under you!', 'crew');
@@ -4173,7 +4187,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
           state.rescued += 1;
           hud.say('???', 'You came back. You came back for me. Is it far? I\'d like a towel.', 'marco');
           hud.toast(`A SURVIVOR · ${state.rescued} RESCUED · +1 ${item === 'cell' ? 'CHARGE CELL' : 'FILTER'} · they swim for the dock`);
-        } else if (budget.request(f, 'grab')) {
+        } else if (!(attendantAI.doseT > 0) && budget.request(f, 'grab')) {
           f.state = 'holding';
           f.holdT = 2.5;
           sound.gurgle();

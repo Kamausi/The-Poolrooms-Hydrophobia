@@ -168,5 +168,48 @@ const { open, check, finish, BASE } = require('./lib.cjs');
   check('the raft\'s route panel shows the water level and what set it from the raft', /^WATER LOW · RAFT: the drain valve opened/.test(fl.raftLine || ''), JSON.stringify(fl));
   check('the boarding prompt shows the same water level', /WATER LOW · RAFT: the drain valve opened/.test(fl.prompt || ''), JSON.stringify(fl));
   check('the current after the dock follows the head of water both modes set: faster high, slower low', fl.high.inside > 1.1 && fl.normal.inside === 1 && fl.low.inside < 0.9 && fl.high.before === 1 && fl.low.before === 1, JSON.stringify(fl));
+
+  // The dosing procedure (ai/attendant.js): near water it asks the guests to leave it. An honest dose really clouds
+  // the water, and nothing in it can take hold while it lasts; staying out is doing as told. A false one doses nothing
+  // and keeps you on the dry tiles, where something is waiting; going back into the water is noticed.
+  const ds = await page.evaluate(() => { const u = window.__underflow;
+    for (const i of [1, 2, 3, 4, 5, 6, 7]) {
+      u.beginSector(i); u.startRide(); u.startExplore(); u.setState({ health: 1e6, drift: 0 }); u.sim(2);
+      const E = window.__explore, A = E.attendant;
+      if (!E.undertow.alive) continue;
+      E.blooms.forEach((b) => { b.active = false; });
+      const wet = E.find('~').filter(([x, z]) => E.isWater(x, z));
+      const dry = E.find('.').filter(([x, z]) => !E.isWater(x, z) && wet.some(([wx, wz]) => Math.abs(wx - x) + Math.abs(wz - z) <= 2));
+      if (!wet.length || !dry.length) continue;
+      const stand = (cell) => { const c = E.center(...cell); E.player.pos[0] = c[0]; E.player.pos[2] = c[2]; };
+      const out = { sector: i };
+      // Honest, and you stay dry: complied.
+      stand(dry[0]); u.sim(1);
+      let d = E.issueDirective({ kind: 'dose', lie: false }); u.sim(1);
+      out.honest = { kind: d.kind, count: d.count, doseT: A.doseT };
+      // While it lasts, the thing in the water cannot take hold, even beside you in it.
+      stand(wet[0]); E.undertow.pos = [...E.player.pos]; E.undertow.cooldown = 0; u.sim(60);
+      out.honest.heldInDose = E.undertow.holding > 0;
+      stand(dry[0]); A.tried = false; u.sim(600);
+      out.honest.outcome = A.outcome; out.honest.after = A.doseT;
+      // Honest, and you stay in the water: ignored, nothing else.
+      A.cool = 1e9; A.d = null;
+      d = E.issueDirective({ kind: 'dose', lie: false }); stand(wet[0]); E.undertow.pos = [500, 0, 500]; u.sim(240);
+      out.stayed = { outcome: A.outcome, d: !!A.d, tried: A.tried };
+      A.d = null;
+      // False: it miscounts, nothing is dosed, and staying dry is followed by something on the dry tiles.
+      stand(dry[0]); u.sim(1);
+      d = E.issueDirective({ kind: 'dose', lie: true });
+      out.lie = { lie: d.lie, count: d.count, guests: u.state.claims.at(-1).actual, doseT: A.doseT };
+      const before = E.blooms.filter((b) => b.active).length;
+      u.sim(640);
+      out.lie.outcome = A.outcome; out.lie.blooms = E.blooms.filter((b) => b.active).length - before; out.lie.caption = document.getElementById('caption').textContent;
+      out.noted = u.state.claims.at(-1).what;
+      return out;
+    }
+    return { none: true }; });
+  check('an honest dose clouds the water for twenty seconds, nothing in it can take hold, and staying out is doing as told', !ds.none && ds.honest.kind === 'dose' && ds.honest.doseT > 15 && !ds.honest.heldInDose && ds.honest.outcome === 'complied' && ds.honest.after === 0, JSON.stringify(ds));
+  check('staying in the water after the grace is ignoring it, and costs nothing else', !ds.none && ds.stayed.outcome === 'ignored' && !ds.stayed.d, JSON.stringify(ds.stayed));
+  check('a false dose miscounts the guests, doses nothing, and keeping to the dry tiles finds something there; the notes keep it', !ds.none && ds.lie.lie && ds.lie.count !== ds.lie.guests && ds.lie.doseT === 0 && ds.lie.outcome === 'complied' && /never clouded/.test(ds.lie.caption) && ds.noted === 'dose', JSON.stringify(ds.lie));
   await finish(browser, errors);
 })();

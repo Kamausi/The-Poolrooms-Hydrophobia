@@ -16,10 +16,16 @@
 // not. An honest instruction always has the right count. The player's own status (health, the HUD's crew list) is
 // never falsified: the lie is in what belongs to the facility.
 //
+// Near water it can run the dosing procedure: "please leave the water, the pools are being dosed". An honest dose
+// really clouds the water for twenty seconds, and nothing in it can take hold of anyone while it lasts; a false one
+// doses nothing and keeps you on the dry tiles, where something is waiting.
+//
 // Rules: never false in the first attraction (it teaches that the Attendant is usually right), never two false in a
 // row, and ignoring an instruction, honest or not, costs nothing. Pure and unit-tested.
 
 export const DIRECTIVE_KINDS = ['wait', 'proceed'];
+/** How long you have to get out of the water when a dose is announced, before staying in counts as ignoring it. */
+export const DOSE_GRACE = 5;
 /** Near the raft the Attendant can also close the boarding gate (an honest closure really holds it shut). */
 export const GATE_SECONDS = 20;
 
@@ -49,9 +55,10 @@ export function placeName(dx, dz) {
  * one was a lie; `place` is { name, pos } for a proceed instruction (null when there is nowhere suitable).
  * Returns { kind, lie, count, text, pos?, seconds }.
  */
-export function chooseDirective({ trust = 0, lastFalse = false, sectorIndex = 0, guests = 1, place = null, area = 'the gallery', random = Math.random, kind: wantKind = null, lie: wantLie = null, nearExit = false, door = null }) {
+export function chooseDirective({ trust = 0, lastFalse = false, sectorIndex = 0, guests = 1, place = null, area = 'the gallery', random = Math.random, kind: wantKind = null, lie: wantLie = null, nearExit = false, door = null, water = false }) {
   // `door` is { name } for a door you have opened that is near you; the Attendant may lock it.
-  const kinds = nearExit ? ['gate'] : [...(place ? DIRECTIVE_KINDS : ['wait']), ...(door ? ['lock'] : [])];
+  // `water`: there is water near you; the Attendant may dose it.
+  const kinds = nearExit ? ['gate'] : [...(place ? DIRECTIVE_KINDS : ['wait']), ...(door ? ['lock'] : []), ...(water ? ['dose'] : [])];
   const pickKind = kinds[Math.floor(random() * kinds.length)];
   const kind = wantKind && kinds.includes(wantKind) ? wantKind : pickKind; // `kind` and `lie` force a choice (tests, ?debug)
   const canLie = sectorIndex > 0 && !lastFalse && trust >= TRUST_BEFORE_LIE;
@@ -69,6 +76,10 @@ export function chooseDirective({ trust = 0, lastFalse = false, sectorIndex = 0,
     return { kind, lie, count, seconds: GATE_SECONDS, door: door.name,
       text: `${who}, the ${door.name} is locked for the maintenance cycle. It will reopen in twenty seconds.` };
   }
+  if (kind === 'dose') {
+    return { kind, lie, count, seconds: GATE_SECONDS, grace: DOSE_GRACE,
+      text: `${who}, please leave the water. The pools are being dosed for twenty seconds.` };
+  }
   if (kind === 'wait') {
     return { kind, lie, count, seconds: 10, window: 16,
       text: `${who}, please remain where you are while ${area} is serviced. Thank you for your patience.` };
@@ -84,7 +95,8 @@ export function chooseDirective({ trust = 0, lastFalse = false, sectorIndex = 0,
 export function judge(d, { held = 0, t = 0, moved = false, distance = Infinity, tried = false }) {
   // The gate: waiting it out is doing as told; trying to board anyway is not.
   // A lock likewise: walking through the door it said was locked is not doing as told.
-  if (d.kind === 'gate' || d.kind === 'lock') return tried ? 'ignored' : t >= d.seconds ? 'complied' : null;
+  // A dose likewise: staying in, or going back into, the water it is dosing is not doing as told.
+  if (d.kind === 'gate' || d.kind === 'lock' || d.kind === 'dose') return tried ? 'ignored' : t >= d.seconds ? 'complied' : null;
   if (d.kind === 'wait') {
     if (held >= d.seconds) return 'complied';
     if (moved || t > d.window) return 'ignored';
