@@ -31,6 +31,25 @@ const { open, newCampaign, check, finish } = require('./lib.cjs');
     return { scan, slow, faded: R.habits.h.scanning < t0, rec0: +rec0.toFixed(2), rec1: +rec1.toFixed(2) }; });
   check('on the raft, looking back a lot makes the omens behind and above you the likeliest; holding still makes the slow ones likeliest', ['lights', 'footsteps'].includes(hb.scan.top) && hb.scan.h > 0.5 && ['rub', 'beneath'].includes(hb.slow.top) && hb.faded, JSON.stringify(hb));
   check('after the raft is hurt the next omen waits longer', hb.rec1 > hb.rec0 + 0.5, JSON.stringify(hb));
+  // The learned tell on the raft (ai/attendant.js createLearning): shove three swelling Blooms back, and the next one
+  // to swell leans into the shove (it breathes in twice, the first time is captioned); shooting is the answer.
+  const lt = await page.evaluate(() => { const u = window.__underflow;
+    u.beginSector(2); u.startRide(); u.setState({ health: 1e6 }); u.sim(2);
+    const R = window.__ride;
+    const put = () => { for (const b of R.blooms) b.active = false; const b = R.blooms.find((x) => !x.active);
+      Object.assign(b, { active: true, dying: 0, hp: 5, noticed: true, flinch: 0, stagger: 0, warned: false, heavy: false, lunged: false, goal: null, spitter: false, rear: false, retreat: false, pos: R.track.lateral(R.s + 3.2, R.offset, 1.2) }); return b; };
+    const out = { shoves: [] };
+    for (let k = 0; k < 4; k++) {
+      const b = put(); u.sim(1); // close enough to be swelling
+      const warned = b.warned, heavy = b.heavy;
+      const d0 = Math.hypot(b.pos[0] - R.eye[0], b.pos[1] - R.eye[1], b.pos[2] - R.eye[2]);
+      R.shove(); for (let j = 0; j < 12; j++) u.sim(1); // shoves have a short cooldown
+      out.shoves.push({ warned, heavy, flinched: b.flinch > 0 || b.stagger > 0 });
+    }
+    out.learned = R.learning.s.spent; out.caption = document.getElementById('caption').textContent;
+    for (const b of R.blooms) b.active = false;
+    return out; });
+  check('on the raft, after three swelling Blooms are shoved back, the next one leans into the shove; it is captioned', lt.shoves.length === 4 && lt.shoves.slice(0, 3).every((x) => x.warned && !x.heavy && x.flinched) && lt.shoves[3].warned && lt.shoves[3].heavy && !lt.shoves[3].flinched && lt.learned && /does not flinch/.test(lt.caption), JSON.stringify(lt));
   let r = await run('lights', `let darkSeen = false; for (let k = 0; k < 120; k++) { u.step(5); if (R.omenState?.stage === 'dark') darkSeen = true; if (!R.omenState) break; } return { darkSeen, ended: !R.omenState };`);
   check('lights die toward the raft, then return; the director holds', r.held && r.darkSeen && r.ended, JSON.stringify(r));
   r = await run('platform', `u.setState({ health: 100 }); for (let k = 0; k < 40; k++) { u.step(5); if (!R.omenState) break; } return { health: u.state.health, ended: !R.omenState };`);

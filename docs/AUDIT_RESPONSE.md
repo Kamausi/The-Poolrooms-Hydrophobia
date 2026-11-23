@@ -43,7 +43,7 @@ The audit's director table lists six player signals. Each row below is one signa
 | Rushes → misdirection, not more enemies | **Built** on foot; on the raft rushing (boosting, water over 10 m/s) weights the platform that crashes in ahead | `src/ai/habits.js`, `src/ride.js` | `habits.test.js` |
 | Several intense encounters → fewer threats, more anticipation | **Built**, on foot and on the raft. The omens hold off up to 2.5 times as long after you have been hurt. | `src/ai/habits.js`, `src/ride.js` | `habits.test.js`, `omens.cjs` |
 | Keeps trusting facility instructions → a subtle but consequential contradiction | **Built** on foot and, through the channels named before junctions, on the raft. After two instructions followed in a row, the next may be false. A false one always gets the number of guests wrong, which the player can check. It is never false in the first attraction, and never false twice in a row. | `src/ai/attendant.js` | `attendant.test.js`, `horror.cjs` |
-| Has learned an enemy's behaviour → an occasional telegraphed exception | **Built** for the Bloom burst. After you have stepped back from three wind-ups, one Bloom per dock keeps coming while it swells. It breathes in twice, and the first time it is captioned. Its timing and damage are unchanged; shooting it or running still works. | `src/ai/attendant.js` (`createLearning`), `src/explore.js` | `attendant.test.js`, `horror.cjs` |
+| Has learned an enemy's behaviour → an occasional telegraphed exception | **Built** for the Bloom burst. After you have stepped back from three wind-ups, one Bloom per dock keeps coming while it swells. It breathes in twice, and the first time it is captioned. Its timing and damage are unchanged; shooting it or running still works. On the raft the learned answer is the shove: after three swelling Blooms have been shoved back, one Bloom per attraction leans into the shove instead, breathes in twice as it swells, and is captioned the first time; shooting it is the answer. | `src/ai/attendant.js` (`createLearning`), `src/explore.js`, `src/ride.js` | `attendant.test.js`, `horror.cjs`, `omens.cjs` |
 | Stays in a supposedly safe area → unsettling evidence, no attack | **Built**. On foot lingering weights the slow omens: a door handle turning, a crack of light under a door, silence; on the raft braking or near-still water weights the rub along the hull and the thing beneath. | `src/ai/habits.js`, `src/ride.js` | `habits.test.js`, `omens.cjs` |
 | Weighted selection, cooldowns, protected recovery | **Built** | `src/ai/habits.js`, `src/explore.js` | `habits.test.js` |
 | Any of the above on the raft | **Not built.** The raft keeps its own director (dread, holds, attack slots). | | |
@@ -115,7 +115,6 @@ The audit's gate, as it wrote it. **0 of 12 verified**: every item needs unfamil
 ## Not built, all in one place
 
 - The Attendant running procedures other than waits, directions, locks and channels.
-- The learned-behaviour exception on the raft (the trust signal is there, through the junction channels; the habits weight the raft's omens).
 - A controller-first usability pass judged by a person on real controllers (the tests use an emulated pad).
 - The loop restructured around water flow, with a consequence stage at every dock.
 - The architectural credibility pass; water that breaks the facility's rules.

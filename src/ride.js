@@ -38,7 +38,7 @@ import { magnet, friction, wedges as threatWedges } from './feel/aim.js';
 import { settings } from './settings.js';
 import { tipAllowed } from './controltiers.js';
 import { raftLight, raftZone } from './render/lightstyle.js';
-import { chooseRoute, judgeRoute, nextTrust } from './ai/attendant.js';
+import { chooseRoute, judgeRoute, nextTrust, createLearning } from './ai/attendant.js';
 import { createHabits, weigh, pickWeighted, RAFT_ANSWERS, RAFT_SPEED } from './ai/habits.js';
 import { noteClaim } from './fieldnotes.js';
 import { AMBIENT } from './sectors.js';
@@ -306,6 +306,11 @@ export function createRide(canvas, state, sector, events, opts = {}) {
   // What you have been doing on the raft (ai/habits.js) decides which omen comes, and a hard fight holds them off.
   const habits = createHabits();
   let habHealth = state.health;
+  // A learned tell (ai/attendant.js createLearning): on the water the answer to a swelling Bloom is the shove. After you
+  // have shoved three of them back, one Bloom in this attraction leans into the shove instead. It breathes in twice as
+  // it swells and the first time it is captioned; timing and damage are unchanged. The answer is to shoot it.
+  const learning = createLearning();
+  let learnedTold = false;
   // A stretch of lamps that has gone out: dark between edge and far. The edge walks toward the raft as the
   // lights die, then away from it as they come back.
   const lightsOut = (segS) => omen?.kind === 'lights' && segS >= omen.edge && segS <= omen.far;
@@ -897,6 +902,13 @@ export function createRide(canvas, state, sector, events, opts = {}) {
     }
     let any = false;
     for (const b of blooms) if (b.active && !b.dying && distance(b.pos, eye) < 3.4) {
+      if (b.heavy) {
+        // The exception: it leans into the shove and keeps coming.
+        if (!learnedTold) { learnedTold = true; hud.caption('[it leans into the shove. It does not flinch. Shoot it]'); }
+        any = true;
+        continue;
+      }
+      if (b.warned) learning.stepAway(); // a swelling Bloom shoved back: the tell, answered
       b.stagger = 0.9 * power;
       b.flinch = power; // interrupted: it backs off before it comes again
       b.pos = add(b.pos, scale(normalize(sub(b.pos, eye)), 2.5 * power));
@@ -3486,7 +3498,13 @@ export function createRide(canvas, state, sector, events, opts = {}) {
       b.phase += dt * 3;
       // Wind-up: a Bloom about to burst swells and brightens. Readable, so you can answer it.
       const windup = !b.goal && !b.spitter ? clamp((4.5 - d) / 3.4, 0, 1) : 0;
-      if (windup > 0 && !b.warned) { b.warned = true; sound.doppler(bloomDoppler(b), () => sound.breath(soundDir(fx.eye, fx.fwd, b.pos).pan)); }
+      if (windup > 0 && !b.warned) {
+        b.warned = true;
+        b.heavy = learning.takeException(); // the one that breaks the learned answer
+        const pan = soundDir(fx.eye, fx.fwd, b.pos).pan;
+        sound.doppler(bloomDoppler(b), () => sound.breath(pan));
+        if (b.heavy) setTimeout(() => sound.breath(pan), 300); // it breathes in twice
+      }
       const pulse = (0.45 + Math.sin(b.phase * (1 + windup * 3)) * 0.05) * (1 + windup * 0.45);
       const squash = (b.stagger > 0 ? 0.75 : 1) * (d > 22 ? 1 + Math.sin(b.phase * 0.5) * 0.04 : 1); // resting: slow breathing
       writeYaw(b.core.matrix, [b.pos[0], b.pos[1] + Math.sin(b.phase * 0.7) * 0.15, b.pos[2]], b.phase * 0.4, pulse / squash, pulse * 0.92 * squash, pulse);
@@ -4111,7 +4129,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
     bloomAhead() { return spawnBloom(s + 10, offset * 0.6, 1.2); },
     get locks() { return locks.length; },
   };
-  if (import.meta.env.DEV) window.__ride = { get jumpY() { return jumpY; }, habits, omenWeights: (pool) => weigh(pool, habits.h, RAFT_ANSWERS), set omenCool(v) { omenCool = v; }, get omenCool() { return omenCool; }, raftPA, directRoute, settleRoute, lampLights: () => { return segments.filter((g) => g.lampPos).map((g) => ({ zone: raftZone(track.sectionAt(g.s).sec), ...raftLight(track.sectionAt(g.s).sec, lampColor, { intensity: 9.5, range: 10.5 }) })); }, get shotsFired() { return shotsFired; }, get taught() { return [...taught]; }, parts, camRig, effects, undertowWake: wake, waterField: field, ringParts, wakeParts, streakParts, stir, flashes, gatherLights: () => gatherLights(fx.eye), budget, blaster, get wedges() { return lastWedges; }, get chain() { return lastChain; }, get eyeExposure() { return eyeExposure; }, renderer, get scenery() { return lastScenery; }, room, shots, set padAssist(v) { padAssistTest = v; }, get aimFriction() { return input.aimFriction; }, parts, blooms, tokens, drop, spawnDrop, get assess() { return assess; }, set assessAt(v) { assessAt = v; }, set tokenCool(v) { tokenCool = v; }, get offset() { return offset; }, set offset(v) { offset = v; }, omen: (k) => startOmen(k), get omenState() { return omen; }, get director() { return director; }, get eye() { return fx.eye; }, track, hull, puncture: (c, cause = 'scrape') => hull.puncture(c, cause), overboard: () => goOverboard('test'), free: () => restrained && !restrained.freed && freeRestrained(), shove: () => shove(fx.eye, fx.fwd), ping: () => ping(fx.eye, fx.fwd), fireAt: (dir) => { fireProfile(fx.eye, fx.look, dir || fx.fwd); return state.profile; }, hitTarget: (key) => { const t = targets().find((x) => x.key === key); if (t) { shotProfile = state.profile; t.fn(); } return !!t; }, get wave() { return wave; }, set bot(v) { devBot = v; }, spawnEnc: (kind, extra = {}) => spawn({ e: { kind, ...extra }, s: s + 10, sec: track.sectionAt(s).sec }), get coop() { return { climber, crewGrab, ballast, restrained, protect, focusing, fov, profile: state.profile, special: state.special }; }, reset: () => { overboard = null; capsize = null; trailGrab = null; hull.state.capsized = false; }, capsize: () => startCapsize(), get swimming() { return overboard; }, get capsized() { return capsize; }, get grab() { return trailGrab; }, valve, linked, lifeguard, locker, wake, passengerStep, burst: () => burst(fx.eye, fx.fwd), get s() { return s; }, set s(v) { s = v; }, get waveRide() { return waveRide; }, ropes, debrisPool, get sea() { return sea; }, get hullFx() { return hullFx; }, get raftUp() { return raftUpTest; } };
+  if (import.meta.env.DEV) window.__ride = { get jumpY() { return jumpY; }, learning, habits, omenWeights: (pool) => weigh(pool, habits.h, RAFT_ANSWERS), set omenCool(v) { omenCool = v; }, get omenCool() { return omenCool; }, raftPA, directRoute, settleRoute, lampLights: () => { return segments.filter((g) => g.lampPos).map((g) => ({ zone: raftZone(track.sectionAt(g.s).sec), ...raftLight(track.sectionAt(g.s).sec, lampColor, { intensity: 9.5, range: 10.5 }) })); }, get shotsFired() { return shotsFired; }, get taught() { return [...taught]; }, parts, camRig, effects, undertowWake: wake, waterField: field, ringParts, wakeParts, streakParts, stir, flashes, gatherLights: () => gatherLights(fx.eye), budget, blaster, get wedges() { return lastWedges; }, get chain() { return lastChain; }, get eyeExposure() { return eyeExposure; }, renderer, get scenery() { return lastScenery; }, room, shots, set padAssist(v) { padAssistTest = v; }, get aimFriction() { return input.aimFriction; }, parts, blooms, tokens, drop, spawnDrop, get assess() { return assess; }, set assessAt(v) { assessAt = v; }, set tokenCool(v) { tokenCool = v; }, get offset() { return offset; }, set offset(v) { offset = v; }, omen: (k) => startOmen(k), get omenState() { return omen; }, get director() { return director; }, get eye() { return fx.eye; }, track, hull, puncture: (c, cause = 'scrape') => hull.puncture(c, cause), overboard: () => goOverboard('test'), free: () => restrained && !restrained.freed && freeRestrained(), shove: () => shove(fx.eye, fx.fwd), ping: () => ping(fx.eye, fx.fwd), fireAt: (dir) => { fireProfile(fx.eye, fx.look, dir || fx.fwd); return state.profile; }, hitTarget: (key) => { const t = targets().find((x) => x.key === key); if (t) { shotProfile = state.profile; t.fn(); } return !!t; }, get wave() { return wave; }, set bot(v) { devBot = v; }, spawnEnc: (kind, extra = {}) => spawn({ e: { kind, ...extra }, s: s + 10, sec: track.sectionAt(s).sec }), get coop() { return { climber, crewGrab, ballast, restrained, protect, focusing, fov, profile: state.profile, special: state.special }; }, reset: () => { overboard = null; capsize = null; trailGrab = null; hull.state.capsized = false; }, capsize: () => startCapsize(), get swimming() { return overboard; }, get capsized() { return capsize; }, get grab() { return trailGrab; }, valve, linked, lifeguard, locker, wake, passengerStep, burst: () => burst(fx.eye, fx.fwd), get s() { return s; }, set s(v) { s = v; }, get waveRide() { return waveRide; }, ropes, debrisPool, get sea() { return sea; }, get hullFx() { return hullFx; }, get raftUp() { return raftUpTest; } };
 
   /** ?show=: put the ride into a fixed, readable state for screenshots and visual review. */
   function showcase(name) {
