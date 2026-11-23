@@ -19,6 +19,7 @@ import { initHud, hud } from './hud.js';
 import { sound } from './audio/audio.js';
 import { mixFor } from './audio/zones.js';
 import { departure } from './consequence.js';
+import { moves as waterMoves, gaugeLine } from './flow.js';
 import { quality, setTier, applyQualitySetting } from './render/quality.js';
 import { createAutoTier, thinning } from './render/tiers.js';
 import { summarize, report as benchReport } from './debug/bench.js';
@@ -331,7 +332,7 @@ const events = {
   board() {
     // The consequence stage (consequence.js): what was left behind at this dock and what it changes on the water ahead.
     {
-      const report = departure({ sector: SECTORS[state.sectorIndex]?.name || state.sectorKey, powered: !!state.power?.[state.sectorKey], routeMod: state.routeMod?.[state.sectorKey] || null });
+      const report = departure({ sector: SECTORS[state.sectorIndex]?.name || state.sectorKey, powered: !!state.power?.[state.sectorKey], routeMod: state.routeMod?.[state.sectorKey] || null, water: waterMoves(state, state.sectorKey).some((m) => m.d) ? gaugeLine(waterMoves(state, state.sectorKey)).replace(/^WATER /, 'stands ').toLowerCase() : null });
       (state.departures ||= {})[state.sectorKey] = report;
       hud.toast(`LEFT BEHIND · ${report.text.join(' ')}`);
     }

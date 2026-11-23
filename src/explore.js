@@ -66,6 +66,7 @@ import { chooseDirective, judge as judgeDirective, nextTrust, placeName, createL
 import { plan as planFinds, collect as collectFind, headcountLine } from './collectibles.js';
 import { planColumns, pushOutOfColumns, columnBlocks, planArches } from './poolrooms.js';
 import { showModal, hideModal } from './ui.js';
+import { moves as waterMoves, gaugeLine } from './flow.js';
 
 /** Machines whose setting changes the way out: [title, option A, option B] with [label, routeMod, toast]. */
 const ROUTE_CHOICES = {
@@ -2489,6 +2490,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
         ask(3, 'V · Valve tool: drain the flooded passage');
         if (wasPressed('v')) {
           (state.drained ||= {})[key] = true;
+          (state.drainedBy ||= {})[key] = 'foot';
           sound.gurgle();
           hud.toast('DRAINED BY HAND · IT TAKES EFFECT NEXT TIME YOU LAND HERE');
         }
@@ -2498,7 +2500,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
       if (gateHeld) {
         ask(3, `BOARDING GATE CLOSED · MAINTENANCE CYCLE · ${Math.ceil(attendantAI.gateT)} s`);
         if (wasPressed('e')) { attendantAI.tried = true; sound.wrong(); }
-      } else ask(2, powered() ? 'E · Board the raft (service gate open)' : 'E · Leave early (circuit dark: bypass exit, you keep what you earned, grade capped at B)');
+      } else ask(2, `${powered() ? 'E · Board the raft (service gate open)' : 'E · Leave early (circuit dark: bypass exit, you keep what you earned, grade capped at B)'} · ${gaugeLine(waterMoves(state, key))}`);
       if (!gateHeld && wasPressed('e') && attendantAI.d?.kind === 'gate') attendantAI.tried = true; // it said closed; you tried it
       if (!gateHeld && wasPressed('e') && surge && !surge.done) {
         // Leaving before the surge passes: the line goes, and the way out floods behind you.

@@ -137,5 +137,36 @@ const { open, check, finish, BASE } = require('./lib.cjs');
     return out; });
   check('leaving a dock dark: the crew says so and the stretch after the dock runs on emergency light (dimmer lamps)', cq.dark?.rep?.dim && /emergency light/.test(cq.dark.rep.text[0]) && cq.dark.range && cq.dark.ratio < 0.9, JSON.stringify(cq));
   check('leaving it lit: the report names the open service gate and nothing is dimmed', cq.lit && !cq.lit.rep.dim && /service gate/.test(cq.lit.rep.text[0]) && !cq.lit.range, JSON.stringify(cq.lit));
+
+  // Water flow joins the modes (flow.js): the raft's valve and breaker and the dock's choices move one head of water.
+  // The raft's route panel and the boarding prompt show it with what set it, and the current after the dock follows it.
+  const fl = await page.evaluate(() => { const u = window.__underflow;
+    for (const i of [1, 2, 3]) {
+      u.beginSector(i); u.startRide(); u.setState({ health: 1e6 }); u.sim(1);
+      const key = u.state.sectorKey, R0 = window.__ride;
+      if (!R0.afterDock) continue;
+      const out = { sector: i };
+      // From the raft: the valve drains it, the breaker starts the pumps.
+      (u.state.drained ||= {})[key] = true; (u.state.drainedBy ||= {})[key] = 'raft';
+      out.raftLine = R0.routeLines().find((l) => /^WATER/.test(l)) || null;
+      // On foot, the boarding prompt shows the same level.
+      u.startExplore(); u.setState({ health: 1e6, drift: 0 }); const E = window.__explore;
+      E.player.pos[0] = E.raftPos[0] + 1; E.player.pos[2] = E.raftPos[2]; u.step(2);
+      out.prompt = E.prompts.find((p) => /Board|Leave early/.test(p)) || E.prompts.join(' | ');
+      // The current after the dock: high water against low.
+      const ride = (mods) => {
+        Object.assign(u.state, { drained: {}, drainedBy: {}, pumps: {}, power: {}, routeMod: {}, landing: null }, mods);
+        u.startRide(); u.setState({ health: 1e6 }); const R = window.__ride;
+        R.s = R.afterDock[0] + 4; u.sim(1); const inside = R.flowHere(); R.s = Math.max(0, R.afterDock[0] - 60); const before = R.flowHere(); return { inside, before };
+      };
+      out.high = ride({ routeMod: { [key]: 'flooded' }, pumps: { [key]: true } });
+      out.normal = ride({});
+      out.low = ride({ routeMod: { [key]: 'drained' }, drained: { [key]: true } });
+      return out;
+    }
+    return { none: true }; });
+  check('the raft\'s route panel shows the water level and what set it from the raft', /^WATER LOW · RAFT: the drain valve opened/.test(fl.raftLine || ''), JSON.stringify(fl));
+  check('the boarding prompt shows the same water level', /WATER LOW · RAFT: the drain valve opened/.test(fl.prompt || ''), JSON.stringify(fl));
+  check('the current after the dock follows the head of water both modes set: faster high, slower low', fl.high.inside > 1.1 && fl.normal.inside === 1 && fl.low.inside < 0.9 && fl.high.before === 1 && fl.low.before === 1, JSON.stringify(fl));
   await finish(browser, errors);
 })();

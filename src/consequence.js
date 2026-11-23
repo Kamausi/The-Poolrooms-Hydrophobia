@@ -11,13 +11,15 @@ export const DARK_STRETCH = 0.5;
  * What leaving this dock means. `powered`: the circuit was restored; `routeMod`: the way-out choice ('flooded',
  * 'drained', 'bypass' or none). Returns { sector, lines: [{ did, so }], dim, text }.
  */
-export function departure({ sector, powered = false, routeMod = null }) {
+export function departure({ sector, powered = false, routeMod = null, water = null }) {
   const lines = [];
   if (powered) lines.push({ did: 'The circuit is restored', so: 'the service gate stands open and the way out is lit' });
   else lines.push({ did: 'You left the dock dark', so: 'the channel ahead runs on emergency light', dim: true });
   if (powered && routeMod === 'flooded') lines.push({ did: 'You raised the pool', so: 'the outlet is flooded: fast, deep, with things in it' });
   if (powered && routeMod === 'drained') lines.push({ did: 'You drained the water away', so: 'the outlet is exposed and rough' });
   if (powered && routeMod === 'bypass') lines.push({ did: 'You kept the water circulating', so: 'the bypass is calm' });
+  // The head of water (flow.js), when anything moved it: one line naming the level both modes set.
+  if (water) lines.push({ did: 'The water', so: water });
   return { sector, lines, dim: lines.some((l) => l.dim), text: lines.map((l) => `${l.did}: ${l.so}.`) };
 }
 

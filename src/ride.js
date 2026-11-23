@@ -41,6 +41,7 @@ import { raftLight, raftZone } from './render/lightstyle.js';
 import { chooseRoute, judgeRoute, nextTrust, createLearning } from './ai/attendant.js';
 import { createHabits, weigh, pickWeighted, RAFT_ANSWERS, RAFT_SPEED } from './ai/habits.js';
 import { DARK_STRETCH, inDarkStretch } from './consequence.js';
+import { moves as waterMoves, head as waterHead, gaugeLine, currentFactor } from './flow.js';
 import { noteClaim } from './fieldnotes.js';
 import { AMBIENT } from './sectors.js';
 import { Track, EXIT_OFFSET, section } from './track.js';
@@ -644,8 +645,8 @@ export function createRide(canvas, state, sector, events, opts = {}) {
   let lampSag = 1, lampSagT = 0; // machinery loading pulls the lights down for a moment
   // The consequence stage (consequence.js): a dock left without power leaves the stretch after it on emergency light,
   // from the dock's holding pool to the next room.
-  let darkRange = (() => {
-    if (!state.departures?.[state.sectorKey]?.dim) return null;
+  // The stretch after this attraction's dock: from the holding pool to the next room (flow.js and consequence.js).
+  const afterDock = (() => {
     for (let s0 = 0, k = 0; k < 40; k++) {
       const p = track.nextRoom(s0, 'pool');
       if (!p) return null;
@@ -654,6 +655,9 @@ export function createRide(canvas, state, sector, events, opts = {}) {
     }
     return null;
   })();
+  let darkRange = state.departures?.[state.sectorKey]?.dim ? afterDock : null;
+  /** How the head of water changes the current here: only in the stretch after the dock, only where the water moves. */
+  const flowHere = (sec) => (afterDock && s >= afterDock[0] && s < afterDock[1] && !['pool', 'lift', 'bay'].includes(sec.type) ? currentFactor(waterHead(waterMoves(state, state.sectorKey))) : 1);
   state.profile ||= 'pulse';
   state.special ??= 60;
   state.stats ||= { freed: 0, revives: 0, repairs: 0, pressureRepairs: 0, survivors: 0, routes: [], shared: 0, shoves: 0 };
@@ -1619,6 +1623,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
         if (valve.hits >= 3) {
           valve.turned = 0.001;
           (state.drained ||= {})[state.sectorKey] = true;
+          (state.drainedBy ||= {})[state.sectorKey] = 'raft';
           sound.gurgle();
           events.score(150, 'VALVE OPENED · PASSAGE DRAINING');
           hud.caption('[water draining somewhere below — ahead]');
@@ -1629,6 +1634,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
       breaker.sec.lit = true;
       sound.gate();
       hud.toast('BREAKER THROWN · TUBE LIGHTS ON');
+      (state.pumps ||= {})[state.sectorKey] = true; // the water rises here (flow.js)
       // Lights need pumps. Pumps move water. Something moves with the water.
       sound.pump();
       hud.caption('[pumps starting up — ahead]');
@@ -1852,6 +1858,8 @@ export function createRide(canvas, state, sector, events, opts = {}) {
     const braking = (isDown('s') || isDown('arrowdown') || stickBack) && !!sec.brake && !paddling;
     if (boosting) target *= 1.6;
     if (braking) target *= 0.38;
+    // The head of water (flow.js): after the dock the current runs faster on high water and slower on low.
+    target *= flowHere(sec);
     if (paddling && !backstroke) target += sec.paddle ? 3.4 : 1;
     if (backstroke) target = Math.max(0, target - (sec.paddle ? 1.5 : 2.6));
     // In still water the crew paddles too, so you can shoot. Alone, nobody does. If they all stop at once, listen.
@@ -2435,6 +2443,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
       } else if (next.sec.type === 'bay') lines.push(`SAFE ROOM ARRIVAL BAY ${d ? `IN ${d} M` : 'HERE'}`);
       else if (next.sec.type === 'drop') lines.push(`SPILLWAY DROP IN ${d} M · NO CHECKPOINT`);
     }
+    { const ms = waterMoves(state, state.sectorKey); if (ms.some((m) => m.d)) lines.push(gaugeLine(ms)); }
     // Steady facts (fit, Ride Control piloting) live in the Safe Room and pause; the HUD shows what changes.
     const stance = [ locks.length ? `LOCKS ${locks.length}` : '', braced ? 'BRACED' : ''].filter(Boolean).join(' · ');
     if (stance) lines.push(stance);
@@ -4142,7 +4151,7 @@ export function createRide(canvas, state, sector, events, opts = {}) {
     bloomAhead() { return spawnBloom(s + 10, offset * 0.6, 1.2); },
     get locks() { return locks.length; },
   };
-  if (import.meta.env.DEV) window.__ride = { get jumpY() { return jumpY; }, get darkRange() { return darkRange; }, set darkRange(v) { darkRange = v; }, learning, habits, omenWeights: (pool) => weigh(pool, habits.h, RAFT_ANSWERS), set omenCool(v) { omenCool = v; }, get omenCool() { return omenCool; }, raftPA, directRoute, settleRoute, lampLights: () => { return segments.filter((g) => g.lampPos).map((g) => ({ zone: raftZone(track.sectionAt(g.s).sec), ...raftLight(track.sectionAt(g.s).sec, lampColor, { intensity: 9.5, range: 10.5 }) })); }, get shotsFired() { return shotsFired; }, get taught() { return [...taught]; }, parts, camRig, effects, undertowWake: wake, waterField: field, ringParts, wakeParts, streakParts, stir, flashes, gatherLights: () => gatherLights(fx.eye), budget, blaster, get wedges() { return lastWedges; }, get chain() { return lastChain; }, get eyeExposure() { return eyeExposure; }, renderer, get scenery() { return lastScenery; }, room, shots, set padAssist(v) { padAssistTest = v; }, get aimFriction() { return input.aimFriction; }, parts, blooms, tokens, drop, spawnDrop, get assess() { return assess; }, set assessAt(v) { assessAt = v; }, set tokenCool(v) { tokenCool = v; }, get offset() { return offset; }, set offset(v) { offset = v; }, omen: (k) => startOmen(k), get omenState() { return omen; }, get director() { return director; }, get eye() { return fx.eye; }, track, hull, puncture: (c, cause = 'scrape') => hull.puncture(c, cause), overboard: () => goOverboard('test'), free: () => restrained && !restrained.freed && freeRestrained(), shove: () => shove(fx.eye, fx.fwd), ping: () => ping(fx.eye, fx.fwd), fireAt: (dir) => { fireProfile(fx.eye, fx.look, dir || fx.fwd); return state.profile; }, hitTarget: (key) => { const t = targets().find((x) => x.key === key); if (t) { shotProfile = state.profile; t.fn(); } return !!t; }, get wave() { return wave; }, set bot(v) { devBot = v; }, spawnEnc: (kind, extra = {}) => spawn({ e: { kind, ...extra }, s: s + 10, sec: track.sectionAt(s).sec }), get coop() { return { climber, crewGrab, ballast, restrained, protect, focusing, fov, profile: state.profile, special: state.special }; }, reset: () => { overboard = null; capsize = null; trailGrab = null; hull.state.capsized = false; }, capsize: () => startCapsize(), get swimming() { return overboard; }, get capsized() { return capsize; }, get grab() { return trailGrab; }, valve, linked, lifeguard, locker, wake, passengerStep, burst: () => burst(fx.eye, fx.fwd), get s() { return s; }, set s(v) { s = v; }, get waveRide() { return waveRide; }, ropes, debrisPool, get sea() { return sea; }, get hullFx() { return hullFx; }, get raftUp() { return raftUpTest; } };
+  if (import.meta.env.DEV) window.__ride = { get jumpY() { return jumpY; }, get darkRange() { return darkRange; }, afterDock, routeLines: () => routeLines(track.sectionAt(s).sec), get speed() { return speed; }, flowHere: () => flowHere(track.sectionAt(s).sec), set darkRange(v) { darkRange = v; }, learning, habits, omenWeights: (pool) => weigh(pool, habits.h, RAFT_ANSWERS), set omenCool(v) { omenCool = v; }, get omenCool() { return omenCool; }, raftPA, directRoute, settleRoute, lampLights: () => { return segments.filter((g) => g.lampPos).map((g) => ({ zone: raftZone(track.sectionAt(g.s).sec), ...raftLight(track.sectionAt(g.s).sec, lampColor, { intensity: 9.5, range: 10.5 }) })); }, get shotsFired() { return shotsFired; }, get taught() { return [...taught]; }, parts, camRig, effects, undertowWake: wake, waterField: field, ringParts, wakeParts, streakParts, stir, flashes, gatherLights: () => gatherLights(fx.eye), budget, blaster, get wedges() { return lastWedges; }, get chain() { return lastChain; }, get eyeExposure() { return eyeExposure; }, renderer, get scenery() { return lastScenery; }, room, shots, set padAssist(v) { padAssistTest = v; }, get aimFriction() { return input.aimFriction; }, parts, blooms, tokens, drop, spawnDrop, get assess() { return assess; }, set assessAt(v) { assessAt = v; }, set tokenCool(v) { tokenCool = v; }, get offset() { return offset; }, set offset(v) { offset = v; }, omen: (k) => startOmen(k), get omenState() { return omen; }, get director() { return director; }, get eye() { return fx.eye; }, track, hull, puncture: (c, cause = 'scrape') => hull.puncture(c, cause), overboard: () => goOverboard('test'), free: () => restrained && !restrained.freed && freeRestrained(), shove: () => shove(fx.eye, fx.fwd), ping: () => ping(fx.eye, fx.fwd), fireAt: (dir) => { fireProfile(fx.eye, fx.look, dir || fx.fwd); return state.profile; }, hitTarget: (key) => { const t = targets().find((x) => x.key === key); if (t) { shotProfile = state.profile; t.fn(); } return !!t; }, get wave() { return wave; }, set bot(v) { devBot = v; }, spawnEnc: (kind, extra = {}) => spawn({ e: { kind, ...extra }, s: s + 10, sec: track.sectionAt(s).sec }), get coop() { return { climber, crewGrab, ballast, restrained, protect, focusing, fov, profile: state.profile, special: state.special }; }, reset: () => { overboard = null; capsize = null; trailGrab = null; hull.state.capsized = false; }, capsize: () => startCapsize(), get swimming() { return overboard; }, get capsized() { return capsize; }, get grab() { return trailGrab; }, valve, linked, lifeguard, locker, wake, passengerStep, burst: () => burst(fx.eye, fx.fwd), get s() { return s; }, set s(v) { s = v; }, get waveRide() { return waveRide; }, ropes, debrisPool, get sea() { return sea; }, get hullFx() { return hullFx; }, get raftUp() { return raftUpTest; } };
 
   /** ?show=: put the ride into a fixed, readable state for screenshots and visual review. */
   function showcase(name) {
