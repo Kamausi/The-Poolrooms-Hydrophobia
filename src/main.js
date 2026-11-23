@@ -18,6 +18,7 @@ import { initInput, input, endFrame, releaseLock, requestLock, wasPressed, pollG
 import { initHud, hud } from './hud.js';
 import { sound } from './audio/audio.js';
 import { mixFor } from './audio/zones.js';
+import { departure } from './consequence.js';
 import { quality, setTier, applyQualitySetting } from './render/quality.js';
 import { createAutoTier, thinning } from './render/tiers.js';
 import { summarize, report as benchReport } from './debug/bench.js';
@@ -55,7 +56,7 @@ const freshState = (extra = {}) => ({
   passenger: { stage: 0, t: 0 }, ride: null, sectorKey: 's0', endless: false, seed: 0, sitting: false,
   stats: { freed: 0, revives: 0, repairs: 0, pressureRepairs: 0, survivors: 0, routes: [], shared: 0, shoves: 0 },
   gear: [], profile: 'pulse', special: 60, crewState: {}, downed: null, downUsed: false, protectT: 0, challenge: null, custom: null, highWater: false,
-  dressings: 1, fit: 'standard', autopilot: false, tags: [], photos: [], strandedSaved: {}, character: 'mars', claims: [], readings: [], rescued: 0, recognized: 0, forgotten: [], overrides: 0, sectorScore: 0, pressure: 1, sitT: 0, resolve: 0, memory: null,
+  dressings: 1, fit: 'standard', autopilot: false, tags: [], photos: [], strandedSaved: {}, character: 'mars', claims: [], readings: [], departures: {}, rescued: 0, recognized: 0, forgotten: [], overrides: 0, sectorScore: 0, pressure: 1, sitT: 0, resolve: 0, memory: null,
   ...extra,
 });
 
@@ -328,6 +329,12 @@ const events = {
   /** Scenes report observations for the playtest log. */
   log(type, data) { playlog.record(type, data); },
   board() {
+    // The consequence stage (consequence.js): what was left behind at this dock and what it changes on the water ahead.
+    {
+      const report = departure({ sector: SECTORS[state.sectorIndex]?.name || state.sectorKey, powered: !!state.power?.[state.sectorKey], routeMod: state.routeMod?.[state.sectorKey] || null });
+      (state.departures ||= {})[state.sectorKey] = report;
+      hud.toast(`LEFT BEHIND · ${report.text.join(' ')}`);
+    }
     // An early extraction is remembered once per expedition: the dock keeps your place.
     if (state.early?.[state.sectorKey] && !state.endless && !state.custom && !(state.memDone ||= {})[`e${state.sectorKey}`]) { state.memDone[`e${state.sectorKey}`] = true; recordSector(state.sectorKey, 'left'); }
     // A pressure canister found on foot goes into the softest chamber the moment you are back aboard.

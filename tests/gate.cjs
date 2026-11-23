@@ -112,5 +112,30 @@ const { open, check, finish, BASE } = require('./lib.cjs');
     return { none: true }; });
   check('on the raft the Attendant names a channel before a junction: honest is the safest offered, it is noted, and ignoring it costs nothing', !rp.none && rp.honest.safest && rp.honest.noted && rp.honest.outcome === 'ignored' && rp.honest.trust === 0, JSON.stringify(rp));
   check('a false channel names the riskiest, miscounts the raft, and following it is noticed', !rp.none && rp.lie.riskiest && rp.lie.count !== rp.lie.guests && rp.lie.outcome === 'complied' && /Nothing in the other one/.test(rp.lie.caption), JSON.stringify(rp));
+
+  // The consequence stage (consequence.js): boarding says what was left behind and what it changes. Left dark, the
+  // stretch after the dock runs on emergency light; restored, the report names the open gate. The notes keep both.
+  const cq = await page.evaluate(() => { const u = window.__underflow;
+    const out = {};
+    for (const i of [1, 2, 3]) {
+      u.beginSector(i); u.startRide(); u.startExplore(); u.setState({ health: 1e6 }); u.sim(1);
+      const key = u.state.sectorKey;
+      u.state.power[key] = false;
+      u.events.board(); u.sim(2);
+      const R = window.__ride, rep = u.state.departures?.[key];
+      out.dark = { rep, range: R.darkRange };
+      if (!R.darkRange) return out;
+      R.s = (R.darkRange[0] + R.darkRange[1]) / 2; u.sim(1);
+      const sum = () => R.gatherLights().reduce((a, l) => a + l.intensity, 0);
+      const dim = sum(); const keep = R.darkRange; R.darkRange = null; const full = sum(); R.darkRange = keep;
+      out.dark.ratio = dim / full;
+      u.state.power[key] = true; u.startExplore(); u.sim(1); u.events.board(); u.sim(2);
+      out.lit = { rep: u.state.departures[key], range: window.__ride.darkRange };
+      out.toast = document.body.textContent.includes('LEFT BEHIND');
+      return out;
+    }
+    return out; });
+  check('leaving a dock dark: the crew says so and the stretch after the dock runs on emergency light (dimmer lamps)', cq.dark?.rep?.dim && /emergency light/.test(cq.dark.rep.text[0]) && cq.dark.range && cq.dark.ratio < 0.9, JSON.stringify(cq));
+  check('leaving it lit: the report names the open service gate and nothing is dimmed', cq.lit && !cq.lit.rep.dim && /service gate/.test(cq.lit.rep.text[0]) && !cq.lit.range, JSON.stringify(cq.lit));
   await finish(browser, errors);
 })();

@@ -30,7 +30,7 @@ The audit read the single-file release (`dist/HYDROPHOBIA.html`). That file is o
 | Recommendation | Status |
 |---|---|
 | Water flow as the one mechanic joining the raft and on foot | Partly there. Before this audit, the raft shot diverters and took gates, and on foot the player worked pumps, valves and the wave pool's drain-or-circulate choice, which rewrites the exit. The loop was **not** restructured around flow. |
-| An explicit consequence stage | Partly there: the water decision and facility memory (`docs/WORLD_MEMORY.md`). Not made a stage of every dock. |
+| An explicit consequence stage | Built (`src/consequence.js`): boarding at every dock says what was left behind and what it changes ahead, in the same words each time (circuit restored: the service gate is open; left dark: the channel ahead runs on emergency light; the way-out choice: flooded, drained or bypass outlet). Leaving a dock dark halves the lamps from the holding pool to the next room. The journal's FIELD NOTES keep it under LEFT BEHIND. Checked in `tests/gate.cjs`; not tuned by human play. |
 | Actions in tiers: primary, contextual, advanced | **Built.** `src/controltiers.js` puts every action in a tier: primary (aim, fire, move, hop, use, the inspection beam), when asked (brace, shove, patch, paddle, boost, recharge, dressing, map, look back, the override) and advanced (blaster profiles, the burst, ping, Ride Control, the helm, the work lamp). The controls reference in Settings and pause and both binding lists are grouped by tier, with the labels of the device in use, and the first-time tip for an advanced action waits until the player has fired five shots and spent forty seconds on the raft. Unit tests cover the tiers and the tip rule; `tests/gamepad.cjs` checks the grouped reference with the controller's labels and that shots are counted. Whether the order helps a new player has not been judged by anyone. |
 
 ## Section 4: horror direction
@@ -116,7 +116,7 @@ The audit's gate, as it wrote it. **0 of 12 verified**: every item needs unfamil
 
 - The Attendant running procedures other than waits, directions, locks and channels.
 - A controller-first usability pass judged by a person on real controllers (the tests use an emulated pad).
-- The loop restructured around water flow, with a consequence stage at every dock.
+- The loop restructured around water flow (the consequence stage at every dock is built; the loop itself is not restructured).
 - The architectural credibility pass; water that breaks the facility's rules.
 - The 12–18 minute reference chapter sequence.
 - Narrative changes (Crew Seven, the facility anticipating you).

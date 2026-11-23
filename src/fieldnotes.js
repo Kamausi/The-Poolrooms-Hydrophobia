@@ -69,7 +69,7 @@ const LEDGER_KINDS = ['places', 'machinery', 'behaviours', 'visitors', 'changes'
  * `sectorIndex` where you are; `ledger` the crew ledger ({ kind: ['NAME: text'] }); `readings`, `claims` the notes;
  * `documents` the logbook ([{ title, text }]). Returns [{ name, route, seen, read, counted, documents }].
  */
-export function casebook({ sectors, sectorIndex, ledger = {}, readings = [], claims = [], documents = [] }) {
+export function casebook({ sectors, sectorIndex, ledger = {}, readings = [], claims = [], documents = [], departures = {} }) {
   const out = [];
   for (let i = Math.min(sectorIndex, sectors.length - 1); i >= 0; i--) {
     const name = sectors[i];
@@ -82,6 +82,7 @@ export function casebook({ sectors, sectorIndex, ledger = {}, readings = [], cla
       read: readings.filter((r) => r.sector === name).reverse(),
       counted: claims.filter((c) => c.sector === name).reverse(),
       documents: documents.filter((d) => d.title.toUpperCase().includes(name.toUpperCase())).map((d) => d.title),
+      left: Object.values(departures).filter((d) => d.sector === name).flatMap((d) => d.text),
     });
   }
   return out;

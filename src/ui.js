@@ -635,7 +635,7 @@ export function journalView(state) {
   const counts = () => {
     const box = el('div', 'logbook counts');
     box.append(el('p', 'mono', 'FIELD NOTES · BY ATTRACTION'));
-    const cases = casebook({ sectors: SECTORS.map((s) => s.name), sectorIndex: state.endless ? -1 : state.sectorIndex, ledger: facility.ledger, readings: state.readings || [], claims: state.claims || [], documents: state.logbook || [] });
+    const cases = casebook({ sectors: SECTORS.map((s) => s.name), sectorIndex: state.endless ? -1 : state.sectorIndex, ledger: facility.ledger, readings: state.readings || [], claims: state.claims || [], documents: state.logbook || [], departures: state.departures || {} });
     if (!cases.length) box.append(el('p', 'mono small', 'Nothing yet.'));
     for (const c of cases) {
       const a = el('article', 'case');
@@ -645,7 +645,8 @@ export function journalView(state) {
       part('READ IN THE BEAM', c.read.map((r) => readingLine(r).slice(c.name.length + 3)), 'reading');
       part('COUNTED BY THE FACILITY', c.counted.map((n) => claimLine(n).slice(c.name.length + 3)), 'claim');
       part('DOCUMENTS', c.documents, 'doc');
-      if (!c.seen.length && !c.read.length && !c.counted.length && !c.documents.length) a.append(el('p', 'mono small', 'Nothing noted here. Hold the inspection beam on things until they read.'));
+      part('LEFT BEHIND', c.left || [], 'left');
+      if (!c.seen.length && !c.read.length && !c.counted.length && !c.documents.length && !(c.left || []).length) a.append(el('p', 'mono small', 'Nothing noted here. Hold the inspection beam on things until they read.'));
       box.append(a);
     }
     return box;
