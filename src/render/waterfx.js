@@ -31,11 +31,11 @@ export function createWaterField({ slots = RING_SLOTS } = {}) {
      * A disturbance at `at` ([x, y, z], y the water surface there) of `kind` (a key of IMPULSE) or a strength, at
      * time `now`. Takes a finished ring's slot, or the oldest. Returns the slot used.
      */
-    impulse(at, kind = 'splash', now = 0) {
+    impulse(at, kind = 'splash', now = 0, { inward = false } = {}) {
       const k = typeof kind === 'number' ? kind : IMPULSE[kind] ?? 0.6;
       let i = rings.findIndex((r) => now - r.t0 >= RING_LIFE);
       if (i < 0) i = rings.reduce((o, r, j) => (r.t0 < rings[o].t0 ? j : o), 0);
-      Object.assign(rings[i], { x: at[0], y: at[1] ?? 0, z: at[2], t0: now, k });
+      Object.assign(rings[i], { x: at[0], y: at[1] ?? 0, z: at[2], t0: now, k, inward });
       if (k >= 0.5) newest = { at: [at[0], at[1] ?? 0, at[2]], time: now };
       return i;
     },
@@ -55,6 +55,9 @@ export function ringShape(r, now) {
   const age = now - r.t0;
   if (age < 0 || age >= RING_LIFE || r.k <= 0) return null;
   const left = 1 - age / RING_LIFE;
+  // An inward ring (ai/wrongwater.js) is the same ring run backwards: it arrives from outside, narrows, and closes
+  // on its centre, as if the water were answering something that has not happened yet.
+  if (r.inward) return { at: [r.x, r.y, r.z], radius: RING_START + (RING_LIFE - age) * RING_SPEED * (0.7 + 0.3 * Math.min(1.5, r.k)), fade: Math.min(1, r.k) * (1 - left) * (1 - left), inward: true };
   return { at: [r.x, r.y, r.z], radius: RING_START + age * RING_SPEED * (0.7 + 0.3 * Math.min(1.5, r.k)), fade: Math.min(1, r.k) * left * left };
 }
 

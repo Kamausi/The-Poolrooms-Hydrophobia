@@ -59,6 +59,7 @@ import { driftStage, sideWord, OPPOSITE, pickPassed } from './ai/driftfx.js';
 import { zoneAt, createZoneTracker } from './audio/zones.js';
 import { ventRoute, ventCells } from './audio/vents.js';
 import { chooseClosure } from './ai/corridor.js';
+import { RING_TIMES, ringSpot, mayHappen as wrongWaterMay } from './ai/wrongwater.js';
 import { lightFor, isFailing } from './render/lightstyle.js';
 import { noteClaim, noteReading } from './fieldnotes.js';
 import { reflectionMode, delayedPose, trimHistory, turnUnder, tiltFor, LAG_SECONDS, SEE_RANGE, LEFT_BEHIND } from './ai/reflection.js';
@@ -1819,6 +1820,29 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     noteClaim(state.claims ||= [], { sector: sector.name, said: d.count, actual: guestsHere(), what: d.kind, t: time });
     return d;
   }
+  // Water that breaks the facility's rules (ai/wrongwater.js): once per dock, rings on still water that close on a
+  // point instead of spreading from it. Never explained; the crew remark on it only if one of them is there to see.
+  const wrongWater = { done: false, wait: 50, at: null, t: 0, rings: 0, witness: null };
+  function updateWrongWater(dt, quiet) {
+    const Wn = wrongWater;
+    if (Wn.at) {
+      Wn.t += dt;
+      while (Wn.rings < RING_TIMES.length && Wn.t >= RING_TIMES[Wn.rings]) { field.impulse(Wn.at, 0.9, time, { inward: true }); Wn.rings++; }
+      return;
+    }
+    if (!wrongWaterMay({ sectorIndex: sector.index, done: Wn.done, quiet })) return;
+    if ((Wn.wait -= dt) > 0) return;
+    const cands = waterParts.filter((w) => isWater(w.x, w.z)).map((w) => { const c = center(w.x, w.z); return [c[0], waterLevel(w.x, w.z), c[2]]; });
+    const p = ringSpot(cands, player.pos, (q) => inViewNow([q[0], q[1] + 0.05, q[2]]));
+    if (!p) { Wn.wait = 3; return; }
+    Wn.done = true; Wn.at = p; Wn.t = 0;
+    const w = followers.find((f) => !f.gone && f.pos && distance(f.pos, p) < 14);
+    if (w) {
+      Wn.witness = w.id;
+      events.ledger?.('changes', `${sector.name}: rings on still water that closed on a point instead of spreading from it`);
+      setTimeout(() => hud.say(w.id.toUpperCase(), 'Did you see that? The rings. They went in.', 'crew'), 2600);
+    }
+  }
   function updateAttendant(dt, calm) {
     const A = attendantAI, d = A.d;
     // The gate counts down whatever happens to the instruction, so it can never stay shut.
@@ -2794,6 +2818,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     updateFomens(dt, ask);
     const calmNow = director.phase === 'relax' && !(lifeguard && lifeguard.state !== 'watching') && !(undertow.alive && undertow.holding > 0);
     updateAttendant(dt, calmNow);
+    updateWrongWater(dt, calmNow);
     updateObserver(dt, calmNow);
     updateDriftSteps(dt, calmNow);
     updateModerateDrift(dt, calmNow);
@@ -4314,7 +4339,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     for (let i = 0; i < (r.valves || 0); i++) { const v = pumpValves.find((x) => x.id === valveOrder[i]); if (v) v.open = true; }
     valveStep = r.valves || 0;
   }
-  if (import.meta.env.DEV) window.__explore = { get prompts() { return lastPrompts.map((p) => p[1]); }, corridor, closeCorridor, openCorridor, corridorCell, get closedCell() { return closedCell; }, closedWall, openCell, vents, ventHeard, heard, scanTick: (dt, eye, dir) => scanTick(dt, eye, dir), get acousticZone() { return acousticZone; }, zoneHere: (x, z) => zoneAt(x, z, { open: acousticOpen, water: isWater, openSky: !!rules.openSky }), get submerged() { return submerged; }, get lockCell() { return lockCell; }, openDoorNear, keypads, gates, openKeypad: () => { keypadOpen = true; }, get keypadOpen() { return keypadOpen; }, blockedAt: (x, z) => blocked(x, z), refl, selfFig, reflectionSpot, parts, camRig, takenCells, habits, falseDoor, showFalseDoor, wallParts, get time() { return time; }, signSeen, moved, placeMoved, wrongVoice, movedSign, trail, watcher, perchWatcher, watcherFig, startDriftSteps, get driftSteps() { return driftSteps; }, attendant: attendantAI, issueDirective, learning, guestsHere, get fomen() { return fomen; }, startFomen: (k) => startFomen(k), burstDamage, burstWindup, rows, thread, threadParts, ripGrid, ripPart, get ripCell() { return ripCell; }, routeTo, get W() { return W; }, get H() { return H; }, isWall, cellOf, center, wetMarks: wet, wetParts, waterField: field, ringParts, caustics, waterLevel, stir, jolt, effects, get blown() { return blown; }, flashes, frameEnv: () => lastEnv, marcos, get marcoApart() { return marcoApart; }, mirror: () => mirrorSurface && detachMirror && { height: mirrorSurface.height, parts: mirrorSurface.partIndices.length, key: mirrorKey }, models: () => parts.filter((p) => p.model).map((p) => ({ model: p.model, name: p.name, at: [p.matrix[12], p.matrix[13], p.matrix[14]] })), flashes, budget, wave: (n, f) => wave(n, f), lineOfSight, get remembered() { return remembered; }, get chain() { return lastChain; }, get eyeExposure() { return eyeExposure; }, renderer, get driftSigns() { return driftSigns; }, get wedges() { return lastWedges; }, survey, get surveyCoverage() { return surveyCoverage(survey, surveyOpen); }, surveyOpen, omen: (k) => startFomen(k), circuit, setEmergency, setBlackout, get blackout() { return blackout; }, signParts, get resetT() { return resetT; }, get emergency() { return emergency; }, blocked, isWall, finds, found, get lampPlaced() { return lampPlaced; }, lights: () => gatherLights(add(player.pos, [0, 1.6, 0])), get hesitation() { return hesitation; }, get lastOmen() { return lastFomen; }, get marcoAct() { return marcoAct; }, set marcoAct(v) { marcoAct = v; }, marcos, columns, wavePool, get basin() { return basin; }, isWater, floorTop, get operating() { return operating; }, set operating(v) { operating = v; }, panelFront, holdT, shoot, spawnBloom, occupant, lockers, noise, violate, get omenState() { return fomen; }, door, blooms, lamps, director, followers, get dockKind() { return dockKind; }, get valves() { return { order: valveOrder, step: valveStep, list: pumpValves }; }, june: juneEvent, thread, get clock() { return clock; }, stagnant, player, center, undertow, lifeguard, cellPos, panelPos, raftPos, code, find, floaters, restorePower };
+  if (import.meta.env.DEV) window.__explore = { get prompts() { return lastPrompts.map((p) => p[1]); }, corridor, closeCorridor, openCorridor, corridorCell, get closedCell() { return closedCell; }, closedWall, openCell, vents, ventHeard, heard, scanTick: (dt, eye, dir) => scanTick(dt, eye, dir), get acousticZone() { return acousticZone; }, zoneHere: (x, z) => zoneAt(x, z, { open: acousticOpen, water: isWater, openSky: !!rules.openSky }), get submerged() { return submerged; }, get lockCell() { return lockCell; }, openDoorNear, keypads, gates, openKeypad: () => { keypadOpen = true; }, get keypadOpen() { return keypadOpen; }, blockedAt: (x, z) => blocked(x, z), refl, selfFig, reflectionSpot, parts, camRig, takenCells, habits, falseDoor, showFalseDoor, wallParts, get time() { return time; }, signSeen, moved, placeMoved, wrongVoice, movedSign, trail, watcher, perchWatcher, watcherFig, startDriftSteps, get driftSteps() { return driftSteps; }, attendant: attendantAI, issueDirective, wrongWater, updateWrongWater, learning, guestsHere, get fomen() { return fomen; }, startFomen: (k) => startFomen(k), burstDamage, burstWindup, rows, thread, threadParts, ripGrid, ripPart, get ripCell() { return ripCell; }, routeTo, get W() { return W; }, get H() { return H; }, isWall, cellOf, center, wetMarks: wet, wetParts, waterField: field, ringParts, caustics, waterLevel, stir, jolt, effects, get blown() { return blown; }, flashes, frameEnv: () => lastEnv, marcos, get marcoApart() { return marcoApart; }, mirror: () => mirrorSurface && detachMirror && { height: mirrorSurface.height, parts: mirrorSurface.partIndices.length, key: mirrorKey }, models: () => parts.filter((p) => p.model).map((p) => ({ model: p.model, name: p.name, at: [p.matrix[12], p.matrix[13], p.matrix[14]] })), flashes, budget, wave: (n, f) => wave(n, f), lineOfSight, get remembered() { return remembered; }, get chain() { return lastChain; }, get eyeExposure() { return eyeExposure; }, renderer, get driftSigns() { return driftSigns; }, get wedges() { return lastWedges; }, survey, get surveyCoverage() { return surveyCoverage(survey, surveyOpen); }, surveyOpen, omen: (k) => startFomen(k), circuit, setEmergency, setBlackout, get blackout() { return blackout; }, signParts, get resetT() { return resetT; }, get emergency() { return emergency; }, blocked, isWall, finds, found, get lampPlaced() { return lampPlaced; }, lights: () => gatherLights(add(player.pos, [0, 1.6, 0])), get hesitation() { return hesitation; }, get lastOmen() { return lastFomen; }, get marcoAct() { return marcoAct; }, set marcoAct(v) { marcoAct = v; }, marcos, columns, wavePool, get basin() { return basin; }, isWater, floorTop, get operating() { return operating; }, set operating(v) { operating = v; }, panelFront, holdT, shoot, spawnBloom, occupant, lockers, noise, violate, get omenState() { return fomen; }, door, blooms, lamps, director, followers, get dockKind() { return dockKind; }, get valves() { return { order: valveOrder, step: valveStep, list: pumpValves }; }, june: juneEvent, thread, get clock() { return clock; }, stagnant, player, center, undertow, lifeguard, cellPos, panelPos, raftPos, code, find, floaters, restorePower };
 
   /** ?show=: put the dock into a fixed, readable state for screenshots and visual review. */
   function showcase(name) {
