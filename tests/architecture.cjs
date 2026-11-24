@@ -17,10 +17,12 @@ const { open, check, finish } = require('./lib.cjs');
       // Every pipe end at the water is over a pool edge: the last cell of each run borders water.
       const edges = E.pipeRuns.every(({ run }) => { const [x, z] = run[run.length - 1]; return [[1, 0], [-1, 0], [0, 1], [0, -1], [0, 0]].some(([dx, dz]) => '~ulrfo'.includes(E.rows[z + dz]?.[x + dx])); });
       const drains = names.filter((n) => n.startsWith('Main drain')).length;
-      res.push({ sector: i, machines, runs, pipes, edges, drains, models: E.models().length > 0 });
+      const lines = names.filter((n) => n.startsWith('Service line')).length, staff = names.filter((n) => n.startsWith('Sign STAFF ONLY')).length;
+      res.push({ sector: i, machines, runs, pipes, edges, drains, models: E.models().length > 0, lines, serviceEdges: E.service.edges.length, staff, plant: E.service.cells.length });
     }
     return res; });
   check('every machine that works the water has a service pipe run to the pool it serves', out.every((r) => r.runs === r.machines && r.pipes >= r.runs * 2 && r.edges), JSON.stringify(out));
   check('every dock with pools has main drains in their floors (when the drain model is loaded)', out.every((r) => !r.models || r.drains > 0), JSON.stringify(out));
+  check('the plant around each machine is marked off: a yellow line on every edge onto public floor, and a STAFF ONLY sign', out.every((r) => r.lines === r.serviceEdges && r.lines > 0 && r.staff >= 1 && r.plant > 0), JSON.stringify(out.map((r) => ({ s: r.sector, lines: r.lines, edges: r.serviceEdges, staff: r.staff, plant: r.plant }))));
   await finish(browser, errors);
 })();

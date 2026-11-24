@@ -37,3 +37,27 @@ describe('the architectural credibility rules', () => {
     }
   });
 });
+
+import { serviceSpace } from '../../src/architecture.js';
+describe('public and service spaces', () => {
+  it('the plant around a dry machine is staff-only, never the deck or the dock, with edges where it meets public floor', () => {
+    const m = [
+      '#########',
+      '#S....D.#',
+      '#.......#',
+      '#..~~~..#',
+      '#########',
+    ];
+    const sp = serviceSpace(m), cells = new Set(sp.cells);
+    expect(cells.has('1,1')).toBe(true);           // the panel itself
+    expect(cells.has('3,1')).toBe(true);           // two steps over dry floor
+    expect(cells.has('4,1')).toBe(false);          // three steps: public
+    expect(cells.has('3,2')).toBe(false);          // pool deck: public
+    expect(cells.has('6,1')).toBe(false);          // the dock: public
+    expect(sp.edges.length).toBeGreaterThan(0);
+    for (const e of sp.edges) { expect(cells.has(e.at.join())).toBe(true); expect(cells.has(e.to.join())).toBe(false); }
+  });
+  it('every authored map has a service space with at least one edge onto public floor', () => {
+    for (const s of [...SECTORS, REFERENCE_CHAPTER]) expect(serviceSpace(s.map).edges.length, s.id).toBeGreaterThan(0);
+  });
+});

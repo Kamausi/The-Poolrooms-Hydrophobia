@@ -114,3 +114,46 @@ export function problems(map) {
   for (const s of serviceRuns(map)) if (!s.run) out.push(`machine ${s.machine} at ${s.at} serves no water`);
   return out;
 }
+
+// ---------- Public and service spaces ----------
+// The plant around each dry machine (the service panel, the pump control, the water-level control) is staff-only:
+// the dry floor within two steps of it that is not pool deck (decks are where the public walks). The dock is always
+// public. Where service floor meets public floor there is a boundary: the scene paints a yellow line across it and
+// puts a STAFF ONLY sign beside it.
+
+const DRY_SKIP = new Set(['#', 'x', 'd', 'w']);
+/** How far from a machine its plant extends (steps over dry floor). */
+export const PLANT_REACH = 2;
+
+/**
+ * The service spaces of a map: { cells: ['x,z'], edges: [{ at: [x, z], to: [x, z] }] }, every edge going from a
+ * service cell to the public floor beside it.
+ */
+export function serviceSpace(map) {
+  const isDry = (x, z) => { const c = at(map, x, z); return !!c && !DRY_SKIP.has(c) && !POOL.has(c) && c !== 'D'; };
+  const deck = (x, z) => DIRS.some(([dx, dz]) => POOL.has(at(map, x + dx, z + dz)));
+  const cells = new Set();
+  map.forEach((row, z) => [...row].forEach((ch, x) => {
+    if (!MACHINES.includes(ch) || POOL.has(ch)) return; // the fountain panel stands in the water: no plant
+    cells.add(`${x},${z}`);
+    const q = [[x, z, 0]], seen = new Set([`${x},${z}`]);
+    while (q.length) {
+      const [cx, cz, d] = q.shift();
+      if (d >= PLANT_REACH) continue;
+      for (const [dx, dz] of DIRS) {
+        const nx = cx + dx, nz = cz + dz, k = `${nx},${nz}`;
+        if (seen.has(k) || !isDry(nx, nz) || deck(nx, nz)) continue;
+        seen.add(k); cells.add(k); q.push([nx, nz, d + 1]);
+      }
+    }
+  }));
+  const edges = [];
+  for (const k of cells) {
+    const [x, z] = k.split(',').map(Number);
+    for (const [dx, dz] of DIRS) {
+      const c = at(map, x + dx, z + dz);
+      if (c && c !== '#' && !cells.has(`${x + dx},${z + dz}`) && !POOL.has(c) && !DRY_SKIP.has(c)) edges.push({ at: [x, z], to: [x + dx, z + dz] });
+    }
+  }
+  return { cells: [...cells], edges };
+}
