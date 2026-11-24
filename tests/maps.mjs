@@ -35,5 +35,9 @@ for (const s of SECTORS) {
   for (let seed = 1; seed <= 12; seed++) { const r = generateDock(s.map, corpus, seed, { rules }); if (!solvable(r.map)) { console.log(s.id, 'generated map unsolvable at seed', seed); bad++; } if (!r.fallback) varied++; }
   if (varied < 9) { console.log(s.id, 'only', varied, 'of 12 seeds varied'); bad++; }
 }
+// The architectural credibility rules (src/architecture.js): every pool has drains, every machine a pipe run to water.
+const { problems: credibility } = await import('../src/architecture.js');
+for (const s of SECTORS) for (const p of credibility(s.map)) { console.log(s.id, 'not credible:', p); bad++; }
+for (const s of SECTORS) for (let seed = 1; seed <= 12; seed++) for (const p of credibility(generateDock(s.map, corpus, seed, { rules }).map)) { console.log(s.id, 'generated map not credible at seed', seed, p); bad++; }
 console.log(bad ? `PROBLEMS: ${bad}` : 'ALL MAPS SOLVABLE');
 process.exit(bad ? 1 : 0);

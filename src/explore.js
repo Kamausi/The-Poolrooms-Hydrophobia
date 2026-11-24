@@ -59,6 +59,7 @@ import { driftStage, sideWord, OPPOSITE, pickPassed } from './ai/driftfx.js';
 import { zoneAt, createZoneTracker } from './audio/zones.js';
 import { ventRoute, ventCells } from './audio/vents.js';
 import { chooseClosure } from './ai/corridor.js';
+import { planDrains, serviceRuns } from './architecture.js';
 import { RING_TIMES, ringSpot, mayHappen as wrongWaterMay } from './ai/wrongwater.js';
 import { lightFor, isFailing } from './render/lightstyle.js';
 import { noteClaim, noteReading } from './fieldnotes.js';
@@ -318,8 +319,8 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
   // Sunk so only the slotted top shows; the drained basin shows them plainly.
   if (model('drain')) {
     const dm = model('drain'), sink = (h) => 0.008 - h;
-    for (const [x, z] of find('~')) {
-      if (hash(x * 2.3, z * 4.1) > 0.12) continue;
+    // Every pool has main drains, about one for eight cells, spread over it (architecture.js).
+    for (const [x, z] of planDrains(grid.map((r) => r.join('')))) {
       const g = M('drain', `Main drain ${x},${z}`), h = 0.07;
       placeModel(g, add(center(x, z), [0, floorTop(x, z) + sink(h), 0]), 0, h, 0.55 / (dm.size[0] * h / dm.size[1]));
     }
@@ -329,6 +330,24 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
       const g = M('drain', `Overflow grate ${x},${z},${dx},${dz}`), h = 0.05, k = h / dm.size[1];
       placeModel(g, add(center(x, z), [dx * (CELL / 2 - 0.2), sink(h), dz * (CELL / 2 - 0.2)]), Math.atan2(dx, dz), h, [CELL * 0.9 / (dm.size[0] * k), 0.2 / (dm.size[2] * k)]);
     }
+  }
+  // ---------- Service pipes (architecture.js): every machine that works the water has a pipe run to the water it serves ----------
+  // Under the ceiling from the machine to the nearest pool edge, dropping at each end: down to the machine, and into
+  // the pool over the coping. On an open roof it runs along the floor instead. One shape and one material: one batch.
+  const pipeGeo = cylinder(12, 0, 1), pipeMat = { color: [0.42, 0.47, 0.46], metallic: 0.7, roughness: 0.45, map: genSurface('metal'), boxMapScale: 0.6 };
+  const pipeRuns = serviceRuns(grid.map((r) => r.join(''))).filter((r) => r.run);
+  const pipeY = rules.openSky ? 0.09 : wallH - 0.32;
+  for (const { machine, run } of pipeRuns) {
+    const pts = run.map(([x, z], i) => { const c = center(x, z); return [c[0] + 0.6, pipeY, c[2] + 0.6 * (i % 2 ? 1 : 1)]; });
+    pts.forEach((p, i) => { if (i) writeSegment(P(`Service pipe ${machine} ${i}`, pipeGeo, pipeMat).matrix, pts[i - 1], p, 0.07); });
+    const first = pts[0], last = pts[pts.length - 1];
+    if (!rules.openSky) writeSegment(P(`Service pipe ${machine} drop`, pipeGeo, pipeMat).matrix, first, [first[0], 1.3, first[2]], 0.07);
+    // Into the water: over the nearest pool edge and down past the coping.
+    const [lx, lz] = run[run.length - 1];
+    const dir = DIRS.find(([dx, dz]) => '~ulrfo'.includes(at(lx + dx, lz + dz))) || [0, 0];
+    const lip = [last[0] + dir[0] * (CELL / 2 - 0.4), pipeY, last[2] + dir[1] * (CELL / 2 - 0.4)];
+    writeSegment(P(`Service pipe ${machine} out`, pipeGeo, pipeMat).matrix, last, lip, 0.07);
+    writeSegment(P(`Service pipe ${machine} fall`, pipeGeo, pipeMat).matrix, lip, [lip[0], POOL + 0.2, lip[2]], 0.07);
   }
   // Starting blocks: a row of up to three along one straight edge of the pool, facing the water (generated model).
   if (model('startingBlock')) {
@@ -4339,7 +4358,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     for (let i = 0; i < (r.valves || 0); i++) { const v = pumpValves.find((x) => x.id === valveOrder[i]); if (v) v.open = true; }
     valveStep = r.valves || 0;
   }
-  if (import.meta.env.DEV) window.__explore = { get prompts() { return lastPrompts.map((p) => p[1]); }, corridor, closeCorridor, openCorridor, corridorCell, get closedCell() { return closedCell; }, closedWall, openCell, vents, ventHeard, heard, scanTick: (dt, eye, dir) => scanTick(dt, eye, dir), get acousticZone() { return acousticZone; }, zoneHere: (x, z) => zoneAt(x, z, { open: acousticOpen, water: isWater, openSky: !!rules.openSky }), get submerged() { return submerged; }, get lockCell() { return lockCell; }, openDoorNear, keypads, gates, openKeypad: () => { keypadOpen = true; }, get keypadOpen() { return keypadOpen; }, blockedAt: (x, z) => blocked(x, z), refl, selfFig, reflectionSpot, parts, camRig, takenCells, habits, falseDoor, showFalseDoor, wallParts, get time() { return time; }, signSeen, moved, placeMoved, wrongVoice, movedSign, trail, watcher, perchWatcher, watcherFig, startDriftSteps, get driftSteps() { return driftSteps; }, attendant: attendantAI, issueDirective, wrongWater, updateWrongWater, learning, guestsHere, get fomen() { return fomen; }, startFomen: (k) => startFomen(k), burstDamage, burstWindup, rows, thread, threadParts, ripGrid, ripPart, get ripCell() { return ripCell; }, routeTo, get W() { return W; }, get H() { return H; }, isWall, cellOf, center, wetMarks: wet, wetParts, waterField: field, ringParts, caustics, waterLevel, stir, jolt, effects, get blown() { return blown; }, flashes, frameEnv: () => lastEnv, marcos, get marcoApart() { return marcoApart; }, mirror: () => mirrorSurface && detachMirror && { height: mirrorSurface.height, parts: mirrorSurface.partIndices.length, key: mirrorKey }, models: () => parts.filter((p) => p.model).map((p) => ({ model: p.model, name: p.name, at: [p.matrix[12], p.matrix[13], p.matrix[14]] })), flashes, budget, wave: (n, f) => wave(n, f), lineOfSight, get remembered() { return remembered; }, get chain() { return lastChain; }, get eyeExposure() { return eyeExposure; }, renderer, get driftSigns() { return driftSigns; }, get wedges() { return lastWedges; }, survey, get surveyCoverage() { return surveyCoverage(survey, surveyOpen); }, surveyOpen, omen: (k) => startFomen(k), circuit, setEmergency, setBlackout, get blackout() { return blackout; }, signParts, get resetT() { return resetT; }, get emergency() { return emergency; }, blocked, isWall, finds, found, get lampPlaced() { return lampPlaced; }, lights: () => gatherLights(add(player.pos, [0, 1.6, 0])), get hesitation() { return hesitation; }, get lastOmen() { return lastFomen; }, get marcoAct() { return marcoAct; }, set marcoAct(v) { marcoAct = v; }, marcos, columns, wavePool, get basin() { return basin; }, isWater, floorTop, get operating() { return operating; }, set operating(v) { operating = v; }, panelFront, holdT, shoot, spawnBloom, occupant, lockers, noise, violate, get omenState() { return fomen; }, door, blooms, lamps, director, followers, get dockKind() { return dockKind; }, get valves() { return { order: valveOrder, step: valveStep, list: pumpValves }; }, june: juneEvent, thread, get clock() { return clock; }, stagnant, player, center, undertow, lifeguard, cellPos, panelPos, raftPos, code, find, floaters, restorePower };
+  if (import.meta.env.DEV) window.__explore = { get prompts() { return lastPrompts.map((p) => p[1]); }, corridor, closeCorridor, openCorridor, corridorCell, get closedCell() { return closedCell; }, closedWall, openCell, vents, ventHeard, heard, scanTick: (dt, eye, dir) => scanTick(dt, eye, dir), get acousticZone() { return acousticZone; }, zoneHere: (x, z) => zoneAt(x, z, { open: acousticOpen, water: isWater, openSky: !!rules.openSky }), get submerged() { return submerged; }, get lockCell() { return lockCell; }, openDoorNear, keypads, gates, openKeypad: () => { keypadOpen = true; }, get keypadOpen() { return keypadOpen; }, blockedAt: (x, z) => blocked(x, z), refl, selfFig, reflectionSpot, parts, camRig, takenCells, habits, falseDoor, showFalseDoor, wallParts, get time() { return time; }, signSeen, moved, placeMoved, wrongVoice, movedSign, trail, watcher, perchWatcher, watcherFig, startDriftSteps, get driftSteps() { return driftSteps; }, attendant: attendantAI, issueDirective, wrongWater, updateWrongWater, pipeRuns, learning, guestsHere, get fomen() { return fomen; }, startFomen: (k) => startFomen(k), burstDamage, burstWindup, rows, thread, threadParts, ripGrid, ripPart, get ripCell() { return ripCell; }, routeTo, get W() { return W; }, get H() { return H; }, isWall, cellOf, center, wetMarks: wet, wetParts, waterField: field, ringParts, caustics, waterLevel, stir, jolt, effects, get blown() { return blown; }, flashes, frameEnv: () => lastEnv, marcos, get marcoApart() { return marcoApart; }, mirror: () => mirrorSurface && detachMirror && { height: mirrorSurface.height, parts: mirrorSurface.partIndices.length, key: mirrorKey }, models: () => parts.filter((p) => p.model).map((p) => ({ model: p.model, name: p.name, at: [p.matrix[12], p.matrix[13], p.matrix[14]] })), flashes, budget, wave: (n, f) => wave(n, f), lineOfSight, get remembered() { return remembered; }, get chain() { return lastChain; }, get eyeExposure() { return eyeExposure; }, renderer, get driftSigns() { return driftSigns; }, get wedges() { return lastWedges; }, survey, get surveyCoverage() { return surveyCoverage(survey, surveyOpen); }, surveyOpen, omen: (k) => startFomen(k), circuit, setEmergency, setBlackout, get blackout() { return blackout; }, signParts, get resetT() { return resetT; }, get emergency() { return emergency; }, blocked, isWall, finds, found, get lampPlaced() { return lampPlaced; }, lights: () => gatherLights(add(player.pos, [0, 1.6, 0])), get hesitation() { return hesitation; }, get lastOmen() { return lastFomen; }, get marcoAct() { return marcoAct; }, set marcoAct(v) { marcoAct = v; }, marcos, columns, wavePool, get basin() { return basin; }, isWater, floorTop, get operating() { return operating; }, set operating(v) { operating = v; }, panelFront, holdT, shoot, spawnBloom, occupant, lockers, noise, violate, get omenState() { return fomen; }, door, blooms, lamps, director, followers, get dockKind() { return dockKind; }, get valves() { return { order: valveOrder, step: valveStep, list: pumpValves }; }, june: juneEvent, thread, get clock() { return clock; }, stagnant, player, center, undertow, lifeguard, cellPos, panelPos, raftPos, code, find, floaters, restorePower };
 
   /** ?show=: put the dock into a fixed, readable state for screenshots and visual review. */
   function showcase(name) {
