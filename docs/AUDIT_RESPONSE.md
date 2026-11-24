@@ -93,7 +93,7 @@ The audit advised stopping expansion until one chapter is exceptional, and postp
 
 ## Section 12: the reference chapter and the vertical-slice gate
 
-**Not built:** the audit's 12–18 minute chapter sequence (false safety, mastery, suspicion, escalation, compromised safety). The Closed Wave Pool exists as the reference chapter, with its water decision, but it was not rebuilt to that sequence.
+**Partly built: the sequence.** `src/chapterbeats.js` moves the Closed Wave Pool through the audit's five beats in order, never back. A beat comes from chapter play time (mastery from 2 minutes, suspicion from 5, escalation from 9, compromised safety from 13) or from what you have done, whichever is later: arriving on foot is at least mastery, the water decision at least escalation, and heading back to the raft after it is compromised safety. What each beat allows, on the raft and on foot: in **false safety** nothing escalates (the director is held) and nothing unexplained happens; in **mastery** the director runs and threats arrive, but there are still no omens; from **suspicion** the omens begin and the Attendant may lie (before it, it is honest however much it is trusted); **escalation** begins with a crescendo ("every pump in the building starts at once"); in **compromised safety** the Attendant calls the arrival dock a safe area, and something is waiting on it beside the raft; the Safe Room at the end says the bulkhead was closed a second time from the other side. Checked in `tests/beats.cjs` and `chapterbeats.test.js`; `tests/chapter.cjs` still plays the chapter end to end. **Not done:** nobody has timed a real play, so whether it runs 12–18 minutes is unknown; the beats gate the systems that exist rather than adding new authored content to each.
 
 The audit's gate, as it wrote it. **0 of 12 verified**: every item needs unfamiliar players or reference hardware, and neither has been used. The middle column is the closest automated evidence, which is not the same thing.
 
@@ -118,6 +118,6 @@ The audit's gate, as it wrote it. **0 of 12 verified**: every item needs unfamil
 - A controller-first usability pass judged by a person on real controllers (the tests use an emulated pad).
 - The loop restructured around water flow (built: the consequence stage at every dock and one head of water both modes move and read; not built: attractions and objectives designed around it).
 - The architectural credibility pass beyond drainage and plant-to-water pipes: public and service spaces laid out by rule.
-- The 12–18 minute reference chapter sequence.
+- The reference chapter timed by a real play against its 12–18 minute target, and new authored content for each beat.
 - Narrative changes (Crew Seven, the facility anticipating you).
 - GPU budgets on reference hardware; every item of the vertical-slice gate.

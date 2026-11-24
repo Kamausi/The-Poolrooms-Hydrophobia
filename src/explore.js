@@ -60,6 +60,7 @@ import { zoneAt, createZoneTracker } from './audio/zones.js';
 import { ventRoute, ventCells } from './audio/vents.js';
 import { chooseClosure } from './ai/corridor.js';
 import { planDrains, serviceRuns } from './architecture.js';
+import { tickChapter, allows as chapterAllows, floorAfter } from './chapterbeats.js';
 import { RING_TIMES, ringSpot, mayHappen as wrongWaterMay } from './ai/wrongwater.js';
 import { lightFor, isFailing } from './render/lightstyle.js';
 import { noteClaim, noteReading } from './fieldnotes.js';
@@ -1819,7 +1820,7 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     const doorCell = openDoorNear();
     const door = doorCell && { name: doorCell.name };
     const water = floorCells.length && [...Array(9)].some((_, i) => isWater(...cellOf(player.pos[0] + ((i % 3) - 1) * 6, player.pos[2] + (Math.floor(i / 3) - 1) * 6)));
-    const d = chooseDirective({ trust: attendantAI.trust, lastFalse: attendantAI.lastFalse, sectorIndex: sector.index, guests: guestsHere(), place, area: 'this hall', random, kind: force.kind ?? null, lie: force.lie ?? null, nearExit, door, water });
+    const d = chooseDirective({ trust: attendantAI.trust, lastFalse: attendantAI.lastFalse, sectorIndex: sector.index, guests: guestsHere(), place, area: 'this hall', random, kind: force.kind ?? null, lie: force.lie ?? (state.custom?.chapter && !chapterAllows(state.chapterBeat).lies ? false : null), nearExit, door, water });
     attendantAI.tried = false;
     // An honest closure really holds the gate; a false one leaves it open (the boarding prompt says so).
     attendantAI.gateT = d.kind === 'gate' && !d.lie ? d.seconds : 0;
@@ -2340,7 +2341,31 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
   }
 
   // ---------- Frame ----------
+  // The reference chapter's beats (chapterbeats.js): arriving on foot is at least mastery.
+  if (state.custom?.chapter) state.chapterFloor = floorAfter(state.chapterFloor, 'dock');
+  function chapterBeat(dt) {
+    const entered = tickChapter(state, dt);
+    if (!state.custom?.chapter) return;
+    const ch = chapterAllows(state.chapterBeat);
+    if (!ch.escalate) director.omen(0, 1); // false safety: nothing escalates
+    if (!ch.omens) fomenCool = Math.max(fomenCool, 5);
+    if (state.routeMod?.[key]) state.chapterFloor = floorAfter(state.chapterFloor, 'decision');
+    // The water decision made, heading back to the raft: that is leaving.
+    if (state.routeMod?.[key] && Math.hypot(raftPos[0] - player.pos[0], raftPos[2] - player.pos[2]) < 16) state.chapterFloor = floorAfter(state.chapterFloor, 'leave');
+    if (entered === 'escalation') { director.crescendo(); sound.pump?.(); hud.caption('[every pump in the building starts at once]'); }
+    if (entered === 'compromised' && !state.chapterCompromised) {
+      // The one place that has been safe all chapter, the dock with the raft, is not.
+      state.chapterCompromised = true;
+      const n = guestsHere();
+      hud.say('THE ATTENDANT', `${countWordCap(n)} ${n === 1 ? 'guest' : 'guests'}, the arrival dock is a safe area. Please make your way to your raft.`, 'attendant', true);
+      const spot = [raftPos[0] - dockWall[0] * 2.2, 1.2, raftPos[2] - dockWall[1] * 2.2];
+      setTimeout(() => { if (spawnBloom(spot)) hud.caption('[something is standing on the dock, beside the raft]'); else { if (!fomen) startFomen('lights'); hud.caption('[the lights over the dock go out]'); } }, 2500);
+      events.ledger?.('changes', `${sector.name}: something waiting on the arrival dock, the one place that had been safe`);
+    }
+  }
+  const countWordCap = (n) => { const w = ['No', 'One', 'Two', 'Three', 'Four', 'Five', 'Six'][n] || String(n); return w; };
   function update(dt) {
+    chapterBeat(dt);
     flashes.tick(dt);
     effects.tick(dt);
     drawFx();

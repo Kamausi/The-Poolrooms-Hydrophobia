@@ -507,7 +507,7 @@ function enterSafeRoom() {
     hud.show(false);
     mode = 'end';
     const drained = state.routeMod?.[state.sectorKey] === 'drained';
-    return showModal('The Closed Wave Pool.', `The bulkhead closes. The pumps are loud, the floor is dry. Through the glass, ${drained ? 'the wave pool is drained to its tiles: the lit exit sign stands in an empty basin, pointing at a wall' : 'the wave pool is running at last, every wave arriving at a beach nobody is on'}.\n\n${windowAftermath(drained)}\n\nOn the wall, a maintenance photograph of this room. It was taken from somewhere beneath the floor.\n\n${expeditionRecord()}`, [['PLAY THE CHAPTER AGAIN ↗', () => { hideModal(); startCustom({ chapter: true, tokens: REFERENCE_CHAPTER.ride, base: 0 }); }, true], ['MENU', toMenu]], 'REFERENCE CHAPTER');
+    return showModal('The Closed Wave Pool.', `${state.chapterCompromised ? 'The bulkhead closes behind you. Something on the other side closes it a second time.\n\n' : ''}The bulkhead closes. The pumps are loud, the floor is dry. Through the glass, ${drained ? 'the wave pool is drained to its tiles: the lit exit sign stands in an empty basin, pointing at a wall' : 'the wave pool is running at last, every wave arriving at a beach nobody is on'}.\n\n${windowAftermath(drained)}\n\nOn the wall, a maintenance photograph of this room. It was taken from somewhere beneath the floor.\n\n${expeditionRecord()}`, [['PLAY THE CHAPTER AGAIN ↗', () => { hideModal(); startCustom({ chapter: true, tokens: REFERENCE_CHAPTER.ride, base: 0 }); }, true], ['MENU', toMenu]], 'REFERENCE CHAPTER');
   }
   if (state.custom) {
     hud.show(false);

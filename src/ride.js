@@ -42,6 +42,7 @@ import { chooseRoute, judgeRoute, nextTrust, createLearning } from './ai/attenda
 import { createHabits, weigh, pickWeighted, RAFT_ANSWERS, RAFT_SPEED } from './ai/habits.js';
 import { DARK_STRETCH, inDarkStretch } from './consequence.js';
 import { upstreamStretch, streakFlow } from './ai/wrongwater.js';
+import { tickChapter, allows as chapterAllows } from './chapterbeats.js';
 import { moves as waterMoves, head as waterHead, gaugeLine, currentFactor } from './flow.js';
 import { noteClaim } from './fieldnotes.js';
 import { AMBIENT } from './sectors.js';
@@ -1833,6 +1834,9 @@ export function createRide(canvas, state, sector, events, opts = {}) {
     budget.tick(dt);
     budget.sweep((b) => typeof b !== 'object' || b.active === undefined || (b.active && !b.dying)); // only Blooms are swept; grab and surge slots are given back by their owners
     time += dt;
+    // The reference chapter's beats (chapterbeats.js): no escalation in false safety, no omens before suspicion.
+    { const entered = tickChapter(state, dt);
+      if (state.custom?.chapter) { const ch = chapterAllows(state.chapterBeat); if (!ch.escalate) director.omen(0, 1); if (!ch.omens) omenCool = Math.max(omenCool, 5); if (entered === 'escalation') director.crescendo(); } }
     // Habits (ai/habits.js), every frame on the water: looking back or scanning, rushing, holding still, being hurt.
     habits.observe({ dt, scanning: !!input.scanning || isDown('x'), speed, fast: RAFT_SPEED, hurt: Math.max(0, habHealth - state.health), still: speed < 1.5 || isDown('s') || isDown('arrowdown') });
     habHealth = state.health;
