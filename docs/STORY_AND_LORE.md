@@ -291,6 +291,7 @@ No long cutscenes. The story comes through:
 - **Safe Room graffiti**
 - **Lost & Found items**: a sunglasses case, a child's armband, a Pumphouse ID badge. Each has a one-line note, collected in an in-game logbook.
 - **Field Manual pages** (the build already has *Field Manual / 001*): Pumphouse documents explaining the gear, written by Dez, with increasingly worried notes in the margins.
+- **The facility expected you** (built, `src/expected.js`): every dock has a reservation board for a Drainer party of four under the crew's surnames, booked six weeks ago, the week Crew Seven went down. A crewmate the crew has forgotten stays on it. Further in, a mark from Crew Seven written to one of the crew by name, from the person they are tied to: Caleb to Mars ("I kept count like you taught me. It kept coming out one short"), Priya to June ("The map is right. We moved"), Crew Seven to Dez about the welds, the rider to Tubs. Both are read with the inspection beam.
 
 ---
 
