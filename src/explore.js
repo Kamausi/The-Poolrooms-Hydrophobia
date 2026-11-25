@@ -2406,7 +2406,16 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     if (state.routeMod?.[key]) state.chapterFloor = floorAfter(state.chapterFloor, 'decision');
     // The water decision made, heading back to the raft: that is leaving.
     if (state.routeMod?.[key] && Math.hypot(raftPos[0] - player.pos[0], raftPos[2] - player.pos[2]) < 16) state.chapterFloor = floorAfter(state.chapterFloor, 'leave');
-    if (entered === 'escalation') { director.crescendo(); sound.pump?.(); hud.caption('[every pump in the building starts at once]'); }
+    // Each beat's own moment in the Closed Wave Pool. Mastery: the crew teach the rule out loud, once.
+    if (state.chapterBeat === 'mastery' && !(state.chapterSaid ||= {}).mastery && followers.length) {
+      state.chapterSaid.mastery = true;
+      hud.say(followers[0].id.toUpperCase(), 'Lamp on the tower is the rule. Stay out of its light and it leaves us alone. Do the job, keep together, out the way we came.', 'crew');
+    }
+    if (entered === 'escalation') {
+      director.crescendo(); sound.pump?.(); hud.caption('[every pump in the building starts at once]');
+      // The wave display runs to the end in one go: every step lit.
+      if (wavePool) { wavePool.steps.forEach((q) => { q.material.emission = 2.2; }); wavePool.step = 12; }
+    }
     if (entered === 'compromised' && !state.chapterCompromised) {
       // The one place that has been safe all chapter, the dock with the raft, is not.
       state.chapterCompromised = true;
@@ -3154,7 +3163,8 @@ export function createExplore(canvas, state, sector, events, opts = {}) {
     if (!B.seated) {
       if (looking) B.seenEmpty = true;
       B.awayT = B.seenEmpty && !looking && d > 3 ? B.awayT + dt : 0;
-      if (B.awayT > 4) {
+      // The reference chapter (chapterbeats.js): the chair is only ever found occupied from suspicion on.
+      if (B.awayT > 4 && (!state.custom?.chapter || chapterAllows(state.chapterBeat).omens)) {
         B.seated = true;
         B.lamp.material.emission = 6;
         sound.switchOn();

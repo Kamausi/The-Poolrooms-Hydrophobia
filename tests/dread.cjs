@@ -31,7 +31,7 @@ const { open, newCampaign, check, finish } = require('./lib.cjs');
     return { mid, end: f.state, towel: u.state.towelAsk }; });
   check('a lucid survivor is pulled out slowly and will ask for a towel', r.none || (r.mid === 'floating' && r.end === 'gone' && !!r.towel), JSON.stringify(r));
 
-  r = await page.evaluate(() => { const u = window.__underflow; document.getElementById('chapter').click(); u.setState({ health: 1e6 }); u.startExplore(); u.step(5); const E = window.__explore, B = E.wavePool;
+  r = await page.evaluate(() => { const u = window.__underflow; document.getElementById('chapter').click(); u.setState({ health: 1e6 }); u.startExplore(); u.state.chapterT = 310; u.step(5); const E = window.__explore, B = E.wavePool; // from suspicion (chapterbeats.js): the chair waits for it
     // Look at the empty chair, then away for a while.
     const seat = B.o(0, 0, 2.25);
     const spot = [1, -1].map((k) => [seat[0] + B.side[0] * 4 * k, 0, seat[2] + B.side[2] * 4 * k])[0];
