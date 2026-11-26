@@ -1836,7 +1836,14 @@ export function createRide(canvas, state, sector, events, opts = {}) {
     time += dt;
     // The reference chapter's beats (chapterbeats.js): no escalation in false safety, no omens before suspicion.
     { const entered = tickChapter(state, dt);
-      if (state.custom?.chapter) { const ch = chapterAllows(state.chapterBeat); if (!ch.escalate) director.omen(0, 1); if (!ch.omens) omenCool = Math.max(omenCool, 5); if (entered === 'escalation') director.crescendo(); } }
+      if (state.custom?.chapter) { const ch = chapterAllows(state.chapterBeat); if (!ch.escalate) director.omen(0, 1); if (!ch.omens) omenCool = Math.max(omenCool, 5); if (entered === 'escalation') director.crescendo();
+        // False safety's own moment, once: the park's music, and the crew letting themselves enjoy it.
+        if (state.chapterBeat === 'false-safety' && time > 6 && !(state.chapterSaid ||= {}).falseSafety) {
+          state.chapterSaid.falseSafety = true;
+          sound.chime?.();
+          hud.caption('[somewhere, the park\'s music is playing: the wave pool jingle, warm and a little slow]');
+          if (!isSolo()) setTimeout(() => hud.say(crewName(), 'Hear that? Nothing\'s come at us for a whole minute. It\'s actually nice in here.', 'crew'), 2500);
+        } } }
     // Habits (ai/habits.js), every frame on the water: looking back or scanning, rushing, holding still, being hurt.
     habits.observe({ dt, scanning: !!input.scanning || isDown('x'), speed, fast: RAFT_SPEED, hurt: Math.max(0, habHealth - state.health), still: speed < 1.5 || isDown('s') || isDown('arrowdown') });
     habHealth = state.health;

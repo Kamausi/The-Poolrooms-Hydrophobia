@@ -7,7 +7,8 @@ const { open, check, finish } = require('./lib.cjs');
   await page.click('#start-exp'); await page.click('#chapter'); await page.waitForTimeout(500);
   const r = await page.evaluate(() => { const u = window.__underflow, R = window.__ride, out = {};
     u.setState({ health: 1e6, drift: 0 }); u.sim(30);
-    out.start = { beat: u.state.chapterBeat, holding: R.director.holding, omenCool: R.omenCool, phase: R.director.phase };
+    u.sim(200);
+    out.start = { beat: u.state.chapterBeat, holding: R.director.holding, omenCool: R.omenCool, phase: R.director.phase, moment: !!u.state.chapterSaid?.falseSafety };
     u.state.chapterT = 130; u.sim(60);
     out.mastery = { beat: u.state.chapterBeat, holding: R.director.holding, omenCool: R.omenCool };
     // On foot: the Attendant stays honest until suspicion, however much it is trusted.
@@ -31,7 +32,7 @@ const { open, check, finish } = require('./lib.cjs');
     return out; });
   await page.waitForTimeout(3200);
   const after = await page.evaluate(() => ({ caption: document.getElementById('caption').textContent, ledger: /one place that had been safe/.test(localStorage.getItem('underflow-facility') || '') }));
-  check('the chapter begins in false safety: nothing escalates and no omens', r.start.beat === 'false-safety' && r.start.holding && r.start.omenCool >= 5, JSON.stringify(r.start));
+  check('the chapter begins in false safety: nothing escalates and no omens, and the park\'s music plays once', r.start.beat === 'false-safety' && r.start.holding && r.start.omenCool >= 5 && r.start.moment, JSON.stringify(r.start));
   check('mastery: the director runs (no hold) but there are still no omens', r.mastery.beat === 'mastery' && !r.mastery.holding && r.mastery.omenCool >= 5, JSON.stringify(r.mastery));
   check('the Attendant is honest before suspicion, however much it is trusted, and may lie after', r.foot.lies === 0 && r.suspicion.beat === 'suspicion' && r.suspicion.lies > 0, JSON.stringify({ foot: r.foot, suspicion: r.suspicion }));
   check('each beat has its moment: mastery teaches the rule; the chair is only found occupied from suspicion', r.foot.taught && r.foot.chairBefore === false && r.suspicion.chair === true, JSON.stringify({ foot: r.foot, suspicion: r.suspicion }));
